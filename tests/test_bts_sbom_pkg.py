@@ -191,6 +191,11 @@ def test_stdout_safe_helper(monkeypatch):
     monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="utf-8"))
     assert cli._stdout_safe(text, True) == text                # UTF-8 console keeps real characters
 
+    class _OddStream:                                          # audit: non-str .encoding must not crash
+        encoding = 12345
+    monkeypatch.setattr(sys, "stdout", _OddStream())
+    assert cli._stdout_safe(text, True) == text
+
 
 def test_cli_version():
     r = run_cli("--version")

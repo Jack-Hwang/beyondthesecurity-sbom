@@ -217,7 +217,9 @@ def _stdout_safe(text: str, machine_readable: bool = False) -> str:
     re-serialised with ensure_ascii=True (lossless unicode escapes - data is never
     degraded to '?'), human-readable text keeps the errors=replace fallback
     installed by _harden_streams()."""
-    enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+    enc = getattr(sys.stdout, "encoding", None)
+    if not isinstance(enc, str) or not enc:
+        enc = "utf-8"                     # unknown/odd stream encoding: assume a capable stream
     try:
         text.encode(enc)
         return text
