@@ -112,6 +112,33 @@ into green checkmarks. The rules here are enforced, not aspirational:
 * `supply_chain` — typosquat / homoglyph / dependency-confusion detection.
 * `sector` — the 6-sector regulatory report engine (`sector_report()`).
 
+## Implementation status (구현 내역)
+
+Implemented as of 2026-11-16 (module → capability → tests):
+
+| Module | Implements | Key API / CLI | Tests |
+|---|---|---|---|
+| `sbom.py` | SPDX 2.3 generator (content-digested namespaces, real-graph DEPENDS_ON only, honest `NOASSERTION` licensing) | `build_spdx_document()`, CLI `sbom` | pkg suite |
+| `_internal/sbom.py` | CycloneDX 1.6/1.5 builder with NTIA element coverage | `bom` output / CLI `sbom --fmt` | pkg suite |
+| `osvscanner.py` + `_internal/osv_client.py` | **Google OSV integration** — api.osv.dev `query`/`querybatch`, alias grouping, CVSS v3.1/v4.0 scoring, parallel queries | CLI `scan` | pkg suite |
+| `_internal/osv_local_db.py` | OSV bulk-dump offline mode (GCS public data, sqlite cache) — air-gapped scanning | `BTS_SBOM_OSV_DB_PATH` env | pkg suite |
+| `_internal/version_match.py` | PEP 440 (pip) + semver (npm/cargo/go) range matching against OSV ranges — precise match verdicts with explanations | `match_range()`, `explain_match()` | unit table |
+| `_internal/remediation.py` | guided remediation — minimal fixed-version suggestion from OSV `fixed` events; `no-fixed-event` stated honestly | scan `remediation` block, `--no-remediation` | unit |
+| `_internal/policy.py` | policy engine (Black Duck-style) — severity/license deny rules → CI gate exit codes | CLI `policy` (exit 1 = fail) | unit |
+| `vex.py` | OpenVEX v0.2.0 generation + ingestion (reachability-driven `not_affected`, auditable suppression) | `statement()`, `build_document()`, CLI `vex` | pkg suite |
+| `reachability.py` | C/C++ function-level call-graph reachability for CVE triage with graph-completeness evidence | `reachability` API | pkg suite |
+| `sectors.py` | **6-sector regulatory reports** — cra (5 reqs) · fda (5) · r155 (4) · dod (4) · finance (4) · robot (4); verdicts pass/gap/not_evidence with measured evidence | `sector_report()`, `write_evidence()`, CLI `sector` | 42 tests |
+| `supply_chain.py` | typosquat / homoglyph / dependency-confusion detection | `supply_chain` API | pkg suite |
+| `_internal/ntia_check.py` | NTIA minimum-elements scoring (SPDX + CycloneDX), reused by sector profiles | `evaluate()` | ntia tests |
+| `_internal/manifests/*` | lockfile/manifest parsers: npm, pip, gomod, cargo, maven, nuget, gradle, mix, conan, dpkg, rpm (+extras) | `manifests` API | pkg suite |
+| `_internal/{epss_kev,epss_offline}.py` | EPSS scores + CISA KEV curation (online + offline tables) | vuln enrichment | pkg suite |
+| `_internal/{license_spdx,license_norm,license_scan,license_categories}.py` | SPDX expression parsing/normalization/scanning, license risk categories | license inventory | pkg suite |
+| `_internal/{fix_planner,callgraph,points_to,depsdev}.py` | fix planning, call-graph, points-to facts, deps.dev enrichment | internal APIs | pkg suite |
+
+Cross-platform: Windows / Linux / macOS (CI matrix `ubuntu-latest, windows-latest,
+macos-latest` × Python 3.10/3.12; UTF-8 enforced on Windows jobs). Zero
+third-party runtime dependencies — asserted by the self-SBOM.
+
 ## Status & scope honesty
 
 Vendored from the BTS platform's SCA stack (Apache-2.0). Deliberately NOT
