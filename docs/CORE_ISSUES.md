@@ -2,8 +2,8 @@
 
 BTS-SBOM (`bts_sbom_app/`) is built on the `bts_sbom` core in this repository and never edits it. Defects found by measuring against
 real repositories are recorded here as a work list for the core; each one has a workaround inside `bts_sbom_app/` so BTS-SBOM results stay
-correct meanwhile. **None of these has been fixed in `bts_sbom/` by the integration** - fixing them is a core change that belongs
-to whoever owns that package. When one is fixed, delete the matching workaround and its test.
+correct meanwhile. **Items 1-3 are still open (fixing them is a core change that belongs to whoever owns that package); item 4 was
+fixed in 0.2.0.** When one is fixed, delete the matching workaround and its test.
 
 ## 1. Guided remediation returned git commit SHAs as "safe versions" (v0.1.0)
 
@@ -28,16 +28,15 @@ BTS-SBOM workaround: `sbom.spdx()` restores the original expression when the cor
 `gopkg.in/yaml.v3 v3.0.0-2020...` and `golang.org/x/sys v0.6.0` appear next to the selected `go.mod` versions and inflate the
 findings. BTS-SBOM ignores go.sum-only entries when a sibling `go.mod` exists (see CHANGELOG / loop pass notes).
 
-## 4. `python -m bts_sbom --help` crashes on a cp949 console (found during the integration)
+## 4. `python -m bts_sbom --help` crashed on a cp949 console (FIXED in 0.2.0)
 
-On a Korean Windows console (default code page cp949) `bts-sbom --help` exits 1 and `bts-sbom sector ...` exits 2 with
-`'cp949' codec can't encode character '—'` (an em dash in the help/output text). With `PYTHONUTF8=1`
-all 28 core tests pass, which is why the CI workflow sets it; without it `tests/test_bts_sbom_pkg.py::test_cli_help` and
-`::test_cli_sector_all_six_sectors` fail on such a machine. Suggested fix: keep console output ASCII (or reconfigure stdout to
-UTF-8) in the CLI. BTS-SBOM avoids the problem by printing ASCII unless `BTS_SBOM_UNICODE=1`.
+On a Korean Windows console (default code page cp949) `bts-sbom --help` exited 1 and `bts-sbom sector ...` exited 2 with
+`'cp949' codec can't encode character U+2014` (an em dash in the help/output text). The core CI hid it because its workflows set
+`PYTHONUTF8=1`.
 
-**Already fixed elsewhere, not yet here:** the BTS platform's copy of the package (`ECU_Sentinel/bts_sbom`) fixed exactly this in
-its commit `0d8e5e6` (ASCII-only help text, `errors=replace` on stdout/stderr, plus a regression test over every subcommand x 3
-encodings). That commit is not in this repository's v0.1.1, so the fix has to be ported here (a core change that needs the core
-owner's decision and a push - not done by the integration). Note the same drift in the other direction: the platform copy still
-reports `__version__ = "0.1.0"` while this repository is 0.1.1.
+**Fixed in 0.2.0** (ported from the platform copy's commit `0d8e5e6` and extended): help and error text is pure ASCII; `main()`
+switches stdout/stderr to `errors="replace"` for human-readable output; JSON/SARIF on stdout is re-serialised with
+`ensure_ascii=True` when the console cannot encode it, so machine-readable output stays lossless. Regression tests in
+`tests/test_bts_sbom_pkg.py`: `test_cli_help_survives_non_utf8_console`, `test_help_text_is_pure_ascii`,
+`test_json_stdout_is_lossless_on_non_utf8_console` (cp949 / cp1252 / ascii, `PYTHONUTF8` unset). BTS-SBOM's own ASCII-by-default
+console output (`BTS_SBOM_UNICODE=1` opts in) was a workaround for this defect and can be simplified in a later release.

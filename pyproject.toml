@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bts-sbom"
-version = "0.1.1"
+version = "0.2.0"
 description = "Regulatory-sector SBOM/SCA toolkit — CRA · FDA 524B · UNECE R155/R156 · EO 14028 · finance OSS guide · robot/ISO 10218"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -46,3 +46,7 @@ bts_sbom_app = ["web/*", "web/css/*"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
+# explicit rule set (the long-standing ruff default) so a newer ruff cannot silently enable more rules and redden CI
+select = ["E4", "E7", "E9", "F"]

@@ -113,7 +113,7 @@ CSS 5개와 `sca_app.js` 는 플랫폼에서 **원본 그대로 복사**했고(`
 EXAONE: `EXAONE_API_KEY`(필수), `EXAONE_BASE_URL`(기본 `https://api.exaone.ai/v1`), `EXAONE_MODEL`(기본 `k-exaone_v2.5`) 또는 `BTS_SBOM_LLM_CONFIG=<json>`.
 키가 없으면 결정적 제안으로 동작하며 `source=deterministic` 과 원인을 남깁니다. 한국어 콘솔 출력은 `BTS_SBOM_UNICODE=1`.
 테스트(네트워크 전부 가짜): `python -m pytest -q tests/bts_sbom_app` · 스펙 점검: `python -m bts_sbom_app.speclint`.
-(한국어 Windows 콘솔(cp949)에서는 코어 CLI 테스트가 인코딩 때문에 실패하므로 `PYTHONUTF8=1` 을 켜고 실행하세요. CI 도 그렇게 합니다.)
+(0.2.0 부터 코어 CLI 는 `PYTHONUTF8` 없이도 한국어 Windows 콘솔(cp949)·ascii·cp1252 에서 동작합니다. CI 는 안전망으로 계속 `PYTHONUTF8=1` 을 켭니다.)
 
 ## 정직 계약
 

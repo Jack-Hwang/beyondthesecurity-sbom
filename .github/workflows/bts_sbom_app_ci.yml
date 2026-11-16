@@ -1,6 +1,6 @@
 # BTS-SBOM (bts_sbom_app/) CI. Separate from ci.yml on purpose: the core workflow is owned by the core package.
 # NOT yet run on GitHub (written locally): the same two commands pass locally with all network faked.
-# PYTHONUTF8=1 is required on Windows (the core CLI prints non-cp949 characters; see docs/CORE_ISSUES.md item 4).
+# PYTHONUTF8=1 is kept as a safety net on Windows; since 0.2.0 the core CLI also works without it (docs/CORE_ISSUES.md item 4).
 name: BTS-SBOM app CI
 
 on:

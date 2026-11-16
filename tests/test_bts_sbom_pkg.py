@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -83,7 +84,7 @@ def run_cli(*args, cwd=REPO):
 
 def test_import_surface_and_version():
     import bts_sbom
-    assert bts_sbom.__version__ == "0.1.1"
+    assert re.fullmatch(r"\d+\.\d+\.\d+", bts_sbom.__version__)
     for name in ("sector_report", "write_evidence", "SECTORS", "SCHEMA",
                  "build_spdx_document", "sbom_from_manifest", "validate_spdx",
                  "OsvScanner", "scan", "gate_exit_code", "build_report",
@@ -125,9 +126,136 @@ def test_cli_help():
         assert sub in r.stdout
 
 
+@pytest.mark.parametrize("enc", ["ascii", "cp949", "cp1252"])
+def test_cli_help_survives_non_utf8_console(enc):
+    """Regression: `--help` crashed with UnicodeEncodeError on a Korean Windows
+    console (cp949) because help text held U+2014/U+2192; CI hid it via PYTHONUTF8."""
+    import os
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONUTF8"}
+    env["PYTHONIOENCODING"] = enc
+    for argv in (["--help"], ["scan", "--help"], ["policy", "--help"], ["sector", "--help"],
+                 ["vex", "--help"], ["sbom", "--help"], ["selfsbom", "--help"]):
+        r = subprocess.run([sys.executable, "-m", "bts_sbom", *argv], capture_output=True,
+                           text=True, cwd=REPO, timeout=120, env=env, encoding=enc, errors="replace")
+        assert r.returncode == 0, (enc, argv, r.stderr[-300:])
+        assert "Traceback" not in r.stderr
+
+
+_HELP_ARGVS = (["--help"], ["scan", "--help"], ["policy", "--help"], ["sector", "--help"],
+               ["vex", "--help"], ["sbom", "--help"], ["selfsbom", "--help"])
+
+
+def _env_without_utf8(enc):
+    import os
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONUTF8"}
+    env["PYTHONIOENCODING"] = enc
+    return env
+
+
+def test_help_text_is_pure_ascii():
+    """The help text itself must be ASCII (not merely survive via errors=replace):
+    a '?' on a cp949/ascii console would otherwise hide a lossy help page."""
+    for argv in _HELP_ARGVS:
+        r = subprocess.run([sys.executable, "-m", "bts_sbom", *argv], capture_output=True, text=True,
+                           cwd=REPO, timeout=120, env=_env_without_utf8("utf-8"), encoding="utf-8")
+        assert r.returncode == 0, (argv, r.stderr[-300:])
+        assert r.stdout.isascii(), (argv, [c for c in r.stdout if ord(c) > 127][:8])
+
+
+@pytest.mark.parametrize("enc", ["ascii", "cp1252"])
+def test_json_stdout_is_lossless_on_non_utf8_console(enc, sbom_file):
+    """Regression (audit): errors=replace alone turned Korean text in JSON on stdout into '?'.
+    Machine-readable output must round-trip exactly on any console encoding."""
+    from bts_sbom import sector_report
+    expected = sector_report("finance", json.loads(sbom_file.read_text(encoding="utf-8")))
+    r = subprocess.run([sys.executable, "-m", "bts_sbom", "sector", "--sector", "finance",
+                        "--sbom", str(sbom_file)], capture_output=True, cwd=REPO, timeout=120,
+                       env=_env_without_utf8(enc))
+    assert r.returncode == 0, r.stderr[-300:]
+    got = json.loads(r.stdout.decode(enc))          # strict decode: stdout bytes are pure ASCII/1252
+    assert got["sector_title"] == expected["sector_title"]
+    assert any(ord(c) > 127 for c in expected["sector_title"])   # the test really covers non-ASCII data
+    assert "?" not in got["sector_title"]
+
+
+def test_stdout_safe_helper(monkeypatch):
+    import io
+    from bts_sbom import cli
+    doc = {"title": "caf" + chr(0xE9) + " " + chr(0xAE08) + chr(0xC735), "n": 3, "ok": True}
+    text = json.dumps(doc, indent=2, ensure_ascii=False)
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="ascii"))
+    safe = cli._stdout_safe(text, True)
+    assert safe.isascii() and json.loads(safe) == doc          # lossless, still valid JSON
+    assert cli._stdout_safe(text, False) == text               # human text: left to errors=replace
+    assert cli._stdout_safe("plain ascii", True) == "plain ascii"
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="utf-8"))
+    assert cli._stdout_safe(text, True) == text                # UTF-8 console keeps real characters
+
+    class _OddStream:                                          # audit: non-str .encoding must not crash
+        encoding = 12345
+    monkeypatch.setattr(sys, "stdout", _OddStream())
+    assert cli._stdout_safe(text, True) == text
+
+
 def test_cli_version():
     r = run_cli("--version")
-    assert r.returncode == 0 and "0.1.1" in r.stdout
+    import bts_sbom
+    assert r.returncode == 0 and bts_sbom.__version__ in r.stdout
+
+
+def test_version_has_a_single_source_of_truth():
+    """pyproject(s), `_version.py`, the package attribute and the CHANGELOG head must agree."""
+    import bts_sbom
+    from bts_sbom import _version
+    assert bts_sbom.__version__ == _version.__version__
+    seen = 0
+    for toml in (REPO / "pyproject.toml", REPO / "bts_sbom" / "pyproject.toml"):
+        if not toml.is_file():
+            continue
+        txt = toml.read_text(encoding="utf-8")
+        if not re.search(r'(?m)^name\s*=\s*"bts-sbom"', txt):
+            continue                      # the platform repo's own root pyproject is not ours
+        m = re.search(r'(?m)^version\s*=\s*"([^"]+)"', txt)
+        assert m and m.group(1) == bts_sbom.__version__, (str(toml), m and m.group(1))
+        seen += 1
+    assert seen >= 1
+    for log_path in (REPO / "bts_sbom" / "CHANGELOG.md", REPO / "CHANGELOG.md"):
+        if not log_path.is_file():
+            continue
+        log = log_path.read_text(encoding="utf-8")
+        if "All notable changes to bts-sbom" not in log:
+            continue                      # not this package's changelog
+        assert re.search(r"(?m)^## " + re.escape(bts_sbom.__version__) + r"\b", log), str(log_path)
+    for readme in (REPO / "bts_sbom" / "README.md", REPO / "README.md"):
+        if readme.is_file():
+            txt = readme.read_text(encoding="utf-8")
+            for found in re.findall(r"pkg:pypi/bts-sbom@([0-9][^\"\s,]*)", txt):
+                assert found == bts_sbom.__version__, (str(readme), found)   # documented sample output
+
+
+def test_emitted_sboms_carry_the_real_tool_version():
+    """Regression: CycloneDX tools[] and SPDX creators hard-coded 0.1.0 through 0.1.1."""
+    import bts_sbom
+    from bts_sbom._internal.sbom import build_sbom
+    from bts_sbom._internal.spdx_sbom import build_spdx
+    pk = [{"name": "demo", "version": "1.0", "license": "MIT"}]
+    cdx, _ = build_sbom(pk, "t", "2026-01-01T00:00:00Z")
+    assert cdx["metadata"]["tools"][0]["version"] == bts_sbom.__version__
+    out = build_spdx(pk, "t", "2026-01-01T00:00:00Z")
+    doc = out[0] if isinstance(out, tuple) else out
+    assert "Tool: bts-sbom-" + bts_sbom.__version__ in doc["creationInfo"]["creators"]
+    # the path behind the user-facing `bts-sbom sbom` command (audit finding: it emitted no version at all)
+    from bts_sbom import build_spdx_document
+    assert "Tool: bts-sbom-" + bts_sbom.__version__ in build_spdx_document(pk, [])["creationInfo"]["creators"]
+
+
+def test_cli_sbom_command_stamps_tool_version(tmp_path):
+    import bts_sbom
+    req = tmp_path / "requirements.txt"
+    req.write_text("requests==2.31.0\n", encoding="utf-8")
+    r = run_cli("sbom", str(req), "--name", "demo")
+    assert r.returncode == 0, r.stderr[-300:]
+    assert json.loads(r.stdout)["creationInfo"]["creators"][0] == "Tool: bts-sbom-" + bts_sbom.__version__
 
 
 def test_cli_bare_invocation_runs_self_sbom():

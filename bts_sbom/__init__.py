@@ -56,7 +56,7 @@ from bts_sbom.sectors import (  # noqa: F401
     write_evidence,
 )
 
-__version__ = "0.1.1"
+from bts_sbom._version import __version__  # noqa: E402,F401
 
 __all__ = [
     "__version__",

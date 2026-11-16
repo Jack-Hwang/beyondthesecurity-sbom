@@ -19,6 +19,7 @@ Honesty rules (same discipline as every verdict in this product):
     for identical SBOMs, different for any change).
 """
 from __future__ import annotations
+from bts_sbom._version import __version__ as _BTS_VERSION
 
 import re
 import uuid
@@ -79,7 +80,7 @@ def build_spdx_document(packages: List[Dict[str, Any]],
                         relationships: List[Tuple[str, str]],
                         doc_name: str = "bts-sbom-sbom",
                         created: Optional[str] = None,
-                        tool_version: str = "") -> Dict[str, Any]:
+                        tool_version: Optional[str] = None) -> Dict[str, Any]:
     """Assemble a valid SPDX 2.3 document.
 
     ``packages``: [{name, version, license?, license_evidence_status?,
@@ -88,6 +89,8 @@ def build_spdx_document(packages: List[Dict[str, Any]],
     (names must match package names; unmatched ends are dropped and listed
     in the document comment - never silently kept).
     """
+    if tool_version is None:
+        tool_version = _BTS_VERSION
     pkgs = sorted((dict(p) for p in packages),
                   key=lambda p: (str(p.get("name", "")), str(p.get("version", ""))))
     ref_by_name: Dict[str, str] = {}
