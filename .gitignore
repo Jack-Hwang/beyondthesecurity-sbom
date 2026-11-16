@@ -3,3 +3,5 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+bts_sbom_osv_local.db
+*.db
