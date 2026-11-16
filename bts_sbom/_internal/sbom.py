@@ -23,6 +23,7 @@ depends on its direct dependencies (and on components whose relationship is not
 known to be transitive), never on every transitive component.
 """
 import re
+from bts_sbom._version import __version__ as _BTS_VERSION
 import uuid
 import hashlib
 from typing import List, Dict, Any, Optional, Tuple
@@ -214,7 +215,7 @@ def build_sbom(packages: List[Dict[str, Any]], target_name: str, timestamp: str,
         "metadata": {
             "timestamp": timestamp,
             "lifecycles": [{"phase": "build"}],  # CycloneDX 1.6: build-time SBOM
-            "tools": [{"vendor": "BTS", "name": "bts-sbom", "version": "0.1.0"}],
+            "tools": [{"vendor": "BTS", "name": "bts-sbom", "version": _BTS_VERSION}],
             "component": {"type": "application", "name": target_name or "target",
                           "bom-ref": "root-app"},
         },

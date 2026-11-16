@@ -108,12 +108,12 @@ def build_self_sbom(timestamp: Optional[str] = None) -> Dict[str, Any]:
 def cmd_sbom(args) -> int:
     from bts_sbom._internal import manifests
     if manifests.parser_for(args.path) is None:
-        raise SystemExitError(2, "no parser for %r — supported: %s"
+        raise SystemExitError(2, "no parser for %r - supported: %s"
                               % (args.path, ", ".join(sorted(manifests.supported_names()))))
     doc = sbom_from_manifest(args.path, doc_name=args.name, created=args.created)
     if not doc.get("packages"):
         raise SystemExitError(2, "manifest %r parsed but contains no components "
-                                 "(no pinned dependency lines?) — an empty SBOM "
+                                 "(no pinned dependency lines?) - an empty SBOM "
                                  "would be misleading" % args.path)
     errors = validate_spdx(doc)
     if errors:
@@ -156,7 +156,7 @@ def cmd_scan(args) -> int:
                 "remediation suggestions skipped: %s: %s"
                 % (type(exc).__name__, exc))
     rendered = scanner.render(result, args.fmt)
-    print(rendered)
+    print(_stdout_safe(rendered, args.fmt in ("json", "sarif")))
     if args.gate and not args.dry_run:
         return gate_exit_code(result)
     return 0
@@ -178,7 +178,7 @@ def cmd_policy(args) -> int:
     if args.out:
         _emit(evaluation, args.out)
     else:
-        print(json.dumps(evaluation, indent=2, ensure_ascii=False))
+        print(_stdout_safe(json.dumps(evaluation, indent=2, ensure_ascii=False), True))
     summary = evaluation.get("summary", {})
     print("policy %r verdict: %s (%d violation(s) over %d finding(s), "
           "%d component(s))" % (evaluation.get("policy"),
@@ -212,13 +212,32 @@ def cmd_selfsbom(args) -> int:
     return _emit(build_self_sbom(timestamp=args.created), args.out)
 
 
+def _stdout_safe(text: str, machine_readable: bool = False) -> str:
+    """Text for stdout. If stdout cannot encode `text`: machine-readable JSON is
+    re-serialised with ensure_ascii=True (lossless unicode escapes - data is never
+    degraded to '?'), human-readable text keeps the errors=replace fallback
+    installed by _harden_streams()."""
+    enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        text.encode(enc)
+        return text
+    except (UnicodeEncodeError, LookupError):
+        pass
+    if machine_readable:
+        try:
+            return json.dumps(json.loads(text), indent=2, ensure_ascii=True)
+        except ValueError:
+            return text
+    return text
+
+
 def _emit(doc: Any, out: Optional[str]) -> int:
     text = json.dumps(doc, indent=2, ensure_ascii=False)
     if out:
         Path(out).write_text(text + "\n", encoding="utf-8")
         print("wrote %s" % out, file=sys.stderr)
     else:
-        print(text)
+        print(_stdout_safe(text, True))
     return 0
 
 
@@ -230,9 +249,9 @@ def build_parser() -> argparse.ArgumentParser:
               "as a pass or an invented failure.")
     p = argparse.ArgumentParser(
         prog="bts-sbom",
-        description="regulatory-sector SBOM/SCA toolkit — "
-                    "CRA · FDA 524B · UNECE R155/R156 · EO 14028 · "
-                    "금융 OSS 가이드 · 로봇/ISO 10218",
+        description="regulatory-sector SBOM/SCA toolkit - "
+                    "CRA, FDA 524B, UNECE R155/R156, EO 14028, "
+                    "KR finance OSS guide, robot/ISO 10218",
         epilog=epilog)
     p.add_argument("--version", action="version", version="bts-sbom " + __version__)
     sub = p.add_subparsers(dest="command", metavar="COMMAND")
@@ -267,7 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
     sn.add_argument("--offline", action="store_true",
                     help="no network I/O: local DB only (zero network)")
     sn.add_argument("--dry-run", action="store_true",
-                    help="discovery only — no OSV query at all")
+                    help="discovery only - no OSV query at all")
     sn.add_argument("--licenses", action="store_true",
                     help="also run the license analysis")
     sn.add_argument("--fmt", default="table",
@@ -283,20 +302,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     po = sub.add_parser(
         "policy",
-        help="policy gate over scan findings — exit 1 on violation "
+        help="policy gate over scan findings - exit 1 on violation "
              "(CI gate mode), 0 on pass")
     po.add_argument("--policy", required=True,
                     help="policy JSON: {\"name\"?, \"rules\": "
                          "{\"severity_min\"?, \"licenses_deny\"?, "
                          "\"max_severity_score\"?}}")
     po.add_argument("--findings", required=True,
-                    help="findings JSON — the bts-sbom scan --fmt json output "
+                    help="findings JSON - the bts-sbom scan --fmt json output "
                          "shape (results[].packages[].vulnerabilities)")
     po.add_argument("--sbom", default=None,
-                    help="optional SBOM JSON (SPDX 2.3 / CycloneDX 1.5) — "
+                    help="optional SBOM JSON (SPDX 2.3 / CycloneDX 1.5) - "
                          "components for the licenses_deny rule")
     po.add_argument("--vex", default=None,
-                    help="optional VEX JSON — not_affected/fixed statements "
+                    help="optional VEX JSON - not_affected/fixed statements "
                          "suppress matching findings (auditable, fail-closed "
                          "on a malformed document)")
     po.add_argument("--out", default=None,
@@ -305,7 +324,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     vx = sub.add_parser("vex", help="emit OpenVEX from a scan result, or validate a VEX file")
     vx.add_argument("--from-scan", default=None,
-                    help="scan-result JSON (bts-sbom scan --fmt json) → OpenVEX document")
+                    help="scan-result JSON (bts-sbom scan --fmt json) -> OpenVEX document")
     vx.add_argument("--check", default=None, help="validate a VEX file and summarize it")
     vx.add_argument("--timestamp", default=None, help="RFC-3339 timestamp (default: now)")
     vx.add_argument("--out", default=None, help="write JSON to FILE (default: stdout)")
@@ -319,7 +338,20 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _harden_streams() -> None:
+    """Never crash on an un-encodable character (cp949/cp1252/ascii consoles,
+    non-ASCII paths in messages): degrade to '?' instead of UnicodeEncodeError."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main(argv: Optional[List[str]] = None) -> int:
+    _harden_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):

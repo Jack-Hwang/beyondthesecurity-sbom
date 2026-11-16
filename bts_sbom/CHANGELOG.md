@@ -2,6 +2,34 @@
 
 All notable changes to bts-sbom are documented here.
 
+## 0.1.2 - console-encoding fix + version-metadata consistency
+
+* **Fix: `bts-sbom --help` (and every sub-command help) crashed with
+  `UnicodeEncodeError` on non-UTF-8 consoles** - e.g. a Korean Windows terminal
+  (cp949), cp1252 or an ASCII locale - because the help text contained U+2014 /
+  U+2192 (and the top-level description Korean text). CI never saw it because the
+  0.1.1 matrix exported `PYTHONUTF8=1`. Help/error text is now pure ASCII (a test
+  asserts it), and `main()` additionally switches stdout/stderr to
+  `errors="replace"`, so an un-encodable character in human-readable output
+  degrades to `?` instead of aborting the command.
+* **JSON/SARIF on stdout stays lossless.** If the console cannot encode the
+  document (e.g. the Korean sector titles on an ASCII/cp1252 console), it is
+  re-serialised with `ensure_ascii=True` (unicode escapes) instead of being
+  degraded to `?`; `--out FILE` always writes UTF-8. Tests: every sub-command's
+  `--help` under ascii / cp949 / cp1252 with `PYTHONUTF8` unset, and a strict
+  decode + `json.loads` round-trip of `sector --sector finance`.
+* **Fix: emitted documents claimed a stale (or no) tool version.** CycloneDX
+  `metadata.tools[].version`, the SPDX `creators` entry (`bts-sbom sbom` emitted
+  `Tool: bts-sbom` with no version at all; the internal builder hard-coded
+  `0.1.0`) and the HTTP `User-Agent` headers now read the single source of truth
+  `bts_sbom/_version.py`. A test pins pyproject(s), `__version__`, both CHANGELOGs,
+  the README sample output and the emitted documents to the same value.
+* Known limitation (unchanged scope): several human-readable report strings still
+  contain typographic characters (dashes, arrows); on a non-UTF-8 console they
+  print as `?`. Machine-readable output is unaffected (see above).
+* No behaviour change to scanning, remediation, policy or VEX. Still **zero
+  third-party runtime dependencies**.
+
 ## 0.1.1 — round 2: engine features + cross-platform hardening
 
 * **Precise version-range matching** (`_internal/version_match.py`): PEP 440

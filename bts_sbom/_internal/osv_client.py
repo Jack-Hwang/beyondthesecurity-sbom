@@ -1,6 +1,7 @@
 # vendored from common/osv_client.py (Apache-2.0 release) -- stdlib-only:
 # pydantic model -> dataclass, requests -> urllib, config.settings -> env var.
 import json
+from bts_sbom._version import __version__ as _BTS_VERSION
 import logging
 import math
 import os
@@ -18,7 +19,7 @@ def _post_json(url: str, payload: dict, timeout: int = 15):
     """POST JSON, return (http_status, parsed-body-or-None). Raises on network failure."""
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json", "User-Agent": "bts-sbom/0.1.0"})
+        headers={"Content-Type": "application/json", "User-Agent": "bts-sbom/" + _BTS_VERSION})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         body = resp.read()
         return resp.status, (json.loads(body.decode("utf-8", "replace")) if body else None)

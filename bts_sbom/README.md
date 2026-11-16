@@ -13,7 +13,7 @@ standard library (Python >= 3.10). The package can prove it:
 
 ```console
 $ python -m bts_sbom selfsbom
-{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.1.0", "dependsOn": [] }],
+{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.1.2", "dependsOn": [] }],
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
 
@@ -96,7 +96,7 @@ positives.
 | OS | Status | Notes |
 |---|---|---|
 | Linux | supported (CI: ubuntu-latest, py 3.10/3.12) | reference platform |
-| Windows | supported (CI: windows-latest, py 3.10/3.12) | every text-mode file read/write in the package uses explicit UTF-8 (`utf-8-sig` + `errors="replace"` for scan inputs). Set `PYTHONUTF8=1` in your shell/CI for the rest of the interpreter — Windows' default ANSI code page (cp1252) breaks implicit-encoding reads. Lockfiles produced on Windows (BOM, CRLF, backslash paths) parse identically to POSIX-produced ones |
+| Windows | supported (CI: windows-latest, py 3.10/3.12) | every text-mode file read/write in the package uses explicit UTF-8 (`utf-8-sig` + `errors="replace"` for scan inputs). Set `PYTHONUTF8=1` in your shell/CI for the rest of the interpreter — Windows' default ANSI code page (cp1252) breaks implicit-encoding reads. Since 0.1.2 the CLI also survives non-UTF-8 consoles (cp949/cp1252/ascii) without `PYTHONUTF8`: help text is ASCII, human-readable output degrades un-encodable characters to `?`, and JSON/SARIF on stdout falls back to lossless `\u` escapes. Lockfiles produced on Windows (BOM, CRLF, backslash paths) parse identically to POSIX-produced ones |
 | macOS | supported (CI: macos-latest, py 3.10/3.12) | |
 
 Path handling is `os.path`/`pathlib` throughout (no string concatenation),

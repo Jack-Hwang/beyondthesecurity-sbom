@@ -15,6 +15,7 @@ and counted in `unresolved` — it is never given a guessed license. Offline ⇒
 network I/O at all, everything unresolved.
 """
 import json
+from bts_sbom._version import __version__ as _BTS_VERSION
 import logging
 import urllib.request
 import urllib.parse
@@ -37,7 +38,7 @@ _NON_STD = {"non-standard", "unknown", ""}
 
 def _get(url: str) -> Optional[Dict[str, Any]]:
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "bts-sbom/0.1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "bts-sbom/" + _BTS_VERSION})
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
             if r.status != 200:
                 return None

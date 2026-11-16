@@ -17,6 +17,7 @@ relationships from the lockfile's own dependency table.  Everything else stays
 NOASSERTION.
 """
 import re
+from bts_sbom._version import __version__ as _BTS_VERSION
 import hashlib
 from typing import List, Dict, Any, Optional
 
@@ -193,7 +194,7 @@ def build_spdx(packages: List[Dict[str, Any]], target_name: str, timestamp: str,
         ),
         "creationInfo": {
             "created": timestamp,
-            "creators": ["Tool: bts-sbom-0.1.0"]
+            "creators": ["Tool: bts-sbom-" + _BTS_VERSION]
                         + [_creator(a) for a in (authors or []) if str(a).strip()],
         },
         "packages": spdx_packages,

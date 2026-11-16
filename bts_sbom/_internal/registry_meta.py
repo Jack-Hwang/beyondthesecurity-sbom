@@ -17,6 +17,7 @@ Supported registries: npm (registry.npmjs.org), PyPI (pypi.org).  Other
 ecosystems return ``unsupported`` - not an error, not a guess.
 """
 from __future__ import annotations
+from bts_sbom._version import __version__ as _BTS_VERSION
 
 import json
 import logging
@@ -31,7 +32,7 @@ logger = logging.getLogger("registry_meta")
 
 _TIMEOUT = 8
 _WORKERS = 8
-_UA = "bts-sbom/0.1.0 (sbom enrichment)"
+_UA = "bts-sbom/%s (sbom enrichment)" % _BTS_VERSION
 
 _cache: Dict[Tuple[str, str, str], Optional[Dict[str, Any]]] = {}
 _cache_lock = threading.Lock()

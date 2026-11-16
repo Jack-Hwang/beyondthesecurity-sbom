@@ -22,6 +22,7 @@ NOTE: dump directories use the BASE ecosystem name ("Debian", "Alpine"),
 not the version-qualified API form ("Debian:12").
 """
 import io
+from bts_sbom._version import __version__ as _BTS_VERSION
 import os
 import json
 import time
@@ -45,7 +46,7 @@ OSV_DUMP_BASE_URL = os.environ.get("BTS_SBOM_OSV_DUMP_BASE_URL") or \
 
 def _http_get(url: str, timeout: int = 20):
     """stdlib replacement for requests.get -> dict with status_code/text/content."""
-    req = urllib.request.Request(url, headers={"User-Agent": "bts-sbom/0.1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "bts-sbom/" + _BTS_VERSION})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         body = resp.read()
         return {"status_code": resp.status, "content": body,
