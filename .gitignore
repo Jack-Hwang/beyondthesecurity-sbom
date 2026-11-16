@@ -6,7 +6,7 @@ build/
 bts_sbom_osv_local.db
 *.db
 
-# ---- SBOM+ (sbomplus/) ----
+# ---- BTS-SBOM (bts_sbom_app/) ----
 *.py[cod]
 .venv/
 venv/
@@ -23,11 +23,11 @@ evidence/batch/work/
 evidence/cache/
 evidence/.llm_ledger.json
 evidence/runs/
-sbomplus_work_*/
+bts_sbom_work_*/
 
-# bulky per-project machine records of analysed third-party repositories (regenerate with `sbomplus batch`);
+# bulky per-project machine records of analysed third-party repositories (regenerate with `bts-sbom-app batch`);
 # summaries, loop history and the human-readable reports stay tracked
 evidence/batch/runs/*/*/*.json
 
-# optional pinned snapshot of the core used for a reproducible loop pass (git archive of a tag, see docs/SBOMPLUS.md)
+# optional pinned snapshot of the core used for a reproducible loop pass (git archive of a tag, see docs/WORKFLOW.md)
 .deps/

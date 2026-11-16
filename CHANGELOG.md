@@ -4,18 +4,29 @@ All notable changes to bts-sbom are documented here.
 
 ## Unreleased
 
-* **SBOM+ (`sbomplus/`, CLI `sbomplus`) merged into this repository** from the standalone `sbom-plus` work folder. It is a second
-  stdlib-only package in the same distribution, built on the `bts_sbom` core through a single adapter (`sbomplus/engine.py`);
+* **End-to-end workflow (analyse, patch, architecture, chatbot) added to BTS-SBOM** as the package `bts_sbom_app/` (command `bts-sbom-app`;
+  environment variables `BTS_SBOM_LLM_CONFIG`, `BTS_SBOM_LLM_DAILY_BUDGET`, `BTS_SBOM_UNICODE`; requirement ids `BSA-AC-n`; SBOM property
+  namespace `bts-sbom:`; record schema ids `bts-sbom.project.v1` / `bts-sbom.batch.v1`, and records written under the earlier project
+  schema id are still read). It is a second
+  stdlib-only package in the same distribution, built on the `bts_sbom` core through a single adapter (`bts_sbom_app/engine.py`);
   no `bts_sbom/` file was modified and `dependencies` stays empty. Adds: license resolution with provenance (lockfile -> deps.dev ->
   PyPI/npm/Maven), alias-merged findings with CVSS v3 and fixed versions from ECOSYSTEM/SEMVER ranges, OSV-verified remediation
   plans, approval-gated manifest patching with re-scan verification and revert, delivery targets (branch / folder / origin /
   GitHub remote behind explicit flags), CycloneDX 1.5 / SPDX 2.3 / OpenVEX output, industry reports (defense, automotive, medical,
   finance, maritime draft, CRA, robot), legacy-architecture analysis, LG EXAONE proposals with four-layer validation and
   deterministic fallback, a grounded RAG chatbot, a stdlib HTTP service, and a loop-engineering harness.
-  Tests live in `tests/sbomplus/` (69 tests, network faked); the EARS spec is `specs/sbomplus_features.md` (68 ACs, each traced to a
-  test); measured e2e evidence is in `evidence/` and documented in `docs/SBOMPLUS.md`. Not yet verified: push/PR on real GitHub,
-  the new CI workflow, building patched code.
-* Open core defects found while building SBOM+ are listed in `docs/CORE_ISSUES.md` (not fixed here).
+  Tests live in `tests/bts_sbom_app/` (78 tests, network faked); the EARS spec is `specs/bts_sbom_app_features.md` (77 ACs, each traced to a
+  test); measured e2e evidence is in `evidence/` and documented in `docs/WORKFLOW.md`. The `BTS-SBOM app CI` workflow has run green on
+  GitHub (ubuntu/windows x py3.10/3.12). Not yet verified: push/PR delivery against real GitHub, building patched code.
+* **Open-source security web screen**: `bts-sbom-app serve` now serves the BTS platform's "Open-Source Security" screen (7 tabs, sub-tabs,
+  1-4 step bar, result console) backed by real BTS-SBOM data - findings, dependencies per manifest, architecture, SBOM/VEX downloads,
+  licences, industry reports, upgrade plan and an approval-gated patch with plan preview, digest review and diff. Six platform files
+  are copied unmodified into `bts_sbom_app/web/` (provenance and sha256 in `NOTICE.md`; a test detects edits); the page, `bts_console.js`
+  and `bts_sbom_app/console.py` are new. Values BTS-SBOM does not compute (KEV, EPSS, SSVC, reachability, priority) are left out and the
+  panes say so. Service hardening: strict Content-Security-Policy, fixed static allow-list, `approval_token` required for an approved
+  scan, server-made work copies removed after the job unless a patch was applied. New endpoints: `/api/view`, `/api/history`,
+  `/api/engine`, `/api/sbom`, `/api/doc`, `/api/triage`. Ignore decisions are stored but not yet written into OpenVEX.
+* Open core defects found while building BTS-SBOM are listed in `docs/CORE_ISSUES.md` (not fixed here).
 
 ## 0.1.0 — initial OSS release
 

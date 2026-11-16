@@ -164,11 +164,11 @@
    ]
   }
  ],
- "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T154557Z_p03_license_norm",
+ "run_dir": "evidence/batch/runs/20261116T154557Z_p03_license_norm",
  "baseline_pass": 2,
  "core": {
   "version": "0.1.1",
-  "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  "path": ".deps/bts_sbom-0.1.1"
  },
  "code": "e748b58fae08",
  "plateau": false,

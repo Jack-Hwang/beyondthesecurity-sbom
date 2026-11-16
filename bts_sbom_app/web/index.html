@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTS-SBOM</title>
+<!-- tokens.css, app.css, light_theme_overrides.css, view_scan.css, sca_app.css and sca_app.js are copied unmodified from the BTS
+     platform (see NOTICE.md). Only this page, bts_console.css and bts_console.js are written for BTS-SBOM. -->
+<link rel="stylesheet" href="/static/css/tokens.css">
+<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/light_theme_overrides.css">
+<link rel="stylesheet" href="/static/css/view_scan.css">
+<link rel="stylesheet" href="/static/sca_app.css">
+<link rel="stylesheet" href="/static/bts_console.css">
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <span class="brand">&#128752;&#65039; <b>BTS-SBOM</b></span>
+    <span class="sub">Open-source vulnerabilities &middot; licenses &middot; SBOM &middot; patch &middot; architecture</span>
+    <div class="spacer"></div>
+    <label class="sub" for="projSel">Project</label>
+    <select id="projSel" title="Analysed projects found in the evidence folder"><option value="">(none analysed yet)</option></select>
+  </div>
+  <div class="body" style="grid-template-columns:1fr">
+    <div class="view view-scan on" id="view-scan">
+      <div class="scan">
+        <h2>&#128275; Open-Source Security <span class="sub" style="font-size:13px;font-weight:400">&mdash; Vulnerabilities &middot; Licenses &middot; SBOM &middot; AI Auto-Patch</span></h2>
+        <div class="lede">Scan a <b>Git repo</b> or a local path for open-source vulnerabilities (OSV.dev), licenses (lockfile &rarr; deps.dev &rarr; registry, with the source recorded),
+          CycloneDX / SPDX / OpenVEX documents, industry reports and legacy-architecture findings &mdash; with verified upgrade plans and an approval-gated patch.</div>
+
+        <div id="engineBar" class="bts-bar">
+          <span>&#129504; Engine:</span>
+          <span id="engineTxt">checking&hellip;</span>
+          <button type="button" id="engineRefresh" class="bts-mini" title="Reload the engine state and the list of analysed projects">&#8635; Refresh</button>
+        </div>
+
+        <div class="rtabs" id="scanTabs">
+          <div class="rtab active" data-sv="git">&#127760; Scan &mdash; Git &middot; Lockfile &middot; Container</div>
+          <div class="rtab" data-sv="risk" style="color:var(--dcard-err)">&#128202; Findings</div>
+          <div class="rtab" data-sv="prioritize" style="color:#f59e0b">&#127919; Prioritize</div>
+          <div class="rtab" data-sv="graph-health" style="color:#818cf8">&#128376; Graph &amp; Health</div>
+          <div class="rtab" data-sv="compliance" style="color:#34d399">&#9989; Compliance</div>
+          <div class="rtab" data-sv="fix" style="color:#a78bfa">&#128295; Fix</div>
+          <div class="rtab" data-sv="more">&#9881;&#65039; CI/CD &middot; History</div>
+        </div>
+        <div id="scanSubNav" style="display:none;gap:6px;flex-wrap:wrap;margin:-6px 0 12px" aria-label="Group sub-tabs"></div>
+
+        <!-- GIT REPO: landing pane, also hosts the console that shows the result of the last analysis -->
+        <div class="rpane on" data-sv="git">
+          <div class="pathbox" id="scaRepoPanel">
+            <label>&#127760; Analyze a Git repo or a local path <span class="sub">&mdash; clone/read &rarr; SBOM &rarr; OSV.dev CVEs + deps.dev licenses &rarr; safe-upgrade plan</span></label>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap" id="scaInputRow">
+              <input id="scaGitUrl" value="" placeholder="https://github.com/org/repo.git   &mdash;or&mdash;   owner/repo   &mdash;or&mdash;   D:\path\to\project" spellcheck="false" style="flex:1;min-width:340px;font-family:ui-monospace,monospace">
+              <label style="font-size:12px;margin:0"><input type="checkbox" id="scaOffline"> offline</label>
+              <label style="font-size:12px;margin:0" title="Ask LG EXAONE for upgrade proposals (needs a configured key; otherwise rule-based proposals are used)"><input type="checkbox" id="scaLlm"> EXAONE</label>
+              <button class="run" id="scaDemoBtn" style="background:#333">&#127919; Demo repo</button>
+              <button class="run" id="runScaReport">&#9654; Analyze</button>
+            </div>
+            <div class="ex" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <span>Try:</span>
+              <span class="egchip" data-url="https://github.com/adeyosemanputra/pygoat.git">pygoat (Python)</span>
+              <span class="egchip" data-url="https://github.com/snyk-labs/nodejs-goof.git">nodejs-goof (npm)</span>
+              <span class="egchip" data-url="https://github.com/OWASP/NodeGoat.git">NodeGoat (npm)</span>
+              <span class="sub" style="margin-left:auto">The clone is analysed in a temporary copy; the origin is never modified and nothing from it is executed.</span>
+            </div>
+            <div id="scaBanner"></div>
+            <div id="scaReportOut" style="margin-top:12px"></div>
+          </div>
+        </div>
+
+        <div class="rpane" data-sv="lock"><div class="pathbox">
+          <label>&#128230; Lockfile / manifest / folder on this machine</label>
+          <input id="lockPath" placeholder="D:\src\project   or   /repo   or   requirements.txt" spellcheck="false">
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="run" id="runLock" style="margin-left:auto">&#9654; Analyze path</button></div>
+          <div class="ex">Give a path that exists on the machine running this service. Pasting or uploading file content is not supported. The result appears under <b>Git repo</b>.</div>
+        </div></div>
+        <div class="rpane" data-sv="container"><div class="bts-note" id="paneContainer"></div></div>
+
+        <div class="rpane" data-sv="risk"><div id="paneRisk"></div></div>
+        <div class="rpane" data-sv="ssvc"><div id="paneSsvc"></div></div>
+        <div class="rpane" data-sv="epss"><div id="paneEpss"></div></div>
+        <div class="rpane" data-sv="exploit-mat"><div id="paneExploit"></div></div>
+        <div class="rpane" data-sv="dep-graph"><div id="paneDep"></div></div>
+        <div class="rpane" data-sv="arch"><div id="paneArch"></div></div>
+        <div class="rpane" data-sv="supply-chain"><div id="paneSupply"></div></div>
+        <div class="rpane" data-sv="ntia"><div id="paneSbom"></div></div>
+        <div class="rpane" data-sv="vex"><div id="paneVex"></div></div>
+        <div class="rpane" data-sv="license-risk"><div id="paneLic"></div></div>
+        <div class="rpane" data-sv="sectors"><div id="paneSectors"></div></div>
+        <div class="rpane" data-sv="fix-plan"><div id="paneFixPlan"></div></div>
+        <div class="rpane" data-sv="fix-pr"><div id="paneFixPr"></div></div>
+        <div class="rpane" data-sv="more"><div id="paneHistory"></div></div>
+
+        <details class="bts-chat" id="chatBox" open>
+          <summary>&#128172; Ask about the selected project <span class="sub">&mdash; answers cite their source; nothing is answered from memory</span></summary>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <input id="chatQ" placeholder="e.g. which fix clears the most advisories? / licenses? / architecture?" style="flex:1;min-width:300px">
+            <label style="font-size:12px;margin:0"><input type="checkbox" id="chatLlm"> EXAONE</label>
+            <button class="run" id="chatBtn">Ask</button>
+          </div>
+          <div id="chatOut" class="bts-chat-out"></div>
+        </details>
+      </div>
+    </div>
+  </div>
+  <div class="status"><span id="statusTxt">BTS-SBOM</span><span class="sub" style="margin-left:auto">localhost only &middot; no authentication</span></div>
+</div>
+<script src="/static/sca_app.js"></script>
+<script src="/static/bts_console.js"></script>
+</body>
+</html>

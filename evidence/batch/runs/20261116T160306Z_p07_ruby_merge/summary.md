@@ -1,4 +1,4 @@
-# SBOM+ batch p07_ruby_merge
+# BTS-SBOM batch p07_ruby_merge
 
 - projects: 10 (errors 0) - components 2499 - vulnerabilities 1294 {'LOW': 93, 'MEDIUM': 471, 'HIGH': 568, 'CRITICAL': 146, 'UNKNOWN': 16}
 - license resolved rate: 0.99 - by source {'deps.dev': 1778, 'lockfile': 634, 'registry:npm': 41, 'registry:pypi': 16, 'registry:maven': 4}

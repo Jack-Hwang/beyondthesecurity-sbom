@@ -1,4 +1,4 @@
-# SBOM+ batch p06_dedupe
+# BTS-SBOM batch p06_dedupe
 
 - projects: 10 (errors 0) - components 2529 - vulnerabilities 1438 {'LOW': 189, 'MEDIUM': 511, 'HIGH': 576, 'CRITICAL': 146, 'UNKNOWN': 16}
 - license resolved rate: 0.978 - by source {'deps.dev': 1778, 'lockfile': 634, 'registry:npm': 41, 'registry:pypi': 16, 'registry:maven': 4}

@@ -1,0 +1,74 @@
+/* =====================================================================
+   tokens.css — BTS design-token palette (WS7, UI-AC-3).
+   The most frequent hex colours of the extracted stylesheets
+   (server/static/css/**, pre-codemod scan), frequency-descending.
+   Pass 2 (2026-11-14, BTS): palette extended 30 -> 60 with the
+   next-most-frequent colours remaining in app.css +
+   light_theme_overrides.css (appended below); the original 30 token
+   lines are untouched. ADR-0005.
+   Exact-value aliases only: var(--c-*) resolves to the identical
+   colour the original literal held, so this is behaviour-neutral.
+   Linked FIRST in <head> (before /css/app.css). ADR-0005.
+   ===================================================================== */
+:root{
+  --c-white:#ffffff;
+  --c-text-light:#e2e8f0;
+  --c-text-muted:#94a3b8;
+  --c-text-bright:#e2e2ee;
+  --c-text-subtle:#9ca3af;
+  --c-text-ide:#c9d1d9;
+  --c-slate-600:#475569;
+  --c-slate-300:#cbd5e1;
+  --c-accent:#60a5fa;
+  --c-slate-700:#334155;
+  --c-hex-333333:#333333;
+  --c-accent-2:#58a6ff;
+  --c-violet:#a78bfa;
+  --c-ok:#22c55e;
+  --c-chip-text:#9fb7ff;
+  --c-slate-500:#64748b;
+  --c-text-dim:#8b949e;
+  --c-hex-374151:#374151;
+  --c-hex-555555:#555555;
+  --c-hex-dddddd:#dddddd;
+  --c-hex-9fe89f:#9fe89f;
+  --c-hex-8fe89f:#8fe89f;
+  --c-hex-444444:#444444;
+  --c-hex-9da5b4:#9da5b4;
+  --c-bg-deep:#0f131a;
+  --c-bg-panel:#171c25;
+  --c-hex-4b5563:#4b5563;
+  --c-hex-7ab8f5:#7ab8f5;
+  --c-ok-bright:#4ade80;
+  --c-hex-3794ff:#3794ff;
+  --c-ok-bg:#1c331c;
+  --c-warn:#edab00;
+  --c-hex-0d3a63:#0d3a63;
+  --c-hex-161b23:#161b23;
+  --c-hex-252b34:#252b34;
+  --c-hex-2a2d2e:#2a2d2e;
+  --c-hex-353c48:#353c48;
+  --c-hex-3a3a3a:#3a3a3a;
+  --c-hex-3c3c3c:#3c3c3c;
+  --c-hex-4ec9b0:#4ec9b0;
+  --c-hex-6e7787:#6e7787;
+  --c-hex-8a8a8a:#8a8a8a;
+  --c-hex-8a9099:#8a9099;
+  --c-hex-dbe3ee:#dbe3ee;
+  --c-warn-bg:#33301c;
+  --c-ok-2:#4ec98a;
+  --c-warn-text:#e8d89f;
+  --c-danger:#f85149;
+  --c-hex-11151c:#11151c;
+  --c-hex-1a1e25:#1a1e25;
+  --c-hex-1b2027:#1b2027;
+  --c-hex-22262d:#22262d;
+  --c-hex-243247:#243247;
+  --c-hex-252d3a:#252d3a;
+  --c-hex-2e3340:#2e3340;
+  --c-hex-3a4050:#3a4050;
+  --c-hex-454b56:#454b56;
+  --c-hex-4a6ea8:#4a6ea8;
+  --c-hex-4aa3ff:#4aa3ff;
+  --c-hex-7a7a7a:#7a7a7a;
+}

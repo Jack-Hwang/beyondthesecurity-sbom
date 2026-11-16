@@ -144,11 +144,11 @@
    ]
   }
  ],
- "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T165522Z_p13_ai_validator",
+ "run_dir": "evidence/batch/runs/20261116T165522Z_p13_ai_validator",
  "baseline_pass": 12,
  "core": {
   "version": "0.1.1",
-  "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  "path": ".deps/bts_sbom-0.1.1"
  },
  "code": "e0c4b80a8638",
  "next": {

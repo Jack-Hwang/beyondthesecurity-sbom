@@ -142,11 +142,11 @@
    ]
   }
  ],
- "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T160935Z_p09_ruby_arch",
+ "run_dir": "evidence/batch/runs/20261116T160935Z_p09_ruby_arch",
  "baseline_pass": 8,
  "core": {
   "version": "0.1.1",
-  "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  "path": ".deps/bts_sbom-0.1.1"
  },
  "code": "46adef24e796",
  "plateau": false

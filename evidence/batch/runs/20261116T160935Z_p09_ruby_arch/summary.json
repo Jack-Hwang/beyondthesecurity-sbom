@@ -1,5 +1,5 @@
 {
- "schema": "sbomplus.batch.v1",
+ "schema": "bts-sbom.batch.v1",
  "tag": "p09_ruby_arch",
  "generated_at": "2026-11-16T16:12:43+00:00",
  "settings": {
@@ -22,7 +22,7 @@
  },
  "core": {
   "version": "0.1.1",
-  "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  "path": ".deps/bts_sbom-0.1.1"
  },
  "llm": null,
  "net": {

@@ -30,16 +30,18 @@ dependencies = []
 
 [project.scripts]
 bts-sbom = "bts_sbom.cli:main"
-# SBOM+ (license / vulnerability / patch / legacy-architecture / EXAONE / RAG chatbot layer built ON the core above;
-# standard library only, so the zero-dependency statement above still holds). See docs/SBOMPLUS.md.
-sbomplus = "sbomplus.cli:main"
+# BTS-SBOM (license / vulnerability / patch / legacy-architecture / EXAONE / RAG chatbot layer built ON the core above;
+# standard library only, so the zero-dependency statement above still holds). See docs/WORKFLOW.md.
+bts-sbom-app = "bts_sbom_app.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["bts_sbom", "bts_sbom.*", "sbomplus", "sbomplus.*"]
+include = ["bts_sbom", "bts_sbom.*", "bts_sbom_app", "bts_sbom_app.*"]
 
 [tool.setuptools.package-data]
 bts_sbom = ["py.typed"]
+# the web screen (page, platform assets copied unmodified, NOTICE.md and their sha256 list) is served from the installed package
+bts_sbom_app = ["web/*", "web/css/*"]
 
 [tool.ruff]
 line-length = 100

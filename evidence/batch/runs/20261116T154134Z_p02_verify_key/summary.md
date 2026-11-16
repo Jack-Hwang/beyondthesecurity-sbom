@@ -1,4 +1,4 @@
-# SBOM+ batch p02_verify_key
+# BTS-SBOM batch p02_verify_key
 
 - projects: 10 (errors 0) - components 2529 - vulnerabilities 1959 {'LOW': 224, 'MEDIUM': 717, 'HIGH': 819, 'CRITICAL': 169, 'UNKNOWN': 30}
 - license resolved rate: 0.962 - by source {'deps.dev': 1774, 'lockfile': 634, 'registry:npm': 11, 'registry:pypi': 15}

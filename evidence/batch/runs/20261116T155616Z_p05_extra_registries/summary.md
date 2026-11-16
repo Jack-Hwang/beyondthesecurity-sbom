@@ -1,4 +1,4 @@
-# SBOM+ batch p05_extra_registries
+# BTS-SBOM batch p05_extra_registries
 
 - projects: 10 (errors 0) - components 2529 - vulnerabilities 1959 {'LOW': 224, 'MEDIUM': 717, 'HIGH': 819, 'CRITICAL': 169, 'UNKNOWN': 30}
 - license resolved rate: 0.978 - by source {'deps.dev': 1778, 'lockfile': 634, 'registry:npm': 41, 'registry:pypi': 16, 'registry:maven': 4}

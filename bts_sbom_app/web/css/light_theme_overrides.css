@@ -1,0 +1,207 @@
+
+/* ===== Light theme — brighten the dark-hardcoded shell + Pen Test surfaces ===== */
+/* shell chrome */
+.titlebar{border-bottom-color:var(--line)}
+.titlebar select,.titlebar button{background:var(--c-white);border-color:var(--line);color:var(--ink)}
+.titlebar .sub{color:var(--mut)}
+.titlebar button.run{background:var(--acc);border-color:var(--acc);color:var(--c-white)}
+.activity{background:var(--act)}
+.abtn{color:var(--mut)}
+.abtn:hover{background:var(--c-hex-dbe3ee);color:var(--ink)}
+.abtn.active{background:var(--sel);color:var(--c-hex-0d3a63);border-color:#5da9ff;box-shadow:0 2px 8px rgba(30,50,90,.12)}
+.simple-nav-divider,.simple-loop{border-color:var(--line)}
+.simple-loop{color:var(--mut)}
+.simple-loop button{background:var(--c-white);border-color:var(--line);color:var(--ink)}
+.simple-loop button:hover{background:var(--c-hex-dbe3ee);border-color:#7bb8f0}
+.menubar{background:var(--tabbg);border-bottom-color:var(--line)}
+.mb-item{color:var(--ink)}
+.mb-item:hover,.mb-item.active{background:var(--c-hex-dbe3ee)}
+.mb-drop{background:var(--c-white);border-color:var(--line);box-shadow:0 8px 26px rgba(30,40,60,.18)}
+.mb-row{color:var(--ink)}
+.mb-row:hover{background:var(--acc);color:var(--c-white)}
+.mb-row.disabled:hover{background:transparent;color:var(--mut)}
+/* generic text/panels */
+.sub,.notes,.k,.spin{color:var(--mut)}
+/* Pen Test flow */
+#view-pentest .pt-brand{color:var(--ink)}
+.pt-ecu-in{background:var(--c-white);border-color:var(--line);color:var(--ink)}
+.pt-stage{background:var(--c-white);border-color:var(--line);color:var(--mut)}
+.pt-stage:hover{background:#eef2f8;border-color:#9db8d8}
+.pt-stage.active{background:var(--sel);color:var(--c-hex-0d3a63)}
+.pt-stage.active .pt-stage-title{color:var(--c-hex-0d3a63)}
+.pt-stage-num{background:#e7edf5;border-color:#c3ccd8;color:var(--mut)}
+.pt-stage-sub{color:var(--mut)}
+.pt-focus-card{background:var(--c-white);border-color:var(--line)}
+.pt-focus-title{color:var(--ink)}
+.pt-focus-desc{color:var(--mut)}
+.pt-config-grid label{color:var(--mut)}
+.pt-config-grid input,.pt-config-grid select{background:var(--c-white);color:var(--ink);border-color:var(--line)}
+.pt-compact-details>summary{color:var(--mut)}
+.pt-compact-details[open]>summary{color:var(--ink)}
+.pt-top-more>summary{background:var(--c-white);border-color:var(--line);color:var(--mut)}
+.pt-top-more[open]>summary{background:#e7edf5;color:var(--ink)}
+.pt-top-more-menu{background:var(--c-white);border-color:var(--line);box-shadow:0 8px 25px rgba(30,40,60,.18)}
+/* specialist menubar (only when revealed via Advanced tools) */
+.vsc-menubar{background:#eef2f8;border-color:var(--line)}
+.vsc-menu-btn{color:var(--ink)}
+.vsc-menu-btn:hover{background:var(--c-hex-dbe3ee)}
+.vsc-dropdown{background:var(--c-white);border-color:var(--line);box-shadow:0 6px 24px rgba(30,40,60,.2)}
+.vsc-item{color:var(--ink)}
+.vsc-item:hover{background:var(--sel)}
+.vsc-item.active{background:var(--sel);color:var(--c-hex-0d3a63)}
+.vsc-breadcrumb{color:var(--mut)}
+.vsc-active-pill{background:#e7edf5;border-color:var(--line);color:var(--mut)}
+.vsc-sep{background:var(--line)}
+/* fuzz workspace */
+.gf-head h3{color:var(--ink)}.gf-head p{color:var(--mut)}
+.gf-phase{background:#eef2f8;border-color:var(--line);color:var(--mut)}
+.gf-control{background:var(--c-white);border-color:var(--line)}
+.gf-control label{color:var(--mut)}
+.gf-control select,.gf-control input{background:var(--c-white);color:var(--ink);border-color:var(--line)}
+.gf-summary>div{background:var(--c-white);border-color:var(--line);color:var(--mut)}
+.gf-panel{background:var(--c-white);border-color:var(--line)}
+.gf-panel-h{color:var(--ink);border-color:var(--line)}
+.gf-panel-body,.gf-evidence details>div{color:var(--ink)}
+.gf-evidence details{background:var(--c-white);border-color:var(--line)}
+.gf-history-row{color:var(--mut);border-color:var(--line)}
+.gf-history-row:hover,.gf-history-row.active{background:var(--sel);color:var(--ink)}
+/* readiness / chat / help */
+.rdy-card{background:var(--c-white);border-color:var(--line)}
+.rdy-h{color:var(--ink)}
+.gnode{background:#f4f6fa;border-color:var(--line);color:var(--ink)}
+.cmsg.bot{background:#f4f6fa;border-color:var(--line);color:var(--ink)}
+.cmsg.bot b{color:var(--ink)}
+.csec-row,.ctc,.ctc{background:#f4f6fa;border-color:var(--line)}
+#ptHelpPanel{background:var(--c-white);border-left-color:var(--line);box-shadow:-8px 0 32px rgba(30,40,60,.18)}
+.pthelp-hd{border-bottom-color:var(--line)}
+
+/* ===== 2026-11-15 (contrast completion): white-text elements left unreadable
+   on the white page — targeted fixes, not a global token flip ============== */
+
+/* knowledge view titles (kn-title uses --c-text-bright = near-white;
+   body prefix beats the later-loaded per-view stylesheet) */
+body .kn-title { color: var(--ink); }
+
+/* DAST du-mode cards: the JS-injected style hard-codes dark gradients and
+   #f0f6fc text — restyle for the light shell (higher specificity than the
+   runtime-injected #dastui rules). */
+body #dastui .du-mode {
+  background: var(--c-white);
+  border-color: var(--line);
+  color: var(--mut);
+}
+body #dastui .du-mode span { color: var(--mut); }
+body #dastui .du-mode:hover { border-color: #7bb8f0; }
+body #dastui .du-mode.on {
+  background: var(--sel);
+  border-color: #5da9ff;
+  color: var(--c-hex-0d3a63);
+  box-shadow: 0 2px 8px rgba(30, 50, 90, .12);
+}
+body #dastui .du-mode.on span { color: var(--c-hex-0d3a63); }
+
+/* sidebar labels: 18px clips CODE·VERIFY / APPROVALS inside the 110px column */
+.abtn { font-size: 15px; }
+.abtn small { font-size: 11px; letter-spacing: 0; }
+
+/* ===== 2026-11-15 (theme unification 1/2): Approval Center light palette ==
+   approval_center.js injects a full dark palette (.ac-*). This block mirrors
+   every surface for the light shell — readable ink on white, semantic
+   ok/err/warn colors, same layout untouched. #approvalCenterView prefix
+   beats the runtime-injected .ac-* rules at equal order. ================== */
+body #approvalCenterView { background: #f7f9fc; }
+#approvalCenterView .ac-wrap { color: var(--ink); }
+#approvalCenterView .ac-title { color: var(--ink); }
+#approvalCenterView .ac-title .ac-sub { color: var(--mut); }
+#approvalCenterView .ac-who {
+  background: #eef2f8; border-color: var(--line); color: #475569; }
+#approvalCenterView .ac-who b { color: var(--ink); }
+#approvalCenterView .ac-msg.ok {
+  background: #e8f7ee; border-color: #2f8a4f; color: #166534; }
+#approvalCenterView .ac-msg.err {
+  background: #fdeaea; border-color: #c53030; color: #a02020; }
+#approvalCenterView .ac-board {
+  background: #ffffff; border-color: var(--line); }
+#approvalCenterView .ac-grp-h,
+#approvalCenterView .ac-col-h { color: #5a6b80; }
+#approvalCenterView .ac-row {
+  background: #ffffff; border-color: #d7dfeb; }
+#approvalCenterView .ac-row:hover { border-color: #7bb8f0; }
+#approvalCenterView .ac-row.sel {
+  background: #e8f1fd; border-color: #5da9ff; }
+#approvalCenterView .ac-row-rule { color: var(--ink); }
+#approvalCenterView .ac-row-meta { color: #5a6b80; }
+#approvalCenterView .ac-flag {
+  background: #fff4dd; color: #8a5a10; border-color: #d9b46a; }
+#approvalCenterView .ac-v-ok {
+  background: #e8f7ee; color: #166534; border-color: #2f8a4f; }
+#approvalCenterView .ac-v-bad {
+  background: #fdeaea; color: #a02020; border-color: #c53030; }
+#approvalCenterView .ac-v-none {
+  background: #eef1f5; color: #5a6b80; border-color: #c9d3de; }
+#approvalCenterView .ac-detail {
+  background: #ffffff; border-color: var(--line); }
+#approvalCenterView .ac-col { border-right-color: #e2e8f0; }
+#approvalCenterView .ac-kv .k { color: #5a6b80; }
+#approvalCenterView .ac-kv .v { color: var(--ink); }
+#approvalCenterView .ac-empty { color: #64748b; }
+#approvalCenterView .ac-diff {
+  background: #fafbfc; border-color: #e2e8f0; }
+#approvalCenterView .ac-diff-add { background: #e8f7ee; color: #166534; }
+#approvalCenterView .ac-diff-del { background: #fdeaea; color: #a02020; }
+#approvalCenterView .ac-diff-hunk { color: #2b6cb0; }
+#approvalCenterView .ac-diff-meta { color: #5a6b80; }
+#approvalCenterView .ac-diff-ctx { color: #334155; }
+#approvalCenterView .ac-alt { color: #334155; border-left-color: #c9d3de; }
+#approvalCenterView .ac-check { border-color: #e2e8f0; }
+#approvalCenterView .ac-check .cmd { color: #475569; }
+#approvalCenterView .ac-actions { border-top-color: #e2e8f0; }
+#approvalCenterView .ac-reasonbox {
+  background: #ffffff; border-color: #c9d3de; color: var(--ink); }
+#approvalCenterView .ac-exprow { color: #5a6b80; }
+#approvalCenterView .ac-exprow input,
+#approvalCenterView .ac-exprow select {
+  background: #ffffff; border-color: #c9d3de; color: var(--ink); }
+#approvalCenterView .ac-btn-approve {
+  background: #2f8a4f; color: #ffffff; border-color: #27743f; }
+#approvalCenterView .ac-btn-reject {
+  background: #c53030; color: #ffffff; border-color: #a02020; }
+#approvalCenterView .ac-btn-warn {
+  background: #b7791f; color: #ffffff; border-color: #9c651a; }
+#approvalCenterView .ac-btn-legal {
+  background: #2b4a8a; color: #ffffff; border-color: #23407a; }
+#approvalCenterView .ac-btn-ghost {
+  background: #eef1f5; color: var(--ink); border-color: #c9d3de; }
+#approvalCenterView .ac-block .bh { color: #c53030; }
+
+/* ===== 2026-11-15 (theme unification 2/2): CODE·VERIFY empty state ========
+   The drop-zone guide was a dark gradient island; light-adapt it and keep
+   the guide readable on the white workbench. ============================== */
+body #view-code .ed-empty {
+  background: radial-gradient(120% 120% at 50% 0%, #f2f6fb 0%, #e9eef6 70%);
+  border-bottom-color: var(--line);
+}
+body #view-code .ed-empty .ee-card { color: #475569; }
+body #view-code .ed-empty .ee-card h2 { color: var(--ink); }
+body #view-code .ed-empty .ee-card p { color: #475569; }
+body #view-code .ed-empty .ee-hint { color: #64748b; }
+body #view-code .rule-review { background: #f7f9fc; }
+
+/* ===== 2026-11-16 (theme unification 2/2): FW file tab bar (#ftabs) ========
+   app.css was brightened to a light root but .tab chrome kept dark-era values:
+   the ACTIVE tab rendered #ffffff text on the #ffffff --tabact background
+   (invisible label), inactive tabs sat at #a9a9a9 on #e4e9f1 (~2.3:1), and the
+   divider used the dark --ide-chrome_border. Only consumer of .tabs/.tab is
+   #ftabs (grep-verified), so a global body-prefixed override is safe. ======== */
+body .tabs {
+  background: var(--tabbg);
+  border-bottom-color: var(--line);
+}
+body .tab {
+  color: var(--mut);
+}
+body .tab.active {
+  background: var(--c-white);
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--acc);
+}

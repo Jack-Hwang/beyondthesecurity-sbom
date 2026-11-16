@@ -161,7 +161,7 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T153327Z_p01_baseline",
+  "run_dir": "evidence/batch/runs/20261116T153327Z_p01_baseline",
   "baseline_pass": null,
   "plateau": false
  },
@@ -331,11 +331,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T154134Z_p02_verify_key",
+  "run_dir": "evidence/batch/runs/20261116T154134Z_p02_verify_key",
   "baseline_pass": 1,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "b5c8c605255d",
   "plateau": false,
@@ -507,11 +507,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T154557Z_p03_license_norm",
+  "run_dir": "evidence/batch/runs/20261116T154557Z_p03_license_norm",
   "baseline_pass": 2,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "e748b58fae08",
   "plateau": false,
@@ -677,11 +677,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T155235Z_p04_raw_cache",
+  "run_dir": "evidence/batch/runs/20261116T155235Z_p04_raw_cache",
   "baseline_pass": 3,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "e0d95e953b44",
   "plateau": false
@@ -847,11 +847,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T155616Z_p05_extra_registries",
+  "run_dir": "evidence/batch/runs/20261116T155616Z_p05_extra_registries",
   "baseline_pass": 4,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "e0d95e953b44",
   "plateau": false
@@ -1017,11 +1017,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T155948Z_p06_dedupe",
+  "run_dir": "evidence/batch/runs/20261116T155948Z_p06_dedupe",
   "baseline_pass": 5,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "5357cfd685b6",
   "plateau": false,
@@ -1185,11 +1185,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T160306Z_p07_ruby_merge",
+  "run_dir": "evidence/batch/runs/20261116T160306Z_p07_ruby_merge",
   "baseline_pass": 6,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "5357cfd685b6",
   "plateau": false
@@ -1345,11 +1345,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T160618Z_p08_go_mvs",
+  "run_dir": "evidence/batch/runs/20261116T160618Z_p08_go_mvs",
   "baseline_pass": 7,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "5357cfd685b6",
   "plateau": false
@@ -1498,11 +1498,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T160935Z_p09_ruby_arch",
+  "run_dir": "evidence/batch/runs/20261116T160935Z_p09_ruby_arch",
   "baseline_pass": 8,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "46adef24e796",
   "plateau": false
@@ -1651,11 +1651,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T161253Z_p10_classification",
+  "run_dir": "evidence/batch/runs/20261116T161253Z_p10_classification",
   "baseline_pass": 9,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "4b38c492b09a",
   "plateau": false,
@@ -1807,11 +1807,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T161619Z_p11_exaone",
+  "run_dir": "evidence/batch/runs/20261116T161619Z_p11_exaone",
   "baseline_pass": 10,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "4b38c492b09a",
   "plateau": false,
@@ -1964,11 +1964,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T162951Z_p12_exaone_repair",
+  "run_dir": "evidence/batch/runs/20261116T162951Z_p12_exaone_repair",
   "baseline_pass": 11,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "5007bd47df72",
   "next": {
@@ -2157,11 +2157,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T165522Z_p13_ai_validator",
+  "run_dir": "evidence/batch/runs/20261116T165522Z_p13_ai_validator",
   "baseline_pass": 12,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "e0c4b80a8638",
   "next": {
@@ -2350,11 +2350,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T170424Z_p14_patch_scope",
+  "run_dir": "evidence/batch/runs/20261116T170424Z_p14_patch_scope",
   "baseline_pass": 13,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "75ebd901b8da",
   "next": {
@@ -2530,11 +2530,11 @@
     ]
    }
   ],
-  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T171206Z_p15_final_verify",
+  "run_dir": "evidence/batch/runs/20261116T171206Z_p15_final_verify",
   "baseline_pass": 14,
   "core": {
    "version": "0.1.1",
-   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+   "path": ".deps/bts_sbom-0.1.1"
   },
   "code": "7ef70a7cf3eb",
   "next": {

@@ -1,4 +1,4 @@
-# SBOM+ batch p12_exaone_repair
+# BTS-SBOM batch p12_exaone_repair
 
 - projects: 10 (errors 0) - components 2478 - vulnerabilities 1292 {'LOW': 93, 'MEDIUM': 471, 'HIGH': 567, 'CRITICAL': 147, 'UNKNOWN': 14}
 - license resolved rate: 0.99 - by source {'deps.dev': 1757, 'lockfile': 634, 'registry:npm': 41, 'registry:pypi': 16, 'registry:maven': 4}

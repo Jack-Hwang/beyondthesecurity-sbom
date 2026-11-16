@@ -142,11 +142,11 @@
    ]
   }
  ],
- "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T161253Z_p10_classification",
+ "run_dir": "evidence/batch/runs/20261116T161253Z_p10_classification",
  "baseline_pass": 9,
  "core": {
   "version": "0.1.1",
-  "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  "path": ".deps/bts_sbom-0.1.1"
  },
  "code": "4b38c492b09a",
  "plateau": false,

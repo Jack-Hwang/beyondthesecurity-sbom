@@ -139,10 +139,11 @@ Cross-platform: Windows / Linux / macOS (CI matrix `ubuntu-latest, windows-lates
 macos-latest` × Python 3.10/3.12; UTF-8 enforced on Windows jobs). Zero
 third-party runtime dependencies — asserted by the self-SBOM.
 
-## SBOM+ layer (`sbomplus/`, CLI `sbomplus`)
+## End-to-end workflow: analyse, patch, architecture, chatbot (`bts_sbom_app/`, command `bts-sbom-app`)
 
-A second, standard-library-only package in this repository, built **on top of** the `bts_sbom` core (one adapter,
-`sbomplus/engine.py`; the core's files are not modified). It turns the core's scan into an end-to-end workflow: clone or read a
+Part of BTS-SBOM: a second, standard-library-only package in this repository (`bts_sbom_app/`, command `bts-sbom-app`),
+built **on top of** the `bts_sbom` core (one adapter, `bts_sbom_app/engine.py`; the core's files are not
+modified). It turns the core's scan into an end-to-end workflow: clone or read a
 source, SBOM (CycloneDX 1.5 / SPDX 2.3 / OpenVEX), license resolution with provenance, OSV findings with alias merge,
 a remediation plan re-verified against OSV, **approval-gated** manifest patching with re-scan verification and revert, legacy
 architecture analysis (hotspots, change coupling, import cycles, runtime EOL), industry reports (defense, automotive, medical,
@@ -150,15 +151,16 @@ finance, maritime draft, CRA, robot), LG EXAONE proposals behind a four-layer va
 RAG chatbot, and a measured loop-engineering harness.
 
 ```console
-$ python -I -X utf8 run_sbomplus.py scan https://github.com/OWASP/NodeGoat.git
-$ python -I -X utf8 run_sbomplus.py patch <source> --approve     # without --approve: plan only, 0 files changed
-$ python -m pytest -q tests/sbomplus                              # 69 tests, all network faked
+$ python -I -X utf8 run_bts_sbom_app.py scan https://github.com/OWASP/NodeGoat.git
+$ python -I -X utf8 run_bts_sbom_app.py patch <source> --approve     # without --approve: plan only, 0 files changed
+$ python -I -X utf8 run_bts_sbom_app.py serve --port 8800 --evidence <runs folder>   # the Open-Source Security web screen
+$ python -m pytest -q tests/bts_sbom_app                              # 78 tests, all network faked
 ```
 
 Measured on 10 real GitHub repositories (chosen by the author, several deliberately vulnerable): 2,478 components,
 1,292 findings, license resolution 0.990. Limits first - patching edits manifests only (lockfiles get regeneration commands),
 patched code was not built or tested, push/PR was verified against a local bare repository only, and retrieval is lexical.
-Full detail, commands and the honest gap list: [docs/SBOMPLUS.md](docs/SBOMPLUS.md); open core defects found on the way:
+Full detail, commands and the honest gap list: [docs/WORKFLOW.md](docs/WORKFLOW.md); open core defects found on the way:
 [docs/CORE_ISSUES.md](docs/CORE_ISSUES.md).
 
 ## Status & scope honesty
@@ -170,8 +172,8 @@ pure CLI + library. Network features (OSV.dev queries, deps.dev license
 resolution, EPSS/KEV enrichment) degrade honestly to offline/cached/curated
 data when the network is unavailable, and say so in the output.
 
-The separate `sbomplus` package is broader: it can call LG EXAONE (opt-in, needs a key, daily-budget ledger) and ships a
-stdlib HTTP service (`sbomplus serve`) with **no authentication** that must stay on localhost.
+The separate `bts_sbom_app` package is broader: it can call LG EXAONE (opt-in, needs a key, daily-budget ledger) and ships a
+stdlib HTTP service (`bts-sbom-app serve`) with **no authentication** that must stay on localhost.
 
 ## 한국어 요약 (KO)
 
@@ -186,8 +188,8 @@ UNECE R155/R156 · EO 14028 · 금융 OSS 가이드 · 로봇/ISO 10218.
   않고 `not_evidence`로 정직 표기됩니다.
 * **서드파티 런타임 의존성 0개** (표준 라이브러리만 사용, Python >= 3.10).
   `python -m bts_sbom selfsbom`로 자기 자신의 SBOM을 생성해 증명합니다.
-* **SBOM+** (`sbomplus/`): 코어 위에 얹은 상위 계층 — 라이선스 자동 식별, 취약점 리포트, 승인형 패치(재스캔 검증),
-  레거시 아키텍처 분석, LG EXAONE 제안, 근거 기반 RAG 챗봇. 자세한 내용과 한계는 [docs/SBOMPLUS.md](docs/SBOMPLUS.md).
+* **엔드투엔드 워크플로** (`bts_sbom_app/`, 명령 `bts-sbom-app`): BTS-SBOM 코어 위에 얹은 상위 기능 — 라이선스 자동 식별, 취약점 리포트, 승인형 패치(재스캔 검증),
+  레거시 아키텍처 분석, LG EXAONE 제안, 근거 기반 RAG 챗봇. 자세한 내용과 한계는 [docs/WORKFLOW.md](docs/WORKFLOW.md).
 
 ```console
 $ pip install bts-sbom

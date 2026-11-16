@@ -1,4 +1,4 @@
-# 강의 방법론 -> SBOM+ 구현 매핑 (정직 판)
+# 강의 방법론 -> BTS-SBOM 구현 매핑 (정직 판)
 
 출처: `강의자료/` 분석 결과(`knowledge/lecture/`)에서 도출한 기법을 실제로 구현했는지, 하지 않았다면 이유가 무엇인지 기록한다.
 "구현"은 테스트와 측정값이 있는 것만 뜻한다.
@@ -17,7 +17,7 @@
 | 응답 캐시(호출 한도 보호) | 구현 | 프롬프트 해시 캐시 + 로컬 일일 장부, AC-35/36 |
 | 회귀 게이트 Δ >= -0.02, 골든셋, 한 번에 한 변수 | 구현 | `loop.gate`, `loop.run_pass`, 패스 기록 `evidence/loop/` |
 | 공회전(spinning) 탐지 | 구현 | 패치 계획 반복 시 중단, 최근 3패스 동일 지표 시 plateau (AC-43) |
-| EARS + 측정값 AC, 린트, 양방향 추적 | 구현 | `specs/`, `sbomplus.speclint`, `tests/test_specs.py` |
+| EARS + 측정값 AC, 린트, 양방향 추적 | 구현 | `specs/`, `bts_sbom_app.speclint`, `tests/test_specs.py` |
 | 실패 군집화로 다음 변수 선택 | 구현 | `loop.cluster_failures`, EXAONE 가설은 실제 군집만 채택 (AC-44) |
 | 툴 출력 트림 | 부분 | `ai.evidence` 가 상위 N개만 전달. 버린 필드의 trim 로그는 **미구현** |
 | 계층(parent-child) 청킹 | **미구현** | 코퍼스가 작고(수백 청크) 골든 Recall@5 가 이미 높아 측정된 필요가 없었다. 라이선스 전문을 코퍼스에 넣을 때 재검토 |

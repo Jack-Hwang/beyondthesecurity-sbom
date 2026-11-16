@@ -164,11 +164,11 @@
    ]
   }
  ],
- "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T154134Z_p02_verify_key",
+ "run_dir": "evidence/batch/runs/20261116T154134Z_p02_verify_key",
  "baseline_pass": 1,
  "core": {
   "version": "0.1.1",
-  "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  "path": ".deps/bts_sbom-0.1.1"
  },
  "code": "b5c8c605255d",
  "plateau": false,

@@ -160,7 +160,7 @@
    ]
   }
  ],
- "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T153327Z_p01_baseline",
+ "run_dir": "evidence/batch/runs/20261116T153327Z_p01_baseline",
  "baseline_pass": null,
  "plateau": false
 }

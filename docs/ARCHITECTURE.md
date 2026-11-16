@@ -1,4 +1,4 @@
-# SBOM+ architecture
+# BTS-SBOM architecture
 
 ```
  source (git URL | owner/repo | folder)

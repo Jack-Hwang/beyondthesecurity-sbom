@@ -1,5 +1,5 @@
 {
- "schema": "sbomplus.batch.v1",
+ "schema": "bts-sbom.batch.v1",
  "tag": "p01_baseline",
  "generated_at": "2026-11-16T15:37:53+00:00",
  "settings": {

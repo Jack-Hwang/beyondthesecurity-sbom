@@ -2,7 +2,7 @@
 
 ## 라이선스는 어떻게 찾는가 (resolution chain)
 
-SBOM+ 는 컴포넌트마다 라이선스를 세 단계로 찾고, 어디서 찾았는지(`license_source`)를 기록한다.
+BTS-SBOM 는 컴포넌트마다 라이선스를 세 단계로 찾고, 어디서 찾았는지(`license_source`)를 기록한다.
 1. `lockfile`: package-lock.json(v2/v3)과 composer.lock에 들어 있는 license 필드.
 2. `deps.dev`: Google Open Source Insights API. npm, PyPI, Go, Maven, Cargo, NuGet, RubyGems를 한 곳에서 조회한다.
 3. `registry`: deps.dev에 없을 때 PyPI JSON 또는 npm 레지스트리를 직접 조회한다.
