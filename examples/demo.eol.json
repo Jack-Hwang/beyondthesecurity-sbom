@@ -1,0 +1,4 @@
+{
+  "openssl": {"eol": "2027-09-01", "status": "supported"},
+  "zlib": {"eol": "2026-06-30", "status": "supported"}
+}
