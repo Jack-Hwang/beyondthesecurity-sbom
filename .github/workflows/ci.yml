@@ -1,0 +1,81 @@
+# bts-sbom standalone package CI — libe style follows the repo's existing
+# workflows (checkout@v4 / setup-python@v5), but is intentionally
+# self-contained: it does NOT install the platform requirements.txt, because
+# bts-sbom must build, lint, test and self-describe with the stdlib alone.
+name: bts-sbom CI
+
+on:
+  push:
+    paths:
+      - "bts_sbom/**"
+      - "tests/test_bts_sbom_pkg.py"
+      - ".github/workflows/bts_sbom_ci.yml"
+  pull_request:
+    paths:
+      - "bts_sbom/**"
+      - "tests/test_bts_sbom_pkg.py"
+      - ".github/workflows/bts_sbom_ci.yml"
+
+jobs:
+  package:
+    name: py${{ matrix.python-version }} — lint · test · self-SBOM
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package + tooling (stdlib-only package, tooling is dev-only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./bts_sbom
+          pip install pytest ruff
+
+      - name: Lint (ruff)
+        run: ruff check bts_sbom/ tests/test_bts_sbom_pkg.py
+
+      - name: Package tests
+        run: python -m pytest -q tests/test_bts_sbom_pkg.py
+
+      - name: Self-SBOM demo (the package SBOMs itself)
+        run: |
+          python -m bts_sbom selfsbom --out bts-sbom-self.cdx.json
+          python - <<'PY'
+          import json
+          doc = json.load(open("bts-sbom-self.cdx.json"))
+          comp = doc["metadata"]["component"]
+          assert doc["bomFormat"] == "CycloneDX"
+          assert comp["name"] == "bts-sbom"
+          assert doc["dependencies"] == [{
+              "ref": comp["purl"], "dependsOn": []}], "stdlib-only claim broken"
+          assert doc["compositions"][0]["aggregate"] == "complete"
+          print("self-SBOM OK: %s %s — 0 runtime dependencies (aggregate: complete)"
+                % (comp["name"], comp["version"]))
+          PY
+
+      - name: SBOM-from-lockfile demo (minimal requirements.txt)
+        run: |
+          printf 'bts-sbom==0.1.0\n' > /tmp/requirements.txt
+          bts-sbom sbom /tmp/requirements.txt --name bts-sbom-demo --out bts-sbom-demo.spdx.json
+          python - <<'PY'
+          import json
+          doc = json.load(open("bts-sbom-demo.spdx.json"))
+          assert doc["spdxVersion"] == "SPDX-2.3"
+          assert any(p["name"] == "bts-sbom" for p in doc["packages"])
+          print("SPDX SBOM OK: %s package(s)" % len(doc["packages"]))
+          PY
+
+      - name: Upload self-SBOM artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bts-sbom-self-sbom-py${{ matrix.python-version }}
+          path: |
+            bts-sbom-self.cdx.json
+            bts-sbom-demo.spdx.json

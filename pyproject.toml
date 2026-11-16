@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bts-sbom"
+version = "0.1.0"
+description = "Regulatory-sector SBOM/SCA toolkit — CRA · FDA 524B · UNECE R155/R156 · EO 14028 · finance OSS guide · robot/ISO 10218"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "BTS authors" }]
+keywords = ["sbom", "spdx", "cyclonedx", "vex", "osv", "sca", "cra", "fda-524b", "unece-r155", "supply-chain"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+# HONESTY: zero third-party runtime dependencies — verified by the self-SBOM
+# (`python -m bts_sbom selfsbom`, aggregate: complete / dependsOn: []).
+dependencies = []
+
+[project.scripts]
+bts-sbom = "bts_sbom.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bts_sbom", "bts_sbom.*"]
+
+[tool.setuptools.package-data]
+bts_sbom = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
