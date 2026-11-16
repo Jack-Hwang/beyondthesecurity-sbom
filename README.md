@@ -65,6 +65,16 @@ SBOM quality is scored with the **NTIA minimum elements** (2021): supplier name,
 component name, version, unique identifier, dependency relationships, SBOM
 author, and timestamp.
 
+## Tutorials (교육 자료)
+
+3-step education track (Korean, workshop-ready) in [`tutorials/`](tutorials/):
+
+1. [SBOM 기초와 실습](tutorials/01_sbom_basics.md) — what/why, SPDX vs CycloneDX, NTIA minimum elements, hands-on build
+2. [OSV 취약점 스캔과 수정 제안](tutorials/02_vulnerability_scan.md) — Google OSV scan, guided remediation, CI policy gate
+3. [섹터 규제 컴플라이언스](tutorials/03_sector_compliance.md) — one SBOM against CRA · FDA 524B · UNECE R155/R156 · EO 14028 · finance · robot
+
+Example inputs live in [`examples/`](examples/).
+
 ## Honesty discipline
 
 This toolkit exists because SBOM tooling routinely launders missing evidence
