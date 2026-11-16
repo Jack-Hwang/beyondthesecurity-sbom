@@ -1,0 +1,18 @@
+[
+ {"q": "GPLv3 같은 별칭 표기는 어떤 식별자 체계로 바꿔서 다뤄", "expect": ["domain/licenses.md"]},
+ {"q": "위험도 숫자는 어떤 점수 체계로 구해", "expect": ["domain/vulnerabilities.md"]},
+ {"q": "고칠 수 있는 최소 버전을 어떻게 정하고 그걸 다시 확인해", "expect": ["domain/remediation_patching.md"]},
+ {"q": "간접 의존 패키지는 직접 고쳐 주나 안내만 해", "expect": ["domain/remediation_patching.md"]},
+ {"q": "서로 영향을 주고받는 파일을 이력으로 찾는 방법", "expect": ["domain/legacy_architecture.md"]},
+ {"q": "금융권 오픈소스 관리 지침에서 확인하는 항목", "expect": ["domain/industries.md"]},
+ {"q": "자동차 사이버보안 인증에서 소프트웨어 식별은 무엇으로 해", "expect": ["domain/industries.md"]},
+ {"q": "EXAONE 응답 형식이 틀리면 어떻게 처리해", "expect": ["domain/ai_and_loop.md"]},
+ {"q": "챗봇이 모르는 질문을 받으면 어떻게 답해", "expect": ["domain/ai_and_loop.md", "lecture/chatbot_and_agents.md"]},
+ {"q": "요구사항을 측정 가능하게 쓰는 문장 형식", "expect": ["lecture/sdd_and_requirements.md"]},
+ {"q": "여러 검색 결과의 순위를 하나로 합치는 공식", "expect": ["domain/ai_and_loop.md", "lecture/rag_methods.md"]},
+ {"q": "공급자 정보가 비어 있으면 산업 리포트에서 어떻게 평가돼", "expect": ["domain/sbom_formats.md", "domain/industries.md"]},
+ {"q": "서울에서 제주 가는 비행기 요금", "ood": true},
+ {"q": "고양이 사료 추천해줘", "ood": true},
+ {"q": "weather forecast tomorrow", "ood": true},
+ {"q": "요즘 볼만한 영화 추천", "ood": true}
+]

@@ -1,0 +1,169 @@
+{
+ "pass": 4,
+ "tag": "p04_raw_cache",
+ "at": "2026-11-16T15:55:58+00:00",
+ "variable": "measurement fix: license cache stores RAW source evidence (was normalised outcome incl. cached misses); extra registry fallbacks OFF",
+ "hypothesis": "realises pass-3 normaliser: license_resolved_rate 0.962 -> ~0.97 (diff-lcs, PSFL, AFL/MIT-CMU ids); nothing else moves",
+ "decision": "accept",
+ "gate": {
+  "pass": true,
+  "deltas": {
+   "project_success_rate": 0.0,
+   "license_resolved_rate": 0.002,
+   "sbom_ref_rate": 0.0,
+   "plan_verified_rate": 0.0,
+   "fix_applied_rate": 0.0,
+   "arch_coverage": 0.0,
+   "cyclonedx_valid_rate": 0.0,
+   "spdx_valid_rate": 0.0,
+   "rag_recall_at_5": 0.0,
+   "rag_mrr": 0.0,
+   "rag_ndcg_at_5": 0.0,
+   "ood_rate": 0.0,
+   "citation_accuracy": 0.0,
+   "analysis_s_avg": 4.9,
+   "stage_errors": 0
+  },
+  "failed": [],
+  "warnings": [],
+  "delta_limit": 0.02
+ },
+ "metrics": {
+  "project_success_rate": 1.0,
+  "license_resolved_rate": 0.964,
+  "sbom_ref_rate": 1.0,
+  "plan_verified_rate": 0.975,
+  "fix_applied_rate": 1.0,
+  "arch_coverage": 0.9,
+  "cyclonedx_valid_rate": 1.0,
+  "spdx_valid_rate": 1.0,
+  "analysis_s_avg": 51.5,
+  "stage_errors": 0,
+  "projects": 10,
+  "components": 2529,
+  "vulns": 1959,
+  "rag_recall_at_5": 1.0,
+  "rag_mrr": 0.95,
+  "rag_ndcg_at_5": 0.944,
+  "ood_rate": 1.0,
+  "citation_accuracy": 1.0
+ },
+ "failure_clusters": [
+  {
+   "key": "license:unresolved:npm",
+   "count": 48,
+   "examples": [
+    "nodegoat bcrypt-nodejs@0.0.3",
+    "nodegoat body@5.1.0",
+    "nodegoat broadway@0.3.6",
+    "nodegoat cliff@0.1.10"
+   ]
+  },
+  {
+   "key": "license:unresolved:RubyGems",
+   "count": 31,
+   "examples": [
+    "railsgoat ffi@1.17.3-aarch64-linux-gnu",
+    "railsgoat ffi@1.17.3-aarch64-linux-musl",
+    "railsgoat ffi@1.17.3-arm-linux-gnu",
+    "railsgoat ffi@1.17.3-arm-linux-musl"
+   ]
+  },
+  {
+   "key": "patch:blocked:RubyGems",
+   "count": 27,
+   "examples": [
+    "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+    "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+    "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+    "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+   ]
+  },
+  {
+   "key": "vuln:no_fix:npm",
+   "count": 12,
+   "examples": [
+    "nodegoat babel-traverse@6.11.4",
+    "nodegoat extract-zip@1.6.7",
+    "nodegoat swig@1.4.2",
+    "nodegoat request@2.88.0"
+   ]
+  },
+  {
+   "key": "license:unresolved:Maven",
+   "count": 11,
+   "examples": [
+    "java-sec-code cn.hutool:hutool-all@5.8.10",
+    "java-sec-code com.auth0:java-jwt@4.0.0",
+    "java-sec-code com.h2database:h2@1.4.199",
+    "java-sec-code com.ibm.db2:jcc@11.5.8.0"
+   ]
+  },
+  {
+   "key": "vuln:candidate_still_vulnerable:npm",
+   "count": 7,
+   "examples": [
+    "nodegoat hoek -> 4.2.1",
+    "nodegoat request -> 2.68.0",
+    "nodejs-goof elliptic -> 6.6.1",
+    "nodejs-goof express-fileupload -> 1.1.9"
+   ]
+  },
+  {
+   "key": "license:unmapped_raw",
+   "count": 4,
+   "examples": [
+    "SEE LICENSE IN COPYING.txt",
+    "BSD-like",
+    "BSD*"
+   ]
+  },
+  {
+   "key": "vuln:no_fix:Maven",
+   "count": 3,
+   "examples": [
+    "java-sec-code org.apache.velocity:velocity@1.7",
+    "java-sec-code commons-httpclient:commons-httpclient@3.1",
+    "java-sec-code commons-lang:commons-lang@2.4"
+   ]
+  },
+  {
+   "key": "vuln:candidate_still_vulnerable:Maven",
+   "count": 2,
+   "examples": [
+    "java-sec-code com.alibaba:fastjson -> 1.2.83",
+    "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+   ]
+  },
+  {
+   "key": "engine:data_incomplete",
+   "count": 2,
+   "examples": [
+    "java-sec-code: query_missing",
+    "iso14229: empty_project"
+   ]
+  },
+  {
+   "key": "arch:no_import_edges",
+   "count": 1,
+   "examples": [
+    "railsgoat languages=javascript,ruby"
+   ]
+  },
+  {
+   "key": "patch:manual:Go",
+   "count": 1,
+   "examples": [
+    "gin gopkg.in/yaml.v3: go.mod: 0 require line(s) updated (run `go mod tidy` to refresh go.sum)"
+   ]
+  }
+ ],
+ "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T155235Z_p04_raw_cache",
+ "baseline_pass": 3,
+ "core": {
+  "version": "0.1.1",
+  "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+ },
+ "code": "e0d95e953b44",
+ "plateau": false
+}

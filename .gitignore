@@ -5,3 +5,29 @@ build/
 .pytest_cache/
 bts_sbom_osv_local.db
 *.db
+
+# ---- SBOM+ (sbomplus/) ----
+*.py[cod]
+.venv/
+venv/
+.ruff_cache/
+
+# secrets / local configuration (never commit API keys)
+.env
+llm.json
+llm_local.json
+*.key
+
+# work copies, caches, LLM call ledger
+evidence/batch/work/
+evidence/cache/
+evidence/.llm_ledger.json
+evidence/runs/
+sbomplus_work_*/
+
+# bulky per-project machine records of analysed third-party repositories (regenerate with `sbomplus batch`);
+# summaries, loop history and the human-readable reports stay tracked
+evidence/batch/runs/*/*/*.json
+
+# optional pinned snapshot of the core used for a reproducible loop pass (git archive of a tag, see docs/SBOMPLUS.md)
+.deps/

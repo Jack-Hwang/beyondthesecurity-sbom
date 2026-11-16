@@ -30,10 +30,13 @@ dependencies = []
 
 [project.scripts]
 bts-sbom = "bts_sbom.cli:main"
+# SBOM+ (license / vulnerability / patch / legacy-architecture / EXAONE / RAG chatbot layer built ON the core above;
+# standard library only, so the zero-dependency statement above still holds). See docs/SBOMPLUS.md.
+sbomplus = "sbomplus.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["bts_sbom", "bts_sbom.*"]
+include = ["bts_sbom", "bts_sbom.*", "sbomplus", "sbomplus.*"]
 
 [tool.setuptools.package-data]
 bts_sbom = ["py.typed"]

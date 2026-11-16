@@ -1,0 +1,2567 @@
+[
+ {
+  "pass": 1,
+  "tag": "p01_baseline",
+  "at": "2026-11-16T15:37:53+00:00",
+  "variable": "baseline: bts-sbom 0.1.0 core + deps.dev/registry licenses + OSV-verified plans + manifest patcher",
+  "hypothesis": "first measurement on 10 real GitHub sources",
+  "decision": "baseline",
+  "gate": {
+   "pass": true,
+   "deltas": {},
+   "failed": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.962,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.956,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 0.9,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 0.8,
+   "analysis_s_avg": 53.0,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2529,
+   "vulns": 1959,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "license:unresolved:npm",
+    "count": 50,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat body@5.1.0",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 32,
+    "examples": [
+     "railsgoat diff-lcs@1.6.2",
+     "railsgoat ffi@1.17.3-aarch64-linux-gnu",
+     "railsgoat ffi@1.17.3-aarch64-linux-musl",
+     "railsgoat ffi@1.17.3-arm-linux-gnu"
+    ]
+   },
+   {
+    "key": "patch:blocked:RubyGems",
+    "count": 27,
+    "examples": [
+     "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+     "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+     "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+     "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 11,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.auth0:java-jwt@4.0.0",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 9,
+    "examples": [
+     "SEE LICENSE IN COPYING.txt",
+     "BSD-like",
+     "AFL-2.1 OR BSD-3-Clause",
+     "BSD*"
+    ]
+   },
+   {
+    "key": "vuln:unverified_plan:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat lodash -> 4.18.0 (max_rounds)",
+     "nodegoat lodash -> 4.18.1 (max_rounds)",
+     "nodegoat qs -> 6.16.0 (max_rounds)",
+     "nodegoat qs -> 6.16.1 (max_rounds)"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "license:unresolved:PyPI",
+    "count": 2,
+    "examples": [
+     "pygoat defusedxml@0.7.1",
+     "pygoat pillow@12.1.0"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "arch:no_import_edges",
+    "count": 1,
+    "examples": [
+     "railsgoat languages=javascript,ruby"
+    ]
+   },
+   {
+    "key": "patch:manual:Go",
+    "count": 1,
+    "examples": [
+     "gin gopkg.in/yaml.v3: go.mod: 0 require line(s) updated (run `go mod tidy` to refresh go.sum)"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T153327Z_p01_baseline",
+  "baseline_pass": null,
+  "plateau": false
+ },
+ {
+  "pass": 2,
+  "tag": "p02_verify_key",
+  "at": "2026-11-16T15:45:35+00:00",
+  "variable": "plan verification keyed by plan identity (was package+candidate: two plans sharing a candidate left one unverified)",
+  "hypothesis": "plan_verified_rate 0.956 -> ~1.0; nothing else should move",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.019,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -5.2,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.962,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.975,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 0.9,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 0.8,
+   "analysis_s_avg": 47.8,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2529,
+   "vulns": 1959,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "license:unresolved:npm",
+    "count": 50,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat body@5.1.0",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 32,
+    "examples": [
+     "railsgoat diff-lcs@1.6.2",
+     "railsgoat ffi@1.17.3-aarch64-linux-gnu",
+     "railsgoat ffi@1.17.3-aarch64-linux-musl",
+     "railsgoat ffi@1.17.3-arm-linux-gnu"
+    ]
+   },
+   {
+    "key": "patch:blocked:RubyGems",
+    "count": 27,
+    "examples": [
+     "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+     "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+     "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+     "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 11,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.auth0:java-jwt@4.0.0",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "license:unresolved:PyPI",
+    "count": 2,
+    "examples": [
+     "pygoat defusedxml@0.7.1",
+     "pygoat pillow@12.1.0"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 1,
+    "examples": [
+     "SEE LICENSE IN COPYING.txt"
+    ]
+   },
+   {
+    "key": "arch:no_import_edges",
+    "count": 1,
+    "examples": [
+     "railsgoat languages=javascript,ruby"
+    ]
+   },
+   {
+    "key": "patch:manual:Go",
+    "count": 1,
+    "examples": [
+     "gin gopkg.in/yaml.v3: go.mod: 0 require line(s) updated (run `go mod tidy` to refresh go.sum)"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T154134Z_p02_verify_key",
+  "baseline_pass": 1,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "b5c8c605255d",
+  "plateau": false,
+  "code_note": "fingerprint taken at launch (the loop now fixes it before the run starts)"
+ },
+ {
+  "pass": 3,
+  "tag": "p03_license_norm",
+  "at": "2026-11-16T15:49:53+00:00",
+  "variable": "license normalization: structure-preserving SPDX parser (keeps parentheses) + well-formed unknown SPDX ids accepted + PSFL alias",
+  "hypothesis": "license_resolved_rate 0.962 -> ~0.975; spdx_valid_rate 0.8 -> 1.0 (ripgrep); policy semantics of A AND (B OR C) preserved",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.2,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -1.2,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.962,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.975,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 0.9,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 46.6,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2529,
+   "vulns": 1959,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "license:unresolved:npm",
+    "count": 50,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat body@5.1.0",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 32,
+    "examples": [
+     "railsgoat diff-lcs@1.6.2",
+     "railsgoat ffi@1.17.3-aarch64-linux-gnu",
+     "railsgoat ffi@1.17.3-aarch64-linux-musl",
+     "railsgoat ffi@1.17.3-arm-linux-gnu"
+    ]
+   },
+   {
+    "key": "patch:blocked:RubyGems",
+    "count": 27,
+    "examples": [
+     "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+     "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+     "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+     "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 11,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.auth0:java-jwt@4.0.0",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "license:unresolved:PyPI",
+    "count": 2,
+    "examples": [
+     "pygoat defusedxml@0.7.1",
+     "pygoat pillow@12.1.0"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 1,
+    "examples": [
+     "SEE LICENSE IN COPYING.txt"
+    ]
+   },
+   {
+    "key": "arch:no_import_edges",
+    "count": 1,
+    "examples": [
+     "railsgoat languages=javascript,ruby"
+    ]
+   },
+   {
+    "key": "patch:manual:Go",
+    "count": 1,
+    "examples": [
+     "gin gopkg.in/yaml.v3: go.mod: 0 require line(s) updated (run `go mod tidy` to refresh go.sum)"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T154557Z_p03_license_norm",
+  "baseline_pass": 2,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "e748b58fae08",
+  "plateau": false,
+  "note": "license_resolved_rate did not move because a stale cache had stored normalised misses: the effect was realised only in pass 4 (measurement defect, not a normaliser failure)"
+ },
+ {
+  "pass": 4,
+  "tag": "p04_raw_cache",
+  "at": "2026-11-16T15:55:58+00:00",
+  "variable": "measurement fix: license cache stores RAW source evidence (was normalised outcome incl. cached misses); extra registry fallbacks OFF",
+  "hypothesis": "realises pass-3 normaliser: license_resolved_rate 0.962 -> ~0.97 (diff-lcs, PSFL, AFL/MIT-CMU ids); nothing else moves",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.002,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": 4.9,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.964,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.975,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 0.9,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 51.5,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2529,
+   "vulns": 1959,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "license:unresolved:npm",
+    "count": 48,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat body@5.1.0",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 31,
+    "examples": [
+     "railsgoat ffi@1.17.3-aarch64-linux-gnu",
+     "railsgoat ffi@1.17.3-aarch64-linux-musl",
+     "railsgoat ffi@1.17.3-arm-linux-gnu",
+     "railsgoat ffi@1.17.3-arm-linux-musl"
+    ]
+   },
+   {
+    "key": "patch:blocked:RubyGems",
+    "count": 27,
+    "examples": [
+     "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+     "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+     "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+     "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 11,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.auth0:java-jwt@4.0.0",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 4,
+    "examples": [
+     "SEE LICENSE IN COPYING.txt",
+     "BSD-like",
+     "BSD*"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "arch:no_import_edges",
+    "count": 1,
+    "examples": [
+     "railsgoat languages=javascript,ruby"
+    ]
+   },
+   {
+    "key": "patch:manual:Go",
+    "count": 1,
+    "examples": [
+     "gin gopkg.in/yaml.v3: go.mod: 0 require line(s) updated (run `go mod tidy` to refresh go.sum)"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T155235Z_p04_raw_cache",
+  "baseline_pass": 3,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "e0d95e953b44",
+  "plateau": false
+ },
+ {
+  "pass": 5,
+  "tag": "p05_extra_registries",
+  "at": "2026-11-16T15:59:25+00:00",
+  "variable": "knob license_extra_registries: OFF -> ON (npm legacy licenses[] array, Maven Central POM with parent inheritance)",
+  "hypothesis": "license:unresolved:npm 48 -> ~30, Maven 11 -> ~5; license_resolved_rate up; no other metric moves",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.014,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -2.9,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.978,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.975,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 0.9,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 48.6,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2529,
+   "vulns": 1959,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 31,
+    "examples": [
+     "railsgoat ffi@1.17.3-aarch64-linux-gnu",
+     "railsgoat ffi@1.17.3-aarch64-linux-musl",
+     "railsgoat ffi@1.17.3-arm-linux-gnu",
+     "railsgoat ffi@1.17.3-arm-linux-musl"
+    ]
+   },
+   {
+    "key": "patch:blocked:RubyGems",
+    "count": 27,
+    "examples": [
+     "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+     "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+     "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+     "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 13,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "arch:no_import_edges",
+    "count": 1,
+    "examples": [
+     "railsgoat languages=javascript,ruby"
+    ]
+   },
+   {
+    "key": "patch:manual:Go",
+    "count": 1,
+    "examples": [
+     "gin gopkg.in/yaml.v3: go.mod: 0 require line(s) updated (run `go mod tidy` to refresh go.sum)"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T155616Z_p05_extra_registries",
+  "baseline_pass": 4,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "e0d95e953b44",
+  "plateau": false
+ },
+ {
+  "pass": 6,
+  "tag": "p06_dedupe",
+  "at": "2026-11-16T16:02:54+00:00",
+  "variable": "engine dedupe: same advisory+package+version from several manifests -> ONE finding (ruby merge and go.sum filter held OFF)",
+  "hypothesis": "vulns 1959 -> ~1440 (-521 duplicates); components, license rate, plan rate unchanged; patch rescan_fix_rate changes because the denominator shrinks",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -1.2,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.978,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.975,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 0.9,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 47.4,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2529,
+   "vulns": 1438,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 31,
+    "examples": [
+     "railsgoat ffi@1.17.3-aarch64-linux-gnu",
+     "railsgoat ffi@1.17.3-aarch64-linux-musl",
+     "railsgoat ffi@1.17.3-arm-linux-gnu",
+     "railsgoat ffi@1.17.3-arm-linux-musl"
+    ]
+   },
+   {
+    "key": "patch:blocked:RubyGems",
+    "count": 27,
+    "examples": [
+     "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+     "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+     "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+     "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 13,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "arch:no_import_edges",
+    "count": 1,
+    "examples": [
+     "railsgoat languages=javascript,ruby"
+    ]
+   },
+   {
+    "key": "patch:manual:Go",
+    "count": 1,
+    "examples": [
+     "gin gopkg.in/yaml.v3: go.mod: 0 require line(s) updated (run `go mod tidy` to refresh go.sum)"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T155948Z_p06_dedupe",
+  "baseline_pass": 5,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "5357cfd685b6",
+  "plateau": false,
+  "note": "found by the first real e2e: 521 of 1959 findings were duplicates across manifests"
+ },
+ {
+  "pass": 7,
+  "tag": "p07_ruby_merge",
+  "at": "2026-11-16T16:06:07+00:00",
+  "variable": "engine ruby platform merge: ffi 1.17.3-arm64-darwin etc. -> one package version (go.sum filter held OFF)",
+  "hypothesis": "railsgoat components 197 -> ~167, license:unresolved:RubyGems 31 -> ~1, vulns drop by the platform copies; license_resolved_rate up",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.012,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": -0.001,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -1.5,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.99,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.974,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 0.9,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 45.9,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2499,
+   "vulns": 1294,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "patch:blocked:RubyGems",
+    "count": 19,
+    "examples": [
+     "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+     "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+     "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+     "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 10,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 1,
+    "examples": [
+     "railsgoat jquery-fileupload-rails@1.0.0"
+    ]
+   },
+   {
+    "key": "arch:no_import_edges",
+    "count": 1,
+    "examples": [
+     "railsgoat languages=javascript,ruby"
+    ]
+   },
+   {
+    "key": "patch:manual:Go",
+    "count": 1,
+    "examples": [
+     "gin gopkg.in/yaml.v3: go.mod: 0 require line(s) updated (run `go mod tidy` to refresh go.sum)"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T160306Z_p07_ruby_merge",
+  "baseline_pass": 6,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "5357cfd685b6",
+  "plateau": false
+ },
+ {
+  "pass": 8,
+  "tag": "p08_go_mvs",
+  "at": "2026-11-16T16:09:18+00:00",
+  "variable": "engine go_mvs: ignore go.sum-only module versions (never selected by the build)",
+  "hypothesis": "gin components 53 -> ~32, 2 false-positive findings and the go.sum-only patch plans disappear; nothing else moves",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -0.3,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.99,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.974,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 0.9,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 45.6,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2478,
+   "vulns": 1292,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "patch:blocked:RubyGems",
+    "count": 19,
+    "examples": [
+     "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+     "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+     "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+     "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 10,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 1,
+    "examples": [
+     "railsgoat jquery-fileupload-rails@1.0.0"
+    ]
+   },
+   {
+    "key": "arch:no_import_edges",
+    "count": 1,
+    "examples": [
+     "railsgoat languages=javascript,ruby"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T160618Z_p08_go_mvs",
+  "baseline_pass": 7,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "5357cfd685b6",
+  "plateau": false
+ },
+ {
+  "pass": 9,
+  "tag": "p09_ruby_arch",
+  "at": "2026-11-16T16:12:43+00:00",
+  "variable": "arch: Ruby require/require_relative import graph (Rails autoload stays unresolved, marked partial)",
+  "hypothesis": "arch_coverage 0.9 -> 1.0 (railsgoat gets import edges); nothing else moves",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.1,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": 1.6,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.99,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.974,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 1.0,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 47.2,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2478,
+   "vulns": 1292,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "patch:blocked:RubyGems",
+    "count": 19,
+    "examples": [
+     "railsgoat activestorage: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update activestor",
+     "railsgoat rack-session: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack-sessi",
+     "railsgoat rack: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update rack`",
+     "railsgoat nokogiri: Gemfile: blocked: gem not declared in Gemfile (transitive) - run `bundle update nokogiri`"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 10,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 1,
+    "examples": [
+     "railsgoat jquery-fileupload-rails@1.0.0"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T160935Z_p09_ruby_arch",
+  "baseline_pass": 8,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "46adef24e796",
+  "plateau": false
+ },
+ {
+  "pass": 10,
+  "tag": "p10_classification",
+  "at": "2026-11-16T16:15:56+00:00",
+  "variable": "classification honesty (bundled: two changes that cannot move a gated metric): transitive-only deps -> manual (was blocked); MAL- advisories -> CRITICAL (was UNKNOWN)",
+  "hypothesis": "patch:blocked:RubyGems 19 -> 0 (reclassified to manual); severity UNKNOWN count drops, CRITICAL rises; every gated metric identical",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -0.1,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.99,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.974,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 1.0,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 47.1,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2478,
+   "vulns": 1292,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "patch:manual:RubyGems",
+    "count": 19,
+    "examples": [
+     "railsgoat activestorage: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack-session: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat nokogiri: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 10,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 1,
+    "examples": [
+     "railsgoat jquery-fileupload-rails@1.0.0"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T161253Z_p10_classification",
+  "baseline_pass": 9,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "4b38c492b09a",
+  "plateau": false,
+  "note": "deviation from one-variable-per-pass: two classification-only changes bundled because neither can move a gated metric"
+ },
+ {
+  "pass": 11,
+  "tag": "p11_exaone",
+  "at": "2026-11-16T16:26:12+00:00",
+  "variable": "EXAONE lane ON (K-EXAONE 2.5 proposals with 4-layer validation + loop hypotheses); everything else frozen",
+  "hypothesis": "proposal source exaone for most projects (>=7 of 10), validated items only; no gated metric moves; dropped counts recorded",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": 69.4,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [
+    "analysis_s_avg: 47.1 -> 116.5 (allowed +50%)"
+   ],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.99,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.974,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 1.0,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 116.5,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2478,
+   "vulns": 1292,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "patch:manual:RubyGems",
+    "count": 19,
+    "examples": [
+     "railsgoat activestorage: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack-session: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat nokogiri: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 10,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 1,
+    "examples": [
+     "railsgoat jquery-fileupload-rails@1.0.0"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T161619Z_p11_exaone",
+  "baseline_pass": 10,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "4b38c492b09a",
+  "plateau": false,
+  "note": "EXAONE produced 0/10 accepted proposals: timeout, empty completion (reasoning used the token cap), truncated JSON, busy 429"
+ },
+ {
+  "pass": 12,
+  "tag": "p12_exaone_repair",
+  "at": "2026-11-16T16:51:48+00:00",
+  "variable": "EXAONE lane repair (one variable family: reasoning-model budget): max_tokens 3000->8192, timeout 120->300s, one request in flight, ledger counts failed attempts, only validated answers cached",
+  "hypothesis": "exaone proposals 0/10 -> >=7/10 (empty completion, truncation and busy-429 were the 4 observed failure causes); no gated metric moves",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": 146.6,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [
+    "analysis_s_avg: 116.5 -> 263.1 (allowed +50%)"
+   ],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.99,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.974,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 1.0,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 263.1,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2478,
+   "vulns": 1292,
+   "exaone_rate": 0.8,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "patch:manual:RubyGems",
+    "count": 19,
+    "examples": [
+     "railsgoat activestorage: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack-session: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat nokogiri: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 10,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 1,
+    "examples": [
+     "railsgoat jquery-fileupload-rails@1.0.0"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T162951Z_p12_exaone_repair",
+  "baseline_pass": 11,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "5007bd47df72",
+  "next": {
+   "source": "exaone",
+   "items": [
+    {
+     "cluster": "patch:manual:RubyGems",
+     "variable": "transitive RubyGem declaration policy",
+     "expected_effect": "reduce patch:manual:RubyGems failure count by making undeclared transitive gems easier to detect and surface",
+     "risk": "medium"
+    },
+    {
+     "cluster": "license:unresolved:npm",
+     "variable": "npm license metadata normalization",
+     "expected_effect": "increase resolved npm license count and reduce license:unresolved:npm failures",
+     "risk": "medium"
+    },
+    {
+     "cluster": "vuln:no_fix:npm",
+     "variable": "npm vulnerability advisory fix-availability data source",
+     "expected_effect": "reduce vuln:no_fix:npm failures by improving advisory coverage and fix-status accuracy",
+     "risk": "medium"
+    },
+    {
+     "cluster": "license:unmapped_raw",
+     "variable": "SPDX license alias mapping table",
+     "expected_effect": "increase mapped license rate and reduce license:unmapped_raw failures",
+     "risk": "low"
+    },
+    {
+     "cluster": "vuln:candidate_still_vulnerable:npm",
+     "variable": "candidate version validation against multiple advisories",
+     "expected_effect": "reduce vuln:candidate_still_vulnerable:npm failures by catching candidates still affected by other advisories",
+     "risk": "medium"
+    }
+   ],
+   "dropped": 0,
+   "llm_note": ""
+  },
+  "plateau": false,
+  "note": "audit of the answers: about half of the semantic drops were version/section refs, not invented entities - the validator was too strict"
+ },
+ {
+  "pass": 13,
+  "tag": "p13_ai_validator",
+  "at": "2026-11-16T17:02:55+00:00",
+  "variable": "ai validator: version/section/license refs accepted as evidence anchors + refs repaired from the title when it names exactly one evidence package (cached EXAONE answers re-validated, no new LLM calls except uncached projects)",
+  "hypothesis": "ai_keep_rate 0.47 (27 kept / 30 dropped in pass 12) -> >=0.8; no gated metric moves; gin/iso14229 may retry once",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -181.5,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.99,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.974,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 1.0,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 81.6,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2478,
+   "vulns": 1292,
+   "exaone_rate": 1.0,
+   "ai_keep_rate": 0.919,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "patch:manual:RubyGems",
+    "count": 19,
+    "examples": [
+     "railsgoat activestorage: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack-session: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat nokogiri: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 10,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 1,
+    "examples": [
+     "railsgoat jquery-fileupload-rails@1.0.0"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T165522Z_p13_ai_validator",
+  "baseline_pass": 12,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "e0c4b80a8638",
+  "next": {
+   "source": "exaone",
+   "items": [
+    {
+     "cluster": "patch:manual:RubyGems",
+     "variable": "RubyGems transitive dependency and manual patch/advisory resolution logic",
+     "expected_effect": "lower patch:manual:RubyGems cluster count on the golden set",
+     "risk": "medium"
+    },
+    {
+     "cluster": "license:unresolved:npm",
+     "variable": "npm package license metadata resolution and normalization",
+     "expected_effect": "lower license:unresolved:npm cluster count on the golden set",
+     "risk": "medium"
+    },
+    {
+     "cluster": "vuln:no_fix:npm",
+     "variable": "npm vulnerability advisory no-fix handling and matching",
+     "expected_effect": "lower vuln:no_fix:npm cluster count on the golden set",
+     "risk": "medium"
+    },
+    {
+     "cluster": "license:unmapped_raw",
+     "variable": "raw license string mapping to canonical license identifiers",
+     "expected_effect": "lower license:unmapped_raw cluster count on the golden set",
+     "risk": "low"
+    },
+    {
+     "cluster": "license:unresolved:Maven",
+     "variable": "Maven POM license extraction and license mapping",
+     "expected_effect": "lower license:unresolved:Maven cluster count on the golden set",
+     "risk": "medium"
+    }
+   ],
+   "dropped": 0,
+   "llm_note": ""
+  },
+  "plateau": false,
+  "note": "ai_keep_rate is IN-SAMPLE: the validator was changed after reading these 10 responses"
+ },
+ {
+  "pass": 14,
+  "tag": "p14_patch_scope",
+  "at": "2026-11-16T17:08:20+00:00",
+  "variable": "patch regression judged on findings of the EDITED files only (untouched lockfile no longer blamed; was reverting a 134-package npm patch for 1 new advisory)",
+  "hypothesis": "nodejs-goof regression_reverted -> applied; stop_reasons applied 6, nothing_applied 4; rescan_fix_rate rises; no other gated metric moves",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -34.7,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.99,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.974,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 1.0,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 46.9,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2478,
+   "vulns": 1292,
+   "exaone_rate": 1.0,
+   "ai_keep_rate": 0.919,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "patch:manual:RubyGems",
+    "count": 19,
+    "examples": [
+     "railsgoat activestorage: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack-session: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat nokogiri: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 10,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 1,
+    "examples": [
+     "railsgoat jquery-fileupload-rails@1.0.0"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T170424Z_p14_patch_scope",
+  "baseline_pass": 13,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "75ebd901b8da",
+  "next": {
+   "source": "deterministic",
+   "items": [
+    {
+     "cluster": "patch:manual:RubyGems",
+     "variable": "investigate patch:manual:RubyGems",
+     "expected_effect": "reduce 19 failures",
+     "risk": "low"
+    },
+    {
+     "cluster": "license:unresolved:npm",
+     "variable": "investigate license:unresolved:npm",
+     "expected_effect": "reduce 18 failures",
+     "risk": "low"
+    },
+    {
+     "cluster": "vuln:no_fix:npm",
+     "variable": "investigate vuln:no_fix:npm",
+     "expected_effect": "reduce 12 failures",
+     "risk": "low"
+    }
+   ],
+   "llm_note": "EXAONE unavailable: provider rate/day limit (HTTP 429): {\"error\":{\"message\":\"service is busy, too many concurrent requests(600)\",\"type\":\"rate_limit_error\",\"param\":null,\"code\":\"rate"
+  },
+  "plateau": false,
+  "note": "nodejs-goof regression_reverted was a false regression (untouched lockfile); regression is now judged on the edited files"
+ },
+ {
+  "pass": 15,
+  "tag": "p15_final_verify",
+  "at": "2026-11-16T17:16:01+00:00",
+  "variable": "none (final verification of the shipped tree: chat pointer normalisation and CLI changes landed after pass 14 and cannot move a batch metric)",
+  "hypothesis": "every gated metric identical to pass 14 (reproducibility of the final tree)",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "deltas": {
+    "project_success_rate": 0.0,
+    "license_resolved_rate": 0.0,
+    "sbom_ref_rate": 0.0,
+    "plan_verified_rate": 0.0,
+    "fix_applied_rate": 0.0,
+    "arch_coverage": 0.0,
+    "cyclonedx_valid_rate": 0.0,
+    "spdx_valid_rate": 0.0,
+    "rag_recall_at_5": 0.0,
+    "rag_mrr": 0.0,
+    "rag_ndcg_at_5": 0.0,
+    "ood_rate": 0.0,
+    "citation_accuracy": 0.0,
+    "analysis_s_avg": -0.3,
+    "stage_errors": 0
+   },
+   "failed": [],
+   "warnings": [],
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "project_success_rate": 1.0,
+   "license_resolved_rate": 0.99,
+   "sbom_ref_rate": 1.0,
+   "plan_verified_rate": 0.974,
+   "fix_applied_rate": 1.0,
+   "arch_coverage": 1.0,
+   "cyclonedx_valid_rate": 1.0,
+   "spdx_valid_rate": 1.0,
+   "analysis_s_avg": 46.6,
+   "stage_errors": 0,
+   "projects": 10,
+   "components": 2478,
+   "vulns": 1292,
+   "exaone_rate": 1.0,
+   "ai_keep_rate": 0.919,
+   "rag_recall_at_5": 1.0,
+   "rag_mrr": 0.95,
+   "rag_ndcg_at_5": 0.944,
+   "ood_rate": 1.0,
+   "citation_accuracy": 1.0
+  },
+  "failure_clusters": [
+   {
+    "key": "patch:manual:RubyGems",
+    "count": 19,
+    "examples": [
+     "railsgoat activestorage: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack-session: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat rack: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+     "railsgoat nokogiri: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat"
+    ]
+   },
+   {
+    "key": "license:unresolved:npm",
+    "count": 18,
+    "examples": [
+     "nodegoat bcrypt-nodejs@0.0.3",
+     "nodegoat broadway@0.3.6",
+     "nodegoat cliff@0.1.10",
+     "nodegoat cliff@0.1.9"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:npm",
+    "count": 12,
+    "examples": [
+     "nodegoat babel-traverse@6.11.4",
+     "nodegoat extract-zip@1.6.7",
+     "nodegoat swig@1.4.2",
+     "nodegoat request@2.88.0"
+    ]
+   },
+   {
+    "key": "license:unmapped_raw",
+    "count": 10,
+    "examples": [
+     "BSD-like",
+     "BSD*",
+     "SEE LICENSE IN COPYING.txt",
+     "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:npm",
+    "count": 7,
+    "examples": [
+     "nodegoat hoek -> 4.2.1",
+     "nodegoat request -> 2.68.0",
+     "nodejs-goof elliptic -> 6.6.1",
+     "nodejs-goof express-fileupload -> 1.1.9"
+    ]
+   },
+   {
+    "key": "license:unresolved:Maven",
+    "count": 7,
+    "examples": [
+     "java-sec-code cn.hutool:hutool-all@5.8.10",
+     "java-sec-code com.h2database:h2@1.4.199",
+     "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+     "java-sec-code commons-collections:commons-collections@3.1"
+    ]
+   },
+   {
+    "key": "vuln:no_fix:Maven",
+    "count": 3,
+    "examples": [
+     "java-sec-code org.apache.velocity:velocity@1.7",
+     "java-sec-code commons-httpclient:commons-httpclient@3.1",
+     "java-sec-code commons-lang:commons-lang@2.4"
+    ]
+   },
+   {
+    "key": "vuln:candidate_still_vulnerable:Maven",
+    "count": 2,
+    "examples": [
+     "java-sec-code com.alibaba:fastjson -> 1.2.83",
+     "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+    ]
+   },
+   {
+    "key": "engine:data_incomplete",
+    "count": 2,
+    "examples": [
+     "java-sec-code: query_missing",
+     "iso14229: empty_project"
+    ]
+   },
+   {
+    "key": "license:unresolved:RubyGems",
+    "count": 1,
+    "examples": [
+     "railsgoat jquery-fileupload-rails@1.0.0"
+    ]
+   }
+  ],
+  "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T171206Z_p15_final_verify",
+  "baseline_pass": 14,
+  "core": {
+   "version": "0.1.1",
+   "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+  },
+  "code": "7ef70a7cf3eb",
+  "next": {
+   "source": "deterministic",
+   "items": [
+    {
+     "cluster": "patch:manual:RubyGems",
+     "variable": "investigate patch:manual:RubyGems",
+     "expected_effect": "reduce 19 failures",
+     "risk": "low"
+    },
+    {
+     "cluster": "license:unresolved:npm",
+     "variable": "investigate license:unresolved:npm",
+     "expected_effect": "reduce 18 failures",
+     "risk": "low"
+    },
+    {
+     "cluster": "vuln:no_fix:npm",
+     "variable": "investigate vuln:no_fix:npm",
+     "expected_effect": "reduce 12 failures",
+     "risk": "low"
+    }
+   ],
+   "llm_note": "EXAONE unavailable: provider rate/day limit (HTTP 429): {\"error\":{\"message\":\"service is busy, too many concurrent requests(600)\",\"type\":\"rate_limit_error\",\"param\":null,\"code\":\"rate"
+  },
+  "plateau": false,
+  "note": "no variable: final tree reproduces pass 14 exactly (0 LLM calls, EXAONE answers served from the validated cache)"
+ }
+]

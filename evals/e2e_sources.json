@@ -1,0 +1,12 @@
+[
+ {"name": "nodegoat",   "src": "https://github.com/OWASP/NodeGoat.git",                 "depth": 100, "note": "npm, intentionally vulnerable web app (finance-style)"},
+ {"name": "nodejs-goof","src": "https://github.com/snyk-labs/nodejs-goof.git",          "depth": 100, "note": "npm, intentionally vulnerable"},
+ {"name": "pygoat",     "src": "https://github.com/adeyosemanputra/pygoat.git",         "depth": 100, "note": "pip requirements.txt pins, intentionally vulnerable Django"},
+ {"name": "railsgoat",  "src": "https://github.com/OWASP/railsgoat.git",                "depth": 100, "note": "RubyGems Gemfile.lock, intentionally vulnerable"},
+ {"name": "java-sec-code","src": "https://github.com/JoyChou93/java-sec-code.git",      "depth": 100, "note": "Maven pom.xml, intentionally vulnerable"},
+ {"name": "gin",        "src": "https://github.com/gin-gonic/gin.git",                  "depth": 100, "note": "Go modules, maintained project"},
+ {"name": "ripgrep",    "src": "https://github.com/BurntSushi/ripgrep.git",             "depth": 100, "note": "Cargo.lock, maintained project"},
+ {"name": "flask",      "src": "https://github.com/pallets/flask.git",                  "depth": 100, "note": "pip pinned dev requirements, maintained project"},
+ {"name": "express",    "src": "https://github.com/expressjs/express.git",              "depth": 100, "note": "npm package.json without lockfile (ranges unresolved)"},
+ {"name": "iso14229",   "src": "https://github.com/driftregion/iso14229.git",           "depth": 100, "note": "C UDS (automotive) library, no package manifest: expect honest empty SBOM"}
+]

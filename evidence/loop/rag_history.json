@@ -1,0 +1,248 @@
+[
+ {
+  "pass": 1,
+  "tag": "r1_baseline",
+  "at": "2026-11-16T16:17:56+00:00",
+  "variable": "baseline: lexical BM25+TF-IDF RRF, unweighted coverage gate (0.34)",
+  "hypothesis": "golden 1.0; dev/test lower (paraphrase vocabulary gap)",
+  "decision": "baseline",
+  "gate": {
+   "pass": true,
+   "failed": [],
+   "deltas": {},
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "golden_recall": 1.0,
+   "golden_mrr": 0.95,
+   "golden_ndcg": 0.944,
+   "golden_ood": 1.0,
+   "dev_recall": 0.733,
+   "dev_mrr": 0.647,
+   "dev_ndcg": 0.646,
+   "dev_ood": 0.8,
+   "test_recall": 0.917,
+   "test_mrr": 0.715,
+   "test_ndcg": 0.738,
+   "test_ood": 1.0
+  },
+  "misses": {
+   "rag_golden": [],
+   "rag_dev": [
+    {
+     "q": "패키지 이용 허가 조건 정보를 어느 사이트에서 가져와",
+     "why": "expected ['domain/licenses.md'] not in top 5",
+     "top": "domain/vulnerabilities.md"
+    },
+    {
+     "q": "고쳤는데 새 문제가 더 생기면 원상복구 하나",
+     "why": "expected ['domain/remediation_patching.md'] not in top 5",
+     "top": "domain/ai_and_loop.md"
+    },
+    {
+     "q": "낡은 파이썬 버전이 아직 지원되는지 어디서 알아봐",
+     "why": "expected ['domain/legacy_architecture.md'] not in top 5",
+     "top": "domain/vulnerabilities.md"
+    },
+    {
+     "q": "호출 횟수 제한에 걸리면 프로그램은 어떻게 행동해",
+     "why": "expected ['domain/ai_and_loop.md'] not in top 5",
+     "top": "lecture/chatbot_and_agents.md"
+    },
+    {
+     "q": "축구 경기 결과를 알려줘",
+     "why": "ood answered",
+     "top": "lecture/rag_methods.md"
+    }
+   ],
+   "rag_test": [
+    {
+     "q": "서로 영향을 주고받는 파일을 이력으로 찾는 방법",
+     "why": "expected ['domain/legacy_architecture.md'] not in top 5",
+     "top": "domain/licenses.md"
+    }
+   ]
+  },
+  "code": "4229c8c47442"
+ },
+ {
+  "pass": 2,
+  "tag": "r2_paraphrase_synonyms",
+  "at": "2026-11-16T16:18:20+00:00",
+  "variable": "rag synonyms: Korean paraphrase vocabulary derived from dev failures (license wording, revert, EOL, call limits)",
+  "hypothesis": "dev recall 0.733 -> ~0.87; test recall and golden unchanged or up; OOD not worse",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "failed": [],
+   "deltas": {
+    "golden_recall": 0.0,
+    "golden_mrr": 0.0,
+    "golden_ndcg": 0.0,
+    "golden_ood": 0.0,
+    "dev_recall": 0.267,
+    "dev_mrr": 0.222,
+    "dev_ndcg": 0.227,
+    "dev_ood": 0.0,
+    "test_recall": 0.0,
+    "test_mrr": 0.0,
+    "test_ndcg": 0.0,
+    "test_ood": 0.0
+   },
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "golden_recall": 1.0,
+   "golden_mrr": 0.95,
+   "golden_ndcg": 0.944,
+   "golden_ood": 1.0,
+   "dev_recall": 1.0,
+   "dev_mrr": 0.869,
+   "dev_ndcg": 0.873,
+   "dev_ood": 0.8,
+   "test_recall": 0.917,
+   "test_mrr": 0.715,
+   "test_ndcg": 0.738,
+   "test_ood": 1.0
+  },
+  "misses": {
+   "rag_golden": [],
+   "rag_dev": [
+    {
+     "q": "축구 경기 결과를 알려줘",
+     "why": "ood answered",
+     "top": "lecture/rag_methods.md"
+    }
+   ],
+   "rag_test": [
+    {
+     "q": "서로 영향을 주고받는 파일을 이력으로 찾는 방법",
+     "why": "expected ['domain/legacy_architecture.md'] not in top 5",
+     "top": "domain/licenses.md"
+    }
+   ]
+  },
+  "code": "2f1eb8adfb49"
+ },
+ {
+  "pass": 3,
+  "tag": "r3_measure_found",
+  "at": "2026-11-16T16:19:17+00:00",
+  "variable": "measurement: add in-domain found_rate (false-rejection) to the RAG gate metrics; retrieval unchanged",
+  "hypothesis": "all retrieval metrics identical to r2; new *_found metrics recorded",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "failed": [],
+   "deltas": {
+    "golden_recall": 0.0,
+    "golden_mrr": 0.0,
+    "golden_ndcg": 0.0,
+    "golden_ood": 0.0,
+    "dev_recall": 0.0,
+    "dev_mrr": 0.0,
+    "dev_ndcg": 0.0,
+    "dev_ood": 0.0,
+    "test_recall": 0.0,
+    "test_mrr": 0.0,
+    "test_ndcg": 0.0,
+    "test_ood": 0.0
+   },
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "golden_recall": 1.0,
+   "golden_mrr": 0.95,
+   "golden_ndcg": 0.944,
+   "golden_ood": 1.0,
+   "golden_found": 0.7,
+   "dev_recall": 1.0,
+   "dev_mrr": 0.869,
+   "dev_ndcg": 0.873,
+   "dev_ood": 0.8,
+   "dev_found": 0.333,
+   "test_recall": 0.917,
+   "test_mrr": 0.715,
+   "test_ndcg": 0.738,
+   "test_ood": 1.0,
+   "test_found": 0.333
+  },
+  "misses": {
+   "rag_golden": [],
+   "rag_dev": [
+    {
+     "q": "축구 경기 결과를 알려줘",
+     "why": "ood answered",
+     "top": "lecture/rag_methods.md"
+    }
+   ],
+   "rag_test": [
+    {
+     "q": "서로 영향을 주고받는 파일을 이력으로 찾는 방법",
+     "why": "expected ['domain/legacy_architecture.md'] not in top 5",
+     "top": "domain/licenses.md"
+    }
+   ]
+  },
+  "code": "886d1f9e902e"
+ },
+ {
+  "pass": 4,
+  "tag": "r4_bm25_gate",
+  "at": "2026-11-16T16:20:00+00:00",
+  "variable": "rag confidence gate: absolute BM25 >= 11 replaces unweighted coverage >= 0.34 (false rejections of valid questions)",
+  "hypothesis": "golden/dev/test found_rate 0.7/0.33/0.33 -> ~0.89/0.87/0.83; OOD rejection stays 1.0; recall/MRR unchanged",
+  "decision": "accept",
+  "gate": {
+   "pass": true,
+   "failed": [],
+   "deltas": {
+    "golden_recall": 0.0,
+    "golden_mrr": 0.0,
+    "golden_ndcg": 0.0,
+    "golden_ood": 0.0,
+    "golden_found": 0.15,
+    "dev_recall": 0.0,
+    "dev_mrr": 0.0,
+    "dev_ndcg": 0.0,
+    "dev_ood": 0.2,
+    "dev_found": 0.6,
+    "test_recall": 0.0,
+    "test_mrr": 0.0,
+    "test_ndcg": 0.0,
+    "test_ood": 0.0,
+    "test_found": 0.5
+   },
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "golden_recall": 1.0,
+   "golden_mrr": 0.95,
+   "golden_ndcg": 0.944,
+   "golden_ood": 1.0,
+   "golden_found": 0.85,
+   "dev_recall": 1.0,
+   "dev_mrr": 0.869,
+   "dev_ndcg": 0.873,
+   "dev_ood": 1.0,
+   "dev_found": 0.933,
+   "test_recall": 0.917,
+   "test_mrr": 0.715,
+   "test_ndcg": 0.738,
+   "test_ood": 1.0,
+   "test_found": 0.833
+  },
+  "misses": {
+   "rag_golden": [],
+   "rag_dev": [],
+   "rag_test": [
+    {
+     "q": "서로 영향을 주고받는 파일을 이력으로 찾는 방법",
+     "why": "expected ['domain/legacy_architecture.md'] not in top 5",
+     "top": "domain/licenses.md"
+    }
+   ]
+  },
+  "code": "72b4d4b86169"
+ }
+]

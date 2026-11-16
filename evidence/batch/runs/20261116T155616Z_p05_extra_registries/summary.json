@@ -1,0 +1,440 @@
+{
+ "schema": "sbomplus.batch.v1",
+ "tag": "p05_extra_registries",
+ "generated_at": "2026-11-16T15:59:25+00:00",
+ "settings": {
+  "offline": false,
+  "online_license": true,
+  "license_extra_registries": true,
+  "use_llm": false,
+  "lang": "ko",
+  "arch_online": false,
+  "patch": true,
+  "approved": true,
+  "approval_token": null,
+  "rounds": 2,
+  "deliver_target": "branch"
+ },
+ "core": {
+  "version": "0.1.1",
+  "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+ },
+ "llm": null,
+ "net": {
+  "requests": 818,
+  "failures": 0,
+  "last_error": ""
+ },
+ "elapsed_s": 189.4,
+ "summary": {
+  "projects": 10,
+  "errors": 0,
+  "project_success_rate": 1.0,
+  "components": 2529,
+  "vulns": 1959,
+  "severity": {
+   "LOW": 224,
+   "MEDIUM": 717,
+   "HIGH": 819,
+   "CRITICAL": 169,
+   "UNKNOWN": 30
+  },
+  "license_resolved_rate": 0.978,
+  "license_sources": {
+   "deps.dev": 1778,
+   "lockfile": 634,
+   "registry:npm": 41,
+   "registry:pypi": 16,
+   "registry:maven": 4
+  },
+  "sbom_ref_rate": 1.0,
+  "cyclonedx_valid_rate": 1.0,
+  "spdx_valid_rate": 1.0,
+  "plans_upgrade": 366,
+  "plans_verified_clean": 357,
+  "plan_verified_rate": 0.975,
+  "patch": {
+   "projects_patched": 10,
+   "projects_with_plans": 7,
+   "projects_applied": 7,
+   "vulns_before": 1958,
+   "rescan_fixed": 507,
+   "estimated_fixed": 701,
+   "rescan_fix_rate": 0.259,
+   "stop_reasons": {
+    "applied": 6,
+    "nothing_applied": 4
+   }
+  },
+  "fix_applied_rate": 1.0,
+  "arch_coverage": 0.9,
+  "analysis_s_avg": 48.6,
+  "stage_errors": 0,
+  "proposals": {
+   "exaone": 0,
+   "deterministic": 10
+  }
+ },
+ "projects": [
+  {
+   "name": "nodegoat",
+   "error": null,
+   "metrics": {
+    "components": 1091,
+    "vulns": 441,
+    "severity": {
+     "LOW": 31,
+     "MEDIUM": 128,
+     "HIGH": 241,
+     "CRITICAL": 40,
+     "UNKNOWN": 1
+    },
+    "license_resolved": 1075,
+    "license_total": 1091,
+    "license_resolved_rate": 0.985,
+    "license_sources": {
+     "deps.dev": 668,
+     "lockfile": 384,
+     "registry:npm": 23
+    },
+    "plans": 131,
+    "plans_upgrade": 125,
+    "plans_verified_clean": 121,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "applied",
+    "patch_applied_components": 125,
+    "patch_rescan_fixed": 0,
+    "patch_estimated_fixed": 136,
+    "arch_edges": 34,
+    "arch_cycles": 0,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 189.2
+   },
+   "stage_errors": {}
+  },
+  {
+   "name": "nodejs-goof",
+   "error": null,
+   "metrics": {
+    "components": 980,
+    "vulns": 480,
+    "severity": {
+     "MEDIUM": 156,
+     "HIGH": 230,
+     "LOW": 36,
+     "CRITICAL": 58
+    },
+    "license_resolved": 978,
+    "license_total": 980,
+    "license_resolved_rate": 0.998,
+    "license_sources": {
+     "deps.dev": 710,
+     "lockfile": 250,
+     "registry:npm": 18
+    },
+    "plans": 139,
+    "plans_upgrade": 134,
+    "plans_verified_clean": 131,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "applied",
+    "patch_applied_components": 134,
+    "patch_rescan_fixed": 0,
+    "patch_estimated_fixed": 155,
+    "arch_edges": 6,
+    "arch_cycles": 0,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 179.5
+   },
+   "stage_errors": {}
+  },
+  {
+   "name": "pygoat",
+   "error": null,
+   "metrics": {
+    "components": 58,
+    "vulns": 587,
+    "severity": {
+     "HIGH": 238,
+     "CRITICAL": 35,
+     "LOW": 30,
+     "MEDIUM": 272,
+     "UNKNOWN": 12
+    },
+    "license_resolved": 58,
+    "license_total": 58,
+    "license_resolved_rate": 1.0,
+    "license_sources": {
+     "deps.dev": 46,
+     "registry:pypi": 12
+    },
+    "plans": 34,
+    "plans_upgrade": 34,
+    "plans_verified_clean": 34,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "applied",
+    "patch_applied_components": 44,
+    "patch_rescan_fixed": 336,
+    "patch_estimated_fixed": 232,
+    "arch_edges": 42,
+    "arch_cycles": 0,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 26.6
+   },
+   "stage_errors": {}
+  },
+  {
+   "name": "railsgoat",
+   "error": null,
+   "metrics": {
+    "components": 197,
+    "vulns": 258,
+    "severity": {
+     "LOW": 122,
+     "MEDIUM": 104,
+     "HIGH": 29,
+     "CRITICAL": 3
+    },
+    "license_resolved": 166,
+    "license_total": 197,
+    "license_resolved_rate": 0.843,
+    "license_sources": {
+     "deps.dev": 166
+    },
+    "plans": 38,
+    "plans_upgrade": 38,
+    "plans_verified_clean": 38,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "applied",
+    "patch_applied_components": 11,
+    "patch_rescan_fixed": 0,
+    "patch_estimated_fixed": 7,
+    "arch_edges": 0,
+    "arch_cycles": 0,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 38.0
+   },
+   "stage_errors": {}
+  },
+  {
+   "name": "java-sec-code",
+   "error": null,
+   "metrics": {
+    "components": 53,
+    "vulns": 160,
+    "severity": {
+     "HIGH": 75,
+     "MEDIUM": 47,
+     "CRITICAL": 33,
+     "LOW": 5
+    },
+    "license_resolved": 46,
+    "license_total": 53,
+    "license_resolved_rate": 0.868,
+    "license_sources": {
+     "deps.dev": 42,
+     "registry:maven": 4
+    },
+    "plans": 31,
+    "plans_upgrade": 28,
+    "plans_verified_clean": 26,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "nothing_applied",
+    "patch_applied_components": 28,
+    "patch_rescan_fixed": 157,
+    "patch_estimated_fixed": 148,
+    "arch_edges": 46,
+    "arch_cycles": 1,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 14.2
+   },
+   "stage_errors": {}
+  },
+  {
+   "name": "gin",
+   "error": null,
+   "metrics": {
+    "components": 53,
+    "vulns": 18,
+    "severity": {
+     "UNKNOWN": 17,
+     "HIGH": 1
+    },
+    "license_resolved": 53,
+    "license_total": 53,
+    "license_resolved_rate": 1.0,
+    "license_sources": {
+     "deps.dev": 53
+    },
+    "plans": 4,
+    "plans_upgrade": 4,
+    "plans_verified_clean": 4,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "applied",
+    "patch_applied_components": 3,
+    "patch_rescan_fixed": 0,
+    "patch_estimated_fixed": 9,
+    "arch_edges": 15,
+    "arch_cycles": 0,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 15.3
+   },
+   "stage_errors": {}
+  },
+  {
+   "name": "ripgrep",
+   "error": null,
+   "metrics": {
+    "components": 69,
+    "vulns": 0,
+    "severity": {},
+    "license_resolved": 69,
+    "license_total": 69,
+    "license_resolved_rate": 1.0,
+    "license_sources": {
+     "deps.dev": 69
+    },
+    "plans": 0,
+    "plans_upgrade": 0,
+    "plans_verified_clean": 0,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "nothing_applied",
+    "patch_applied_components": 0,
+    "patch_rescan_fixed": 0,
+    "patch_estimated_fixed": 0,
+    "arch_edges": 70,
+    "arch_cycles": 0,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 8.3
+   },
+   "stage_errors": {}
+  },
+  {
+   "name": "flask",
+   "error": null,
+   "metrics": {
+    "components": 20,
+    "vulns": 14,
+    "severity": {
+     "MEDIUM": 9,
+     "HIGH": 5
+    },
+    "license_resolved": 20,
+    "license_total": 20,
+    "license_resolved_rate": 1.0,
+    "license_sources": {
+     "registry:pypi": 4,
+     "deps.dev": 16
+    },
+    "plans": 3,
+    "plans_upgrade": 3,
+    "plans_verified_clean": 3,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "applied",
+    "patch_applied_components": 3,
+    "patch_rescan_fixed": 14,
+    "patch_estimated_fixed": 14,
+    "arch_edges": 175,
+    "arch_cycles": 3,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 7.5
+   },
+   "stage_errors": {}
+  },
+  {
+   "name": "express",
+   "error": null,
+   "metrics": {
+    "components": 8,
+    "vulns": 1,
+    "severity": {
+     "MEDIUM": 1
+    },
+    "license_resolved": 8,
+    "license_total": 8,
+    "license_resolved_rate": 1.0,
+    "license_sources": {
+     "deps.dev": 8
+    },
+    "plans": 1,
+    "plans_upgrade": 0,
+    "plans_verified_clean": 0,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "nothing_applied",
+    "patch_applied_components": 0,
+    "patch_rescan_fixed": 0,
+    "patch_estimated_fixed": 0,
+    "arch_edges": 58,
+    "arch_cycles": 0,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 3.0
+   },
+   "stage_errors": {}
+  },
+  {
+   "name": "iso14229",
+   "error": null,
+   "metrics": {
+    "components": 0,
+    "vulns": 0,
+    "severity": {},
+    "license_resolved": 0,
+    "license_total": 0,
+    "license_resolved_rate": null,
+    "license_sources": {},
+    "plans": 0,
+    "plans_upgrade": 0,
+    "plans_verified_clean": 0,
+    "plans_unverified": 0,
+    "sbom_ref_rate": 1.0,
+    "cyclonedx_valid": true,
+    "spdx_valid": true,
+    "patch_status": "nothing_applied",
+    "patch_applied_components": 0,
+    "patch_rescan_fixed": 0,
+    "patch_estimated_fixed": 0,
+    "arch_edges": 83,
+    "arch_cycles": 0,
+    "proposal_source": "deterministic",
+    "stage_errors": 0,
+    "elapsed_s": 4.6
+   },
+   "stage_errors": {}
+  }
+ ]
+}

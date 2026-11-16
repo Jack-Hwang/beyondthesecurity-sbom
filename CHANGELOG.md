@@ -2,6 +2,21 @@
 
 All notable changes to bts-sbom are documented here.
 
+## Unreleased
+
+* **SBOM+ (`sbomplus/`, CLI `sbomplus`) merged into this repository** from the standalone `sbom-plus` work folder. It is a second
+  stdlib-only package in the same distribution, built on the `bts_sbom` core through a single adapter (`sbomplus/engine.py`);
+  no `bts_sbom/` file was modified and `dependencies` stays empty. Adds: license resolution with provenance (lockfile -> deps.dev ->
+  PyPI/npm/Maven), alias-merged findings with CVSS v3 and fixed versions from ECOSYSTEM/SEMVER ranges, OSV-verified remediation
+  plans, approval-gated manifest patching with re-scan verification and revert, delivery targets (branch / folder / origin /
+  GitHub remote behind explicit flags), CycloneDX 1.5 / SPDX 2.3 / OpenVEX output, industry reports (defense, automotive, medical,
+  finance, maritime draft, CRA, robot), legacy-architecture analysis, LG EXAONE proposals with four-layer validation and
+  deterministic fallback, a grounded RAG chatbot, a stdlib HTTP service, and a loop-engineering harness.
+  Tests live in `tests/sbomplus/` (69 tests, network faked); the EARS spec is `specs/sbomplus_features.md` (68 ACs, each traced to a
+  test); measured e2e evidence is in `evidence/` and documented in `docs/SBOMPLUS.md`. Not yet verified: push/PR on real GitHub,
+  the new CI workflow, building patched code.
+* Open core defects found while building SBOM+ are listed in `docs/CORE_ISSUES.md` (not fixed here).
+
 ## 0.1.0 — initial OSS release
 
 First standalone, stdlib-only release of the BTS regulatory-sector SBOM/SCA

@@ -1,0 +1,154 @@
+{
+ "pass": 10,
+ "tag": "p10_classification",
+ "at": "2026-11-16T16:15:56+00:00",
+ "variable": "classification honesty (bundled: two changes that cannot move a gated metric): transitive-only deps -> manual (was blocked); MAL- advisories -> CRITICAL (was UNKNOWN)",
+ "hypothesis": "patch:blocked:RubyGems 19 -> 0 (reclassified to manual); severity UNKNOWN count drops, CRITICAL rises; every gated metric identical",
+ "decision": "accept",
+ "gate": {
+  "pass": true,
+  "deltas": {
+   "project_success_rate": 0.0,
+   "license_resolved_rate": 0.0,
+   "sbom_ref_rate": 0.0,
+   "plan_verified_rate": 0.0,
+   "fix_applied_rate": 0.0,
+   "arch_coverage": 0.0,
+   "cyclonedx_valid_rate": 0.0,
+   "spdx_valid_rate": 0.0,
+   "rag_recall_at_5": 0.0,
+   "rag_mrr": 0.0,
+   "rag_ndcg_at_5": 0.0,
+   "ood_rate": 0.0,
+   "citation_accuracy": 0.0,
+   "analysis_s_avg": -0.1,
+   "stage_errors": 0
+  },
+  "failed": [],
+  "warnings": [],
+  "delta_limit": 0.02
+ },
+ "metrics": {
+  "project_success_rate": 1.0,
+  "license_resolved_rate": 0.99,
+  "sbom_ref_rate": 1.0,
+  "plan_verified_rate": 0.974,
+  "fix_applied_rate": 1.0,
+  "arch_coverage": 1.0,
+  "cyclonedx_valid_rate": 1.0,
+  "spdx_valid_rate": 1.0,
+  "analysis_s_avg": 47.1,
+  "stage_errors": 0,
+  "projects": 10,
+  "components": 2478,
+  "vulns": 1292,
+  "rag_recall_at_5": 1.0,
+  "rag_mrr": 0.95,
+  "rag_ndcg_at_5": 0.944,
+  "ood_rate": 1.0,
+  "citation_accuracy": 1.0
+ },
+ "failure_clusters": [
+  {
+   "key": "patch:manual:RubyGems",
+   "count": 19,
+   "examples": [
+    "railsgoat activestorage: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+    "railsgoat rack-session: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+    "railsgoat rack: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat",
+    "railsgoat nokogiri: Gemfile: manual: transitive gem (not declared in Gemfile) - run `bundle update --conservat"
+   ]
+  },
+  {
+   "key": "license:unresolved:npm",
+   "count": 18,
+   "examples": [
+    "nodegoat bcrypt-nodejs@0.0.3",
+    "nodegoat broadway@0.3.6",
+    "nodegoat cliff@0.1.10",
+    "nodegoat cliff@0.1.9"
+   ]
+  },
+  {
+   "key": "vuln:no_fix:npm",
+   "count": 12,
+   "examples": [
+    "nodegoat babel-traverse@6.11.4",
+    "nodegoat extract-zip@1.6.7",
+    "nodegoat swig@1.4.2",
+    "nodegoat request@2.88.0"
+   ]
+  },
+  {
+   "key": "license:unmapped_raw",
+   "count": 10,
+   "examples": [
+    "BSD-like",
+    "BSD*",
+    "SEE LICENSE IN COPYING.txt",
+    "[{'url': 'https://raw.githubusercontent.com/zaproxy/zaproxy/"
+   ]
+  },
+  {
+   "key": "vuln:candidate_still_vulnerable:npm",
+   "count": 7,
+   "examples": [
+    "nodegoat hoek -> 4.2.1",
+    "nodegoat request -> 2.68.0",
+    "nodejs-goof elliptic -> 6.6.1",
+    "nodejs-goof express-fileupload -> 1.1.9"
+   ]
+  },
+  {
+   "key": "license:unresolved:Maven",
+   "count": 7,
+   "examples": [
+    "java-sec-code cn.hutool:hutool-all@5.8.10",
+    "java-sec-code com.h2database:h2@1.4.199",
+    "java-sec-code com.ibm.db2:jcc@11.5.8.0",
+    "java-sec-code commons-collections:commons-collections@3.1"
+   ]
+  },
+  {
+   "key": "vuln:no_fix:Maven",
+   "count": 3,
+   "examples": [
+    "java-sec-code org.apache.velocity:velocity@1.7",
+    "java-sec-code commons-httpclient:commons-httpclient@3.1",
+    "java-sec-code commons-lang:commons-lang@2.4"
+   ]
+  },
+  {
+   "key": "vuln:candidate_still_vulnerable:Maven",
+   "count": 2,
+   "examples": [
+    "java-sec-code com.alibaba:fastjson -> 1.2.83",
+    "java-sec-code mysql:mysql-connector-java -> 8.0.28"
+   ]
+  },
+  {
+   "key": "engine:data_incomplete",
+   "count": 2,
+   "examples": [
+    "java-sec-code: query_missing",
+    "iso14229: empty_project"
+   ]
+  },
+  {
+   "key": "license:unresolved:RubyGems",
+   "count": 1,
+   "examples": [
+    "railsgoat jquery-fileupload-rails@1.0.0"
+   ]
+  }
+ ],
+ "run_dir": "C:\\firebaseprojects\\sbom-plus\\evidence\\batch\\runs\\20261116T161253Z_p10_classification",
+ "baseline_pass": 9,
+ "core": {
+  "version": "0.1.1",
+  "path": "C:\\firebaseprojects\\sbom-plus\\.deps\\bts_sbom-0.1.1"
+ },
+ "code": "4b38c492b09a",
+ "plateau": false,
+ "note": "deviation from one-variable-per-pass: two classification-only changes bundled because neither can move a gated metric"
+}

@@ -1,0 +1,22 @@
+[
+ {"q": "패키지 이용 허가 조건 정보를 어느 사이트에서 가져와", "expect": ["domain/licenses.md"]},
+ {"q": "부품의 사용권을 모를 때 문서에 어떤 값을 적어야 해", "expect": ["domain/sbom_formats.md", "domain/licenses.md"]},
+ {"q": "사람이 검토했다는 걸 어떻게 증명하고 나서야 파일이 바뀌어", "expect": ["domain/remediation_patching.md"]},
+ {"q": "고쳤는데 새 문제가 더 생기면 원상복구 하나", "expect": ["domain/remediation_patching.md"]},
+ {"q": "낡은 파이썬 버전이 아직 지원되는지 어디서 알아봐", "expect": ["domain/legacy_architecture.md"]},
+ {"q": "자주 수정되고 복잡한 소스 파일이 왜 위험하다고 봐", "expect": ["domain/legacy_architecture.md"]},
+ {"q": "배에 실리는 장비의 사이버 규정은 뭘 기준으로 봐", "expect": ["domain/industries.md"]},
+ {"q": "병원에서 쓰는 기기를 제출할 때 소프트웨어 구성 명세가 왜 필요해", "expect": ["domain/industries.md"]},
+ {"q": "호출 횟수 제한에 걸리면 프로그램은 어떻게 행동해", "expect": ["domain/ai_and_loop.md"]},
+ {"q": "답변에 붙은 근거 문장이 진짜 있는지 어떻게 검사해", "expect": ["domain/ai_and_loop.md", "lecture/"]},
+ {"q": "개선 시도가 성능을 떨어뜨리면 채택하나 버리나", "expect": ["domain/ai_and_loop.md", "lecture/"]},
+ {"q": "같은 결함이 여러 이름으로 나오면 하나로 합쳐", "expect": ["domain/vulnerabilities.md"]},
+ {"q": "외부에 배포하지 않고 사내에서만 쓰면 소스 공개 의무가 있나", "expect": ["domain/licenses.md"]},
+ {"q": "그래프에서 서로 물려 있는 모듈 묶음을 어떻게 찾아", "expect": ["domain/legacy_architecture.md"]},
+ {"q": "여러 언어 호환 검색 엔진이 한국어 질문을 처리하는 방법", "expect": ["domain/ai_and_loop.md", "lecture/rag_methods.md"]},
+ {"q": "내일 부산 해운대 파도 높이", "ood": true},
+ {"q": "축구 경기 결과를 알려줘", "ood": true},
+ {"q": "how do I bake sourdough bread", "ood": true},
+ {"q": "주식 추천 종목 알려줘", "ood": true},
+ {"q": "가장 빠른 스포츠카 순위", "ood": true}
+]
