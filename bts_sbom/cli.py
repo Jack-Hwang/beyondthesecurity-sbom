@@ -5,13 +5,18 @@ Subcommands
     sbom       build an SPDX 2.3 SBOM from a manifest/lockfile
     sector     6-sector regulatory report (cra | fda | r155 | dod | finance | robot)
     scan       OSV-Scanner-style vulnerability scan of manifests/lockfiles/SBOMs
+               (attaches a `remediation` block of minimal fixed-version
+               suggestions per finding; disable with --no-remediation)
     vex        emit or inspect an OpenVEX document
+    policy     policy gate over a findings JSON (scan output shape) with
+               optional --sbom (license rules) and --vex (suppression):
+               exit 1 on a policy violation (CI gate mode), 0 on pass
     selfsbom   generate an SBOM of the bts-sbom package itself (also the default
                when the CLI is invoked with no arguments)
 
-Exit codes: 0 = ok, 2 = usage/input error (unknown sector, unreadable file,
-invalid documents). Errors are HONEST: an unsupported input fails with a reason,
-never with a fabricated document.
+Exit codes: 0 = ok / policy pass, 1 = policy fail (CI gate), 2 = usage/input
+error (unknown sector, unreadable file, invalid documents). Errors are HONEST:
+an unsupported input fails with a reason, never with a fabricated document.
 """
 from __future__ import annotations
 
@@ -140,11 +145,50 @@ def cmd_scan(args) -> int:
     scanner = OsvScanner(offline=args.offline)
     result = scanner.scan(args.target, dry_run=args.dry_run,
                           with_licenses=args.licenses)
+    if not args.no_remediation and not args.dry_run:
+        # round-2 E4: attach guided remediation (minimal fixed version per
+        # finding). Suggestions are advisory only; nothing edits a manifest.
+        from bts_sbom._internal.remediation import remediation_for_result
+        try:
+            result["remediation"] = remediation_for_result(result)
+        except Exception as exc:
+            result.setdefault("notes", []).append(
+                "remediation suggestions skipped: %s: %s"
+                % (type(exc).__name__, exc))
     rendered = scanner.render(result, args.fmt)
     print(rendered)
     if args.gate and not args.dry_run:
         return gate_exit_code(result)
     return 0
+
+
+def cmd_policy(args) -> int:
+    from bts_sbom._internal.policy import Policy, PolicyError
+    try:
+        policy = Policy.from_file(args.policy)
+    except PolicyError as exc:
+        raise SystemExitError(2, str(exc))
+    findings = _load_json(args.findings, "findings")
+    components = _load_json(args.sbom, "SBOM") if args.sbom else None
+    vex_doc = _load_json(args.vex, "VEX") if args.vex else None
+    try:
+        evaluation = policy.evaluate(findings, components, vex_doc=vex_doc)
+    except PolicyError as exc:
+        raise SystemExitError(2, str(exc))
+    if args.out:
+        _emit(evaluation, args.out)
+    else:
+        print(json.dumps(evaluation, indent=2, ensure_ascii=False))
+    summary = evaluation.get("summary", {})
+    print("policy %r verdict: %s (%d violation(s) over %d finding(s), "
+          "%d component(s))" % (evaluation.get("policy"),
+                                evaluation.get("verdict"),
+                                summary.get("violation_count", 0),
+                                summary.get("findings", 0),
+                                summary.get("components", 0)),
+          file=sys.stderr)
+    # CI gate mode: 1 = policy fail, 0 = pass (2 = usage error, above).
+    return 1 if evaluation.get("verdict") == "fail" else 0
 
 
 def cmd_vex(args) -> int:
@@ -231,7 +275,33 @@ def build_parser() -> argparse.ArgumentParser:
     sn.add_argument("--gate", action="store_true",
                     help="exit 1 when vulnerabilities found, 2 when data is "
                          "inconclusive (CI gate mode)")
+    sn.add_argument("--no-remediation", action="store_true",
+                    help="omit the remediation suggestion block from the "
+                         "scan output (default: attached to non-dry-run "
+                         "results)")
     sn.set_defaults(func=cmd_scan)
+
+    po = sub.add_parser(
+        "policy",
+        help="policy gate over scan findings — exit 1 on violation "
+             "(CI gate mode), 0 on pass")
+    po.add_argument("--policy", required=True,
+                    help="policy JSON: {\"name\"?, \"rules\": "
+                         "{\"severity_min\"?, \"licenses_deny\"?, "
+                         "\"max_severity_score\"?}}")
+    po.add_argument("--findings", required=True,
+                    help="findings JSON — the bts-sbom scan --fmt json output "
+                         "shape (results[].packages[].vulnerabilities)")
+    po.add_argument("--sbom", default=None,
+                    help="optional SBOM JSON (SPDX 2.3 / CycloneDX 1.5) — "
+                         "components for the licenses_deny rule")
+    po.add_argument("--vex", default=None,
+                    help="optional VEX JSON — not_affected/fixed statements "
+                         "suppress matching findings (auditable, fail-closed "
+                         "on a malformed document)")
+    po.add_argument("--out", default=None,
+                    help="write the evaluation JSON to FILE (default: stdout)")
+    po.set_defaults(func=cmd_policy)
 
     vx = sub.add_parser("vex", help="emit OpenVEX from a scan result, or validate a VEX file")
     vx.add_argument("--from-scan", default=None,

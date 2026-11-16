@@ -204,7 +204,7 @@ def _build_graph_from_sources(source_files: List[str]) -> _Graph:
         if ext not in (".c", ".h", ".cpp", ".cc", ".cxx", ".hpp"):
             continue
         try:
-            with open(sf, encoding="utf-8", errors="ignore") as fh:
+            with open(sf, encoding="utf-8", errors="replace") as fh:
                 code = fh.read()
             fns = parse_functions(code)
             if fns:
@@ -246,7 +246,7 @@ def _build_graph_from_sources(source_files: List[str]) -> _Graph:
     defined = set(defs)
     callback_candidates: Set[str] = set(cg.address_taken) & defined
     for sf, fns in per_file:
-        with open(sf, encoding="utf-8", errors="ignore") as fh:
+        with open(sf, encoding="utf-8", errors="replace") as fh:
             code = fh.read()
         for m in _BARE_ARG_RE.finditer(code):
             name = m.group(1)

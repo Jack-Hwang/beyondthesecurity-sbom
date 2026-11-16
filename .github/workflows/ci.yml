@@ -1,7 +1,15 @@
-# bts-sbom standalone package CI — libe style follows the repo's existing
-# workflows (checkout@v4 / setup-python@v5), but is intentionally
-# self-contained: it does NOT install the platform requirements.txt, because
-# bts-sbom must build, lint, test and self-describe with the stdlib alone.
+# bts-sbom standalone package CI — style follows the repo's existing workflows
+# (checkout@v4 / setup-python@v5), but is intentionally self-contained: it does
+# NOT install the platform requirements.txt, because bts-sbom must build, lint,
+# test and self-describe with the stdlib alone.
+#
+# Round-2 X1: the matrix now spans OS (ubuntu-latest + windows-latest +
+# macos-latest) x Python (3.10, 3.12). PYTHONUTF8=1 is set for every job — it
+# is REQUIRED on Windows (the default ANSI code page, e.g. cp1252, breaks any
+# implicit-encoding text read; bts-sbom reads/writes explicit UTF-8 everywhere
+# and the env var guards the rest of the interpreter), and is a harmless no-op
+# on Linux/macOS. All run steps use shell: bash so the heredoc checks are
+# identical on every runner.
 name: bts-sbom CI
 
 on:
@@ -18,11 +26,18 @@ on:
 
 jobs:
   package:
-    name: py${{ matrix.python-version }} — lint · test · self-SBOM
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} · py${{ matrix.python-version }} — lint · test · self-SBOM
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Windows encoding guard: force UTF-8 mode for the interpreter.
+      PYTHONUTF8: "1"
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +63,7 @@ jobs:
           python -m bts_sbom selfsbom --out bts-sbom-self.cdx.json
           python - <<'PY'
           import json
-          doc = json.load(open("bts-sbom-self.cdx.json"))
+          doc = json.load(open("bts-sbom-self.cdx.json", encoding="utf-8"))
           comp = doc["metadata"]["component"]
           assert doc["bomFormat"] == "CycloneDX"
           assert comp["name"] == "bts-sbom"
@@ -59,23 +74,41 @@ jobs:
                 % (comp["name"], comp["version"]))
           PY
 
-      - name: SBOM-from-lockfile demo (minimal requirements.txt)
+      - name: SBOM-from-lockfile demo (minimal requirements.txt, workspace-local)
         run: |
-          printf 'bts-sbom==0.1.0\n' > /tmp/requirements.txt
-          bts-sbom sbom /tmp/requirements.txt --name bts-sbom-demo --out bts-sbom-demo.spdx.json
+          printf 'bts-sbom==0.1.0\n' > demo-requirements.txt
+          bts-sbom sbom demo-requirements.txt --name bts-sbom-demo --out bts-sbom-demo.spdx.json
           python - <<'PY'
           import json
-          doc = json.load(open("bts-sbom-demo.spdx.json"))
+          doc = json.load(open("bts-sbom-demo.spdx.json", encoding="utf-8"))
           assert doc["spdxVersion"] == "SPDX-2.3"
           assert any(p["name"] == "bts-sbom" for p in doc["packages"])
           print("SPDX SBOM OK: %s package(s)" % len(doc["packages"]))
           PY
 
-      - name: Upload self-SBOM artifacts
+      - name: Round-2 engine smoke (policy gate + remediation)
+        run: |
+          # findings JSON in the scan-output shape: one CRITICAL advisory
+          printf '{"results":[{"source":{"path":"demo","type":"lockfile"},"packages":[{"package":{"name":"requests","version":"2.28.0","ecosystem":"PyPI"},"vulnerabilities":[{"id":"GHSA-abcd-ef01-gh02","aliases":["CVE-2026-1234"],"severity":[{"type":"CVSS_V3","score":"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}]}],"groups":[]}]}],"scan_status":{"mode":"offline"},"completeness":{}}' > demo-findings.json
+          printf '{"name":"demo-gate","rules":{"severity_min":"HIGH","max_severity_score":9.0}}' > demo-policy.json
+          rc=0
+          bts-sbom policy --policy demo-policy.json --findings demo-findings.json > demo-policy-eval.json || rc=$?
+          if [ "$rc" -eq 0 ]; then echo "policy unexpectedly passed"; exit 1; fi
+          if [ "$rc" -ne 1 ]; then echo "policy gate exited $rc, expected 1"; exit 1; fi
+          python - <<'PY'
+          import json
+          ev = json.load(open("demo-policy-eval.json", encoding="utf-8"))
+          assert ev["verdict"] == "fail" and ev["violations"], ev
+          print("policy gate OK: failed as designed (%d violation(s))"
+                % len(ev["violations"]))
+          PY
+
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bts-sbom-self-sbom-py${{ matrix.python-version }}
+          name: bts-sbom-${{ matrix.os }}-py${{ matrix.python-version }}
           path: |
             bts-sbom-self.cdx.json
             bts-sbom-demo.spdx.json
+            demo-policy-eval.json

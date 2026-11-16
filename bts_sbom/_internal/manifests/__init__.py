@@ -12,10 +12,17 @@ CVE scanner can do ecosystem-aware OSV matching and upgrade-path resolution.
 
     from bts_sbom._internal import manifests
     pkgs = manifests.parse_file("package-lock.json")
+
+Round-2 X1 hardening: relpath routing goes through pathutil.norm_rel_path
+(backslash/slash canonicalization for Windows-produced lockfiles scanned on
+POSIX and vice versa), and parse_file reads with encoding="utf-8-sig"
+(BOM-tolerant) + errors="replace" — a lockfile written by a Windows editor
+must not silently parse to an empty list.
 """
 import os
 from typing import List, Any
 
+from bts_sbom._internal import pathutil
 from bts_sbom._internal.manifests import npm, pip, gomod, extra, dpkg
 
 # filename (lower) → parser module. Lockfiles preferred (exact + transitive).
@@ -65,9 +72,8 @@ def parser_for(filename: str):
     fn = _BY_NAME.get(os.path.basename(filename).lower())
     if fn is not None:
         return fn
-    norm = (filename or "").replace("\\", "/").lower()
     for suffix, relfn in _BY_RELPATH_SUFFIX.items():
-        if norm == suffix or norm.endswith("/" + suffix):
+        if pathutil.rel_suffix_matches(filename, suffix):
             return relfn
     return None
 
@@ -81,12 +87,15 @@ def is_supported_path(filename: str) -> bool:
 
 
 def parse_file(path: str) -> List[Any]:
-    """Parse one manifest file → DetectedPackage list ([] if unsupported)."""
+    """Parse one manifest file → DetectedPackage list ([] if unsupported).
+    Read is BOM-tolerant and lenient on bytes (utf-8-sig / replace): scan
+    inputs come from editors and archives on every OS — an exotic byte in a
+    comment must not silently empty the parse."""
     fn = parser_for(path)
     if fn is None:
         return []
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
             text = f.read()
     except Exception:
         return []

@@ -404,17 +404,45 @@ class OsvClient:
                     severity = "LOW"
 
             # Fixed version and affected version list.
+            # Round-2 E2 change: the fixed bound is now taken from the RANGE
+            # CONTAINING the queried version (introduced <= version < fixed,
+            # ecosystem-aware ordering via version_match.eco_compare), falling
+            # back to the first recorded fixed bound. Previously the first
+            # `fixed` event anywhere in the record won, which pointed a
+            # multi-window advisory at the wrong upgrade target.
             fixed_version = None
+            first_fixed_any = None
+            containing_fixed = None
             affected_versions = []
+            from bts_sbom._internal import version_match as _vm
             for affected in v.get("affected", []) or []:
                 affected_pkg = affected.get("package", {})
-                if affected_pkg.get("name", "").lower() == pkg_name.lower():
-                    affected_versions.extend(affected.get("versions", []))
-                    for range_item in affected.get("ranges", []) or []:
-                        for event in range_item.get("events", []) or []:
-                            if "fixed" in event:
-                                fixed_version = event["fixed"]
-                                break
+                if affected_pkg.get("name", "").lower() != pkg_name.lower():
+                    continue
+                affected_versions.extend(affected.get("versions", []))
+                aff_eco = str(affected_pkg.get("ecosystem", "") or "")
+                for range_item in affected.get("ranges", []) or []:
+                    introduced = "0"
+                    in_window = False
+                    for event in range_item.get("events", []) or []:
+                        if "introduced" in event:
+                            introduced = event.get("introduced") or "0"
+                            in_window = introduced in ("0", "") or (
+                                bool(pkg_ver) and _vm.eco_compare(
+                                    pkg_ver, introduced, aff_eco) >= 0)
+                        elif "fixed" in event:
+                            fixed = event.get("fixed") or ""
+                            if fixed:
+                                if first_fixed_any is None:
+                                    first_fixed_any = fixed
+                                if pkg_ver and in_window and _vm.eco_compare(
+                                        pkg_ver, fixed, aff_eco) < 0:
+                                    containing_fixed = fixed
+                            in_window = False
+            if containing_fixed is not None:
+                fixed_version = containing_fixed
+            else:
+                fixed_version = first_fixed_any
 
             references = [ref.get("url", "") for ref in v.get("references", []) or [] if ref.get("url")]
 

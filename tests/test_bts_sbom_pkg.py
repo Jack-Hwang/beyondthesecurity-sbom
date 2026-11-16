@@ -83,7 +83,7 @@ def run_cli(*args, cwd=REPO):
 
 def test_import_surface_and_version():
     import bts_sbom
-    assert bts_sbom.__version__ == "0.1.0"
+    assert bts_sbom.__version__ == "0.1.1"
     for name in ("sector_report", "write_evidence", "SECTORS", "SCHEMA",
                  "build_spdx_document", "sbom_from_manifest", "validate_spdx",
                  "OsvScanner", "scan", "gate_exit_code", "build_report",
@@ -121,13 +121,13 @@ def test_package_compiles_and_is_stdlib_only():
 def test_cli_help():
     r = run_cli("--help")
     assert r.returncode == 0
-    for sub in ("sbom", "sector", "scan", "vex", "selfsbom"):
+    for sub in ("sbom", "sector", "scan", "vex", "policy", "selfsbom"):
         assert sub in r.stdout
 
 
 def test_cli_version():
     r = run_cli("--version")
-    assert r.returncode == 0 and "0.1.0" in r.stdout
+    assert r.returncode == 0 and "0.1.1" in r.stdout
 
 
 def test_cli_bare_invocation_runs_self_sbom():
@@ -261,3 +261,373 @@ def test_sector_report_and_evidence_roundtrip(sbom_file, tmp_path):
     assert latest.is_file() and json.loads(latest.read_text(
         encoding="utf-8"))["sector"] == "fda"
     assert Path(paths["history"]).parent.name == "history"
+
+
+# ═══ round 2 (REA 21 §7): E2 version matching ════════════════════════════════
+
+def test_version_match_pep440():
+    from bts_sbom._internal.version_match import match_range as m
+    cases = [
+        # ~= compatible-release operator
+        ("1.4.2", ["~=1.4.2"], True), ("1.4.1", ["~=1.4.2"], False),
+        ("1.4.9", ["~=1.4.2"], True), ("1.5.0", ["~=1.4.2"], False),
+        ("1.4.2rc1", ["~=1.4.2"], False),          # rc sorts below the release
+        # wildcard equality / inequality
+        ("2.2.1", ["==2.2.*"], True), ("2.2.0", ["==2.2.*"], True),
+        ("2.2.1rc1", ["==2.2.*"], True), ("2.3.0", ["==2.2.*"], False),
+        ("2.2.0", ["!=2.2.*"], False), ("2.3.1", ["!=2.2.*"], True),
+        # ordered ops with PEP 440 ordering (post/dev/pre)
+        ("1.0.post1", [">=1.0"], True), ("1.0rc1", [">=1.0"], False),
+        ("2.0.dev1", ["<2.0"], True),
+        # specifier sets (comma conjunction)
+        ("1.9.9", [">=1.0,<2.0"], True), ("2.0.0", [">=1.0,<2.0"], False),
+        # epochs order correctly through the sort key
+        ("1!2.0", ["<2.0"], False), ("1!2.0", [">=1.9"], True),
+    ]
+    for ver, cons, want in cases:
+        assert m(ver, cons, "pip") is want, (ver, cons, want)
+
+
+def test_version_match_semver_npm_cargo_go():
+    from bts_sbom._internal.version_match import match_range as m
+    cases = [
+        # npm caret with leftmost-non-zero bump
+        ("1.2.3", ["^1.2.3"], "npm", True),
+        ("1.9.9", ["^1.2.3"], "npm", True),
+        ("2.0.0", ["^1.2.3"], "npm", False),
+        ("0.2.5", ["^0.2.3"], "npm", True),
+        ("0.3.0", ["^0.2.3"], "npm", False),
+        ("0.0.3", ["^0.0.3"], "npm", True),
+        ("0.0.4", ["^0.0.3"], "npm", False),
+        # npm tilde
+        ("1.2.5", ["~1.2.3"], "npm", True),
+        ("1.3.0", ["~1.2.3"], "npm", False),
+        ("1.2.9", ["~1.2"], "npm", True), ("1.3.0", ["~1.2"], "npm", False),
+        # x-ranges, wildcard, exact
+        ("1.5.2", ["1.x"], "npm", True), ("2.0", ["1.x"], "npm", False),
+        ("9.9.9", ["*"], "npm", True),
+        ("1.2.3", ["=1.2.3"], "npm", True),
+        # node-semver partial ordered bounds: >1.2 == >=1.3.0
+        ("1.3.0", [">1.2"], "npm", True), ("1.2.9", [">1.2"], "npm", False),
+        ("1.2.9", ["<=1.2"], "npm", True), ("1.3.0", ["<=1.2"], "npm", False),
+        # AND conjunction
+        ("1.3.0", [">=1.0.0 <2.0.0"], "npm", True),
+        ("2.0.1", [">=1.0.0 <2.0.0"], "npm", False),
+        # npm prerelease opt-in rule
+        ("1.2.3-rc1", ["^1.2.3-rc1"], "npm", True),
+        ("1.2.3-rc1", ["^1.2.3"], "npm", False),
+        ("1.2.3-rc1", ["*"], "npm", False),
+        # cargo: bare version is a caret range; wildcards are x-ranges
+        ("1.9.0", ["1.2.3"], "cargo", True),
+        ("2.0.0", ["1.2.3"], "cargo", False),
+        ("1.2.9", ["1.2.*"], "cargo", True),
+        ("1.3.0", ["1.2.*"], "cargo", False),
+        ("1.2.3", ["=1.2.3"], "cargo", True),
+        # go: semver-ish, v-prefix, pseudo-versions order as prereleases
+        ("v1.2.3", [">=v1.2.0"], "go", True),
+        ("v1.1.0", [">=v1.2.0"], "go", False),
+        ("v1.2.4", ["< v1.2.5"], "go", True),
+        ("v0.0.0-20240201-abcdef012345",
+         [">=v0.0.0-20230101-000000000000"], "go", True),
+    ]
+    for ver, cons, eco, want in cases:
+        assert m(ver, cons, eco) is want, (ver, cons, eco, want)
+
+
+def test_version_match_fail_closed_and_explain():
+    from bts_sbom._internal.version_match import explain_match, match_range
+    # fail-closed: unsupported syntax never guesses a match
+    assert match_range("1.2.3", ["||1.0"], "npm") is False
+    assert match_range("1.2.3", ["~=2"], "pip") is False      # invalid PEP 440
+    assert match_range("anything", [], "pip") is True         # no constraints
+    ex = explain_match("1.2.9", [">=1.0.0", "<1.2.5"], "npm")
+    assert ex["verdict"] is False
+    assert ex["constraint"] == "<1.2.5"                        # FIRST failing
+    assert "1.2.5" in ex["reason"]
+    assert ex["family"] == "npm" and ex["version"] == "1.2.9"
+    ok = explain_match("1.2.4", [">=1.0.0", "<1.2.5"], "npm")
+    assert ok["verdict"] is True and ok["constraint"] == ">=1.0.0"
+    assert len(ok["all"]) == 2
+    assert isinstance(ok["approx"], bool)
+
+
+# ═══ round 2: E4 guided remediation ═══════════════════════════════════════════
+
+def _multiwindow_vuln():
+    return {"id": "GHSA-abcd-efgh-ijkl", "aliases": ["CVE-2026-1001"],
+            "affected": [{"package": {"name": "requests", "ecosystem": "PyPI"},
+                          "ranges": [{"type": "ECOSYSTEM",
+                                      "events": [{"introduced": "0"},
+                                                 {"fixed": "2.20.0"},
+                                                 {"introduced": "2.28.0"},
+                                                 {"fixed": "2.31.0"}]}]}]}
+
+
+def test_remediation_smallest_fixed():
+    from bts_sbom._internal.remediation import remediation_for_result, suggest_fixes
+    vuln = _multiwindow_vuln()
+    rows = suggest_fixes(vuln, "pypi", current="2.29.0")
+    assert rows[0]["fixed_suggestion"] == "2.31.0"     # the CONTAINING window
+    assert "ranges[0]" in rows[0]["constraint_source"]
+    rows = suggest_fixes(vuln, "pypi", current="1.2.0")
+    assert rows[0]["fixed_suggestion"] == "2.20.0"     # smallest >= current
+    rows = suggest_fixes(vuln, "pypi", current=None)
+    assert rows[0]["fixed_suggestion"] == "2.20.0" and rows[0]["current"] is None
+    # last_affected-only window: no fixed version may be claimed
+    la = {"id": "GO-2026-0001", "affected": [
+        {"package": {"name": "golang.org/x/net", "ecosystem": "Go"},
+         "ranges": [{"type": "SEMVER", "events": [{"introduced": "0"},
+                                                  {"last_affected": "0.33.0"}]}]}]}
+    rows = suggest_fixes(la, "go", current="0.30.0")
+    assert rows[0]["fixed_suggestion"] is None
+    assert rows[0]["constraint_source"] == "no-fixed-event"
+    # every recorded fix sorts below current -> no honest upgrade exists
+    stale = {"id": "CVE-2026-1002", "affected": [
+        {"package": {"name": "a", "ecosystem": "npm"},
+         "versions": ["1.5.0"],
+         "ranges": [{"events": [{"introduced": "0"}, {"fixed": "1.2.0"}]}]}]}
+    rows = suggest_fixes(stale, "npm", current="1.5.0")
+    assert rows[0]["constraint_source"] == "no-fixed-ge-current"
+    # scan-result walker: dedup + installed current
+    result = {"results": [{"source": {"path": "r", "type": "lockfile"},
+                           "packages": [{"package": {"name": "requests",
+                                                     "version": "2.29.0",
+                                                     "ecosystem": "PyPI"},
+                                         "vulnerabilities": [vuln]}]}]}
+    blk = remediation_for_result(result)
+    assert blk["schema"] == "bts-remediation/1"
+    assert blk["suggestion_count"] == 1
+    row = blk["suggestions"][0]
+    assert (row["osv_id"], row["package"], row["current"],
+            row["fixed_suggestion"]) == \
+        ("GHSA-abcd-efgh-ijkl", "requests", "2.29.0", "2.31.0")
+
+
+def test_cli_scan_remediation_block_and_flag(tmp_path):
+    lock = tmp_path / "requirements.txt"
+    lock.write_text("requests==2.31.0\n", encoding="utf-8")
+    r = run_cli("scan", str(lock), "--offline", "--fmt", "json")
+    assert r.returncode == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert "remediation" in doc            # attached by default
+    r = run_cli("scan", str(lock), "--offline", "--fmt", "json",
+                "--no-remediation")
+    doc = json.loads(r.stdout)
+    assert "remediation" not in doc        # --no-remediation omits it
+    r = run_cli("scan", str(lock), "--dry-run", "--fmt", "json")
+    doc = json.loads(r.stdout)
+    assert "remediation" not in doc        # no query -> no suggestions
+
+
+# ═══ round 2: E3 policy engine ════════════════════════════════════════════════
+
+CRIT_FINDINGS = {
+    "results": [{"source": {"path": "requirements.txt", "type": "lockfile"},
+                 "packages": [{"package": {"name": "requests",
+                                           "version": "2.28.0",
+                                           "ecosystem": "PyPI"},
+                               "vulnerabilities": [
+                                   {"id": "CVE-2026-9999",
+                                    "aliases": [],
+                                    "severity": [{"type": "CVSS_V3",
+                                                  "score": "CVSS:3.1/AV:N/AC:L/"
+                                                           "PR:N/UI:N/S:U/C:H/I:H/"
+                                                           "A:H"}]}],
+                               "groups": []}]}],
+}
+
+
+def test_policy_cli_exit_codes(tmp_path):
+    pf = tmp_path / "policy.json"
+    ff = tmp_path / "findings.json"
+    ff.write_text(json.dumps(CRIT_FINDINGS), encoding="utf-8")
+    pf.write_text(json.dumps({"name": "gate",
+                              "rules": {"severity_min": "HIGH",
+                                        "max_severity_score": 9.0}}),
+                   encoding="utf-8")
+    r = run_cli("policy", "--policy", str(pf), "--findings", str(ff))
+    assert r.returncode == 1                      # CI gate: fail -> exit 1
+    ev = json.loads(r.stdout)
+    assert ev["verdict"] == "fail" and ev["violations"]
+    assert ev["violations"][0]["rule"] == "severity_min"
+    # severity/score are recomputed from the CVSS vector (9.8 > 9.0 ceiling)
+    assert any(v["rule"] == "max_severity_score" for v in ev["violations"])
+    # pass case: no rules bite
+    pf.write_text(json.dumps({"name": "open", "rules": {}}), encoding="utf-8")
+    r = run_cli("policy", "--policy", str(pf), "--findings", str(ff))
+    assert r.returncode == 0
+    assert json.loads(r.stdout)["verdict"] == "pass"
+    # usage error: unreadable policy -> 2 (never a fabricated verdict)
+    r = run_cli("policy", "--policy", str(tmp_path / "nope.json"),
+                "--findings", str(ff))
+    assert r.returncode == 2 and "bts-sbom" in r.stderr
+
+
+def test_policy_license_rule_over_sbom(tmp_path):
+    from bts_sbom._internal.policy import Policy
+    policy = Policy.from_dict({"rules": {"licenses_deny": ["Zlib", "UNKNOWN"]}})
+    components = [{"name": "zlib", "license": "Zlib"},
+                  {"name": "mystery", "license": None}]
+    ev = policy.evaluate({"results": []}, components)
+    assert ev["verdict"] == "fail"
+    rules = {v["component"]: v["rule"] for v in ev["violations"]}
+    assert rules.get("zlib") == "licenses_deny"
+    assert rules.get("mystery") == "licenses_deny"     # UNKNOWN denied
+    # clean components pass the license rule
+    ev = policy.evaluate({"results": []}, [{"name": "openssl",
+                                            "license": "Apache-2.0"}])
+    assert ev["verdict"] == "pass"
+    # SPDX document input also works
+    ev = policy.evaluate({"results": []}, json.loads(
+        json.dumps(SPDX_SBOM)))
+    assert ev["verdict"] == "fail"                     # zlib is in the SBOM
+
+
+def test_policy_cli_vex_suppression(tmp_path):
+    pf = tmp_path / "policy.json"
+    ff = tmp_path / "findings.json"
+    vf = tmp_path / "vex.json"
+    ff.write_text(json.dumps(CRIT_FINDINGS), encoding="utf-8")
+    pf.write_text(json.dumps({"rules": {"severity_min": "HIGH"}}),
+                  encoding="utf-8")
+    vex = {"@context": "https://openvex.dev/ns/v0.2.0",
+           "@id": "https://bts-sbom.local/vex/t", "author": "t",
+           "timestamp": "2026-01-01T00:00:00Z", "version": 1,
+           "statements": [{"vulnerability": {"name": "CVE-2026-9999"},
+                           "products": [{"@id": "pkg:pypi/requests"}],
+                           "status": "not_affected",
+                           "justification": "vulnerable_code_not_present",
+                           "impact_statement": "triaged not present"}]}
+    vf.write_text(json.dumps(vex), encoding="utf-8")
+    r = run_cli("policy", "--policy", str(pf), "--findings", str(ff),
+                "--vex", str(vf))
+    assert r.returncode == 0                          # suppressed -> pass
+    ev = json.loads(r.stdout)
+    assert ev["vex"]["not_affected"] == 1 and ev["vex"]["unmatched"] == 0
+    assert ev["vex"]["suppressed"][0]["finding"]["osv_id"] == "CVE-2026-9999"
+    # `affected` statements never suppress
+    vex["statements"][0]["status"] = "affected"
+    del vex["statements"][0]["justification"]
+    vex["statements"][0]["action_statement"] = "upgrade"
+    vf.write_text(json.dumps(vex), encoding="utf-8")
+    r = run_cli("policy", "--policy", str(pf), "--findings", str(ff),
+                "--vex", str(vf))
+    assert r.returncode == 1
+    # structurally-invalid VEX fails CLOSED: nothing suppressed, error shown
+    vf.write_text(json.dumps({"statements": "not-a-list"}), encoding="utf-8")
+    r = run_cli("policy", "--policy", str(pf), "--findings", str(ff),
+                "--vex", str(vf))
+    assert r.returncode == 1
+    ev = json.loads(r.stdout)
+    assert "vex_error" in ev["vex"] and ev["vex"]["unmatched"] == 1
+
+
+def test_vex_evaluate_grouping():
+    from bts_sbom._internal.policy import vex_evaluate
+    from bts_sbom.vex import build_document, statement
+    st = [
+        statement("CVE-2026-0001", ["pkg:pypi/a"], "not_affected",
+                  justification="component_not_present"),
+        statement("CVE-2026-0002", ["pkg:pypi/b"], "fixed",
+                  action_statement="upgrade"),
+        statement("CVE-2026-0003", ["pkg:pypi/c"], "affected",
+                  action_statement="upgrade"),
+        statement("CVE-2026-0004", ["pkg:pypi/d"], "under_investigation",
+                  impact_statement="pending"),
+    ]
+    doc = build_document(st, timestamp="2026-01-01T00:00:00Z")
+    findings = [{"osv_id": "CVE-2026-%04d" % n, "cve_id": None,
+                 "aliases": [], "purl": "pkg:pypi/%s@1.0" % ch,
+                 "ecosystem": "PyPI", "name": ch, "version": "1.0"}
+                for n, ch in ((1, "a"), (2, "b"), (3, "c"), (4, "d"))]
+    findings.append({"osv_id": "CVE-2026-0005", "cve_id": None,
+                     "aliases": [], "purl": "pkg:pypi/e@1.0",
+                     "ecosystem": "PyPI", "name": "e", "version": "1.0"})
+    out = vex_evaluate(findings, doc)
+    assert out["not_affected"] == 1 and out["fixed"] == 1
+    assert out["affected"] == 1 and out["under_investigation"] == 1
+    assert out["unmatched"] == 1
+    assert len(out["suppressed"]) == 2                # not_affected + fixed
+
+
+# ═══ round 2: E1 transitive dependency resolution ═════════════════════════════
+
+def test_npm_lock_nested_transitive_entries(tmp_path):
+    """E1 audit lock: package-lock v3 nested node_modules entries ARE the
+    transitive closure and must all be returned."""
+    from bts_sbom._internal import manifests
+    lock = tmp_path / "package-lock.json"
+    lock.write_text(json.dumps({
+        "name": "root", "lockfileVersion": 3,
+        "packages": {
+            "": {"dependencies": {"left-pad": "^1.3.0"}},
+            "node_modules/left-pad": {"version": "1.3.0"},
+            "node_modules/lodash": {"version": "4.17.21"},
+            "node_modules/tar/node_modules/minipass": {"version": "3.1.6"},
+        }}), encoding="utf-8")
+    pkgs = manifests.parse_file(str(lock))
+    rel = {p.name: p.relationship for p in pkgs}
+    assert rel == {"left-pad": "direct", "lodash": "transitive",
+                   "minipass": "transitive"}
+    assert pkgs[0].depth == 0 and rel["minipass"] == "transitive"
+
+
+def test_cargo_lock_direct_transitive_from_sibling_manifest(tmp_path):
+    """E1: Cargo.lock is a resolved closure; the direct set comes from the
+    sibling Cargo.toml. Without it, relationship is honestly 'unknown'."""
+    from bts_sbom._internal import manifests
+    lock = tmp_path / "Cargo.lock"
+    lock.write_text(
+        '[[package]]\nname = "serde"\nversion = "1.0.193"\n'
+        'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+        '\n[[package]]\nname = "rand"\nversion = "0.8.5"\n'
+        'source = "registry+https://github.com/rust-lang/crates.io-index"\n',
+        encoding="utf-8")
+    toml = tmp_path / "Cargo.toml"
+    toml.write_text('[package]\nname = "demo"\nversion = "0.1.1"\n'
+                    '\n[dependencies]\nserde = "1.0"\n', encoding="utf-8")
+    pkgs = manifests.parse_file(str(lock))
+    rel = {p.name: p.relationship for p in pkgs}
+    assert rel == {"serde": "direct", "rand": "transitive"}
+    assert [p.depth for p in pkgs if p.name == "rand"] == [1]
+    # no sibling manifest -> unknown, never a fabricated 'direct'
+    toml.unlink()
+    pkgs = manifests.parse_file(str(lock))
+    rel = {p.name: p.relationship for p in pkgs}
+    assert rel == {"serde": "unknown", "rand": "unknown"}
+
+
+# ═══ round 2: X1 cross-platform hardening ═════════════════════════════════════
+
+def test_utf8_bom_lockfiles_parse_on_every_os(tmp_path):
+    """X1 regression: Windows-produced lockfiles (UTF-8 BOM, CRLF, a Latin-1
+    byte in a comment) must parse identically on any OS."""
+    from bts_sbom._internal import manifests
+    lock = tmp_path / "requirements.txt"
+    lock.write_bytes(b"\xef\xbb\xbfrequests==2.31.0\r\n"
+                     b"# caf\xe9 annotation\r\nurllib3==2.0.3\r\n")
+    pkgs = manifests.parse_file(str(lock))
+    assert {p.name for p in pkgs} == {"requests", "urllib3"}
+    pj = tmp_path / "package-lock.json"
+    doc = {"name": "r", "lockfileVersion": 3,
+           "packages": {"": {}, "node_modules/left-pad": {"version": "1.3.0"}}}
+    pj.write_bytes(b"\xef\xbb\xbf" + json.dumps(doc).encode("utf-8"))
+    pkgs = manifests.parse_file(str(pj))
+    assert [p.name for p in pkgs] == ["left-pad"]
+
+
+def test_norm_rel_path_cross_platform():
+    from bts_sbom._internal.pathutil import norm_rel_path, rel_suffix_matches
+    assert norm_rel_path("var\\lib\\dpkg\\status") == "var/lib/dpkg/status"
+    assert norm_rel_path("./var/lib/dpkg//status") == "var/lib/dpkg/status"
+    assert rel_suffix_matches("rootfs\\var\\lib\\dpkg\\status",
+                              "var/lib/dpkg/status")
+    assert rel_suffix_matches("rootfs/var/lib/dpkg/status",
+                              "var\\lib\\dpkg\\status")
+    assert not rel_suffix_matches("unrelated/status", "var/lib/dpkg/status")
+    # parser routing agrees on both spellings (Windows file on Linux CI)
+    from bts_sbom._internal import manifests
+    assert manifests.parser_for("C:\\rootfs\\var\\lib\\dpkg\\status") \
+        is manifests.parser_for("/rootfs/var/lib/dpkg/status")
+    assert manifests.parser_for("C:\\rootfs\\var\\lib\\dpkg\\status") \
+        is not None

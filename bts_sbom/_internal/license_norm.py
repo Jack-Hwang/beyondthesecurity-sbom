@@ -231,7 +231,7 @@ def scan_file_license_header(filepath: str, max_lines: int = 30) -> Dict[str, An
         "note": "no SPDX-License-Identifier found in first {} lines".format(max_lines),
     }
     try:
-        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
             for lineno, line in enumerate(f, 1):
                 if lineno > max_lines:
                     break

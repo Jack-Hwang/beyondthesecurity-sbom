@@ -41,18 +41,72 @@ def _mk(name, version, ecosystem, purl, relationship="direct"):
 
 
 # ── Rust: Cargo.lock (TOML) ───────────────────────────────────────────────────
+def _cargo_root_direct(path: str):
+    """Names declared by the sibling Cargo.toml, or None when no sibling
+    manifest can be read. Cargo.lock itself does not mark which entries are
+    the project's own declarations, so the sibling manifest is the only
+    honest source for the direct set. [dependencies], [dev-dependencies],
+    [build-dependencies] and [workspace.dependencies] all count (all are
+    declared by this project rather than pulled in by another crate)."""
+    if not path:
+        return None
+    import os
+    ct = os.path.join(os.path.dirname(path), "Cargo.toml")
+    if not os.path.isfile(ct):
+        return None
+    if tomllib is None:
+        return None
+    try:
+        with open(ct, "rb") as fh:                 # tomllib requires binary
+            data = tomllib.load(fh)
+    except Exception:
+        return None
+    names = set()
+    for section in ("dependencies", "dev-dependencies", "build-dependencies"):
+        block = data.get(section)
+        if isinstance(block, dict):
+            names |= {str(n).lower() for n in block}
+    for section in ("workspace", "target"):
+        block = data.get(section)
+        if isinstance(block, dict):
+            deps = block.get("dependencies")
+            if isinstance(deps, dict):
+                names |= {str(n).lower() for n in deps}
+    return names
+
+
 def parse_cargo_lock(text: str, path: str = "") -> List[Any]:
+    """Parse Cargo.lock (the resolved transitive closure) — round-2 E1.
+
+    Transitive status: EVERY entry in the lockfile is returned, classified as
+    `direct` when the sibling Cargo.toml declares it, `transitive` otherwise.
+    When no sibling Cargo.toml can be read the relationship is honestly
+    `unknown` — it used to default to `direct` for every entry, which
+    mislabeled a resolved graph of hundreds of crates as first-level
+    dependencies. For workspace projects the later lockfile-facts pass
+    (BFS from the workspace members) overrides this with graph-derived
+    depths when it can resolve the roots."""
     if tomllib is None:
         return []
     try:
         data = tomllib.loads(text)
     except Exception:
         return []
+    direct = _cargo_root_direct(path)
     out = []
     for pkg in data.get("package", []) or []:
         name, ver = pkg.get("name"), pkg.get("version")
         if name and ver:
-            out.append(_mk(name, ver, "cargo", f"pkg:cargo/{name}@{ver}"))
+            if direct is None:
+                rel = "unknown"
+            elif str(name).lower() in direct:
+                rel = "direct"
+            else:
+                rel = "transitive"
+            dp = _mk(name, ver, "cargo", f"pkg:cargo/{name}@{ver}")
+            dp.relationship = rel
+            dp.depth = 1 if rel == "transitive" else 0
+            out.append(dp)
     return out
 
 

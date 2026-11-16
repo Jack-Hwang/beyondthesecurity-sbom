@@ -215,7 +215,7 @@ def _probe_manifest_integrity(path: str, stype: str) -> Optional[str]:
         return None
     try:
         if fmt == "json":
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
                 json.load(fh)
         else:
             import tomllib
@@ -620,19 +620,27 @@ def _fixed_version(vuln: Dict[str, Any], name: str,
     CONTAINS `version` (introduced <= version < fixed) -- not merely the first
     `fixed` event in the record. A record with ranges `< 1.1.1w` and
     `>= 3.0.0, < 3.0.7` must tell a 3.0.5 install to go to 3.0.7, not 1.1.1w.
-    """
-    from bts_sbom._internal import version_cmp as _vc
 
-    def _cmp(a: str, b: str) -> int:
+    Round-2 E2 change: containment now uses the ECOSYSTEM's ordering
+    (``version_match.eco_compare`` — PEP 440 for PyPI, SemVer for npm/Go/
+    crates, tolerant fallback otherwise) instead of the generic tolerant
+    comparator, so pre-release ordering (1.0rc1 < 1.0 < 1.0.post1) no longer
+    misclassifies boundary versions.
+    """
+    from bts_sbom._internal import version_match as _vm
+
+    def _cmp(a: str, b: str, eco: str = "") -> int:
         try:
-            return _vc.compare_versions(a, b)
+            return _vm.eco_compare(a, b, eco)
         except Exception:
             return 0
 
     first_fixed: Optional[str] = None
     for aff in vuln.get("affected", []) or []:
-        if aff.get("package", {}).get("name", "").lower() != name.lower():
+        aff_pkg = aff.get("package", {}) or {}
+        if aff_pkg.get("name", "").lower() != name.lower():
             continue
+        aff_eco = str(aff_pkg.get("ecosystem", "") or "")
         for rng in aff.get("ranges", []) or []:
             introduced = "0"
             for ev in rng.get("events", []) or []:
@@ -644,14 +652,15 @@ def _fixed_version(vuln: Dict[str, Any], name: str,
                         first_fixed = fixed
                     if version is None:
                         return fixed
-                    in_lo = introduced in ("0", "") or _cmp(version, introduced) >= 0
-                    in_hi = _cmp(version, fixed) < 0
+                    in_lo = introduced in ("0", "") or _cmp(version, introduced, aff_eco) >= 0
+                    in_hi = _cmp(version, fixed, aff_eco) < 0
                     if in_lo and in_hi:
                         return fixed
                     introduced = "0"
                 elif "last_affected" in ev and version is not None:
                     la = ev["last_affected"]
-                    if (introduced in ("0", "") or _cmp(version, introduced) >= 0) and _cmp(version, la) <= 0:
+                    if (introduced in ("0", "") or _cmp(version, introduced, aff_eco) >= 0) \
+                            and _cmp(version, la, aff_eco) <= 0:
                         # affected up to and including `la`; no clean fixed bound recorded
                         return first_fixed
     return first_fixed
@@ -720,7 +729,7 @@ def _parse_sbom(path: str) -> List[Dict[str, Any]]:
     """Parse an SPDX-JSON or CycloneDX-JSON SBOM into package dicts.
     Returns [] if the file is not a recognizable SBOM."""
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
             doc = json.load(f)
     except Exception:
         return []
@@ -794,7 +803,7 @@ def _npm_lock_scopes(path: str, pkgs: List[Dict[str, Any]]) -> None:
     scope keep scope={dev: None, optional: None} — the limitation is disclosed,
     never guessed."""
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
             data = json.load(fh)
     except Exception:
         return
@@ -911,7 +920,7 @@ class OsvScanner:
         """CycloneDX carries an optional per-component `scope`
         (required|optional|excluded); SPDX carries none. Unknown stays None."""
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
                 doc = json.load(fh)
         except Exception:
             return
@@ -1428,7 +1437,7 @@ class OsvScanner:
         exact: Dict[str, str] = {}
         range_count = 0
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
                 data = json.load(fh)
         except Exception:
             return {"exact": exact, "range_count": range_count}
@@ -1535,7 +1544,29 @@ class OsvScanner:
                 out.append(line((r["id"], r["eco"], r["pkg"], r["ver"], r["severity"], r["fixed"])))
         out.append("")
         out.append(self._status_line(st, result.get("completeness")))
+        out.extend(self._remediation_lines(result))
         return "\n".join(out)
+
+    @staticmethod
+    def _remediation_lines(result: Dict[str, Any]) -> List[str]:
+        """Round-2 E4: compact suggested-fix footer for table output."""
+        rem = result.get("remediation") or {}
+        sugg = rem.get("suggestions") or []
+        if not sugg:
+            return []
+        lines = ["", "Suggested fixes (advisory only, smallest fixed >= current):"]
+        for s in sugg:
+            if s.get("fixed_suggestion"):
+                lines.append("  %s  %s@%s -> %s" % (
+                    s.get("osv_id", "?"), s.get("package", "?"),
+                    s.get("current") if s.get("current") is not None else "?",
+                    s["fixed_suggestion"]))
+            else:
+                lines.append("  %s  %s@%s -> (no fixed version recorded: %s)" % (
+                    s.get("osv_id", "?"), s.get("package", "?"),
+                    s.get("current") if s.get("current") is not None else "?",
+                    s.get("constraint_source", "no-fixed-event")))
+        return lines
 
     def _render_markdown(self, result: Dict[str, Any]) -> str:
         rows = list(self._vuln_rows(result))
@@ -1562,6 +1593,17 @@ class OsvScanner:
             for p in rem:
                 out.append(f"| {p['component']} | {p['current_version']} | "
                            f"{p.get('safe_version') or '-'} | {len(p.get('clears', []))} | {p['status']} |")
+        rem2 = result.get("remediation") or {}
+        sugg = rem2.get("suggestions") or []
+        if sugg:
+            out += ["", "## Remediation (smallest fixed version >= current)", "",
+                    "| OSV ID | Package | Current | Suggested fix | Source |",
+                    "|---|---|---|---|---|"]
+            for s in sugg:
+                out.append(f"| {s.get('osv_id', '')} | {s.get('package', '')} | "
+                           f"{s.get('current') if s.get('current') is not None else '?'} | "
+                           f"{s.get('fixed_suggestion') or '-'} | "
+                           f"{s.get('constraint_source', '')} |")
         out += ["", self._status_line(result.get("scan_status", {}), result.get("completeness"))]
         return "\n".join(out)
 

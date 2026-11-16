@@ -215,7 +215,7 @@ def _npm_v1(data: Dict[str, Any], facts: LockFacts, lock_dir: str) -> None:
     pj = os.path.join(lock_dir, "package.json") if lock_dir else ""
     if pj and os.path.isfile(pj):
         try:
-            with open(pj, "r", encoding="utf-8") as fh:
+            with open(pj, "r", encoding="utf-8-sig", errors="replace") as fh:
                 root = json.load(fh)
         except Exception:
             root = None
@@ -309,7 +309,7 @@ def _yarn_v1(path: str, text: str) -> Optional[LockFacts]:
     pj = os.path.join(os.path.dirname(path), "package.json") if path else ""
     if pj and os.path.isfile(pj):
         try:
-            with open(pj, "r", encoding="utf-8") as fh:
+            with open(pj, "r", encoding="utf-8-sig", errors="replace") as fh:
                 root = json.load(fh)
         except Exception:
             root = None
@@ -495,7 +495,7 @@ def _composer(path: str, text: str) -> Optional[LockFacts]:
     cj = os.path.join(os.path.dirname(path), "composer.json") if path else ""
     if cj and os.path.isfile(cj):
         try:
-            with open(cj, "r", encoding="utf-8") as fh:
+            with open(cj, "r", encoding="utf-8-sig", errors="replace") as fh:
                 root = json.load(fh)
         except Exception:
             root = None
@@ -532,7 +532,7 @@ def extract(path: str, text: Optional[str] = None) -> Optional[LockFacts]:
         return None
     if text is None:
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
                 text = fh.read()
         except Exception:
             return None
