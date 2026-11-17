@@ -1,1 +1,23 @@
-{"statements": [{"vuln_id": "CVE-2025-0001", "products": ["openssl"], "status": "not_affected"}]}
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://bts-sbom.local/vex/demo",
+  "author": "bts-sbom",
+  "timestamp": "2026-01-01T00:00:00Z",
+  "version": 1,
+  "tooling": "bts-sbom",
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2025-0001"
+      },
+      "products": [
+        {
+          "@id": "openssl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "timestamp": "2026-01-01T00:00:00Z"
+    }
+  ]
+}

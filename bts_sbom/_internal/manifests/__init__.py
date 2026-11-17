@@ -19,6 +19,7 @@ POSIX and vice versa), and parse_file reads with encoding="utf-8-sig"
 (BOM-tolerant) + errors="replace" — a lockfile written by a Windows editor
 must not silently parse to an empty list.
 """
+import re
 import os
 from typing import List, Any
 
@@ -68,10 +69,16 @@ _BY_RELPATH_SUFFIX = {
 }
 
 
+_REQ_NAME = re.compile(r"^(?:.+[-_.])?requirements(?:[-_.].+)?\.txt$")      # dev-requirements.txt, requirements-test.txt, ...
+
+
 def parser_for(filename: str):
-    fn = _BY_NAME.get(os.path.basename(filename).lower())
+    base = os.path.basename(filename).lower()
+    fn = _BY_NAME.get(base)
     if fn is not None:
         return fn
+    if _REQ_NAME.match(base) and "requirements.txt" in _BY_NAME:
+        return _BY_NAME["requirements.txt"]
     for suffix, relfn in _BY_RELPATH_SUFFIX.items():
         if pathutil.rel_suffix_matches(filename, suffix):
             return relfn

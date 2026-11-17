@@ -87,3 +87,51 @@ def test_web_pins_are_line_ending_independent():
     assert "bts_sbom_app/web/** text eol=lf" in (REPO / ".gitattributes").read_text(encoding="utf-8")
     assert "deterministic" in (web / "sca_app.js").read_text(encoding="utf-8") and "decisionmatic" not in (web / "sca_app.js").read_text(encoding="utf-8")
     json.dumps(rows)
+
+
+# ═══ wave 2 ═══════════════════════════════════════════════════════════════════
+
+def test_fully_blocked_patch_is_reported_as_blocked(make_repo):
+    """AC: BSA-AC-84"""
+    from conftest import FakeScanner
+    repo = make_repo({"requirements.txt": "flask>=0.12,<1.0" + chr(10)})
+    plan = {"component": "flask", "ecosystem": "PyPI", "current_version": "0.12", "safe_version": "3.1.3", "status": "upgrade",
+            "files": ["requirements.txt"], "verification": {"clean": True}}
+    rec = {"vulns": [{"id": "X", "package": "flask", "version": "0.12", "files": ["requirements.txt"]}], "plans": [plan]}
+    out = pipeline._patch_loop(rec, repo, approved=True, token=None, rounds=2, offline=True, scanner=FakeScanner(), verify_rounds=1)
+    assert out["status"] == "blocked" and "blocked by manifest constraints" in out["note"]
+
+
+def test_chat_says_why_exaone_was_not_used():
+    """AC: BSA-AC-85"""
+    from bts_sbom_app import chat as chatmod, evals
+    idx = evals.build_index(str(REPO), [])
+    for q in ("What is a CycloneDX SBOM?", "zebra quantum mango recipe"):          # one answerable, one outside the corpus
+        r = chatmod.Chatbot(idx, {}, None).ask(q, use_llm=True)
+        assert r["answer_source"] != "exaone" and "unavailable" in r["llm_note"] and "EXAONE_API_KEY" in r["llm_note"], q
+        assert chatmod.Chatbot(idx, {}, None).ask(q, use_llm=False)["llm_note"] == ""
+
+
+def test_loop_gate_boundary_is_exact():
+    """AC: BSA-AC-86"""
+    from bts_sbom_app import loop
+    k = loop.HIGHER[0] if isinstance(loop.HIGHER, (list, tuple)) else next(iter(loop.HIGHER))
+    for b, c in ((0.917, 0.897), (1.0, 0.98), (0.869, 0.849), (0.738, 0.718)):
+        assert loop.gate({k: b}, {k: c})["pass"] is True, (b, c)         # a drop of exactly 0.02 is allowed
+    assert loop.gate({k: 1.0}, {k: 0.9799})["pass"] is False             # more than 0.02 fails
+
+
+def test_batch_accepts_bare_strings_and_reports_entries_without_a_source(monkeypatch, tmp_path):
+    """AC: BSA-AC-87"""
+    from bts_sbom_app import batch
+    seen = []
+
+    def fake(src, **kw):
+        seen.append(src)
+        return {"name": "n-" + str(len(seen)), "error": "stub", "metrics": {}}
+
+    monkeypatch.setattr(pipeline, "run_project", fake)
+    out = batch.run_batch([str(tmp_path), {"name": "no-source"}], out_root=str(tmp_path / "o"), tag="t", client=None)
+    recs = out["records"] if isinstance(out, dict) and "records" in out else out[1] if isinstance(out, tuple) else []
+    assert seen == [str(tmp_path)]
+    assert any("needs a source" in str(r.get("error")) for r in recs)

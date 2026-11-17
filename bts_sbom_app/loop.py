@@ -49,7 +49,7 @@ def gate(base: Dict[str, Any], cand: Dict[str, Any], delta: float = 0.02) -> Dic
         if b is None or c is None:
             continue
         deltas[k] = round(c - b, 4)
-        if c - b < -delta:
+        if c - b < -delta - 1e-9:                         # a drop of exactly `delta` passes (float noise: 0.917 -> 0.897)
             failed.append("%s: %.3f -> %.3f" % (k, b, c))
     warnings: List[str] = []
     for k, rel in LOWER.items():

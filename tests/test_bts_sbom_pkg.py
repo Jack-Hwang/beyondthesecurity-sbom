@@ -759,3 +759,53 @@ def test_norm_rel_path_cross_platform():
         is manifests.parser_for("/rootfs/var/lib/dpkg/status")
     assert manifests.parser_for("C:\\rootfs\\var\\lib\\dpkg\\status") \
         is not None
+
+
+# ═══ 0.2.0 end-to-end wave 2 regressions ══════════════════════════════════════
+
+@pytest.mark.parametrize("name", ["dev-requirements.txt", "requirements-test.txt", "requirements_prod.txt", "Requirements.TXT"])
+def test_requirements_file_name_variants_are_parsed(tmp_path, name):
+    """CI's own demo step wrote demo-requirements.txt and the CLI answered 'no parser'."""
+    f = tmp_path / name
+    f.write_text("requests==2.31.0" + chr(10), encoding="utf-8")
+    r = run_cli("sbom", str(f), "--name", "demo")
+    assert r.returncode == 0, r.stderr[-300:]
+    assert any(p["name"] == "requests" for p in json.loads(r.stdout)["packages"])
+
+
+def test_unrelated_txt_files_are_still_not_parsed(tmp_path):
+    f = tmp_path / "constraints.txt"
+    f.write_text("requests==2.31.0" + chr(10), encoding="utf-8")
+    assert run_cli("sbom", str(f)).returncode == 2
+
+
+def test_policy_skips_malformed_findings_instead_of_crashing(tmp_path):
+    """normalize_findings promised to skip malformed entries; a string where an object belongs raised AttributeError."""
+    from bts_sbom._internal.policy import normalize_findings
+    from bts_sbom.osvscanner import _osv_severity
+    bad = {"results": [{"source": "just-a-string", "packages": [{"package": "also-a-string",
+                                                                  "vulnerabilities": [{"id": "OSV-1", "severity": "HIGH"}]}]},
+                       "not-a-dict", {"packages": "nope"}]}
+    out = normalize_findings(bad)
+    assert len(out) == 1 and out[0]["osv_id"] == "OSV-1"
+    assert normalize_findings({"results": "nope"}) == [] and normalize_findings("nope") == []
+    assert _osv_severity({"severity": "HIGH"})[1] == "UNKNOWN" and _osv_severity({"severity": ["x", {"type": "CVSS_V3"}]})[0] == 0.0
+    findings = tmp_path / "f.json"
+    findings.write_text(json.dumps(bad), encoding="utf-8")
+    policy = tmp_path / "p.json"
+    policy.write_text(json.dumps({"severity_min": "high"}), encoding="utf-8")
+    r = run_cli("policy", "--policy", str(policy), "--findings", str(findings))
+    assert "Traceback" not in r.stderr and r.returncode in (0, 1, 2), r.stderr[-300:]
+
+
+def test_vex_check_is_honest_about_unknown_formats(tmp_path):
+    flat = tmp_path / "flat.json"
+    flat.write_text(json.dumps({"statements": [{"vuln_id": "CVE-1", "products": ["x"], "status": "not_affected"}]}), encoding="utf-8")
+    r = run_cli("vex", "--check", str(flat))
+    assert r.returncode == 2 and "not a recognised VEX document" in r.stderr
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps({"@context": "https://openvex.dev/ns/v0.2.0", "statements": []}), encoding="utf-8")
+    ok = run_cli("vex", "--check", str(empty))
+    assert ok.returncode == 0 and json.loads(ok.stdout)["statements"] == 0       # a recognised but empty document is legitimate
+    demo = run_cli("vex", "--check", str(REPO / "examples" / "demo.vex.json"))
+    assert demo.returncode == 0 and json.loads(demo.stdout)["statements"] == 1    # the shipped fixture is a real OpenVEX document

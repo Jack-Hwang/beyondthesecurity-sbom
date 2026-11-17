@@ -292,18 +292,22 @@ def _finding_from_osv(v: Dict[str, Any], pk: Dict[str, Any],
     }
 
 
+def _d(x: Any) -> Dict[str, Any]:
+    return x if isinstance(x, dict) else {}
+
+
 def normalize_findings(findings: Any) -> List[Dict[str, Any]]:
     """Normalize the findings input to a flat list. Accepts the scan-output
     JSON shape (results[].packages[].vulnerabilities) or a bare list of
-    finding/advisory dicts. Malformed entries are skipped (honest count in
-    summary comes from what was actually evaluated)."""
+    finding/advisory dicts. Malformed entries (wrong container types) are
+    skipped, so the summary counts only what was actually evaluated."""
     out: List[Dict[str, Any]] = []
     if isinstance(findings, list):
         for f in findings:
             if not isinstance(f, dict):
                 continue
             if "vulnerabilities" in f and "package" in f:
-                pk = f.get("package", {}) or {}
+                pk = _d(f.get("package"))
                 eco = str(pk.get("ecosystem", "") or "")
                 for v in f.get("vulnerabilities", []) or []:
                     if isinstance(v, dict):
@@ -313,12 +317,17 @@ def normalize_findings(findings: Any) -> List[Dict[str, Any]]:
         return out
     if not isinstance(findings, dict):
         return out
-    for src in findings.get("results", []) or []:
-        spath = str((src.get("source", {}) or {}).get("path", ""))
-        for pe in src.get("packages", []) or []:
-            pk = pe.get("package", {}) or {}
+    results = findings.get("results", []) or []
+    for src in results if isinstance(results, list) else []:
+        src = _d(src)
+        spath = str(_d(src.get("source")).get("path", ""))
+        pkgs = src.get("packages", []) or []
+        for pe in pkgs if isinstance(pkgs, list) else []:
+            pe = _d(pe)
+            pk = _d(pe.get("package"))
             eco = str(pk.get("ecosystem", "") or "")
-            for v in pe.get("vulnerabilities", []) or []:
+            vulns = pe.get("vulnerabilities", []) or []
+            for v in vulns if isinstance(vulns, list) else []:
                 if isinstance(v, dict):
                     out.append(_finding_from_osv(v, pk, spath, eco))
     return out

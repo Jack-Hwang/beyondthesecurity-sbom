@@ -165,7 +165,12 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
             out["status"] = "digest_mismatch"
             break
         if pr["status"] != "applied":
-            out["status"] = "nothing_applied"
+            if entry["blocked"] and not applied_total:
+                out["status"] = "blocked"
+                out["note"] = ("approved patch could not be applied: %d candidate(s) blocked by manifest constraints "
+                               "(see rounds[].results[].detail)" % entry["blocked"])
+            else:
+                out["status"] = "applied" if applied_total else "nothing_applied"
             break
         applied_total += entry["applied"]
         after = engine.analyze(path, offline=offline, scanner=scanner, **(engine_opts or {}))

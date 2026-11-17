@@ -194,7 +194,12 @@ def cmd_policy(args) -> int:
 def cmd_vex(args) -> int:
     from bts_sbom import vex as vex_mod
     if args.check:
+        raw = _load_json(args.check, "VEX")
         statements = vex_mod.load_vex_file(args.check)
+        recognised = isinstance(raw, dict) and any(k in raw for k in ("@context", "bomFormat", "vulnerabilities"))
+        if not statements and not recognised:
+            raise SystemExitError(2, "vex --check: %s is not a recognised VEX document (expected OpenVEX with @context and statements, "
+                                     "or CycloneDX VEX with vulnerabilities[].analysis); 0 statements could be read" % args.check)
         summary = {"file": args.check, "statements": len(statements),
                    "statuses": {}}
         for st in statements:

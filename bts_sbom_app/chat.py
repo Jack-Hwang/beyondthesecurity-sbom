@@ -138,6 +138,12 @@ class Chatbot:
         self.projects = projects or {}
         self.client = client
 
+    def _no_client_note(self, use_llm: bool) -> str:
+        """Honesty: when EXAONE was requested but there is no client, say so instead of silently answering extractively."""
+        if use_llm and self.client is None:
+            return "EXAONE requested but unavailable (no API key configured: set EXAONE_API_KEY or BTS_SBOM_LLM_CONFIG) -> extractive answer"
+        return ""
+
     def _pick_project(self, q: str, project: Optional[str]) -> Optional[Dict[str, Any]]:
         if project and project in self.projects:
             return self.projects[project]
@@ -201,11 +207,12 @@ class Chatbot:
                         claims.append({"text": s, "quote": s, "source": ch["id"]})
         if not claims:
             return {"found": False, "answer": "I could not find this in the analysed projects or the knowledge base.", "claims": [],
-                    "answer_source": "none", "tools": [], "retrieval": retrieval, "citation_accuracy": 1.0}
+                    "answer_source": "none", "tools": [], "retrieval": retrieval, "citation_accuracy": 1.0,
+                    "llm_note": self._no_client_note(use_llm)}
         ver = verify_claims(claims, docs)
         answer = "\n".join("- " + c["text"] for c in ver["kept"])
         src = "tools" if tools_used else "rag"
-        llm_note = ""
+        llm_note = self._no_client_note(use_llm)
         if use_llm and self.client is not None:
             try:
                 passages = "\n\n".join("[%s]\n%s" % (sid, txt[:1400]) for sid, txt in list(docs.items())[:6])

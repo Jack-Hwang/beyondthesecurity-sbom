@@ -222,7 +222,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         projs = load_projects(a.evidence) if a.evidence else {}
         idx = evals.build_index(a.root, evidence_chunks(projs))
         client = _client(a.root, not a.llm, getattr(a, "llm_config", None))
-        r = chatmod.Chatbot(idx, projs, client).ask(a.question, project=a.project, use_llm=bool(client))
+        r = chatmod.Chatbot(idx, projs, client).ask(a.question, project=a.project, use_llm=bool(a.llm))
         note = (" note=" + r["llm_note"]) if r.get("llm_note") else ""
         _print(r, a.json, "found=%s source=%s citation_accuracy=%s%s\n%s" % (r["found"], r["answer_source"], r["citation_accuracy"], note, r["answer"]))
         return 0

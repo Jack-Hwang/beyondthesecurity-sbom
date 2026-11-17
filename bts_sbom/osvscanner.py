@@ -574,7 +574,10 @@ def _osv_severity(vuln: Dict[str, Any]) -> Tuple[float, str, Optional[str]]:
     """Extract (cvss_score, label, vector) from a raw OSV record.
     Prefers a computed CVSS v3 base score; falls back to database_specific."""
     best_score, best_vector = 0.0, None
-    for sev in vuln.get("severity", []) or []:
+    sevs = vuln.get("severity", []) or []
+    for sev in sevs if isinstance(sevs, list) else []:
+        if not isinstance(sev, dict):
+            continue
         if sev.get("type") in ("CVSS_V3", "CVSS_V4") and sev.get("score"):
             vec = sev["score"]
             # Try v4.0 first (CVSS:4.0/...), then fall back to v3.x

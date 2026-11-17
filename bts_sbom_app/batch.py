@@ -80,7 +80,11 @@ def run_batch(sources: List[Dict[str, Any]], out_root: str, *, tag: str = "run",
     cache_dir = settings.pop("cache_dir", None) or os.path.join(out_root, "cache")
     run_dir = os.path.join(out_root, "runs", "%s_%s" % (stamp(), tag))
 
-    def one(s: Dict[str, Any]) -> Dict[str, Any]:
+    def one(s: Any) -> Dict[str, Any]:
+        if isinstance(s, str):
+            s = {"src": s}
+        if not isinstance(s, dict) or not s.get("src"):
+            return {"name": str(s)[:60], "error": "batch entry needs a source: a string or an object with a 'src' key", "metrics": {}}
         kw = dict(settings)
         for k in ("ref", "depth"):
             if s.get(k) is not None:
