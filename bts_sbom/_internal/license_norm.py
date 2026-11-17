@@ -26,6 +26,7 @@ from bts_sbom._internal.license_spdx import (
     expression_string,
     iter_atoms,
     parse_expression,
+    strip_outer_parens,
 )
 from bts_sbom._internal.license_categories import (
     NETWORK_COPYLEFT,
@@ -81,7 +82,7 @@ def normalize(expr: Optional[str]) -> Dict[str, Any]:
         return {"input": expr, "normalized": None, "status": "invalid", "errors": [str(e)]}
     except Exception as e:  # pragma: no cover - defensive
         return {"input": expr, "normalized": None, "status": "invalid", "errors": [str(e)]}
-    norm = expression_string(node).strip("()")
+    norm = strip_outer_parens(expression_string(node))
     # canonicalization changed the text => the input used a deprecated/non-canonical id
     if norm.replace(" ", "") != raw.replace(" ", ""):
         return {"input": expr, "normalized": norm, "status": "deprecated", "errors": []}

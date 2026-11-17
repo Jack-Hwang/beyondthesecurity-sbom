@@ -54,9 +54,11 @@ def _valid_expression(expr: str) -> Tuple[bool, str]:
     if not expr or not str(expr).strip():
         return False, "empty license declaration"
     try:
-        from bts_sbom._internal.license_spdx import SpdxParseError, expression_string, parse_expression
+        from bts_sbom._internal.license_spdx import (
+            SpdxParseError, expression_string, parse_expression, strip_outer_parens,
+        )
         node = parse_expression(str(expr))
-        return True, expression_string(node).strip("()")
+        return True, strip_outer_parens(expression_string(node))
     except SpdxParseError as exc:
         return False, "not valid SPDX syntax: %s" % exc
     except Exception as exc:                       # pragma: no cover

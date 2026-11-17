@@ -276,6 +276,44 @@ def expression_string(node: Node) -> str:
     raise TypeError("unknown node %r" % (node,))
 
 
+def strip_outer_parens(s: str) -> str:
+    """Remove exactly ONE matching pair of outer parentheses from ``s`` -
+    but only when that pair wraps the ENTIRE string (docs/CORE_ISSUES.md #2,
+    report section 5 "SPDX bracket bug").
+
+    ``expression_string`` always wraps a top-level And/Or node in one
+    redundant pair of parentheses (e.g. ``"(A AND (B OR C))"`` for the
+    expression ``A AND (B OR C)``); callers that want the bare canonical
+    form need to peel off exactly that one outer pair. ``str.strip("()")``
+    looks like it does this but does NOT: it removes characters from BOTH
+    ends independently and repeatedly, so it also eats a REAL inner closing
+    paren whenever one happens to sit at the trailing edge, e.g. turning
+    ``"(A AND (B OR C))"`` into the unbalanced ``"A AND (B OR C"`` instead
+    of the correct ``"A AND (B OR C)"``.
+
+    This does a balanced scan instead: it only strips the first '(' and the
+    last ')' when the first '(' is the one whose matching close IS the
+    last character of the string (depth returns to 0 only at the final
+    index). Any other shape - not wrapped at all, wrapped but with the
+    first '(' closing before the end (e.g. ``"(A) AND (B)"``), or
+    unbalanced/degenerate input - is returned unchanged. Never raises.
+    """
+    if len(s) < 2 or s[0] != "(" or s[-1] != ")":
+        return s
+    depth = 0
+    last = len(s) - 1
+    for i, ch in enumerate(s):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                return s  # more ')' than '(' seen so far -- not a clean wrap
+            if depth == 0:
+                return s[1:-1] if i == last else s
+    return s  # never closed -- unbalanced, leave untouched
+
+
 # SPDX exception ids recognized by the official license-list (subset that
 # matters for gating; anything else is treated as unknown -> review).
 KNOWN_EXCEPTIONS = frozenset({
@@ -300,5 +338,5 @@ SENTINELS = frozenset({"NOASSERTION", "NONE"})
 __all__ = [
     "SpdxParseError", "LicenseAtom", "And", "Or", "Node",
     "parse_expression", "iter_atoms", "alternatives", "expression_string",
-    "KNOWN_EXCEPTIONS", "SENTINELS",
+    "strip_outer_parens", "KNOWN_EXCEPTIONS", "SENTINELS",
 ]
