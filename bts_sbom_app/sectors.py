@@ -72,13 +72,29 @@ def maritime_report(doc: Dict[str, Any], vex: Optional[Dict[str, Any]] = None, e
         row("MAR-05", "No unaddressed critical/high vulnerabilities", "not_evidence", "no vulnerability data supplied", {"vulnerabilities": 0})
     else:
         closed = set()
+        unjustified = 0
         for s in (vex or {}).get("statements") or []:
-            if s.get("status") in ("fixed", "not_affected"):
+            status = s.get("status")
+            if status == "fixed":
                 closed.add((s.get("vulnerability") or {}).get("name"))
+            elif status == "not_affected":
+                # OpenVEX requires a not_affected statement to carry a justification
+                # or an impact_statement (bts_sbom.vex._validate_statement enforces
+                # this rule on every statement it produces/ingests). A bare
+                # not_affected with neither is not evidence and must not close a
+                # critical/high finding here either.
+                if s.get("justification") or s.get("impact_statement"):
+                    closed.add((s.get("vulnerability") or {}).get("name"))
+                else:
+                    unjustified += 1
         open_hi = [v for v in vulns if v.get("id") not in closed and any(r.get("severity") in ("critical", "high") for r in v.get("ratings") or [])]
+        detail = "%d critical/high finding(s) without a fixed/not_affected statement" % len(open_hi)
+        if unjustified:
+            detail += "; %d not_affected statement(s) lacked justification/impact_statement and did not count as evidence" % unjustified
         row("MAR-05", "No unaddressed critical/high vulnerabilities", "pass" if not open_hi else "gap",
-            "%d critical/high finding(s) without a fixed/not_affected statement" % len(open_hi),
-            {"open_critical_high": len(open_hi), "ids": sorted({v["id"] for v in open_hi})[:20]})
+            detail,
+            {"open_critical_high": len(open_hi), "ids": sorted({v["id"] for v in open_hi})[:20],
+             "unjustified_not_affected": unjustified})
     if not isinstance(eol, dict):
         row("MAR-06", "Support status / end-of-support per component", "not_evidence", "no end-of-support input provided", {"eol_present": False})
     else:
