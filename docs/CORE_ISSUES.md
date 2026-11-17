@@ -2,7 +2,7 @@
 
 BTS-SBOM (`bts_sbom_app/`) is built on the `bts_sbom` core in this repository and never edits it. Defects found by measuring against
 real repositories are recorded here as a work list for the core; each one has a workaround inside `bts_sbom_app/` so BTS-SBOM results stay
-correct meanwhile. **Items 1-3 are still open (fixing them is a core change that belongs to whoever owns that package); item 4 was
+correct meanwhile. **Items 1 and 3 are still open (fixing them is a core change that belongs to whoever owns that package); items 2 and 4 were
 fixed in 0.2.0.** When one is fixed, delete the matching workaround and its test.
 
 ## 1. Guided remediation returned git commit SHAs as "safe versions" (v0.1.0)
@@ -13,14 +13,14 @@ BTS-SBOM does not use the core planner: `engine.fixed_versions` keeps only ECOSY
 version (`tests/bts_sbom_app/test_engine_licenses.py::test_fixed_versions_never_a_commit_sha`). Not re-checked against v0.1.1 (its
 `remediation.py` addresses this class of problem).
 
-## 2. SPDX writer strips a closing parenthesis (v0.1.1)
+## 2. SPDX writer stripped a closing parenthesis (FIXED in 0.2.0)
 
-`bts_sbom.sbom._valid_expression` returns `expression_string(node).strip("()")`. `strip` removes characters from BOTH ends, so
-`BSD-3-Clause AND (Apache-2.0 OR MIT)` becomes `BSD-3-Clause AND (Apache-2.0 OR MIT` and is written into
-`licenseConcluded` / `licenseDeclared`; `validate_spdx` then rejects the document ("non-SPDX license value").
-Suggested fix: remove ONE pair of outer parentheses only when they wrap the whole expression.
-BTS-SBOM workaround: `sbom.spdx()` restores the original expression when the core's value has unbalanced parentheses
-(`tests/bts_sbom_app/test_engine_licenses.py::test_parentheses_survive_and_spdx_validates`).
+`expression_string(node).strip("()")` removed characters from BOTH ends, so `BSD-3-Clause AND (Apache-2.0 OR MIT)` lost its closing
+parenthesis and `validate_spdx` rejected the document ("non-SPDX license value"); the same defect existed independently in
+`bts_sbom/_internal/license_norm.py`. **Fixed in 0.2.0:** one shared helper (`_internal/license_spdx.strip_outer_parens`) removes exactly
+one pair of outer parentheses and only when that pair wraps the whole expression; both sites use it, and the workaround that used to live in
+`bts_sbom_app/sbom.py` was removed as unreachable. Regression tests: `tests/test_bts_sbom_fix_paren.py` (including a full SPDX round trip
+through `validate_spdx`).
 
 ## 3. `go.sum` entries are reported as installed packages (v0.1.0/v0.1.1)
 

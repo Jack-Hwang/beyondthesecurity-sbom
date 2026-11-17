@@ -16,12 +16,12 @@ on:
   push:
     paths:
       - "bts_sbom/**"
-      - "tests/test_bts_sbom_pkg.py"
+      - "tests/test_bts_sbom_*.py"
       - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "bts_sbom/**"
-      - "tests/test_bts_sbom_pkg.py"
+      - "tests/test_bts_sbom_*.py"
       - ".github/workflows/ci.yml"
 
 jobs:
@@ -53,10 +53,10 @@ jobs:
           pip install pytest "ruff==0.14.10"   # pinned: a newer ruff enabled new default rules (I001) and turned CI red
 
       - name: Lint (ruff)
-        run: ruff check bts_sbom/ tests/test_bts_sbom_pkg.py
+        run: ruff check bts_sbom/ tests/test_bts_sbom_*.py
 
       - name: Package tests
-        run: python -m pytest -q tests/test_bts_sbom_pkg.py
+        run: python -m pytest -q tests/test_bts_sbom_*.py
 
       - name: Self-SBOM demo (the package SBOMs itself)
         run: |
