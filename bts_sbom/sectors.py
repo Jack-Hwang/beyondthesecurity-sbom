@@ -67,8 +67,8 @@ from bts_sbom._internal.license_spdx import SENTINELS as _SPDX_SENTINELS
 # (vendored: the platform modules common.ntia_check / common.license.spdx
 #  live in bts_sbom._internal here; every check behaves identically)
 
-__all__ = ["SECTORS", "SECTOR_TITLES", "SECTOR_PROFILES", "sector_report",
-           "write_evidence", "SCHEMA"]
+__all__ = ["SECTORS", "SECTOR_TITLES", "SECTOR_PROFILES", "VERIFIED_BY_ROLES",
+           "VERIFIED_BY", "sector_report", "write_evidence", "SCHEMA"]
 
 SCHEMA = "bts-sector-report-1"
 
@@ -518,6 +518,53 @@ SECTOR_PROFILES: Dict[str, List[Dict[str, str]]] = {
     ],
 }
 
+#: which stakeholder role is responsible for verifying each SECTOR_PROFILES
+#: requirement (REA 21 §3 footnote: record, per requirement, who checks it —
+#: the regulator/type-approval or market-surveillance authority, the
+#: operator/compliance team running this tool in production, or the
+#: development team that produces the evidence in the first place).
+#: Covers every "id" across all 6 SECTOR_PROFILES sectors (26 ids); a
+#: requirement added to SECTOR_PROFILES without a matching entry here is a
+#: bug, not a silent gap — sector_report() below raises KeyError, not a
+#: fabricated default.
+VERIFIED_BY_ROLES = frozenset({"regulator", "operator", "dev"})
+
+VERIFIED_BY: Dict[str, str] = {
+    # cra — EU CRA Annex I
+    "CRA-01": "dev",        # machine-readable format is a build/tooling output
+    "CRA-02": "dev",        # component inventory completeness is a build-time fact
+    "CRA-03": "operator",   # supplier metadata is maintained by SBOM/compliance ops
+    "CRA-04": "operator",   # VEX vulnerability-handling evidence is a security-ops artifact
+    "CRA-05": "operator",   # end-of-support tracking is an ops/support-lifecycle duty
+    # fda — FD&C §524B + 2025-06 guidance
+    "FDA-01": "dev",
+    "FDA-02": "dev",
+    "FDA-03": "operator",
+    "FDA-04": "regulator",  # 2025-06 guidance: reviewed as part of FDA premarket submission
+    "FDA-05": "operator",
+    # r155 — UNECE R155 CSMS / R156 SUMS
+    "R155-01": "regulator",  # RXSWIN is verified at UNECE type-approval
+    "R155-02": "dev",
+    "R155-03": "operator",
+    "R155-04": "operator",   # SUMS update-impact analysis is run by the CSMS operator
+    # dod — EO 14028 / CISA attestation / DoD SWP
+    "DOD-01": "dev",
+    "DOD-02": "operator",
+    "DOD-03": "operator",
+    "DOD-04": "regulator",   # CISA self-attestation common form is submitted to a federal authority
+    # finance — 금융보안원/KISA guidance
+    "FIN-01": "dev",
+    "FIN-02": "operator",
+    "FIN-03": "operator",
+    "FIN-04": "dev",
+    # robot — KISA robot security model / ISO 10218-1:2025 / CRA overlap
+    "ROB-01": "operator",
+    "ROB-02": "dev",
+    "ROB-03": "regulator",   # CRA-overlap readiness feeds a regulator conformity assessment
+    "ROB-04": "dev",
+}
+
+
 _CHECKS = {
     "format_declared": _check_format_declared,
     "ntia_minimum": _check_ntia_minimum,
@@ -571,7 +618,11 @@ def sector_report(sector: str, sbom: dict, vex: dict | None = None,
     for req in SECTOR_PROFILES[sector]:
         verdict, detail, evidence = _CHECKS[req["check"]](ctx)
         rows.append({"id": req["id"], "title": req["title"], "basis": req["basis"],
-                     "verdict": verdict, "detail": detail, "evidence": evidence})
+                     "verdict": verdict, "detail": detail, "evidence": evidence,
+                     # KeyError (not a default) if a profile id is ever added
+                     # without an owner — an unassigned verification role is
+                     # a bug to fix, never a silent/fabricated value.
+                     "verified_by_role": VERIFIED_BY[req["id"]]})
     rows.sort(key=lambda r: r["id"])
 
     summary = {"pass": sum(1 for r in rows if r["verdict"] == "pass"),
