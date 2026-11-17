@@ -1363,6 +1363,11 @@ class OsvScanner:
                         if _cst in ANSWERED_STATUSES:
                             raw, st, osv_eco, _fb_eco = _craw, _cst, _cand, _cand
                             break
+                if osv_eco == "OSS-Fuzz" and not _fb_eco and st in ANSWERED_STATUSES and not raw:
+                    # A component without a usable ecosystem is asked about as "OSS-Fuzz", OSV's catch-all, which answers
+                    # 200 / no vulnerabilities for ANY name. That answer proves nothing, so it must never turn into
+                    # "queried, nothing found" (false-clean: data_status=complete, presence=none, gate exit 0).
+                    st = "unqueried"
                 status[st] = status.get(st, 0) + 1
                 if _fb_eco:
                     status["fw_distro_fallback"] = \
