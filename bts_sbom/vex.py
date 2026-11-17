@@ -391,20 +391,41 @@ class VexIndex:
                 pid = p.get("@id", "")
                 for t in tokens:
                     upper_t = t.upper()
+                    # Index only under the statement's own literal product id.
+                    # A versioned product (e.g. pkg:pypi/requests@9.9.9) is pinned
+                    # to EXACTLY that version — it must never be reachable via the
+                    # version-stripped key, or it would widen to every version of
+                    # the package. A version-less product id (no "@version") has
+                    # nothing to strip, so this single store already makes it
+                    # reachable by its bare id — which is exactly "applies to
+                    # every version" (see status_for's stripped-query fallback).
                     self._by_key[(upper_t, pid)] = st
-                    self._by_key[(upper_t, _strip_version(pid))] = st
 
     def status_for(self, vuln_ids, product: str):
         """Return (status, justification) for the first matching statement, or
         (None, None). `vuln_ids` may be a single id or an iterable of id+aliases.
         CVE ID matching is case-insensitive: both index keys and query ids are
-        upper-cased before comparison so ``CVE-2021-1234`` matches ``cve-2021-1234``."""
+        upper-cased before comparison so ``CVE-2021-1234`` matches ``cve-2021-1234``.
+
+        Product matching: an exact (vuln, product) match is tried first — this is
+        what lets a version-pinned statement (e.g. requests@9.9.9) match only that
+        exact version. Only when there is no exact match do we fall back to the
+        version-stripped product key — and because a versioned statement is never
+        indexed under its stripped form (see __init__), that fallback can only
+        ever hit a statement whose product carried NO version to begin with, i.e.
+        one that is meant to apply to every version of the package. A version-
+        pinned statement can therefore never widen to suppress a different
+        version."""
         if isinstance(vuln_ids, str):
             vuln_ids = [vuln_ids]
         for vid in vuln_ids:
             upper_vid = vid.upper()
-            for prod in (product, _strip_version(product)):
-                st = self._by_key.get((upper_vid, prod))
+            st = self._by_key.get((upper_vid, product))
+            if st:
+                return st["status"], st.get("justification")
+            stripped_product = _strip_version(product)
+            if stripped_product != product:
+                st = self._by_key.get((upper_vid, stripped_product))
                 if st:
                     return st["status"], st.get("justification")
         return None, None
@@ -539,12 +560,25 @@ def _parse_cyclonedx_vex(doc: Dict[str, Any]) -> List[VexStatement]:
             for v in (affect.get("versions") or [{"status": analysis.get("state", "")}]):
                 raw_status = v.get("status", "")
                 status = _cdx_status.get(raw_status, "under_investigation")
+                impact_statement = analysis.get("detail")
+                # Fail-closed: enforce the SAME statement validation the OpenVEX
+                # producers use (_validate_statement) — a bare CycloneDX
+                # not_affected (no justification/impact_statement) must raise
+                # VexError here too, not silently pass through load_vex_file()/
+                # `bts-sbom vex --check` as valid evidence.
+                _validate_statement({
+                    "status": status,
+                    "justification": justification,
+                    "impact_statement": impact_statement,
+                    "vulnerability": {"name": cve_id},
+                    "products": [{"@id": purl}] if purl else [],
+                })
                 out.append(VexStatement(
                     cve_id=cve_id,
                     purl=purl,
                     status=status,
                     justification=justification,
-                    impact_statement=analysis.get("detail"),
+                    impact_statement=impact_statement,
                 ))
     return out
 
