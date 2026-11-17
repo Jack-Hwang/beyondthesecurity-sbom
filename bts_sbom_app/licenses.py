@@ -5,6 +5,9 @@ Resolution chain per component (first hit wins, the winning source is recorded i
   2. ``deps.dev``   - Google Open Source Insights (npm, PyPI, Go, Maven, Cargo, NuGet, RubyGems)
   3. ``registry:*`` - PyPI JSON / npm registry (only when deps.dev has no answer)
 Honesty: a component without evidence stays unresolved (``license == ""``); nothing is guessed from the name.
+When deps.dev and a registry both have readable evidence for the same component and disagree after normalisation,
+the first source still wins ``license``/``license_source`` (unchanged default), but the disagreement is never
+silently dropped: ``resolve()`` appends {component, value_a, source_a, value_b, source_b} to stats["conflicts"].
 Source-tree discovery (``scan_tree``) finds the project's own LICENSE files, SPDX headers and vendored licenses.
 This module reports obligations and conflicts as engineering signals - it is not legal advice.
 """
@@ -405,7 +408,8 @@ def resolve(components: List[Dict[str, Any]], root: str, *, online: bool = True,
     trusted for ``ttl_s`` and only if it was recorded with at least the fallbacks that are enabled now.
     """
     stats: Dict[str, Any] = {"by_source": {}, "resolved": 0, "total": len(components), "unmapped_raw": {},
-                             "remote_lookups": 0, "cache_hits": 0, "offline": not online, "extra_registries": extra_registries}
+                             "remote_lookups": 0, "cache_hits": 0, "offline": not online, "extra_registries": extra_registries,
+                             "conflicts": []}
     cpath = os.path.join(cache_dir, CACHE_FILE) if cache_dir else None
     cache: Dict[str, Any] = read_json(cpath, {}) if cpath else {}
     lock = threading.Lock()
@@ -448,25 +452,41 @@ def resolve(components: List[Dict[str, Any]], root: str, *, online: bool = True,
             continue
         todo.append(c)
 
-    def look(c: Dict[str, Any]) -> Tuple[Dict[str, Any], Any, str]:
-        first: Tuple[Any, str] = (None, "")
+    def look(c: Dict[str, Any]) -> Tuple[Dict[str, Any], Any, str, List[Dict[str, Any]]]:
+        """Still returns the single winning (raw, source) - first readable source keeps priority, unchanged - but now
+        keeps checking the remaining sources (instead of stopping) so a later source's disagreement can be reported
+        in ``conflicts`` rather than silently dropped."""
+        winner: Tuple[Any, str, str] = (None, "", "")     # (raw, label, normalized) of the first evidence we could read
+        first: Tuple[Any, str] = (None, "")                # first unreadable evidence, kept only if nothing readable turns up
+        conflicts: List[Dict[str, Any]] = []
         for src, fn in (("deps.dev", _depsdev), ("registry", lambda e, n, v: _registry(e, n, v, extra_registries))):
             if src not in sources:
                 continue
             raw = fn(c["ecosystem"], c["name"], c["version"])
+            if not raw:
+                continue
             label = "deps.dev" if src == "deps.dev" else "registry:" + c["ecosystem"].lower()
-            if raw and normalize(raw)[0]:
-                return c, raw, label                          # first source whose evidence we can actually read
-            if raw and first[0] is None:
-                first = (raw, label)                          # keep unreadable evidence for the report, keep looking
-        return c, first[0], first[1]
+            norm = normalize(raw)[0]
+            if not norm:
+                if first[0] is None:
+                    first = (raw, label)                   # keep unreadable evidence for the report, keep looking
+                continue
+            if winner[0] is None:
+                winner = (raw, label, norm)                # first source whose evidence we can actually read - still wins
+            elif norm != winner[2]:
+                conflicts.append({"component": "%s@%s" % (c["name"], c["version"]), "value_a": winner[2], "source_a": winner[1],
+                                   "value_b": norm, "source_b": label})
+        if winner[0] is not None:
+            return c, winner[0], winner[1], conflicts
+        return c, first[0], first[1], conflicts
 
     if online and todo:
         todo = todo[:max_remote]
         with cf.ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
-            for c, raw, src in ex.map(look, todo):
+            for c, raw, src, conflicts in ex.map(look, todo):
                 stats["remote_lookups"] += 1
                 apply(c, raw, src)
+                stats["conflicts"].extend(conflicts)
                 cache[ckey(c)] = {"raw": raw, "source": src, "extra": extra_registries, "ts": time.time()}
         if cpath:
             write_json(cpath, cache)
