@@ -49,10 +49,16 @@ def project_md(rec: Dict[str, Any], top: int = 15) -> str:
             L.append("- note: " + n)
         L.append("")
     if rec.get("sectors"):
-        L += ["## Industry reports", "", "| industry | verdict | pass | gap | not_evidence | draft |", "|---|---|---|---|---|---|"]
+        L += ["## Industry reports", "", "| industry | verdict | pass | gap | not_evidence | draft | verified by |", "|---|---|---|---|---|---|---|"]
         for k, r in rec["sectors"].items():
             s = r.get("summary") or {}
-            L.append("| %s | %s | %s | %s | %s | %s |" % (k, r.get("verdict"), s.get("pass"), s.get("gap"), s.get("not_evidence"), bool(r.get("draft"))))
+            # verified_by_role (per-requirement stakeholder owner) is rendered
+            # here as the distinct roles present in this sector's rows; rows
+            # without the field (e.g. a draft profile that has not been given
+            # one yet) are not counted rather than fabricating a role.
+            roles = sorted({row.get("verified_by_role") for row in r.get("requirements") or []
+                           if row.get("verified_by_role")})
+            L.append("| %s | %s | %s | %s | %s | %s | %s |" % (k, r.get("verdict"), s.get("pass"), s.get("gap"), s.get("not_evidence"), bool(r.get("draft")), ", ".join(roles) if roles else "-"))
         L.append("")
     pr = rec.get("proposals") or {}
     if pr:
