@@ -203,18 +203,25 @@ def _check_ntia_minimum(ctx: dict) -> tuple:
     if res.get("status") != "OK":
         return ("not_evidence", "no scorable SBOM inventory: %s" % res.get("reason"),
                 {"ntia_status": res.get("status"), "reason": res.get("reason")})
+    total = len(ntia_check.ELEMENTS)
+    pass_count = res.get("pass_count", 0)
+    # "NTIA minimum elements met" means all 7 elements reach PASS (>=90% of
+    # components, per ntia_check._status) -- not merely "no element below the
+    # 60% FAIL floor" (that let a WARN-only, materially-incomplete document
+    # through; see docs/ANALYSIS_2026-11-17.md appendix B, sectors.py:211).
+    missing = [e["name"] for e in res.get("elements", []) if e.get("status") != "PASS"]
     ev = {"ntia_status": "OK", "format": res.get("format"),
           "component_count": res.get("component_count"),
           "total_score": res.get("total_score"), "grade": res.get("grade"),
-          "pass_count": res.get("pass_count"), "warn_count": res.get("warn_count"),
-          "fail_count": res.get("fail_count")}
-    if res.get("fail_count", 0) == 0:
+          "pass_count": pass_count, "warn_count": res.get("warn_count"),
+          "fail_count": res.get("fail_count"), "elements_total": total,
+          "missing_elements": missing}
+    if pass_count == total:
         return ("pass", "NTIA minimum elements: %d/%d elements PASS (score %.1f, grade %s)"
-                % (res.get("pass_count", 0), len(ntia_check.ELEMENTS),
-                   res.get("total_score", 0.0), res.get("grade")), ev)
-    return ("gap", "NTIA minimum elements incomplete: %d element(s) below 60%% "
-            "(score %.1f, grade %s)" % (res.get("fail_count", 0),
-                                        res.get("total_score", 0.0), res.get("grade")), ev)
+                % (pass_count, total, res.get("total_score", 0.0), res.get("grade")), ev)
+    return ("gap", "NTIA minimum elements incomplete: %d/%d elements PASS (score %.1f, "
+            "grade %s); missing/partial: %s" % (pass_count, total, res.get("total_score", 0.0),
+                                                 res.get("grade"), ", ".join(missing)), ev)
 
 
 def _check_supplier_coverage(ctx: dict) -> tuple:
