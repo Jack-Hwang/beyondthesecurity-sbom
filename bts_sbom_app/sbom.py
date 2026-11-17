@@ -152,17 +152,16 @@ def spdx(name: str, components: List[Dict[str, Any]], *, created: Optional[str] 
     pkgs = [{"name": c["name"], "version": c.get("version", ""), "license": c.get("license") or None,
              "comment": ("license source: " + c["license_source"]) if c.get("license_source") else ""} for c in components]
     rels = [(name, c["name"]) for c in components if c.get("relationship") == "direct"]
-    doc = core.build_spdx_document(pkgs, rels, doc_name=name, created=created, tool_version=__version__)
-    # Workaround for bts-sbom 0.1.1 (see docs/CORE_ISSUES.md #2): its expression normaliser ends with .strip("()"), which also
-    # removes the closing parenthesis of "A AND (B OR C)" and writes an unbalanced value that the core validator then rejects.
-    # The original expression was produced by our own structure-preserving parser, so it is restored verbatim.
-    orig = {(c["name"], c.get("version", "")): c.get("license") for c in components}
-    for p in doc.get("packages") or []:
-        lic = orig.get((p.get("name"), p.get("versionInfo", "")))
-        cur = str(p.get("licenseConcluded") or "")
-        if lic and cur not in ("NOASSERTION", "NONE", lic) and cur.count("(") != cur.count(")"):
-            p["licenseConcluded"] = p["licenseDeclared"] = lic
-    return doc
+    # docs/CORE_ISSUES.md #2's core expression normaliser (expression_string(...).strip("()"))
+    # has been fixed upstream (it now removes exactly one matching outer paren pair via
+    # bts_sbom._internal.license_spdx.strip_outer_parens, never an unbalanced bite off both
+    # ends), so licenseConcluded/licenseDeclared for a compound expression like
+    # "A AND (B OR C)" already comes back balanced and equal to the input. The
+    # restore-on-unbalanced-parens workaround that used to live here is now unreachable
+    # dead code (the core can no longer hand back an unbalanced value) and has been removed;
+    # tests/bts_sbom_app/test_engine_licenses.py::test_parentheses_survive_and_spdx_validates
+    # still covers this path and stays green without it.
+    return core.build_spdx_document(pkgs, rels, doc_name=name, created=created, tool_version=__version__)
 
 
 def validate_spdx(doc: Dict[str, Any]) -> List[str]:
