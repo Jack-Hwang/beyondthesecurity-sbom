@@ -51,6 +51,8 @@ jobs:
           pip install pytest
       - name: BTS-SBOM tests (network faked)
         run: python -m pytest -q -p no:cacheprovider tests/bts_sbom_app
+      - name: Secret scan (stdlib regex, file:line:rule only, never the value)
+        run: python -I tools/secret_scan.py .
       - name: Spec lint (EARS shape + AC <-> test traceability)
         run: python -m bts_sbom_app.speclint
       - name: Retrieval + chatbot grounding eval (no network, no LLM)
