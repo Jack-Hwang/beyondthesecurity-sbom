@@ -197,3 +197,4 @@ operations. Everything here is deterministic and read-only; the LLM only narrate
 - BSA-AC-202 [Unwanted] If a local-folder source contains 1 or more symlinks or junctions, the work copy shall contain 0 symlinks and the result shall report the skipped count.
 - BSA-AC-203 [Unwanted] If a patch target does not resolve inside the work-copy root or crosses a symlink, apply() shall write 0 bytes to it and shall report that result as status blocked with detail "outside work copy" for both of the 2 escape forms (path traversal, symlink).
 - BSA-AC-204 [Event] When a plan's target file list or verification outcome changes while its ecosystem, component and versions stay the same, approval_digest() shall return a different digest for 2 of 2 changed fields (files, verification).
+- BSA-AC-205 [State] While EXAONE's daily call budget is exhausted, the chatbot shall stay extractive and make 0 further calls (never retries).
