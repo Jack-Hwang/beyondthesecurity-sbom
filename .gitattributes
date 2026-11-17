@@ -1,0 +1,2 @@
+# the vendored console files are hash-pinned: keep their line endings identical on every platform
+bts_sbom_app/web/** text eol=lf

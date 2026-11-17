@@ -122,7 +122,7 @@ def test_copied_platform_files_match_their_recorded_hashes():
     ok = 0
     for digest, rel in rows:
         with open(os.path.join(server.WEB_DIR, *rel.split("/")), "rb") as fh:
-            data = fh.read()
+            data = fh.read().replace(b"\r\n", b"\n")      # pins are over LF-normalised bytes (autocrlf-independent)
         ok += hashlib.sha256(data).hexdigest() == digest
         if rel == "sca_app.js":                                       # an edited copy must be detected
             assert hashlib.sha256(data + b" ").hexdigest() != digest

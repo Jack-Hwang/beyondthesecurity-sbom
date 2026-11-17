@@ -12,6 +12,7 @@ K-EXAONE is a reasoning model: reasoning tokens count against ``max_tokens`` and
 floor is 1024 and ``reasoning_effort`` is sent as "low".
 """
 from __future__ import annotations
+from . import __version__
 
 import json
 import os
@@ -112,7 +113,7 @@ class ChatClient:
         if self.provider == "exaone":
             body["reasoning_effort"] = "low"
         headers = {"Authorization": "Bearer " + self.api_key, "Content-Type": "application/json",
-                   "User-Agent": "bts-sbom-app/0.1"}
+                   "User-Agent": "bts-sbom-app/" + __version__}
         url = self.base_url + "/chat/completions"
         wait = 3.0
         for attempt in range(2):

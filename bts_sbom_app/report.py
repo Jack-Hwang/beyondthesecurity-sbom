@@ -1,5 +1,6 @@
 """Human-readable reports (Markdown + self-contained HTML) for one project and for a batch."""
 from __future__ import annotations
+from .util import kv
 
 import html
 from typing import Any, Dict, List
@@ -15,8 +16,8 @@ def project_md(rec: Dict[str, Any], top: int = 15) -> str:
         return "\n".join(L + ["**FAILED**: " + rec["error"], ""])
     lin = rec.get("lineage") or {}
     L += ["- source: `%s` (commit `%s`)" % (rec.get("source"), (lin.get("commit") or "")[:10]),
-          "- components: %s - vulnerabilities: %s %s" % (m.get("components"), m.get("vulns"), m.get("severity")),
-          "- license resolved: %s of %s (%s) from %s" % (m.get("license_resolved"), m.get("license_total"), m.get("license_resolved_rate"), m.get("license_sources")),
+          "- components: %s - vulnerabilities: %s %s" % (m.get("components"), m.get("vulns"), kv(m.get("severity"))),
+          "- license resolved: %s of %s (%s) from %s" % (m.get("license_resolved"), m.get("license_total"), m.get("license_resolved_rate"), kv(m.get("license_sources"))),
           "- project license: %s (%s)" % ((rec.get("license") or {}).get("project_license") or "not detected", (rec.get("license") or {}).get("project_license_source") or "-"),
           "- SBOM: CycloneDX valid=%s, SPDX valid=%s, affects refs resolved=%s" % (m.get("cyclonedx_valid"), m.get("spdx_valid"), m.get("sbom_ref_rate")), ""]
     vs = sorted(rec.get("vulns") or [], key=lambda v: (_SEV_ORDER.index(v["severity"]) if v["severity"] in _SEV_ORDER else 9, -(v.get("cvss") or 0)))[:top]
@@ -68,10 +69,10 @@ def project_md(rec: Dict[str, Any], top: int = 15) -> str:
 def batch_md(summary: Dict[str, Any], recs: List[Dict[str, Any]]) -> str:
     s = summary["summary"]
     L = ["# BTS-SBOM batch %s" % summary.get("tag", ""), "",
-         "- projects: %s (errors %s) - components %s - vulnerabilities %s %s" % (s["projects"], s["errors"], s["components"], s["vulns"], s["severity"]),
-         "- license resolved rate: %s - by source %s" % (s["license_resolved_rate"], s["license_sources"]),
-         "- plans verified clean: %s of %s - patch: %s" % (s["plans_verified_clean"], s["plans_upgrade"], s["patch"]),
-         "- avg analysis: %ss - proposals: %s" % (s["analysis_s_avg"], s["proposals"]), "",
+         "- projects: %s (errors %s) - components %s - vulnerabilities %s %s" % (s["projects"], s["errors"], s["components"], s["vulns"], kv(s["severity"])),
+         "- license resolved rate: %s - by source %s" % (s["license_resolved_rate"], kv(s["license_sources"])),
+         "- plans verified clean: %s of %s - patch: %s" % (s["plans_verified_clean"], s["plans_upgrade"], kv(s["patch"])),
+         "- avg analysis: %ss - proposals: %s" % (s["analysis_s_avg"], kv(s["proposals"])), "",
          "| project | components | vulns | license | plans clean | patch | arch edges | proposals |", "|---|---|---|---|---|---|---|---|"]
     for r in recs:
         m = r.get("metrics") or {}

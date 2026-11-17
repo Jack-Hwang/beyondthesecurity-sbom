@@ -1,17 +1,17 @@
 # Web assets copied from the BTS platform
 
 The page served by `bts-sbom-app serve` reuses the platform's "Open-Source Security" screen so BTS-SBOM looks and is organised like
-the rest of the BTS workbench. These six files are **copied byte-for-byte and must not be edited here**; changes belong in the
+the rest of the BTS workbench. These six files are **copied unmodified (compared as LF-normalised bytes, so Windows/Linux checkouts agree) and must not be edited here**; changes belong in the
 platform repository and are then re-copied (update `PLATFORM_ASSETS.sha256` at the same time - a test compares the hashes).
 
 | file here | source in the platform repository (`ECU_Sentinel`) | last platform commit | sha256 (first 16) |
 |---|---|---|---|
 | `css/tokens.css` | `server/static/css/tokens.css` | `bd75086` | `c0309e605bffc59b` |
-| `css/app.css` | `server/static/css/app.css` | `bd75086` | `908abeef933429ff` |
-| `css/light_theme_overrides.css` | `server/static/css/light_theme_overrides.css` | `07d1def` | `4e8952bc12e19d44` |
-| `css/view_scan.css` | `server/static/css/views/view_scan.css` | `bd75086` | `5d87d7e2060d22c1` |
-| `sca_app.css` | `server/static/sca_app.css` | `21c3eac` | `886af250bc3735ef` |
-| `sca_app.js` | `server/static/sca_app.js` | `21c3eac` | `35e64224ee2a80a5` |
+| `css/app.css` | `server/static/css/app.css` | `bd75086` | `0241c0cbff7a902b` |
+| `css/light_theme_overrides.css` | `server/static/css/light_theme_overrides.css` | `07d1def` | `cdf933fb7d36ee6a` |
+| `css/view_scan.css` | `server/static/css/views/view_scan.css` | `bd75086` | `e1192d8af8c05da9` |
+| `sca_app.css` | `server/static/sca_app.css` | `21c3eac` | `693dcd5c9515406b` |
+| `sca_app.js` | `server/static/sca_app.js` | `41dafaa` | `77c8805e18f27ab0` |
 
 Everything else in this folder (`index.html`, `bts_console.js`) is new code written for BTS-SBOM.
 

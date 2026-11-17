@@ -1,0 +1,6 @@
+include LICENSE README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md
+recursive-include bts_sbom *.md
+recursive-include bts_sbom_app/web *
+recursive-include tests *.py
+recursive-include examples *
+global-exclude __pycache__ *.py[cod] *.db

@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from . import __version__, arch as archmod, batch, chat as chatmod, evals, loop, pipeline, rag, report, workspace
 from .llm import ChatClient
-from .util import ascii_safe, read_json
+from .util import console_text, kv, read_json
 
 
 def _client(root: str, no_llm: bool, cfg: Optional[str]) -> Optional[ChatClient]:
@@ -115,10 +115,8 @@ def _out(a: argparse.Namespace, default_sub: str) -> str:
 def _print(obj: Any, as_json: bool, text: str = "") -> None:
     if as_json:
         print(json.dumps(obj, ensure_ascii=True, indent=1, default=str))
-    elif os.environ.get("BTS_SBOM_UNICODE") == "1":          # opt-in: UTF-8 terminals (default stays ASCII-safe for cp949 consoles)
-        print(text)
     else:
-        print(ascii_safe(text))
+        print(console_text(text))          # stream-aware: real characters when the console can show them
 
 
 def project_records(evidence: str) -> Dict[str, Any]:
@@ -148,12 +146,18 @@ def evidence_chunks(projs: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     for st in (sys.stdout, sys.stderr):
-        try:
-            st.reconfigure(encoding="utf-8", errors="replace")
+        try:                                   # never crash on an un-encodable character; BTS_SBOM_UNICODE=1 forces UTF-8 output
+            if os.environ.get("BTS_SBOM_UNICODE") == "1":
+                st.reconfigure(encoding="utf-8", errors="replace")
+            else:
+                st.reconfigure(errors="replace")
         except (AttributeError, ValueError):
             pass
     a = build_parser().parse_args(argv)
     if a.cmd in ("scan", "patch"):
+        if getattr(a, "approve", False) and not getattr(a, "token", None):
+            print("note: --approve without --token applies the plan as computed now; pass --token <digest of the reviewed plan> to pin it",
+                  file=sys.stderr)
         client = _client(a.root, a.no_llm, a.llm_config)
         work = a.work or tempfile.mkdtemp(prefix="bts_sbom_work_")
         rec = pipeline.run_project(a.source, work_root=work, out_dir=_out(a, "runs"), name=a.name, ref=a.ref, depth=a.depth, client=client,
@@ -167,6 +171,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             md = report.project_md(rec)
         _print({k: v for k, v in rec.items() if k not in ("components", "vulns", "_docs")}, a.json, md + "\n\nwork copy: %s\nevidence: %s" % (rec.get("path"), (rec.get("artifacts") or {}).get("record")))
+        if pa.get("status") in ("digest_mismatch", "regression_reverted", "blocked", "error"):
+            return 1                           # a rejected / reverted patch must be visible to automation
         return 0
     if a.cmd == "arch":
         work = a.work or tempfile.mkdtemp(prefix="bts_sbom_work_")
@@ -175,7 +181,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             _print(ws, a.json, "ERROR: " + ws["error"])
             return 2
         res = archmod.analyze(ws["path"], online=a.arch_online)
-        txt = ["Architecture of %s" % a.source, "files %s, LOC %s" % (res["stack"]["files"], res["stack"]["loc"]), "graph: %s" % {k: v for k, v in res["graph"].items() if k in ("import_edges", "cycle_count", "tangle_ratio", "max_depth")}]
+        txt = ["Architecture of %s" % a.source, "files %s, LOC %s" % (res["stack"]["files"], res["stack"]["loc"]), "graph: %s" % kv({k: v for k, v in res["graph"].items() if k in ("import_edges", "cycle_count", "tangle_ratio", "max_depth")})]
         txt += ["hotspot %s score %s" % (h["file"], h["score"]) for h in res["hotspots"][:5]] + ["%s %s: %s" % (m["kind"], m["target"], m["why"]) for m in res["modernization"]]
         _print(res, a.json, "\n".join(txt))
         return 0

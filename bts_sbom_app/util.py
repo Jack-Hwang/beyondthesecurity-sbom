@@ -125,6 +125,39 @@ def ascii_safe(s: Any) -> str:
     return str(s).encode("ascii", errors="replace").decode("ascii")
 
 
+_TYPO = {0x2014: "-", 0x2013: "-", 0x2192: "->", 0x2190: "<-", 0x00B7: ".", 0x2022: "*", 0x2018: "'", 0x2019: "'",
+         0x201C: '"', 0x201D: '"', 0x2026: "...", 0x00A0: " "}
+
+
+def console_text(s: Any, stream: Any = None) -> str:
+    """Text for a console stream: unchanged when the stream can encode it (Korean stays Korean on cp949/UTF-8), otherwise
+    typographic punctuation becomes ASCII and anything else the stream cannot show becomes '?' - never an exception."""
+    import sys
+    text = str(s)
+    enc = getattr(stream or sys.stdout, "encoding", None)
+    if not isinstance(enc, str) or not enc:
+        enc = "utf-8"
+    try:
+        text.encode(enc)
+        return text
+    except (UnicodeEncodeError, LookupError):
+        pass
+    text = text.translate(_TYPO)
+    try:
+        return text.encode(enc, errors="replace").decode(enc, errors="replace")
+    except LookupError:
+        return text.encode("ascii", errors="replace").decode("ascii")
+
+
+def kv(d: Any) -> str:
+    """Compact 'key value, key value' text for a dict (reports must not embed Python repr)."""
+    if d is None:
+        return "-"
+    if isinstance(d, dict):
+        return ", ".join("%s %s" % (k, ("(" + kv(d[k]) + ")") if isinstance(d[k], dict) else d[k]) for k in sorted(d, key=str)) or "-"
+    return str(d)
+
+
 def clip(s: Any, n: int = 200) -> str:
     s = str(s)
     return s if len(s) <= n else s[: n - 3] + "..."

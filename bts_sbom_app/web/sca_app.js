@@ -297,7 +297,7 @@
   }
 
   function footHtml() {
-    var s = 'Data: OSV.dev + deps.dev \u00B7 decisionmatic offline matching';
+    var s = 'Data: OSV.dev + deps.dev \u00B7 deterministic offline matching';
     if (typeof O.proxy !== 'function' || typeof O.runTool !== 'function') s += ' \u00B7 unavailable tools: skip';
     return '<div class="sx-foot">' + esc(s) + '</div>';
   }

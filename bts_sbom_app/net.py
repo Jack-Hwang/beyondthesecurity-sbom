@@ -4,6 +4,7 @@ Every outbound call in BTS-SBOM goes through here so one place can: set a User-A
 count requests/failures for the evidence file, and be monkey-patched by tests (no test touches the network).
 """
 from __future__ import annotations
+from . import __version__
 
 import json
 import threading
@@ -12,7 +13,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional
 
-UA = "bts-sbom-app/0.1 (BTS-SBOM license and vulnerability analysis; contact via repository issues)"
+UA = "bts-sbom-app/" + __version__ + " (BTS-SBOM license and vulnerability analysis; contact via repository issues)"
 STATS: Dict[str, Any] = {"requests": 0, "failures": 0, "last_error": ""}
 _LOCK = threading.Lock()
 # tests set this to a callable(url, headers, body) -> (status, parsed_json_or_None); None = real network
