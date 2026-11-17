@@ -254,6 +254,9 @@ pure CLI + library. Network features (OSV.dev queries, deps.dev license
 resolution, EPSS/KEV enrichment) degrade honestly to offline/cached/curated
 data when the network is unavailable, and say so in the output.
 
+Python 3.10 limit: TOML manifests (`Cargo.lock`, `Cargo.toml`, `poetry.lock`, `pyproject.toml`) need `tomllib` (Python >= 3.11). On 3.10
+such a scan ends as `parse_failed` / presence `unknown` with an "unsupported on this Python" reason - never as "no findings".
+
 The separate `bts_sbom_app` package is broader: it can call LG EXAONE (opt-in, needs a key, daily-budget ledger) and ships a
 stdlib HTTP service (`bts-sbom-app serve`) with **no authentication** that must stay on localhost.
 
