@@ -237,6 +237,16 @@ def _offline_freshness(ecosystem: str, name: str, version: str) -> Optional[floa
         return None
     try:
         conn = sqlite3.connect(db)
+        ts = None
+        try:    # a COMPLETE mirror answers offline lookups first (osv_local_db.lookup): its last good sync is the age
+            mrow = conn.execute("SELECT last_ok FROM osv_sync WHERE ecosystem=? AND mode='full'",
+                                (str(ecosystem).split(":", 1)[0].strip(),)).fetchone()
+            ts = mrow[0] if mrow and mrow[0] else None
+        except sqlite3.Error:
+            ts = None
+        if ts is not None:
+            conn.close()
+            return float(ts)
         row = conn.execute(
             "SELECT updated_at FROM exact_cache "
             "WHERE ecosystem=? AND package_name=? AND version=?",
@@ -645,6 +655,8 @@ def _fixed_version(vuln: Dict[str, Any], name: str,
             continue
         aff_eco = str(aff_pkg.get("ecosystem", "") or "")
         for rng in aff.get("ranges", []) or []:
+            if str(rng.get("type") or "").upper() == "GIT":
+                continue                      # a GIT range's "fixed" is a commit SHA, never an installable version
             introduced = "0"
             for ev in rng.get("events", []) or []:
                 if "introduced" in ev:
@@ -854,8 +866,14 @@ def _npm_lock_scopes(path: str, pkgs: List[Dict[str, Any]]) -> None:
 class OsvScanner:
     """Thin OSV-Scanner-compatible driver over AutoGuard's SCA plumbing."""
 
-    def __init__(self, offline: bool = False):
+    def __init__(self, offline: bool = False, osv_mode: Optional[str] = None):
         self.offline = offline
+        # online lookup strategy: auto (querybatch for >=4 components, else per-component) | batch | single.
+        # BTS_SBOM_OSV_MODE overrides the default; an explicit argument (CLI --osv-mode) wins over the env var.
+        self.osv_mode = osv_mode
+        self._online_blocked: Optional[str] = None     # set when OSV.dev proved unreachable for the whole batch
+        self._osv_fast_stats: Optional[Dict[str, Any]] = None
+        self._feed_stats: Optional[Dict[str, Any]] = None
         self._client = None
         self.notes: List[str] = []
         # ── per-scan completeness evidence (Batch C1) ──
@@ -1013,6 +1031,10 @@ class OsvScanner:
     # -- querying ---------------------------------------------------------------
     def _query_online(self, name: str, version: str, osv_eco: str) -> Tuple[Optional[List[dict]], bool]:
         """Query OSV.dev directly with the correct ecosystem. Returns (raw, ok)."""
+        if self._online_blocked:
+            # the batch stage already proved OSV.dev unreachable (every retry exhausted): do not repeat that
+            # N more times per component - report the same honest "unreachable" so the offline fallback runs.
+            return None, False
         from bts_sbom._internal.osv_client import OsvClient
         with self._lock:
             if self._client is None:
@@ -1066,6 +1088,144 @@ class OsvScanner:
             self._advisory_ts.extend(_advisory_modified(v) for v in cached or [])
         return cached, "network_fallback_offline"
 
+    # auto mode: querybatch + record cache only pays off when most answers are already cached (measured against the
+    # real API: on a COLD cache the extra batch round trip makes it ~1.3 s slower than per-component queries over
+    # pooled connections; on a WARM cache it replaces ~N advisory downloads with 1 request).
+    BATCH_MIN_COMPONENTS = 8
+    BATCH_MIN_CACHE_COVERAGE = 0.5
+
+    def _osv_workers(self, n_keys: int) -> int:
+        for var in ("BTS_SBOM_OSV_WORKERS", "BTS_SBOM_SCA_WORKERS", "ECU_SENTINEL_SCA_WORKERS"):
+            raw = os.environ.get(var)
+            if raw:
+                try:
+                    return max(1, min(int(raw), 64, n_keys))
+                except ValueError:
+                    break
+        return max(1, min(24, n_keys))      # network-latency bound (not CPU); the API documents no rate limit
+
+    def _batch_pays_off(self, keys: List[Tuple[str, str, str]]) -> bool:
+        if len(keys) < self.BATCH_MIN_COMPONENTS:
+            return False
+        from bts_sbom._internal import osv_local_db
+        coverage = osv_local_db.cached_count(keys) / float(len(keys))
+        use = coverage >= self.BATCH_MIN_CACHE_COVERAGE
+        self.notes.append("OSV strategy (auto): %.0f%% of %d components already cached -> %s"
+                          % (coverage * 100, len(keys), "querybatch + record cache" if use
+                             else "per-component queries over pooled connections"))
+        return use
+
+    def _remember_records(self) -> None:
+        """Feed every advisory record the per-component path downloaded into the mirror's record cache, so the next
+        auto/batch scan can validate them with ONE querybatch instead of downloading them again."""
+        recs: Dict[str, Dict[str, Any]] = {}
+        for (raw, st) in self._prefetched.values():
+            if st == "queried_online":
+                for v in raw or []:
+                    if isinstance(v, dict) and v.get("id"):
+                        recs[v["id"]] = v
+        if not recs:
+            return
+        try:
+            from bts_sbom._internal.osv_mirror import OsvMirror
+            OsvMirror().put_records(recs.values())
+        except Exception as exc:                          # the cache is an optimisation, never a failure
+            logger.warning("record cache not updated: %s", exc)
+
+    def _osv_mode_effective(self) -> str:
+        mode = str(self.osv_mode or os.environ.get("BTS_SBOM_OSV_MODE") or "auto").strip().lower()
+        return mode if mode in ("auto", "batch", "single", "feed") else "auto"
+
+    def _prefetch_feed(self, keys: List[Tuple[str, str, str]]) -> List[Tuple[str, str, str]]:
+        """Answer from the durable cache every component whose cached answer the OSV CHANGE FEED proves is still
+        current (osv_mirror.validated_cache).  Cost: one Range/304 request per ecosystem instead of one query per
+        component.  Returns the keys that could NOT be validated; those go to OSV as usual.
+
+        Reported as ``queried_offline`` with the sync time as freshness - it IS local data, validated as of the
+        last feed sync (OSV exports a few minutes after publishing) - never as a live query."""
+        from bts_sbom._internal.osv_mirror import OsvMirror, base_ecosystem
+        try:
+            mirror = OsvMirror()
+            sync = mirror.sync(sorted({base_ecosystem(k[0]) for k in keys}))
+            # an ecosystem may vouch for cached answers only if THIS scan's sync succeeded AND caught up completely: a poll that
+            # deferred records (max_fetch) has seen changes whose packages are not recorded yet
+            synced_now = {r["ecosystem"] for r in sync["ecosystems"] if not r["error"] and not r.get("deferred")}
+            eligible = [k for k in keys if base_ecosystem(k[0]) in synced_now]
+            answers, info = mirror.validated_cache(eligible)
+            if len(eligible) < len(keys):
+                info["not_validated"]["feed_sync_failed_or_deferred_this_scan"] = len(keys) - len(eligible)
+        except Exception as exc:                      # validation is an optimisation; failing means "ask OSV"
+            logger.warning("OSV feed validation unavailable: %s", exc)
+            self.notes.append("OSV feed validation unavailable (%s); queried OSV directly" % exc)
+            return list(keys)
+        last_ok = {b: (mirror.state(b) or {}).get("last_ok") for b in info["ecosystems"]}
+        rest: List[Tuple[str, str, str]] = []
+        for key in keys:
+            raw = answers.get(key)
+            if raw is None:
+                rest.append(key)
+                continue
+            self._prefetched[key] = (raw, "queried_offline")
+            with self._lock:
+                self._offline_ts.append(last_ok.get(base_ecosystem(key[0])))
+                self._advisory_ts.extend(_advisory_modified(v) for v in raw or [])
+        self._feed_stats = {"answered_from_validated_cache": len(answers), "asked_osv": len(rest),
+                            "not_validated_reasons": info["not_validated"], "ecosystems": info["ecosystems"],
+                            "sync": [{k: r.get(k) for k in ("ecosystem", "action", "feed_status", "fetched", "error")}
+                                     for r in sync["ecosystems"]],
+                            "caveat": "current as of the last feed sync; OSV exports advisories to its bucket a few "
+                                      "minutes after publishing"}
+        self.notes.append("OSV change feed: %d of %d components answered from the cache the feed proves current "
+                          "(as of the last sync); %d asked OSV directly"
+                          % (len(answers), len(keys), len(rest)))
+        return rest
+
+    def _prefetch_batch(self, keys: List[Tuple[str, str, str]]) -> List[Tuple[str, str, str]]:
+        """Answer ``keys`` through querybatch + the revision-aware record cache (bts_sbom._internal.osv_fast).
+
+        Returns the keys it could NOT answer; those continue through the unchanged per-component path.  A key is
+        answered only when OSV answered it AND every advisory record it returned was resolved - the resulting
+        (raw, "queried_online") is exactly what the per-component path would have produced, just obtained with
+        1 request per 1000 components plus one request per *new/changed* advisory."""
+        from bts_sbom._internal import osv_local_db
+        from bts_sbom._internal.osv_fast import FastOsv
+        try:
+            with FastOsv() as fast:
+                outcomes = fast.query_many(keys)
+                stats = dict(fast.last_stats)
+        except Exception as exc:                      # the accelerator must never be able to kill a scan
+            logger.warning("OSV batch path failed (%s); using per-component queries", exc)
+            self.notes.append("OSV batch path unavailable (%s); used per-component queries" % exc)
+            return list(keys)
+        rest: List[Tuple[str, str, str]] = []
+        store: List[Tuple[str, str, str, List[dict]]] = []
+        for key in keys:
+            oc = outcomes.get(key)
+            if oc is None or not oc.ok:
+                rest.append(key)
+                continue
+            self._prefetched[key] = (oc.vulns, "queried_online")
+            store.append((key[0], key[1], key[2], oc.vulns))
+        if store:
+            try:
+                osv_local_db.store_exact_many(store)  # keep building the durable offline cache
+            except Exception:
+                pass
+            with self._lock:
+                for (_e, _n, _v, raw) in store:
+                    self._advisory_ts.extend(_advisory_modified(v) for v in raw or [])
+        failed = [outcomes[k] for k in rest if k in outcomes]
+        if keys and not store and failed and all(str(o.error or "").startswith("unreachable:") for o in failed):
+            self._online_blocked = failed[0].error
+        stats.update(answered=len(store), per_component_fallback=len(rest))
+        self._osv_fast_stats = stats
+        self.notes.append(
+            "OSV querybatch: %d components -> %d advisories (%d from cache, %d fetched) in %.2fs; "
+            "%d answered, %d left to the per-component path"
+            % (stats.get("components", 0), stats.get("advisories", 0), stats.get("cache_hits", 0),
+               stats.get("fetched", 0), stats.get("elapsed_s", 0.0), len(store), len(rest)))
+        return rest
+
     def _prefetch(self, sources: List["ScanSource"]) -> None:
         """Answer every distinct (ecosystem, name, version) of the scan in parallel.
 
@@ -1075,6 +1235,9 @@ class OsvScanner:
         courtesy sleep); with N workers it costs about 300/N.  Disabled for
         offline scans (a local SQLite lookup) and tiny scans (pool overhead)."""
         self._prefetched = {}
+        self._online_blocked = None
+        self._osv_fast_stats = None
+        self._feed_stats = None
         if self.offline:
             return
         keys: List[Tuple[str, str, str]] = []
@@ -1087,12 +1250,16 @@ class OsvScanner:
                 if key not in seen:
                     seen.add(key)
                     keys.append(key)
-        try:
-            workers = int(os.environ.get("BTS_SBOM_SCA_WORKERS",
-                                        os.environ.get("ECU_SENTINEL_SCA_WORKERS", "8")))
-        except ValueError:
-            workers = 8
-        workers = max(1, min(workers, 16, len(keys)))
+        mode = self._osv_mode_effective()
+        if keys and mode == "feed":
+            keys = self._prefetch_feed(keys)
+            if not keys:
+                return
+        if keys and (mode == "batch" or (mode in ("auto", "feed") and self._batch_pays_off(keys))):
+            keys = self._prefetch_batch(keys)
+            if not keys or self._online_blocked:
+                return
+        workers = self._osv_workers(len(keys))
         if workers < 2 or len(keys) < 4:
             return
         from concurrent.futures import ThreadPoolExecutor
@@ -1110,6 +1277,8 @@ class OsvScanner:
                     self._prefetched[key] = res
         self.notes.append("OSV lookups ran in parallel (%d workers, %d distinct components)"
                           % (workers, len(keys)))
+        if mode != "single":
+            self._remember_records()
 
     # -- main scan --------------------------------------------------------------
     def scan(self, targets, dry_run: bool = False, with_licenses: bool = False,
@@ -1158,6 +1327,10 @@ class OsvScanner:
                     "experimental_config": {"licenses": {"summary": with_licenses}}}
 
         self._prefetch(sources)
+        if self._osv_fast_stats:
+            status["osv_fast"] = self._osv_fast_stats
+        if self._feed_stats:
+            status["feed_validated"] = self._feed_stats
         native_results = []
         cve_objs = []          # CveVulnerability list for fix_planner / SARIF reuse
         all_pkg_dicts = []     # for license analysis

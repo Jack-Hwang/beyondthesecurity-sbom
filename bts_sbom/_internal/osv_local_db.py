@@ -57,7 +57,7 @@ logger = logging.getLogger("OsvLocalDB")
 
 def _connect() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)     # share the 30 s busy wait of osv_mirror (a watch + a scan use one file)
     return conn
 
 
@@ -112,6 +112,47 @@ def store_exact(ecosystem: str, name: str, version: str, raw_vulns: List[dict]) 
         logger.error(f"store_exact failed for {name}@{version}: {e}")
 
 
+def store_exact_many(items: List[tuple]) -> int:
+    """Bulk form of store_exact: ``items`` = [(ecosystem, name, version, raw_vulns)].  One connection and one
+    transaction for the whole batch (store_exact opens a connection per row, which dominates a 1000-component
+    scan).  Returns the number of rows written; never raises."""
+    if not items:
+        return 0
+    try:
+        init_db()
+        conn = _connect()
+        now = time.time()
+        conn.executemany(
+            "INSERT OR REPLACE INTO exact_cache "
+            "(ecosystem, package_name, version, vulns_json, updated_at) VALUES (?,?,?,?,?)",
+            [(e, n.lower(), v, json.dumps(raw), now) for (e, n, v, raw) in items],
+        )
+        conn.commit()
+        conn.close()
+        return len(items)
+    except Exception as e:
+        logger.error(f"store_exact_many failed: {e}")
+        return 0
+
+
+def cached_count(keys: List[tuple]) -> int:
+    """How many of ``keys`` ((ecosystem, name, version)) already have a durable exact_cache answer.  One connection;
+    used only to decide whether the batch+cache strategy can pay off - never to answer anything."""
+    n = 0
+    try:
+        init_db()
+        conn = _connect()
+        for (e, name, v) in keys:
+            if conn.execute("SELECT 1 FROM exact_cache WHERE ecosystem=? AND package_name=? AND version=? LIMIT 1",
+                            (e, str(name).lower(), v)).fetchone():
+                n += 1
+        conn.close()
+    except Exception as e:
+        logger.warning(f"cached_count failed: {e}")
+        return 0
+    return n
+
+
 def lookup_exact(ecosystem: str, name: str, version: str) -> Optional[List[dict]]:
     try:
         init_db()
@@ -152,6 +193,8 @@ def _vuln_affects(vuln: dict, name: str, version: str) -> bool:
         if version in aff.get("versions", []):
             return True
         for rng in aff.get("ranges", []):
+            if str(rng.get("type") or "").upper() == "GIT":
+                continue    # GIT ranges hold commit hashes, not versions; the OSV API ignores them for version queries
             if version_ranges.affects(
                 version, eco,
                 events=rng.get("events") or [],
@@ -190,8 +233,23 @@ def lookup_by_package(ecosystem: str, name: str, version: str) -> Optional[List[
         return None
 
 
+def _mirror_lookup(ecosystem: str, name: str, version: str) -> Optional[List[dict]]:
+    """Answer from the incremental mirror (osv_mirror) when this ecosystem has a COMPLETE (``full``) mirror;
+    None = the mirror cannot be authoritative here (never synced / lazy record cache only)."""
+    try:
+        from bts_sbom._internal.osv_mirror import OsvMirror
+        return OsvMirror().lookup(ecosystem, name, version)
+    except Exception as e:                       # a broken mirror must never break the legacy offline path
+        logger.warning(f"mirror lookup skipped: {e}")
+        return None
+
+
 def lookup(ecosystem: str, name: str, version: str) -> Optional[List[dict]]:
-    """Unified offline lookup: exact store first, then imported dump index."""
+    """Unified offline lookup: complete mirror (kept current by ``bts-sbom osv sync``) first, then the exact
+    store, then the imported dump index."""
+    mirrored = _mirror_lookup(ecosystem, name, version)
+    if mirrored is not None:
+        return mirrored
     exact = lookup_exact(ecosystem, name, version)
     if exact is not None:
         return exact
