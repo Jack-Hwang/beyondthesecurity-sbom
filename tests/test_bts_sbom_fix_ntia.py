@@ -1,6 +1,6 @@
 """Regression test for the NTIA "minimum elements met" sector-check honesty bug.
 
-docs/ANALYSIS_2026-11-17.md appendix B (report section 3, item 7):
+docs/BTS_SBOM_ANALYSIS.md appendix B (report section 3, item 7):
 ``bts_sbom/sectors.py:211`` -- ``_check_ntia_minimum`` returned verdict
 ``"pass"`` whenever ``fail_count == 0`` (no element below the 60% FAIL floor),
 even when most of the 7 NTIA elements sat in the 60-89% WARN band rather than

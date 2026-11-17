@@ -1,6 +1,6 @@
 """Regression tests for the loop regression gate's detection-collapse / unknown-metric blind spot.
 
-docs/ANALYSIS_2026-11-17.md section 3 item 6 (sbomplus/loop.py:43-63, confirmed critical/high, loop.py:49):
+docs/BTS_SBOM_ANALYSIS.md section 3 item 6 (sbomplus/loop.py:43-63, confirmed critical/high, loop.py:49):
 gate() only compared keys present and non-None in BOTH the baseline and the candidate metrics vector. That let three
 things silently "pass" as "no regression":
   (a) a metric measured in the baseline but missing/None in the candidate (an honest "we didn't measure it" collapsed
