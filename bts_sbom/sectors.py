@@ -208,7 +208,7 @@ def _check_ntia_minimum(ctx: dict) -> tuple:
     # "NTIA minimum elements met" means all 7 elements reach PASS (>=90% of
     # components, per ntia_check._status) -- not merely "no element below the
     # 60% FAIL floor" (that let a WARN-only, materially-incomplete document
-    # through; see docs/ANALYSIS_2026-11-17.md appendix B, sectors.py:211).
+    # through; see docs/BTS_SBOM_ANALYSIS.md appendix B, sectors.py:211).
     missing = [e["name"] for e in res.get("elements", []) if e.get("status") != "PASS"]
     ev = {"ntia_status": "OK", "format": res.get("format"),
           "component_count": res.get("component_count"),

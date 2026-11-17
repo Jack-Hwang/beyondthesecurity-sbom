@@ -1,6 +1,6 @@
 """Fix verification: EPSS/KEV feed outage must never look like measured data.
 
-Defect (docs/ANALYSIS_2026-11-17.md, section 3 item 5 / appendix B,
+Defect (docs/BTS_SBOM_ANALYSIS.md, section 3 item 5 / appendix B,
 bts_sbom/_internal/epss_kev.py:93): on a total feed outage, enrich_cves()
 used to return {"epss": 0.0, "percentile": 0.0, "kev": False} for every
 requested CVE, labelled (by the caller) as "live-api" -- identical in shape
