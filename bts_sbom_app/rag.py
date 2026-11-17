@@ -8,7 +8,9 @@ Design (each point is measured by evals/rag_golden.json):
   * query expansion with a small domain synonym table (Korean <-> English) - recall for cross-lingual questions;
   * confidence gate: a question whose content words are not covered by the best chunk is OUT OF CORPUS
     (``found=False``) instead of being answered with the least-bad chunk;
-  * metadata filters (kind, project) so project evidence never answers a general question and vice versa.
+  * metadata filters (kind, project) so project evidence never answers a general question and vice versa;
+  * per-source diversity cap (MMR-lite): after RRF fusion, at most SOURCE_CAP of the top-k results may share
+    one chunk source, so one long or repetitive document cannot crowd out every other relevant source.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 RRF_K = 60
 CHUNK = 600
 OVERLAP = 60
+SOURCE_CAP = 2  # MMR-lite: at most this many of the top-k results may share one chunk source (annex-arch:M18)
 _STOP = set("the a an of to in on for and or is are be as at by with from that this it its what which how do does can i you "
             "me my we our your tell about please show give list explain "
             "이 그 저 것 수 등 및 또는 에서 에게 으로 로 은 는 이 가 을 를 의 에 와 과 도 만 좀 해줘 알려줘 알려 주세요 뭐야 무엇 어떻게 "
@@ -203,9 +206,19 @@ class Index:
         r2 = {i: r for r, i in enumerate(sorted(tfidf, key=lambda i: -tfidf[i]))}
         fused = {i: 1 / (RRF_K + r1[i] + 1) + 1 / (RRF_K + r2[i] + 1) for i in bm}
         order = sorted(fused, key=lambda i: -fused[i])
+        diverse: List[int] = []
+        per_source: Dict[str, int] = {}
+        for i in order:
+            src = self.chunks[i]["source"]
+            if per_source.get(src, 0) >= SOURCE_CAP:
+                continue  # already has SOURCE_CAP entries in the result set - skip, do not backfill with a 3rd
+            per_source[src] = per_source.get(src, 0) + 1
+            diverse.append(i)
+            if len(diverse) >= k:
+                break
         results = []
         content = [t for t in dict.fromkeys(qt) if len(t) >= 2]
-        for i in order[:k]:
+        for i in diverse:
             cov = (sum(1 for t in content if t in self.tf[i]) / len(content)) if content else 0.0
             results.append({"chunk": self.chunks[i], "rrf": round(fused[i], 5), "bm25": round(bm[i], 3),
                             "tfidf": round(tfidf[i], 3), "coverage": round(cov, 2)})
