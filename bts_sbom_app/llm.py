@@ -135,12 +135,18 @@ class ChatClient:
             raise LLMError("HTTP %s: %s" % (status, text[:200].replace(self.api_key, "***")))
         try:
             data = json.loads(text)
-            content = str(((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+            choice = (data.get("choices") or [{}])[0]
+            finish_reason = choice.get("finish_reason")
+            content = str((choice.get("message") or {}).get("content") or "")
             u = data.get("usage") or {}
             self.usage["prompt_tokens"] += int(u.get("prompt_tokens") or 0)
             self.usage["completion_tokens"] += int(u.get("completion_tokens") or 0)
         except (ValueError, AttributeError, TypeError) as exc:
             raise LLMError("unparseable provider response: %s" % type(exc).__name__)
+        # termination-signal mapping: a provider truncation (finish_reason == "length") must never be treated as a
+        # complete, parseable answer, even when the cut-short text still happens to be well-formed JSON.
+        if finish_reason == "length":
+            raise LLMError("truncated: finish_reason=length (max_tokens reached before the model finished)")
         content = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
         if not content:
             raise LLMError("empty completion (reasoning consumed the token budget?)")
