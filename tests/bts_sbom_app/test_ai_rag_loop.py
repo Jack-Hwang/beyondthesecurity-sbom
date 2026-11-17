@@ -181,6 +181,6 @@ def test_chat_accepts_bracketed_ids_and_rejects_translated_quotes(world):
     quote = "CVE-2018-18074 affects requests 2.19.1, severity HIGH (CVSS 7.5), fixed in 2.20.0."
     good = _chat_with(world, [{"text": "a", "quote": quote, "source": "[%s]" % src},
                               {"text": "b", "quote": quote, "source": "wrong-id-but-quote-is-in-exactly-one-passage"}])
-    assert good["answer_source"] == "exaone" and good["citation_accuracy"] == 1.0 and len(good["claims"]) == 2
+    assert good["answer_source"] == "exaone" and good["citation_accuracy"] == 1.0 and len([c for c in good["claims"] if c["trust"] != "untrusted-quote"]) == 2
     bad = _chat_with(world, [{"text": "c", "quote": "CVE-2018-18074 는 requests 2.19.1 에 영향을 주며 심각도는 HIGH 입니다", "source": src}])
     assert bad["answer_source"] == "tools" and "rejected" in bad["llm_note"]

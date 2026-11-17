@@ -18,6 +18,7 @@ from .util import now_iso
 
 _SEV_MAP = {"CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low", "NONE": "none", "UNKNOWN": "unknown"}
 _SPDX_ATOM = re.compile(r"^[A-Za-z0-9.+\-]+$")
+_PHASES = ("design", "pre-build", "build", "post-build", "operations", "discovery", "decommission")
 
 
 def _ref(c: Dict[str, Any]) -> str:
@@ -34,7 +35,7 @@ def _license_entry(expr: str) -> Optional[List[Dict[str, Any]]]:
 
 def cyclonedx(name: str, components: List[Dict[str, Any]], vulns: List[Dict[str, Any]], *,
               lineage: Optional[Dict[str, Any]] = None, created: Optional[str] = None,
-              project_license: str = "") -> Dict[str, Any]:
+              project_license: str = "", lifecycle: str = "") -> Dict[str, Any]:
     refs: Dict[tuple, str] = {}
     comps: List[Dict[str, Any]] = []
     used: Set[str] = set()
@@ -92,6 +93,8 @@ def cyclonedx(name: str, components: List[Dict[str, Any]], vulns: List[Dict[str,
            "components": comps, "dependencies": [{"ref": root_ref, "dependsOn": sorted(set(direct))}] +
                                               [{"ref": r, "dependsOn": []} for r in sorted(used)],
            "vulnerabilities": vs}
+    if lifecycle in _PHASES:                           # CycloneDX 1.5 metadata.lifecycles: when in the lifecycle this SBOM was generated
+        doc["metadata"]["lifecycles"] = [{"phase": lifecycle}]
     return doc
 
 
@@ -169,7 +172,10 @@ def validate_spdx(doc: Dict[str, Any]) -> List[str]:
 
 
 def openvex(name: str, vulns: Iterable[Dict[str, Any]], *, fixed_ids: Iterable[str] = (), author: str = "bts_sbom_app",
-            timestamp: Optional[str] = None) -> Dict[str, Any]:
+            timestamp: Optional[str] = None, triage: Optional[Dict[str, Any]] = None, today: Optional[Any] = None) -> Dict[str, Any]:
+    """OpenVEX for the findings. ``triage`` (the decision store, see ``triage.py``) refines ``affected`` statements fail-closed:
+    ``not_affected`` only with a VEX justification and a reason, risk acceptances stay ``affected`` with an action statement."""
+    from . import triage as triagemod
     fixed = set(fixed_ids)
     stmts: List[Dict[str, Any]] = []
     seen: Set[tuple] = set()
@@ -185,6 +191,9 @@ def openvex(name: str, vulns: Iterable[Dict[str, Any]], *, fixed_ids: Iterable[s
             st["status"] = "affected"
             st["action_statement"] = ("Upgrade %s to %s" % (v["package"], v["fixed_version"])) if v.get("fixed_version") \
                 else "No fixed version known; evaluate replacement"
+            dec = triagemod.decide(v, triage, today=today) if triage else None
+            if dec:
+                triagemod.apply_to_statement(st, dec)
         stmts.append(st)
     return {"@context": "https://openvex.dev/ns/v0.2.0", "@id": "https://bts_sbom_app.local/vex/" + _uuid5(name + str(len(stmts))),
             "author": author, "timestamp": timestamp or now_iso(), "version": 1, "statements": stmts}

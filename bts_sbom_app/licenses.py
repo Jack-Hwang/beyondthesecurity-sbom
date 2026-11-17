@@ -79,7 +79,8 @@ _EXPR_SPLIT = re.compile(r"(\(|\)|\s+(?:AND|OR|WITH)\s+|\s*/\s*|\s*;\s*|\s*\|\s*
 _WELL_FORMED = re.compile(r"^(?:LicenseRef-[A-Za-z0-9.\-]+|[A-Za-z][A-Za-z0-9.+]*(?:-[A-Za-z0-9.+]+)+|[A-Za-z]+[0-9][A-Za-z0-9.+]*)$")
 _NOT_AN_ID = {"like", "style", "ish", "derived", "compatible", "license", "licence", "custom", "other", "unknown", "see", "various",
               "proprietary", "commercial", "free", "open", "source", "public", "domain", "and", "or", "with", "file", "in"}
-_EXTRA_ALIASES = {"psfl": "PSF-2.0", "python software foundation license": "PSF-2.0", "afl-2.1": "AFL-2.1", "afl-3.0": "AFL-3.0"}
+_EXTRA_ALIASES = {"lgplv2+": "LGPL-2.0-or-later", "lgplv2": "LGPL-2.0-only", "lgplv2.1+": "LGPL-2.1-or-later", "lgplv3+": "LGPL-3.0-or-later",
+                  "psfl": "PSF-2.0", "python software foundation license": "PSF-2.0", "afl-2.1": "AFL-2.1", "afl-3.0": "AFL-3.0"}
 
 
 def _one(tok: str) -> str:
@@ -102,6 +103,8 @@ def _one(tok: str) -> str:
         return _LOWER_IDS[t[:-1].lower()].replace("-only", "-or-later")
     # a well-formed SPDX identifier we simply have no category for (Artistic-1.0-Perl, AFL-2.1, MIT-CMU, LicenseRef-x):
     # it IS evidence of a specific license, so it is kept verbatim; its category stays "unknown" (-> policy review)
+    if re.match(r"^[al]?gplv\d", low):            # "LGPLv2+" is a nickname, not an SPDX id: leave it unmapped instead of passing it through
+        return ""
     if _WELL_FORMED.match(t) and not (set(re.split(r"[-.]", low)) & _NOT_AN_ID):
         return t
     return ""
@@ -500,6 +503,7 @@ _FILE_SIGS: List[Tuple[str, "re.Pattern[str]"]] = [
     ("MIT", re.compile(r"Permission is hereby granted, free of charge, to any person obtaining a copy", re.I)),
     ("Zlib", re.compile(r"This software is provided 'as-is', without any express or implied warranty", re.I)),
 ]
+EXCERPT_CHARS = 3000
 _LICENSE_FILE = re.compile(r"^(licen[cs]e|copying|copyright|notice|unlicense)([._-].*)?$", re.I)
 _SPDX_TAG = re.compile(r"SPDX-License-Identifier:\s*([A-Za-z0-9.+\-() ]+?(?:\s+(?:AND|OR|WITH)\s+[A-Za-z0-9.+\-]+)*)\s*(?:\*/|-->|$)", re.M)
 _SKIP = {"node_modules", ".git", "__pycache__", "dist", "build", ".venv", "venv", "target"}
@@ -534,8 +538,12 @@ def scan_tree(root: str, *, max_files: int = 600) -> Dict[str, Any]:
             rel = os.path.relpath(fp, root).replace("\\", "/")
             stem = os.path.splitext(fn)[0]
             if _LICENSE_FILE.match(fn) or _LICENSE_FILE.match(stem):
-                det = detect_text(read_text(fp, 40000))
-                files.append({"file": rel, "depth": depth, "license": det, "detected": bool(det)})
+                body = read_text(fp, 40000)
+                det = detect_text(body)
+                item = {"file": rel, "depth": depth, "license": det, "detected": bool(det)}
+                if not det and body.strip():
+                    item["excerpt"] = body.strip()[:EXCERPT_CHARS]      # evidence for a later council review (the work copy may be gone by then)
+                files.append(item)
             elif scanned < max_files and os.path.splitext(fn)[1].lower() in _SRC_EXT:
                 scanned += 1
                 head = read_text(fp, 4000)

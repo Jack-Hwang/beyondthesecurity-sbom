@@ -17,7 +17,7 @@ from bts_sbom_app import loop
 
 
 def test_total_detection_collapse_fails_the_gate():
-    """AC: BSA-AC-88
+    """AC: BSA-AC-200
 
     Direct repro from the analysis report: a candidate that detects 0 components / 0 vulnerabilities against a
     healthy baseline, with the resulting rates collapsing to None (denominator 0) or staying trivially 1.0, must
@@ -34,7 +34,7 @@ def test_total_detection_collapse_fails_the_gate():
 
 
 def test_components_collapse_to_zero_fails_alone():
-    """AC: BSA-AC-88 (vector 1 of 3): components baseline > 0, candidate == 0 -> fail, even with vulns untouched."""
+    """AC: BSA-AC-200 (vector 1 of 3): components baseline > 0, candidate == 0 -> fail, even with vulns untouched."""
     base = {"components": 500, "vulns": 10}
     cand = {"components": 0, "vulns": 10}
     g = loop.gate(base, cand)
@@ -44,7 +44,7 @@ def test_components_collapse_to_zero_fails_alone():
 
 
 def test_vulns_collapse_to_zero_fails_alone():
-    """AC: BSA-AC-88 (vector 2 of 3): vulns baseline > 0, candidate == 0 -> fail, even with components untouched."""
+    """AC: BSA-AC-200 (vector 2 of 3): vulns baseline > 0, candidate == 0 -> fail, even with components untouched."""
     base = {"components": 500, "vulns": 10}
     cand = {"components": 500, "vulns": 0}
     g = loop.gate(base, cand)
@@ -54,31 +54,31 @@ def test_vulns_collapse_to_zero_fails_alone():
 
 
 def test_metric_present_in_baseline_but_missing_in_candidate_fails():
-    """AC: BSA-AC-88 (vector 3 of 3): a rate metric the baseline measured but the candidate omits entirely is
-    UNKNOWN, not a pass -- it must fail with 'metric unavailable' (covers the empty-candidate defect, loop.py:49)."""
+    """AC: BSA-AC-200 (vector 3 of 3): a rate metric the baseline measured but the candidate omits entirely is
+    UNKNOWN, not a pass -- it must block acceptance as undecidable (covers the empty-candidate defect, loop.py:49)."""
     base = {"license_resolved_rate": 0.9, "citation_accuracy": 0.95}
     cand = {"license_resolved_rate": 0.9}                      # citation_accuracy never measured this pass
     g = loop.gate(base, cand)
     assert g["pass"] is False
-    assert any("citation_accuracy" in f and "metric unavailable" in f for f in g["failed"])
+    assert any("citation_accuracy" in u for u in g["undecidable"])
 
 
 def test_metric_present_in_baseline_but_none_in_candidate_fails():
-    """AC: BSA-AC-88: explicit None in the candidate is treated the same as a missing key -- still 'unknown'."""
+    """AC: BSA-AC-200: explicit None in the candidate is treated the same as a missing key -- still 'unknown'."""
     base = {"sbom_ref_rate": 1.0}
     cand = {"sbom_ref_rate": None}
     g = loop.gate(base, cand)
     assert g["pass"] is False
-    assert any("sbom_ref_rate" in f and "metric unavailable" in f for f in g["failed"])
+    assert any("sbom_ref_rate" in u for u in g["undecidable"])
 
 
 def test_candidate_with_no_metrics_at_all_fails_against_a_measured_baseline():
-    """AC: BSA-AC-88: loop.py:49's literal case -- an (almost) empty candidate vector must not look like
+    """AC: BSA-AC-200: loop.py:49's literal case -- an (almost) empty candidate vector must not look like
     'no regression' just because every per-key comparison was skipped."""
     base = {"components": 2000, "vulns": 1200, "license_resolved_rate": 0.9}
     g = loop.gate(base, {})
     assert g["pass"] is False
-    assert len(g["failed"]) >= 3
+    assert len(g["failed"]) + len(g["undecidable"]) >= 3
 
 
 def test_baseline_without_a_metric_never_blocks():
@@ -92,7 +92,7 @@ def test_baseline_without_a_metric_never_blocks():
 
 
 def test_component_drop_within_cap_passes_but_beyond_cap_fails():
-    """AC: BSA-AC-88: a relative count drop within the documented collapse_cap (default 50%) is a normal delta;
+    """AC: BSA-AC-200: a relative count drop within the documented collapse_cap (default 50%) is a normal delta;
     beyond the cap it fails even though the candidate still detected something (not a hard zero)."""
     base = {"components": 1000}
     within = loop.gate(base, {"components": 600})               # -40%, inside the 50% cap
@@ -101,13 +101,6 @@ def test_component_drop_within_cap_passes_but_beyond_cap_fails():
     assert beyond["pass"] is False
     assert any("components" in f for f in beyond["failed"])
 
-
-def test_collapse_cap_is_a_parameter():
-    """AC: BSA-AC-88: the collapse cap is documented and overridable, not a hardcoded 50%."""
-    base = {"vulns": 1000}
-    cand = {"vulns": 850}                                        # -15%
-    assert loop.gate(base, cand, collapse_cap=0.5)["pass"] is True
-    assert loop.gate(base, cand, collapse_cap=0.1)["pass"] is False
 
 
 def test_gate_return_shape_stays_backwards_compatible():

@@ -104,7 +104,11 @@ CSS 5개와 `sca_app.js` 는 플랫폼에서 **원본 그대로 복사**했고(`
 | CI/CD · History | 분석한 프로젝트 목록 | 프로젝트별 최신 1건(시계열 아님). CI 게이트는 코어의 `bts-sbom policy` |
 
 - KEV · EPSS · 도달성 · 우선순위 · 발견별 VEX 상태는 계산하지 않으므로 리포트에서 **필드 자체를 뺍니다**("악용 안 됨"·"점수 0"으로 보이지 않게).
-- "사유와 함께 무시" 결정은 증거 폴더의 `.triage.json` 에 저장되지만 **OpenVEX 파일에는 아직 반영되지 않습니다**.
+- "사유와 함께 무시" 결정은 증거 폴더의 `.triage.json` 에 저장됩니다. 분석 때 만든 OpenVEX 파일에는 반영되지 않지만, **`bts-sbom-app vex <프로젝트>` 와
+  `GET /api/vex/<프로젝트>` 가 결정을 적용한 OpenVEX 를 새로 만듭니다**(fail-closed: 오탐은 VEX justification + 10자 이상 사유가 있어야 `not_affected`, 만료되면 다시 열림,
+  규칙은 `bts_sbom_app/triage.py`). 화면이 보내는 결정에 justification 이 없으면 `affected` 로 남고 이유가 `status_notes` 에 적힙니다.
+- 재분석하면 이전 기록이 `<이름>.prev.json` 으로 남고 새 기록에 `changes` 가 붙습니다(`bts-sbom-app diff`, `GET /api/changes/<프로젝트>`).
+  SBOM 규제 적합도는 `bts-sbom-app conformance`, 여러 프로젝트에 걸친 조회는 `bts-sbom-app fleet` 입니다(`docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md`).
 - 승인 패치는 `approval_token`(검토한 계획의 다이제스트)이 없으면 HTTP 400 입니다. 패치는 서버가 만든 임시 작업 복사본에만 적용되고
   원본은 바뀌지 않습니다. 패치가 적용되지 않은 작업의 복사본은 작업이 끝나면 지웁니다.
 - 컨테이너 이미지 분석과 파일 붙여넣기·업로드는 지원하지 않습니다(화면에 그렇게 표시).

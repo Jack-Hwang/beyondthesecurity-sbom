@@ -1,0 +1,313 @@
+{
+ "about": "Hand-written gold set for license identification. kind=raw: a license string from a manifest/registry; kind=text: an excerpt of a license file or header (abridged and written by the author - NOT the official SPDX texts). expected=null means the input does not say which license applies, so the right answer is to abstain. Labels are the author's reading and have not been reviewed by a lawyer.",
+ "cases": [
+  {
+   "id": "r-mit",
+   "kind": "raw",
+   "input": "MIT License",
+   "expected": "MIT",
+   "note": ""
+  },
+  {
+   "id": "r-apache-alias",
+   "kind": "raw",
+   "input": "Apache 2.0",
+   "expected": "Apache-2.0",
+   "note": ""
+  },
+  {
+   "id": "r-bsd3",
+   "kind": "raw",
+   "input": "BSD 3-Clause",
+   "expected": "BSD-3-Clause",
+   "note": ""
+  },
+  {
+   "id": "r-gpl3-long",
+   "kind": "raw",
+   "input": "GNU General Public License v3 (GPLv3)",
+   "expected": "GPL-3.0-only",
+   "note": ""
+  },
+  {
+   "id": "r-isc",
+   "kind": "raw",
+   "input": "ISC License",
+   "expected": "ISC",
+   "note": ""
+  },
+  {
+   "id": "r-mpl",
+   "kind": "raw",
+   "input": "MPL 2.0",
+   "expected": "MPL-2.0",
+   "note": ""
+  },
+  {
+   "id": "r-or",
+   "kind": "raw",
+   "input": "(MIT OR Apache-2.0)",
+   "expected": "MIT OR Apache-2.0",
+   "note": ""
+  },
+  {
+   "id": "r-and",
+   "kind": "raw",
+   "input": "Apache-2.0 AND MIT",
+   "expected": "Apache-2.0 AND MIT",
+   "note": ""
+  },
+  {
+   "id": "r-classpath",
+   "kind": "raw",
+   "input": "GPL-2.0 WITH Classpath-exception-2.0",
+   "expected": "GPL-2.0-only WITH Classpath-exception-2.0",
+   "note": ""
+  },
+  {
+   "id": "r-psf",
+   "kind": "raw",
+   "input": "Python Software Foundation License",
+   "expected": "PSF-2.0",
+   "note": ""
+  },
+  {
+   "id": "r-cc0",
+   "kind": "raw",
+   "input": "CC0 1.0",
+   "expected": "CC0-1.0",
+   "note": ""
+  },
+  {
+   "id": "r-simplified-bsd",
+   "kind": "raw",
+   "input": "Simplified BSD License",
+   "expected": "BSD-2-Clause",
+   "note": "core category bug class (misread as weak-copyleft): must stay a BSD-2-Clause permissive reading"
+  },
+  {
+   "id": "r-lgplv2plus",
+   "kind": "raw",
+   "input": "LGPLv2+",
+   "expected": "LGPL-2.0-or-later",
+   "note": "was returned verbatim as if it were an SPDX id"
+  },
+  {
+   "id": "r-lgpl21-later",
+   "kind": "raw",
+   "input": "GNU Lesser General Public License v2.1 or later",
+   "expected": "LGPL-2.1-or-later",
+   "note": ""
+  },
+  {
+   "id": "r-gplv2-later",
+   "kind": "raw",
+   "input": "GPLv2 or later",
+   "expected": "GPL-2.0-or-later",
+   "note": ""
+  },
+  {
+   "id": "r-apache-long",
+   "kind": "raw",
+   "input": "Apache License, Version 2.0, January 2004",
+   "expected": "Apache-2.0",
+   "note": ""
+  },
+  {
+   "id": "r-dual-prose",
+   "kind": "raw",
+   "input": "Dual licensed under MIT and Apache 2.0 (your choice)",
+   "expected": "MIT OR Apache-2.0",
+   "note": ""
+  },
+  {
+   "id": "r-bsd3-prose",
+   "kind": "raw",
+   "input": "BSD license (3 clause, no advertising)",
+   "expected": "BSD-3-Clause",
+   "note": ""
+  },
+  {
+   "id": "r-mit-prose",
+   "kind": "raw",
+   "input": "The MIT License (MIT) - see LICENSE",
+   "expected": "MIT",
+   "note": ""
+  },
+  {
+   "id": "r-custom",
+   "kind": "raw",
+   "input": "Custom: see LICENSE",
+   "expected": null,
+   "note": "pointer, not a license"
+  },
+  {
+   "id": "r-see",
+   "kind": "raw",
+   "input": "SEE LICENSE IN LICENSE.md",
+   "expected": null,
+   "note": "pointer, not a license"
+  },
+  {
+   "id": "r-proprietary",
+   "kind": "raw",
+   "input": "Proprietary - all rights reserved",
+   "expected": null,
+   "note": "no SPDX identifier exists for it"
+  },
+  {
+   "id": "r-bsd-style",
+   "kind": "raw",
+   "input": "BSD style",
+   "expected": null,
+   "note": "2-, 3- or 4-clause is not stated"
+  },
+  {
+   "id": "r-noncommercial",
+   "kind": "raw",
+   "input": "Free for non-commercial use only",
+   "expected": null,
+   "note": "no SPDX identifier exists for it"
+  },
+  {
+   "id": "r-gpl-bare",
+   "kind": "raw",
+   "input": "GPL",
+   "expected": null,
+   "note": "no version stated; reading it as GPL-3.0-or-later is a guess"
+  },
+  {
+   "id": "r-lgpl-bare",
+   "kind": "raw",
+   "input": "LGPL",
+   "expected": null,
+   "note": "no version stated; reading it as LGPL-3.0-or-later is a guess"
+  },
+  {
+   "id": "r-bsd-bare",
+   "kind": "raw",
+   "input": "BSD",
+   "expected": null,
+   "note": "number of clauses not stated; reading it as BSD-3-Clause is a guess"
+  },
+  {
+   "id": "t-mit",
+   "kind": "text",
+   "input": "MIT License\n\nCopyright (c) 2020 Example Authors\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.",
+   "expected": "MIT",
+   "note": ""
+  },
+  {
+   "id": "t-mit0",
+   "kind": "text",
+   "input": "MIT No Attribution\n\nCopyright 2020 Example Authors\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.",
+   "expected": "MIT-0",
+   "note": "no notice condition; the MIT signature also matches it"
+  },
+  {
+   "id": "t-bsd2",
+   "kind": "text",
+   "input": "Copyright (c) 2019, Example Authors\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED.",
+   "expected": "BSD-2-Clause",
+   "note": ""
+  },
+  {
+   "id": "t-bsd3",
+   "kind": "text",
+   "input": "Copyright (c) 2019, Example Authors\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\n3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED.",
+   "expected": "BSD-3-Clause",
+   "note": ""
+  },
+  {
+   "id": "t-bsd4",
+   "kind": "text",
+   "input": "Copyright (c) 1990 The Regents of the University of California.\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\n3. All advertising materials mentioning features or use of this software must display the following acknowledgement: This product includes software developed by the University of California, Berkeley and its contributors.\n\n4. Neither the name of the University nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED.",
+   "expected": "BSD-4-Clause",
+   "note": "advertising clause; the BSD-3 signature also matches it"
+  },
+  {
+   "id": "t-isc",
+   "kind": "text",
+   "input": "Copyright (c) 2018, Example Authors\n\nPermission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE.",
+   "expected": "ISC",
+   "note": ""
+  },
+  {
+   "id": "t-0bsd",
+   "kind": "text",
+   "input": "Copyright (C) 2018 by Example Authors\n\nPermission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE.",
+   "expected": "0BSD",
+   "note": "no notice condition; the ISC signature also matches it"
+  },
+  {
+   "id": "t-apache-header",
+   "kind": "text",
+   "input": "Licensed under the Apache License, Version 2.0 (the \"License\"); you may not use this file except in compliance with the License. You may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software distributed under the License is distributed on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.",
+   "expected": "Apache-2.0",
+   "note": ""
+  },
+  {
+   "id": "t-mpl-header",
+   "kind": "text",
+   "input": "This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.",
+   "expected": "MPL-2.0",
+   "note": ""
+  },
+  {
+   "id": "t-unlicense",
+   "kind": "text",
+   "input": "This is free and unencumbered software released into the public domain.\n\nAnyone is free to copy, modify, publish, use, compile, sell, or distribute this software, either in source code form or as a compiled binary, for any purpose, commercial or non-commercial, and by any means.",
+   "expected": "Unlicense",
+   "note": ""
+  },
+  {
+   "id": "t-gpl2-classpath",
+   "kind": "text",
+   "input": "The GNU General Public License (GPL) Version 2, June 1991\n\nCopyright (C) 1989, 1991 Free Software Foundation, Inc.\n\n\"CLASSPATH\" EXCEPTION TO THE GPL\n\nCertain source files distributed by Oracle America and/or its affiliates are subject to the following clarification and special exception to the GPL, but only where Oracle has expressly included in the particular source file's header the words \"Oracle designates this particular file as subject to the \"Classpath\" exception as provided by Oracle in the LICENSE file that accompanied this code.\"",
+   "expected": "GPL-2.0-only WITH Classpath-exception-2.0",
+   "note": "the plain GPL-2.0 signature wins over the exception"
+  },
+  {
+   "id": "t-gpl2-later-header",
+   "kind": "text",
+   "input": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.",
+   "expected": "GPL-2.0-or-later",
+   "note": ""
+  },
+  {
+   "id": "t-lgpl21",
+   "kind": "text",
+   "input": "GNU LESSER GENERAL PUBLIC LICENSE\nVersion 2.1, February 1999\n\nCopyright (C) 1991, 1999 Free Software Foundation, Inc.\nEveryone is permitted to copy and distribute verbatim copies of this license document, but changing it is not allowed.",
+   "expected": "LGPL-2.1-only",
+   "note": ""
+  },
+  {
+   "id": "t-agpl3",
+   "kind": "text",
+   "input": "GNU AFFERO GENERAL PUBLIC LICENSE\nVersion 3, 19 November 2007\n\nCopyright (C) 2007 Free Software Foundation, Inc.",
+   "expected": "AGPL-3.0-only",
+   "note": ""
+  },
+  {
+   "id": "t-rust-dual",
+   "kind": "text",
+   "input": "Licensed under either of\n\n * Apache License, Version 2.0\n * MIT license\n\nat your option.",
+   "expected": "Apache-2.0 OR MIT",
+   "note": ""
+  },
+  {
+   "id": "t-proprietary",
+   "kind": "text",
+   "input": "Copyright (c) 2021 Acme Corp. All rights reserved. This software is proprietary. Redistribution, modification and use in source or binary form are prohibited without prior written consent.",
+   "expected": null,
+   "note": "no SPDX identifier exists for it"
+  },
+  {
+   "id": "t-pointer",
+   "kind": "text",
+   "input": "See the file COPYING for the license terms of this package.",
+   "expected": null,
+   "note": "pointer, not a license"
+  }
+ ]
+}

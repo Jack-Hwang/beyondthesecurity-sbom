@@ -10,7 +10,11 @@ GET  /api/history                          -> one row per analysed project (coun
 GET  /api/engine                           -> core version, LLM state, evidence folder
 GET  /api/view/<project>                   -> console report + data of every pane
 GET  /api/sbom/<project>?format=cdx|spdx|vex , GET /api/doc/<project>   -> downloads
-GET|POST /api/triage                       -> "ignore with reason" decisions (stored next to the evidence)
+GET|POST /api/triage                       -> "ignore with reason" decisions (stored next to the evidence; optional justification, expires, scope, by)
+GET  /api/vex/<project>                    -> OpenVEX with the triage decisions applied (fail-closed, see triage.py)
+GET  /api/conformance/<project>            -> SBOM conformance matrix (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2, vulnerability readiness)
+GET  /api/changes/<project>                -> what changed since the previous analysis (alerts, new / resolved findings)
+GET  /api/fleet , /api/affected?cve=&component=&version=   -> portfolio roll-up, projects hit by an advisory / using a component
 GET  /api/health
 Binds to 127.0.0.1 by default. There is no authentication: do not expose it beyond localhost without a reverse proxy.
 Scan sources are restricted to https/ssh/file git URLs, owner/repo shorthands and EXISTING local folders.
@@ -28,7 +32,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 
-from . import __version__, chat as chatmod, console, engine, evals, pipeline, report, workspace
+from . import __version__, chat as chatmod, conformance, console, engine, evals, fleet, pipeline, report, sbom, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 
@@ -74,12 +78,13 @@ class State:
             except (OSError, ValueError):
                 return {}
 
-    def set_triage(self, key: str, status: str, note: str) -> Optional[Dict[str, Any]]:
-        """Store one decision; None when the store is full (TRIAGE_MAX_ENTRIES) and the key is new."""
+    def set_triage(self, key: str, status: str, note: str, extra: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
+        """Store one decision; None when the store is full (TRIAGE_MAX_ENTRIES) and the key is new. ``extra``: justification / expires / scope / by."""
         cur = self.triage()
         if key not in cur and len(cur) >= console.TRIAGE_MAX_ENTRIES:
             return None
         cur[key] = {"status": status, "note": note, "ts": datetime.datetime.now().astimezone().isoformat(timespec="seconds")}
+        cur[key].update({k: v for k, v in (extra or {}).items() if v})
         with self.lock:
             os.makedirs(self.evidence, exist_ok=True)
             tmp = self.triage_path + ".tmp"
@@ -184,6 +189,26 @@ def make_handler(st: State):
                 return self._send(200, {"history": sorted(rows, key=lambda x: x.get("analysed_at") or "", reverse=True)})
             if path == "/api/triage":
                 return self._send(200, {"triage": st.triage()})
+            if path == "/api/fleet":
+                return self._send(200, fleet.rollup(load_projects(st.evidence)))
+            if path == "/api/affected":
+                try:
+                    return self._send(200, fleet.affected(load_projects(st.evidence), vuln_id=(q.get("cve") or [None])[0], component=(q.get("component") or [None])[0],
+                                                          version=(q.get("version") or [None])[0]))
+                except ValueError as exc:
+                    return self._send(400, {"error": str(exc)})
+            for prefix in ("/api/conformance/", "/api/changes/", "/api/vex/"):
+                if path.startswith(prefix):
+                    hit = st.project(urllib.parse.unquote(path[len(prefix):]))
+                    if hit is None:
+                        return self._send(404, {"error": "unknown project"})
+                    folder, rec = hit
+                    if prefix == "/api/vex/":
+                        return self._send(200, sbom.openvex(rec["name"], rec.get("vulns") or [], triage=st.triage()), "application/json")
+                    if prefix == "/api/changes/":
+                        return self._send(200, rec.get("changes") or {"note": "no earlier analysis of this project was recorded"})
+                    doc, note = conformance.load_document(_record_file(folder))
+                    return self._send(200 if doc else 404, conformance.evaluate(doc) if doc else {"error": note})
             if path.startswith("/api/jobs/"):
                 j = st.jobs.get(path.rsplit("/", 1)[-1])
                 return self._send(200 if j else 404, j or {"error": "unknown job"})
@@ -215,10 +240,11 @@ def make_handler(st: State):
             path = urllib.parse.urlsplit(self.path).path
             if path == "/api/triage":
                 key, status, note = b.get("check_id"), b.get("status"), b.get("note")
-                bad = console.valid_triage(key, status, note)
+                bad = console.valid_triage(key, status, note) or triagemod.check_extras(b.get("justification"), b.get("expires"), b.get("scope"), b.get("by"))
                 if bad:
                     return self._send(400, {"error": bad})
-                done = st.set_triage(str(key).strip(), str(status), str(note or ""))
+                done = st.set_triage(str(key).strip(), str(status), str(note or ""),
+                                     {k: str(b.get(k)).strip() for k in ("justification", "expires", "scope", "by") if b.get(k)})
                 if done is None:
                     return self._send(409, {"error": "triage store is full (%d entries)" % console.TRIAGE_MAX_ENTRIES})
                 return self._send(200, {"ok": True, "triage": done})

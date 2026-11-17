@@ -74,6 +74,33 @@ CHAT_CASES = [
 ]
 
 
+# Paraphrases that share no keyword with the regex router: the router's weak spot, measured (not hidden) so an LLM planner has a baseline.
+CHAT_PARAPHRASE_CASES = [
+    {"q": "requests 를 2.20.0 으로 올리면 어떻게 돼", "tool": "what_if_upgrade"},
+    {"q": "쓰고 있는 오픈소스 이용 조건에 문제될 만한 게 있어", "tool": "license"},
+    {"q": "가장 급하게 손봐야 할 보안 문제가 뭐야", "tool": "top_vulns"},
+    {"q": "낡은 파이썬 버전을 쓰고 있나", "tool": "architecture"},
+    {"q": "고칠 수 있는 건 어떻게 고쳐야 해", "tool": "patch"},
+]
+
+
+def chat_paraphrase_eval(root: Optional[str] = None, client: Any = None) -> Dict[str, Any]:
+    """Tool-routing rate on paraphrased questions: regex router when ``client`` is None, LLM planner (regex fallback) otherwise."""
+    bot = chat.Chatbot(build_index(root), {"demo": synthetic_project()}, client)
+    hit = 0
+    routing: Dict[str, int] = {}
+    misses: List[Dict[str, Any]] = []
+    for c in CHAT_PARAPHRASE_CASES:
+        r = bot.ask(c["q"], project="demo", use_llm=client is not None)
+        routing[r["routing"]] = routing.get(r["routing"], 0) + 1
+        if c["tool"] in r.get("tools", []):
+            hit += 1
+        else:
+            misses.append({"q": c["q"], "expected": c["tool"], "tools": r.get("tools"), "routing": r["routing"]})
+    return {"cases": len(CHAT_PARAPHRASE_CASES), "tool_routing_rate": round(hit / len(CHAT_PARAPHRASE_CASES), 3),
+            "router": "llm" if client is not None else "regex", "routing": routing, "misses": misses}
+
+
 def chat_eval(root: Optional[str] = None) -> Dict[str, Any]:
     idx = build_index(root)
     bot = chat.Chatbot(idx, {"demo": synthetic_project()})
@@ -98,4 +125,41 @@ def chat_eval(root: Optional[str] = None) -> Dict[str, Any]:
             acc.append(r["citation_accuracy"])
     return {"cases": len(CHAT_CASES), "found_correct": ok_found, "found_rate": round(ok_found / len(CHAT_CASES), 3),
             "tool_routing_rate": round(ok_tool / n_tool, 3) if n_tool else None,
-            "citation_accuracy": round(sum(acc) / len(acc), 3) if acc else None, "misses": bad}
+            "citation_accuracy": round(sum(acc) / len(acc), 3) if acc else None, "misses": bad,
+            "paraphrase_routing_rate_regex": chat_paraphrase_eval(root)["tool_routing_rate"]}
+
+
+def license_gold(root: Optional[str] = None) -> List[Dict[str, Any]]:
+    return (read_json(os.path.join(root or repo_root(), "evals", "license_gold.json"), {}) or {}).get("cases", [])
+
+
+def license_eval(root: Optional[str] = None, members: Any = None, chairman: int = 0, cache_dir: Optional[str] = None, limit: Optional[int] = None) -> Dict[str, Any]:
+    """Deterministic baseline vs the license council on evals/license_gold.json. The number to watch is ``confident_wrong``:
+    a council result that is decided and wrong. A council reading that conflicts with the deterministic one is reported, not applied."""
+    from . import council
+    cases = license_gold(root)
+    out: Dict[str, Any] = {"baseline": council.score(cases, council.deterministic_reading)}      # the baseline is free: always all cases
+    if limit is not None:                                       # a council run costs members*2+1 calls per case: bound it, and say so
+        out["council_cases_skipped"] = max(0, len(cases) - limit)
+        cases = cases[:limit]
+    if members:
+        verdicts: Dict[str, Dict[str, Any]] = {}
+
+        def predict(c: Dict[str, Any]) -> Optional[str]:
+            v = council.judge(c["input"], members, chairman, deterministic=council.deterministic_reading(c) or "", cache_dir=cache_dir)
+            verdicts[c["id"]] = v
+            return v["spdx"] if v["status"] == "agreed" else None
+
+        res = council.score(cases, predict)
+        by_id = {c["id"]: c for c in cases}
+        st: Dict[str, int] = {}
+        for v in verdicts.values():
+            st[v["status"]] = st.get(v["status"], 0) + 1
+        res["statuses"] = st
+        res["calls"] = sum(v.get("calls", 0) for v in verdicts.values())
+        res["conflicts"] = [{"id": i, "council": v.get("council_spdx"), "deterministic": v.get("deterministic"),
+                             "council_correct": council.same_expr(v.get("council_spdx"), by_id[i]["expected"]),
+                             "deterministic_correct": council.same_expr(v.get("deterministic"), by_id[i]["expected"])}
+                            for i, v in verdicts.items() if v.get("reason") == "conflicts_with_deterministic"]
+        out["council"] = res
+    return out

@@ -9,8 +9,9 @@ import tempfile
 from typing import Any, Dict, List, Optional
 
 from . import __version__, arch as archmod, batch, chat as chatmod, evals, loop, pipeline, rag, report, workspace
+from . import cli_ext
 from .llm import ChatClient
-from .util import console_text, kv, read_json
+from .util import console_text, kv, read_json, write_json
 
 
 def _client(root: str, no_llm: bool, cfg: Optional[str]) -> Optional[ChatClient]:
@@ -94,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
     _common(l); _patch_args(l)
     e = sub.add_parser("evalrag", help="retrieval + chatbot grounding evaluation")
     e.add_argument("--golden", default=None); e.add_argument("--json", action="store_true")
+    el = sub.add_parser("evallicense", help="license identification gold set: deterministic baseline, and the council when configured")
+    el.add_argument("--council-config", default=None); el.add_argument("--max-cases", type=int, default=None); el.add_argument("--json", action="store_true")
+    co = sub.add_parser("council", help="license council over the unresolved license evidence of one analysed project (suggestions only)")
+    co.add_argument("--evidence", required=True); co.add_argument("--project", required=True); co.add_argument("--council-config", default=None)
+    co.add_argument("--max-items", type=int, default=8); co.add_argument("--json", action="store_true")
     lg = sub.add_parser("looplog", help="render evidence/loop history as Markdown")
     lg.add_argument("--out", default=None)
     rl = sub.add_parser("ragloop", help="retrieval-only loop pass over the golden/dev/test sets")
@@ -105,6 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
     sv = sub.add_parser("serve", help="JSON API + small web UI")
     sv.add_argument("--port", type=int, default=8800); sv.add_argument("--host", default="127.0.0.1"); sv.add_argument("--evidence", default=None)
     sv.add_argument("--llm-config", default=None)
+    cli_ext.add_commands(sub)
     return ap
 
 
@@ -154,6 +161,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         except (AttributeError, ValueError):
             pass
     a = build_parser().parse_args(argv)
+    if a.cmd in cli_ext.COMMANDS:
+        return cli_ext.run(a)
     if a.cmd in ("scan", "patch"):
         if getattr(a, "approve", False) and not getattr(a, "token", None):
             print("note: --approve without --token applies the plan as computed now; pass --token <digest of the reviewed plan> to pin it",
@@ -199,13 +208,39 @@ def main(argv: Optional[List[str]] = None) -> int:
         chat_e = evals.chat_eval(a.root)
         entry = loop.run_pass(a.tag, srcs, out, os.path.join(a.root, "evidence", "loop"), variable=a.variable, hypothesis=a.hypothesis, settings=st,
                               client=client, rag_eval=rag_e, chat_eval=chat_e, jobs=a.jobs, hyp_client=client, work_root=a.work)
-        _print(entry, a.json, "pass %s [%s] decision=%s gate=%s\nfailed=%s\nnext=%s" % (entry["pass"], a.variable, entry["decision"], entry["gate"]["pass"], entry["gate"]["failed"], [h["variable"] for h in entry["next"]["items"]]))
+        _print(entry, a.json, "pass %s [%s] decision=%s gate=%s\nfailed=%s undecidable=%s\nnext=%s" % (entry["pass"], a.variable, entry["decision"], entry["gate"]["pass"], entry["gate"]["failed"], entry["gate"].get("undecidable", []), [h["variable"] for h in entry["next"]["items"]]))
         return 0 if entry["decision"] != "rollback" else 1
     if a.cmd == "evalrag":
         r = evals.rag_eval(a.root, a.golden)
         c = evals.chat_eval(a.root)
         _print({"rag": r, "chat": c}, a.json, "RAG recall@5=%s mrr=%s ndcg@5=%s ood=%s | chat found=%s routing=%s citation=%s" % (r["recall_at_k"], r["mrr"], r["ndcg_at_k"], r["ood_rate"], c["found_rate"], c["tool_routing_rate"], c["citation_accuracy"]))
         return 0 if not r["misses"] and not c["misses"] else 1
+    if a.cmd == "evallicense":
+        from . import council
+        members, chair, note = council.members_from_config(a.council_config, os.path.join(a.root, "evidence", "llm"))
+        r = evals.license_eval(a.root, members if len(members) >= 2 else None, chair, limit=a.max_cases)
+        b = r["baseline"]
+        line = "baseline: correct=%s confident_wrong=%s missed=%s abstained_ok=%s" % (b["correct"], b["confident_wrong"], b["missed"], b["abstained_correctly"])
+        if "council" in r:
+            c = r["council"]
+            line += "\ncouncil: correct=%s confident_wrong=%s missed=%s abstained_ok=%s statuses=%s calls=%s conflicts=%d" % (
+                c["correct"], c["confident_wrong"], c["missed"], c["abstained_correctly"], c["statuses"], c["calls"], len(c["conflicts"]))
+        else:
+            line += "\ncouncil: not run (%s)" % (note or "fewer than 2 members")
+        _print(r, a.json, line)
+        return 0
+    if a.cmd == "council":
+        from . import council
+        found = project_records(a.evidence).get(a.project)
+        if not found:
+            _print({"error": "unknown project"}, a.json, "unknown project %r in %s" % (a.project, a.evidence))
+            return 2
+        members, chair, note = council.members_from_config(a.council_config, os.path.join(a.root, "evidence", "llm"))
+        res = council.run_record(found[1], members, chair, cache_dir=os.path.join(a.root, "evidence", "llm", "council_cache"), max_items=a.max_items)
+        write_json(os.path.join(found[0], "council.json"), res)
+        _print(res, a.json, "council %s: %s items, statuses %s, calls %s, skipped %d%s" % (
+            a.project, len(res["items"]), res["summary"], res["calls"], len(res["skipped"]), (" | " + note) if note else ""))
+        return 0
     if a.cmd == "looplog":
         from . import looplog
         md = looplog.render(os.path.join(a.root, "evidence", "loop"))
@@ -216,7 +251,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     if a.cmd == "ragloop":
         e = loop.run_rag_pass(a.tag, os.path.join(a.root, "evidence", "loop"), a.root, variable=a.variable, hypothesis=a.hypothesis)
-        _print(e, a.json, "rag pass %s [%s] decision=%s failed=%s\n%s" % (e["pass"], a.variable, e["decision"], e["gate"]["failed"], json.dumps(e["metrics"], sort_keys=True)))
+        _print(e, a.json, "rag pass %s [%s] decision=%s failed=%s undecidable=%s\n%s" % (e["pass"], a.variable, e["decision"], e["gate"]["failed"], e["gate"].get("undecidable", []), json.dumps(e["metrics"], sort_keys=True)))
         return 0 if e["decision"] != "rollback" else 1
     if a.cmd == "chat":
         projs = load_projects(a.evidence) if a.evidence else {}

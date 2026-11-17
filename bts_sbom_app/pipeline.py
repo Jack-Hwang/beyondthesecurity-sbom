@@ -8,10 +8,11 @@ or runs code from the analysed project (delivery targets that do are separate, e
 from __future__ import annotations
 
 import os
+import shutil
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from . import ai, arch as archmod, deliver as delivermod, engine, licenses, patch as patchmod, remediate, sbom, sectors, workspace
+from . import ai, arch as archmod, changes as changesmod, conformance, deliver as delivermod, engine, licenses, patch as patchmod, remediate, sbom, sectors, workspace
 from .llm import ChatClient
 from .util import safe_name, tree_hash, write_json
 
@@ -97,7 +98,10 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
     rec["plan_summary"] = remediate.summary(rec["plans"])
 
     def build_sboms() -> None:
-        doc = sbom.cyclonedx(rec["name"], rec["components"], rec["vulns"], lineage=rec["lineage"], project_license=rec["license"]["project_license"])
+        # generation context (CISA 2025 draft): analysing manifests / lockfiles of source is pre-build; a supplied SBOM says nothing about it
+        kinds = {str(s.get("type") or "") for s in rec["engine"].get("sources") or []}
+        doc = sbom.cyclonedx(rec["name"], rec["components"], rec["vulns"], lineage=rec["lineage"], project_license=rec["license"]["project_license"],
+                             lifecycle="pre-build" if kinds and kinds != {"sbom"} else "")
         errs = sbom.validate_cyclonedx(doc)
         spd = S.run("spdx", lambda: sbom.spdx(rec["name"], rec["components"]))
         spd_err = S.run("spdx_validate", lambda: sbom.validate_spdx(spd), ["spdx not built"]) if spd else ["spdx not built"]
@@ -107,6 +111,8 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
                              "spdx_errors": list(spd_err)[:5], "spdx_valid": bool(spd) and not spd_err,
                              "components": len(doc["components"]), "vulnerabilities": len(doc["vulnerabilities"])}
         rec["sectors"] = S.run("sectors", lambda: sectors.industry_reports(doc, vex, None, industries or sectors.INDUSTRIES), {})
+        conf = S.run("conformance", lambda: conformance.evaluate(doc), None)
+        rec["conformance"] = conformance.compact(conf) if conf else {}
 
     S.run("sbom", build_sboms)
 
@@ -133,6 +139,11 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
     rec["elapsed_s"] = round(time.time() - t0, 1)
     rec["metrics"] = metrics(rec)
     if out_dir:
+        # what changed since the last analysis of this project (Hub-style change alerts); the previous record is kept as <name>.prev.json
+        prev = S.run("changes", lambda: changesmod.load_previous(out_dir, rec["name"]), None)
+        if prev:
+            d = S.run("changes_diff", lambda: changesmod.diff(prev, rec), None)
+            rec["changes"] = changesmod.compact(d) if d else {}
         persist(rec, out_dir)
     return rec
 
@@ -247,6 +258,12 @@ def persist(rec: Dict[str, Any], out_dir: str) -> Dict[str, str]:
     nm = safe_name(rec["name"])
     d = os.path.join(out_dir, nm)
     os.makedirs(d, exist_ok=True)
+    cur = os.path.join(d, nm + ".json")
+    if os.path.isfile(cur):
+        try:                                                       # keep the last analysis: `diff <project>` compares it with the new one
+            shutil.copyfile(cur, os.path.join(d, nm + ".prev.json"))
+        except OSError:
+            pass
     docs = rec.pop("_docs", None) or {}
     paths = {}
     for key, fn in (("cdx", nm + ".cdx.json"), ("spdx", nm + ".spdx.json"), ("vex", nm + ".vex.json")):

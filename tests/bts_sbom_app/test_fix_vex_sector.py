@@ -39,7 +39,7 @@ _UNJUSTIFIED_CLOSING_STATEMENTS = [
 
 
 def test_bare_not_affected_closing_statement_never_yields_pass():
-    """AC: BSA-AC-89
+    """AC: BSA-AC-201
 
     Unwanted: If a marine-profile closing statement has no justification, the
     verdict shall not be pass (N of N).
