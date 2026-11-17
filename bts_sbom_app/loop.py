@@ -22,6 +22,7 @@ HIGHER = ("project_success_rate", "license_resolved_rate", "sbom_ref_rate", "pla
           "cyclonedx_valid_rate", "spdx_valid_rate", "rag_recall_at_5", "rag_mrr", "rag_ndcg_at_5", "ood_rate", "citation_accuracy")
 LOWER = {"analysis_s_avg": 0.5, "stage_errors": 0.0}           # metric -> allowed relative increase
 BLOCKING_LOWER = {"stage_errors"}
+COUNT_METRICS = ("components", "vulns")                        # raw detection counts: collapse-to-zero/large-drop guard, not the 0..1 delta_limit
 
 
 def flatten(batch_summary: Dict[str, Any], rag_eval: Optional[Dict[str, Any]] = None, chat_eval: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -40,13 +41,24 @@ def flatten(batch_summary: Dict[str, Any], rag_eval: Optional[Dict[str, Any]] = 
     return m
 
 
-def gate(base: Dict[str, Any], cand: Dict[str, Any], delta: float = 0.02) -> Dict[str, Any]:
-    """Pass when every blocking metric present in both vectors satisfies  cand - base >= -delta  (lower-is-better: relative cap)."""
+def gate(base: Dict[str, Any], cand: Dict[str, Any], delta: float = 0.02, collapse_cap: float = 0.5) -> Dict[str, Any]:
+    """Pass when every blocking metric present in both vectors satisfies  cand - base >= -delta  (lower-is-better: relative cap).
+
+    Unknown is not a pass: a metric that is present (non-None) in the baseline but missing or None in the candidate
+    FAILS the gate with 'metric unavailable' -- a feed outage or a candidate that never measured something must not
+    look like 'no regression'. A baseline that never had the metric never blocks (nothing to compare against).
+    components/vulns are raw detection counts, not 0..1 rates, so they get their own collapse guard instead of the
+    `delta` absolute-cap check: baseline > 0 and candidate == 0 always fails (total detection loss), and so does a
+    relative drop beyond `collapse_cap` (default 50%, a documented, overridable cap).
+    """
     deltas: Dict[str, float] = {}
     failed: List[str] = []
     for k in HIGHER:
         b, c = base.get(k), cand.get(k)
-        if b is None or c is None:
+        if b is None:
+            continue                                      # baseline never measured this -> can't regress, never blocks
+        if c is None:
+            failed.append("%s: metric unavailable (baseline %.3f, candidate missing)" % (k, b))
             continue
         deltas[k] = round(c - b, 4)
         if c - b < -delta - 1e-9:                         # a drop of exactly `delta` passes (float noise: 0.917 -> 0.897)
@@ -54,13 +66,28 @@ def gate(base: Dict[str, Any], cand: Dict[str, Any], delta: float = 0.02) -> Dic
     warnings: List[str] = []
     for k, rel in LOWER.items():
         b, c = base.get(k), cand.get(k)
-        if b is None or c is None:
+        if b is None:
+            continue
+        if c is None:
+            failed.append("%s: metric unavailable (baseline %s, candidate missing)" % (k, b))
             continue
         deltas[k] = round(c - b, 4)
         if c > b * (1 + rel) + 1e-9:
             msg = "%s: %s -> %s (allowed +%d%%)" % (k, b, c, int(rel * 100))
             (failed if k in BLOCKING_LOWER else warnings).append(msg)       # wall-clock time is advisory (network noise)
-    return {"pass": not failed, "deltas": deltas, "failed": failed, "warnings": warnings, "delta_limit": delta}
+    for k in COUNT_METRICS:
+        b, c = base.get(k), cand.get(k)
+        if b is None:
+            continue
+        if c is None:
+            failed.append("%s: metric unavailable (baseline %s, candidate missing)" % (k, b))
+            continue
+        deltas[k] = c - b
+        if b > 0 and c <= 0:
+            failed.append("%s: detection collapse %s -> %s" % (k, b, c))
+        elif b > 0 and c < b * (1 - collapse_cap) - 1e-9:
+            failed.append("%s: %s -> %s (drop exceeds %d%% collapse cap)" % (k, b, c, int(collapse_cap * 100)))
+    return {"pass": not failed, "deltas": deltas, "failed": failed, "warnings": warnings, "delta_limit": delta, "collapse_cap": collapse_cap}
 
 
 def plateau(history: List[Dict[str, Any]], n: int = 3) -> bool:
