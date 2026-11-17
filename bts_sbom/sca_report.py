@@ -133,12 +133,18 @@ def _severity_summary(findings: List[Dict[str, Any]]) -> Dict[str, int]:
 
 
 def _priority_label(f: Dict[str, Any], epss_map: Dict[str, Dict]) -> str:
-    """Return a triage priority string: PATCH NOW / HIGH / MEDIUM / LOW."""
+    """Return a triage priority string: PATCH NOW / HIGH / MEDIUM / LOW / UNKNOWN.
+
+    A feed outage (epss_map entry with kev/epss == None, source "unavailable")
+    is rendered as an honest UNKNOWN, never silently treated as "not KEV" /
+    "zero EPSS" (which would deprioritize a possibly-critical CVE)."""
     cve = (f.get("cve") or "").upper()
     e = epss_map.get(cve, {})
     kev = e.get("kev", False)
     epss_score = e.get("epss", 0.0)
     sev = f.get("severity", "")
+    if kev is None or epss_score is None:
+        return "⚪ UNKNOWN"
     if kev:
         return "🔴 PATCH NOW"
     if epss_score >= 0.3 or sev == "CRITICAL":
@@ -181,6 +187,8 @@ def _markdown(target: str, packages, findings, sev, licenses, remediation, statu
     mismatches = mismatches or []
     out = [f"# OSS Composition Report — {target}", ""]
     kev_count = sum(1 for f in findings if epss_map.get((f.get("cve") or "").upper(), {}).get("kev"))
+    unknown_count = sum(1 for f in findings
+                         if epss_map.get((f.get("cve") or "").upper(), {}).get("kev") is None)
     out += [
         f"- Components: **{len(packages)}**",
         f"- Vulnerabilities: **{sev['total']}** "
@@ -190,6 +198,11 @@ def _markdown(target: str, packages, findings, sev, licenses, remediation, statu
         f"- Licenses resolved (deps.dev): **{lic_enrich.get('resolved',0)}** new, "
         f"{lic_enrich.get('already_had',0)} pre-known, {lic_enrich.get('unresolved',0)} unresolved",
     ]
+    if unknown_count:
+        out.append(
+            f"- WARNING: EPSS/KEV data **unavailable** for **{unknown_count}** CVE(s) "
+            f"(feed outage, no offline data) — not counted as clean, treat as unknown risk"
+        )
     if intel_status is not None:
         out.append(_intel_db_markdown(intel_status))
     out.append("")
@@ -207,8 +220,12 @@ def _markdown(target: str, packages, findings, sev, licenses, remediation, statu
             cve = (f.get("cve") or "").upper()
             if has_epss:
                 e = epss_map.get(cve, {})
-                epss_str = f"{e['epss']:.3f}" if e.get("epss") else "-"
-                kev_str = "**KEV**" if e.get("kev") else "-"
+                if e.get("kev") is None or e.get("epss") is None:
+                    epss_str = "unknown"
+                    kev_str = "unknown"
+                else:
+                    epss_str = f"{e['epss']:.3f}" if e.get("epss") else "-"
+                    kev_str = "**KEV**" if e.get("kev") else "-"
                 prio = _priority_label(f, epss_map)
                 out.append(f"| {prio} | {sv} | {f['id']} | {f['cve']} | {epss_str} | {kev_str} | "
                            f"{f['name']} | {f['version']} | {f['fixed'] or '-'} | {f.get('location') or '-'} |")
@@ -288,10 +305,16 @@ def _enrich_findings_epss_kev(findings: List[Dict[str, Any]], offline: bool,
     """Stamp EPSS/KEV onto findings in place and return {CVE: {epss, percentile, kev}}.
 
     Order: live API (skipped when offline) -> offline fallback (bulk intel DB, then
-    the curated table) -> honest "none". Every finding gets epss, epss_percentile,
-    kev and epss_source ("live-api" | "bulk-intel-db" | "offline-table" | "none").
-    A CVE the curated table knows nothing about is labeled "none", never presented
-    as real zero-risk data.
+    the curated table) -> honest "none"/"unavailable". Every finding gets epss,
+    epss_percentile, kev and epss_source ("live-api" | "bulk-intel-db" |
+    "offline-table" | "none" | "unavailable"). A CVE the curated table knows
+    nothing about is labeled "none" (checked here), never presented as real
+    zero-risk data. live_fn (epss_kev.enrich_cves by default) already performs
+    its own outage-aware offline fallback and labels its own "source" per CVE
+    (see epss_kev.py); this function trusts that label instead of overwriting
+    it with "live-api" — a live-feed outage surfaces here as
+    epss=None/kev=None/source="unavailable" (never a fabricated 0.0/False),
+    which _stamp_epss()/_priority_label() render as an honest "unknown".
     """
     import logging
     log = logging.getLogger("sca_report")
@@ -318,7 +341,24 @@ def _enrich_findings_epss_kev(findings: List[Dict[str, Any]], offline: bool,
     resolved: Dict[str, Dict] = {}
     for cu in ids:
         e = live.get(cu) if isinstance(live, dict) else None
+        if e and e.get("source") == "unavailable":
+            # Live call ran but the feed(s) are down AND the offline table has
+            # nothing for this CVE either: an honest unknown, not a fallback
+            # to the (possibly stale) local fallback_fn -- fetch_fn already
+            # tried the real offline table internally.
+            resolved[cu] = {"epss": None, "percentile": None, "kev": None,
+                            "source": "unavailable", "reason": e.get("reason", "")}
+            continue
+        if e and e.get("source"):
+            # live_fn (epss_kev.enrich_cves) already resolved this CVE, be it
+            # from the live feed or its own internal offline fallback -- trust
+            # its label instead of relabeling everything "live-api".
+            resolved[cu] = {"epss": e.get("epss", 0.0), "percentile": e.get("percentile", 0.0),
+                            "kev": bool(e.get("kev", False)), "source": e.get("source")}
+            continue
         if e:
+            # Back-compat: a custom live_fn stub without a "source" key is
+            # assumed to be genuine live data.
             resolved[cu] = {"epss": e.get("epss", 0.0), "percentile": e.get("percentile", 0.0),
                             "kev": bool(e.get("kev", False)), "source": "live-api"}
             continue
