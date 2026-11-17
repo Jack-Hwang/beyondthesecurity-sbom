@@ -13,6 +13,7 @@ LLM success it did not have. Responses are cached by prompt hash so identical ev
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -214,6 +215,93 @@ def _parse_json(text: str) -> Any:
         if m:
             return json.loads(m.group(0))
         raise
+
+
+# AI-suitability registry (docs/AI_SUITABILITY.md): every place this module calls the model directly
+# (``client.complete(`` / ``ChatClient(``) must have an entry here naming why a rule-based answer was judged
+# insufficient and a fallback_test that proves the deterministic path this module falls back to is real and
+# tested. check_registry() below AST-parses this file (never executes it) and fails if a call site has no
+# entry, or if a registered fallback_test cannot be found - absence of a registry entry is reported as a
+# problem, never silently treated as "fine".
+AI_CALL_SITES: Dict[str, Dict[str, str]] = {
+    "propose.remediation_ranking": {
+        "site": "propose",
+        "why_not_rule_based": (
+            "deterministic() already covers every remediation a rule table can express (apply the verified "
+            "safe version, flag no-fix components, flag EOL runtimes, flag dependency cycles, flag extraction "
+            "candidates); ranking which of those competing findings matters most for THIS project, and phrasing "
+            "a rationale grounded in its specific evidence, is open-ended judgment over free-form input, not a "
+            "lookup - so EXAONE is used only for that ranking/phrasing step, validated by validate() against the "
+            "evidence, and deterministic() is still the complete, tested answer whenever the model is unavailable."
+        ),
+        "fallback_test": "tests/bts_sbom_app/test_ai_rag_loop.py::test_http_429_day_limit_downgrades_after_one_call",
+    },
+}
+
+
+def _is_ai_call(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    fn = node.func
+    if isinstance(fn, ast.Attribute) and fn.attr == "complete":
+        return True
+    return isinstance(fn, ast.Name) and fn.id == "ChatClient"
+
+
+def _call_sites(path: str) -> List[str]:
+    """AST-parse *path* (no execution) and return the enclosing function name for every direct
+    ``client.complete(``/``ChatClient(`` call found, in source order."""
+    with open(path, "r", encoding="utf-8") as fh:
+        tree = ast.parse(fh.read(), filename=path)
+    sites: List[str] = []
+    stack: List[str] = []
+
+    class _Visitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            stack.append(node.name)
+            self.generic_visit(node)
+            stack.pop()
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Call(self, node: ast.Call) -> None:
+            if _is_ai_call(node) and stack:
+                sites.append(stack[-1])
+            self.generic_visit(node)
+
+    _Visitor().visit(tree)
+    return sites
+
+
+def check_registry(path: Optional[str] = None) -> List[str]:
+    """Verify every direct AI call site in *path* (default: this module) is named in AI_CALL_SITES by its
+    enclosing function, and that each registry entry's fallback_test names a test function that really
+    exists. Static check only (AST parse, no execution, no network). Returns a list of problems -
+    empty means everything is accounted for."""
+    path = path or __file__
+    problems: List[str] = []
+    registered_sites = {entry["site"] for entry in AI_CALL_SITES.values()}
+    for site in _call_sites(path):
+        if site not in registered_sites:
+            problems.append("unregistered AI call site: function %r calls the model directly with no "
+                             "AI_CALL_SITES entry (see docs/AI_SUITABILITY.md)" % site)
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for key, entry in AI_CALL_SITES.items():
+        node_id = entry.get("fallback_test", "")
+        if "::" not in node_id:
+            problems.append("%s: fallback_test %r is not a 'path::func' pytest node id" % (key, node_id))
+            continue
+        file_part, func_part = node_id.split("::", 1)
+        test_path = os.path.join(repo_root, file_part)
+        if not os.path.isfile(test_path):
+            problems.append("%s: fallback_test file not found: %s" % (key, file_part))
+            continue
+        with open(test_path, "r", encoding="utf-8") as fh:
+            test_tree = ast.parse(fh.read(), filename=test_path)
+        names = {n.name for n in ast.walk(test_tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        if func_part not in names:
+            problems.append("%s: fallback_test function not found: %s" % (key, node_id))
+    return problems
 
 
 def propose(rec: Dict[str, Any], *, client: Optional[ChatClient] = None, cache_dir: Optional[str] = None,
