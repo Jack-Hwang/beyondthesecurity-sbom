@@ -83,6 +83,7 @@ a stage that cannot run is recorded, not hidden.
 - BSA-AC-64 [Unwanted] If EXAONE returns a truncated answer that fails validation, the system shall write 0 cache files for it, so identical evidence is retried instead of replaying the broken answer (1 of 1).
 - BSA-AC-62 [Unwanted] If 2 threads request a completion at the same time, the client shall keep at most 1 request in flight (max concurrency 1 of 2), because parallel calls drew the provider's busy 429 on 2 of 10 projects.
 - BSA-AC-63 [Event] When a request fails at the provider (HTTP 500 with one retry), the day ledger shall count 2 attempts, because the provider's day limit counts failed requests too.
+- BSA-AC-93 [State] While EXAONE's daily call budget is exhausted, the chatbot shall stay extractive and make 0 further calls (never retries).
 
 ## Retrieval and chatbot (bts_sbom_app/rag.py, chat.py)
 
