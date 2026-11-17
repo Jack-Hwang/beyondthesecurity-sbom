@@ -7,6 +7,8 @@ Subcommands
     scan       OSV-Scanner-style vulnerability scan of manifests/lockfiles/SBOMs
                (attaches a `remediation` block of minimal fixed-version
                suggestions per finding; disable with --no-remediation)
+    osv        keep a local mirror of Google's OSV database current (sync / status)
+               and watch a project for newly published advisories (watch)
     vex        emit or inspect an OpenVEX document
     policy     policy gate over a findings JSON (scan output shape) with
                optional --sbom (license rules) and --vex (suppression):
@@ -142,7 +144,7 @@ def cmd_sector(args) -> int:
 
 def cmd_scan(args) -> int:
     from bts_sbom.osvscanner import OsvScanner, gate_exit_code
-    scanner = OsvScanner(offline=args.offline)
+    scanner = OsvScanner(offline=args.offline, osv_mode=getattr(args, "osv_mode", None))
     result = scanner.scan(args.target, dry_run=args.dry_run,
                           with_licenses=args.licenses)
     if not args.no_remediation and not args.dry_run:
@@ -160,6 +162,77 @@ def cmd_scan(args) -> int:
     if args.gate and not args.dry_run:
         return gate_exit_code(result)
     return 0
+
+
+def _format_watch_event(ev: Dict[str, Any]) -> str:
+    """One human line per watch event (ASCII-only keywords so any console can print it)."""
+    t = ev.get("type", "?")
+    ts = ev.get("ts", "")
+    if t == "ready":
+        return "%s READY    %s ecosystem(s), baseline=%s, %s finding(s) known, poll every %ss" % (
+            ts, len(ev.get("ecosystems") or []), ev.get("baseline"), ev.get("findings", "?"), ev.get("interval_s"))
+    if t == "error":
+        return "%s ERROR    %s: %s" % (ts, ev.get("scope", ""), ev.get("detail", ""))
+    c = ev.get("component") or {}
+    line = "%s %-9s %-8s %s%s  %s@%s [%s]" % (
+        ts, t.upper(), ev.get("severity", "-"), ev.get("id", ""),
+        (" (" + ", ".join(ev.get("aliases") or [])[:60] + ")") if ev.get("aliases") else "",
+        c.get("name"), c.get("version"), c.get("ecosystem"))
+    if ev.get("fixed_version"):
+        line += "  fix: %s" % ev["fixed_version"]
+    if ev.get("lag_s") is not None:
+        line += "  lag %ss" % ev["lag_s"]
+    if ev.get("summary"):
+        line += "  - " + str(ev["summary"])[:100]
+    return line
+
+
+def cmd_osv(args) -> int:
+    """osv sync | status | watch - see bts_sbom/_internal/osv_mirror.py and osv_watch.py."""
+    from bts_sbom._internal import osv_local_db
+    from bts_sbom._internal.osv_mirror import OsvMirror
+    if getattr(args, "db", None):
+        osv_local_db.DB_PATH = str(Path(args.db).resolve())
+    mirror = OsvMirror()
+    if args.osv_cmd == "status":
+        return _emit(mirror.stats(), args.out)
+    if args.osv_cmd == "sync":
+        from bts_sbom._internal.osv_mirror import canonical_ecosystem
+        ecos = [canonical_ecosystem(e) for e in (args.ecosystem or [])]
+        if args.target:
+            from bts_sbom._internal.osv_watch import components_from_target
+            ecos += [k[0] for k in components_from_target(args.target)]
+        if not ecos:
+            raise SystemExitError(2, "osv sync: give --ecosystem NAME (repeatable) and/or --target PATH "
+                                     "(ecosystems are taken from the project's components)")
+        progress = None
+        if args.full:
+            def progress(n: int) -> None:
+                print("# imported %d records" % n, file=sys.stderr)
+        report = mirror.sync(ecos, full=args.full, refull=args.refull, workers=args.workers,
+                             max_fetch=args.max_fetch, progress=progress)
+        if not args.verbose:
+            for r in report["ecosystems"]:
+                r["changes"] = len(r["changes"])
+            report["changes"] = len(report["changes"])
+        _emit(report, args.out)
+        return 0 if report["ok"] else 2
+    if args.osv_cmd == "watch":
+        from bts_sbom._internal.osv_fast import FastOsv
+        from bts_sbom._internal.osv_watch import Watcher, components_from_target
+        comps = components_from_target(args.target)
+        if not comps:
+            raise SystemExitError(2, "osv watch: no exact-version components found in %r - nothing to watch "
+                                     "(a range or empty version cannot be matched honestly)" % args.target)
+
+        def emit(ev: Dict[str, Any]) -> None:
+            print(_stdout_safe(json.dumps(ev, ensure_ascii=False) if args.json else _format_watch_event(ev),
+                               bool(args.json)), flush=True)
+
+        watcher = Watcher(comps, mirror=mirror, fast=FastOsv(mirror=mirror), state_path=args.state,
+                          events_path=args.events, emit=emit)
+        return watcher.run(interval=args.interval, once=args.once, max_cycles=args.max_cycles)
+    raise SystemExitError(2, "osv: choose sync, status or watch")
 
 
 def cmd_policy(args) -> int:
@@ -296,6 +369,13 @@ def build_parser() -> argparse.ArgumentParser:
     sn.add_argument("--gate", action="store_true",
                     help="exit 1 when vulnerabilities found, 2 when data is "
                          "inconclusive (CI gate mode)")
+    sn.add_argument("--osv-mode", default=None, choices=["auto", "batch", "single", "feed"],
+                    help="online lookup strategy: batch = OSV querybatch + revision-validated record cache (1 request "
+                         "per 1000 components when the cache is warm), single = one query per component over pooled "
+                         "connections, auto (default) = batch only when >=8 components and >=50%% are already "
+                         "cached, else single, feed = answer from the cache that OSV's change feed proves still "
+                         "current (a few KiB per ecosystem instead of one query per component; current as of the "
+                         "last feed sync, OSV exports a few minutes after publishing). Env: BTS_SBOM_OSV_MODE")
     sn.add_argument("--no-remediation", action="store_true",
                     help="omit the remediation suggestion block from the "
                          "scan output (default: attached to non-dry-run "
@@ -323,6 +403,55 @@ def build_parser() -> argparse.ArgumentParser:
     po.add_argument("--out", default=None,
                     help="write the evaluation JSON to FILE (default: stdout)")
     po.set_defaults(func=cmd_policy)
+
+    ov = sub.add_parser(
+        "osv",
+        help="local mirror of the OSV database kept current from OSV's change feed (sync, status) "
+             "and a live watch for new advisories (watch)")
+    ov_sub = ov.add_subparsers(dest="osv_cmd", metavar="ACTION")
+    ov_sub.required = True
+
+    def _osv_common(sp):
+        sp.add_argument("--db", default=None,
+                        help="sqlite file (default: BTS_SBOM_OSV_DB_PATH or ./bts_sbom_osv_local.db)")
+        sp.add_argument("--out", default=None, help="write the JSON report to FILE (default: stdout)")
+
+    ov_sy = ov_sub.add_parser(
+        "sync", help="poll OSV's modified_id.csv change feed and download only the advisories that changed "
+                     "(first contact starts from now; --full also imports the complete ecosystem dump once)")
+    ov_sy.add_argument("--ecosystem", action="append", default=None,
+                       help="OSV ecosystem, e.g. PyPI, npm, Go, Maven, crates.io, Debian (repeatable)")
+    ov_sy.add_argument("--target", default=None, help="take the ecosystems from this file/directory's components")
+    ov_sy.add_argument("--full", action="store_true",
+                       help="bootstrap the COMPLETE ecosystem from all.zip (large download), then keep it current; "
+                            "only a complete mirror may answer offline lookups")
+    ov_sy.add_argument("--refull", action="store_true", help="re-import all.zip even if already bootstrapped")
+    ov_sy.add_argument("--workers", type=int, default=8, help="parallel record downloads (default 8)")
+    ov_sy.add_argument("--max-fetch", type=int, default=2000,
+                       help="max records fetched per ecosystem per run; the rest is picked up next run (default 2000)")
+    ov_sy.add_argument("--verbose", action="store_true", help="list every changed record in the report")
+    _osv_common(ov_sy)
+    ov_sy.set_defaults(func=cmd_osv)
+
+    ov_st = ov_sub.add_parser("status", help="show the mirror: records, per-ecosystem mode / watermark / age")
+    _osv_common(ov_st)
+    ov_st.set_defaults(func=cmd_osv)
+
+    ov_wa = ov_sub.add_parser(
+        "watch", help="watch a project: poll the change feed, re-check only the affected components against OSV, "
+                      "print new / updated / resolved advisories as they appear")
+    ov_wa.add_argument("target", help="file or directory to watch (manifests, lockfiles, SBOMs)")
+    ov_wa.add_argument("--interval", type=float, default=300.0, help="seconds between polls (default 300)")
+    ov_wa.add_argument("--once", action="store_true",
+                       help="one cycle then exit: 0 quiet, 1 new/updated advisories, 2 errors (cron / CI)")
+    ov_wa.add_argument("--max-cycles", type=int, default=None, help="stop after N cycles")
+    ov_wa.add_argument("--state", default=None,
+                       help="persist the known findings here so a restart reports what changed while it was down")
+    ov_wa.add_argument("--events", default=None, help="append every event as one JSON line to FILE")
+    ov_wa.add_argument("--json", action="store_true", help="print events as JSON lines instead of text")
+    ov_wa.add_argument("--db", default=None,
+                       help="sqlite file (default: BTS_SBOM_OSV_DB_PATH or ./bts_sbom_osv_local.db)")
+    ov_wa.set_defaults(func=cmd_osv, out=None)
 
     vx = sub.add_parser("vex", help="emit OpenVEX from a scan result, or validate a VEX file")
     vx.add_argument("--from-scan", default=None,

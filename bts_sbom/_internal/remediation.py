@@ -60,6 +60,8 @@ def iter_fix_bounds(vuln: dict, name: Optional[str] = None
             continue
         eco = str(pkg.get("ecosystem", "") or "")
         for ri, rng in enumerate(aff.get("ranges", []) or []):
+            if str(rng.get("type") or "").upper() == "GIT":
+                continue                         # a GIT range's "fixed" is a commit SHA, never an installable version
             introduced = "0"
             for ei, ev in enumerate(rng.get("events", []) or []):
                 if not isinstance(ev, dict):
@@ -93,6 +95,8 @@ def suggest_fixes(vuln: dict, ecosystem: str,
         bounds: List[Tuple[Dict[str, Any], str]] = []
         has_any_bound = False
         for ri, rng in enumerate(aff.get("ranges", []) or []):
+            if str(rng.get("type") or "").upper() == "GIT":
+                continue                         # commit SHAs are not versions (see iter_fix_bounds)
             introduced = "0"
             for ei, ev in enumerate(rng.get("events", []) or []):
                 if not isinstance(ev, dict):

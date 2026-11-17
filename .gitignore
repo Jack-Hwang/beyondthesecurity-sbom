@@ -5,6 +5,8 @@ build/
 .pytest_cache/
 bts_sbom_osv_local.db
 *.db
+*.db-wal
+*.db-shm
 
 # ---- BTS-SBOM (bts_sbom_app/) ----
 *.py[cod]

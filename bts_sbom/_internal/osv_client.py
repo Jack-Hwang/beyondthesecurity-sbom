@@ -5,7 +5,6 @@ from bts_sbom._version import __version__ as _BTS_VERSION
 import logging
 import math
 import os
-import time
 import urllib.request
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple
@@ -139,6 +138,15 @@ def _cvss_score_from_vector(vector: str) -> Optional[float]:
     return None
 
 
+class OsvQueryError(RuntimeError):
+    """A batch lookup that could not answer every package.  ``partial`` holds the answers that were obtained (an empty list
+    for a failed package means "NOT ANSWERED", never "no vulnerabilities")."""
+
+    def __init__(self, message: str, partial: List[List["OsvVuln"]]) -> None:
+        super().__init__(message)
+        self.partial = partial
+
+
 @dataclass
 class OsvVuln:
     vuln_id: str
@@ -220,36 +228,19 @@ class OsvClient:
 
     def post_query(self, url: str, payload: dict) -> Tuple[Optional[dict], bool]:
         """
-        POST with exponential backoff. Returns (data, ok).
+        POST through the shared keep-alive HTTP client (bts_sbom._internal.osv_http): one TLS handshake per worker
+        thread instead of one per request, gzip, and retry with exponential backoff + jitter on 429/5xx/network
+        errors, honouring Retry-After.  Returns (data, ok).
           ok=True  -> reached OSV (data may be {} when there are no vulns)
-          ok=False -> OSV unreachable after retries (network/server failure)
+          ok=False -> OSV unreachable after retries (network/server failure) or it rejected the query
         This distinction lets callers fall back to the local offline DB only
         on genuine connectivity failure, not on a legitimate "no vulns" result.
         """
-        retries = 3
-        backoff = 1.0
-
-        # Enforce rate limit delay (0.1s)
-        time.sleep(0.1)
-
-        while retries > 0:
-            try:
-                status, data = _post_json(url, payload, timeout=15)
-                if status == 200:
-                    return data, True
-                elif status == 429:
-                    logger.warning(f"OSV API rate limited (429). Retrying in {backoff}s...")
-                else:
-                    logger.warning(f"OSV API error HTTP {status}. Retrying...")
-            except Exception as exc:
-                logger.warning(f"OSV API connection failed: {exc}. Retrying in {backoff}s...")
-
-            retries -= 1
-            if retries > 0:
-                time.sleep(backoff)
-                backoff *= 2.0
-
-        logger.error(f"OSV API requests exhausted for URL {url}.")
+        from bts_sbom._internal import osv_http
+        res = osv_http.default_client().post_json(url, payload, timeout=15, retries=3)
+        if res.ok:
+            return res.json(), True
+        logger.error("OSV API request failed for %s: %s", url, res.error or ("HTTP %s" % res.status))
         return None, False
 
     def _post_with_retry(self, url: str, payload: dict) -> dict:
@@ -293,43 +284,31 @@ class OsvClient:
 
     def query_batch(self, packages: List[Dict[str, Any]]) -> List[List[OsvVuln]]:
         """
-        Queries OSV database using the querybatch endpoint (up to 1000 packages).
-        Each package in list should be dict: {"name": str, "version": str, "ecosystem": str}
-        Returns a list of lists of OsvVuln corresponding to each input package.
+        Query OSV for many packages through ``querybatch`` (osv_fast): ONE request per 1000 packages, ``next_page_token``
+        followed, advisory records resolved and cached.  Each package is {"name", "version", "ecosystem"}; the result
+        has one list of OsvVuln per input package, in order.
+
+        querybatch returns only {id, modified} per advisory - this method used to treat those stubs as full records and
+        never followed pagination.  It also used to turn a failed request into an empty list ("no vulnerabilities"); it
+        now raises OsvQueryError naming the packages that could not be answered.
         """
-        results: List[List[OsvVuln]] = []
         if not packages:
-            return results
-
-        # Group packages into chunks of 1000
-        chunk_size = 1000
-        for i in range(0, len(packages), chunk_size):
-            chunk = packages[i:i + chunk_size]
-            queries = []
-            for pkg in chunk:
-                queries.append({
-                    "version": pkg["version"],
-                    "package": {
-                        "name": pkg["name"],
-                        "ecosystem": self.map_ecosystem(pkg.get("ecosystem", "generic"))
-                    }
-                })
-
-            payload = {"queries": queries}
-            res = self._post_with_retry(self.batch_url, payload)
-            
-            if not res or "results" not in res:
-                # Fill empty list for this chunk's packages
-                for _ in chunk:
-                    results.append([])
-                continue
-
-            for idx, item in enumerate(res["results"]):
-                pkg = chunk[idx]
-                vulns_raw = item.get("vulns", [])
-                parsed = self._parse_vulns(vulns_raw, pkg["name"], pkg["version"])
-                results.append(parsed)
-
+            return []
+        from bts_sbom._internal.osv_fast import FastOsv
+        keys = [(self.map_ecosystem(p.get("ecosystem", "generic")), p["name"], p["version"]) for p in packages]
+        with FastOsv() as fast:
+            outcomes = fast.query_many(keys)
+        results: List[List[OsvVuln]] = []
+        failed: List[str] = []
+        for p, k in zip(packages, keys):
+            oc = outcomes.get(k)
+            if oc is None or not oc.ok:
+                failed.append("%s@%s (%s)" % (p["name"], p["version"], getattr(oc, "error", "no outcome")))
+                results.append([])
+            else:
+                results.append(self._parse_vulns(oc.vulns, p["name"], p["version"]))
+        if failed:
+            raise OsvQueryError("OSV could not answer %d package(s): %s" % (len(failed), "; ".join(failed[:5])), results)
         return results
 
     def _parse_vulns(self, vulns_raw: List[dict], pkg_name: str, pkg_ver: str) -> List[OsvVuln]:
@@ -423,6 +402,8 @@ class OsvClient:
                 affected_versions.extend(affected.get("versions", []))
                 aff_eco = str(affected_pkg.get("ecosystem", "") or "")
                 for range_item in affected.get("ranges", []) or []:
+                    if str(range_item.get("type") or "").upper() == "GIT":
+                        continue          # commit SHAs are not versions: never a fixed_version / upgrade target
                     introduced = "0"
                     in_window = False
                     for event in range_item.get("events", []) or []:

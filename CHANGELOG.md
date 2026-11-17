@@ -7,6 +7,30 @@ All notable changes to bts-sbom are documented here.
 BTS-SBOM 0.2.0 adds the end-to-end workflow layer next to the core (second package `bts_sbom_app/`, same distribution, still zero
 third-party runtime dependencies) and repairs the core's console-encoding crash and its red CI.
 
+### OSV live layer: fast, near-real-time vulnerability reports (`bts_sbom/_internal/osv_*.py`)
+
+* **Pooled OSV HTTP client** (`osv_http.py`): one keep-alive connection per worker thread instead of a TLS handshake per request,
+  retry with exponential backoff + jitter on 429/5xx/network errors (`Retry-After` honoured), gzip, resumable large downloads.
+  `OsvClient.post_query` now goes through it (no more per-call 0.1 s sleep). A 404/304 is an answer; a 5xx or network error is
+  reported as a failure and is never read as "no vulnerability".
+* **Incremental mirror of Google's OSV database** (`osv_mirror.py`, `bts-sbom osv sync|status`): polls the public
+  `<ECOSYSTEM>/modified_id.csv` change feed (Range + ETag: a poll costs one 64 KiB page or a 304) and downloads only the advisories
+  that changed. `lazy` mode keeps changed records; `--full` bootstraps the complete ecosystem from `all.zip` once and keeps it
+  current, after which an offline lookup may answer "no advisory" (a lazy mirror never may). The watermark advances only after
+  everything it covers was processed.
+* **Scan strategies** (`bts-sbom scan --osv-mode auto|batch|single|feed`, `BTS_SBOM_OSV_MODE`): per-component queries over pooled
+  connections (24 workers), `querybatch` + a `modified`-validated record cache, and `feed` - answers from the durable cache that
+  the change feed proves still current (reported as `queried_offline`, current as of the last feed sync). Measured on the real
+  API, 94 components / 1,671 advisories: 10.6-13.6 s before, 5.5 s pooled, 0.8 s with 2 requests for `feed` on a warm cache, identical
+  findings. `auto` picks batch only when most answers are cached (on a cold cache `querybatch` was measured to be slower).
+* **`bts-sbom osv watch`**: poll the change feed, re-check only the components an advisory touches (authoritatively, through OSV),
+  and print `new` / `updated` / `resolved` events with the advisory-to-detection lag; `--once` for cron/CI (exit 0 quiet, 1 findings,
+  2 errors), `--state` so a restart reports what changed while it was down.
+* **Fixed**: a GIT range's commit SHA was treated as a fixed version / upgrade target (`osv_client`, `remediation`) and as a version bound
+  by the offline matcher (`osv_local_db`); `OsvClient.query_batch` assumed `querybatch` returns full records (it returns id+modified).
+* Design, measurements and limits: `docs/OSV_REALTIME.md`. Tests: `tests/test_osv_live.py` (in-memory fake OSV, no network).
+  Benchmark against the real API: `python scripts/osv_bench.py`.
+
 ### Workflow layer (`bts_sbom_app/`)
 
 * **End-to-end workflow (analyse, patch, architecture, chatbot) added to BTS-SBOM** as the package `bts_sbom_app/` (command `bts-sbom-app`;
