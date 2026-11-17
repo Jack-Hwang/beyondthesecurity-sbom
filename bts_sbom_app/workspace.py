@@ -20,6 +20,7 @@ from .util import run, safe_name
 
 _IGNORE = shutil.ignore_patterns("node_modules", ".venv", "venv", "__pycache__", "target", "dist", "build",
                                  ".mypy_cache", ".pytest_cache", "*.pyc", ".tox", ".gradle")
+_REPARSE_ATTR = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 _GIT_ENV = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="echo", GCM_INTERACTIVE="never")
 _URL_RE = re.compile(r"^(https://|ssh://|git@|file://)")
 _SHORTHAND_RE = re.compile(r"^(?:github:)?([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?$")
@@ -72,6 +73,39 @@ def _force_remove(func, path, _exc) -> None:
         pass
 
 
+def _is_link_like(path: str) -> bool:
+    """True for a real OS symlink, or (Windows) a junction/other reparse point - neither is ever materialised."""
+    if os.path.islink(path):
+        return True
+    try:
+        attrs = os.lstat(path).st_file_attributes  # type: ignore[attr-defined]
+    except (AttributeError, OSError):
+        return False
+    return bool(attrs & _REPARSE_ATTR)
+
+
+def _copy_tree_no_symlinks(src: str, dst: str, ignore) -> int:
+    """Like shutil.copytree(..., symlinks=False) but never materialises a symlink/junction in dst - it is skipped
+    and counted instead of being dereferenced or copied. Returns the number of entries skipped."""
+    os.makedirs(dst, exist_ok=True)
+    names = os.listdir(src)
+    ignored = ignore(src, names) if ignore else set()
+    skipped = 0
+    for name in names:
+        if name in ignored:
+            continue
+        s = os.path.join(src, name)
+        d = os.path.join(dst, name)
+        if _is_link_like(s):
+            skipped += 1
+            continue
+        if os.path.isdir(s):
+            skipped += _copy_tree_no_symlinks(s, d, ignore)
+        else:
+            shutil.copy2(s, d)
+    return skipped
+
+
 def _unique_dest(work_root: str, name: str) -> str:
     dest = os.path.join(work_root, name)
     if os.path.exists(dest):
@@ -83,7 +117,11 @@ def _unique_dest(work_root: str, name: str) -> str:
 
 def prepare(src: str, work_root: str, *, ref: Optional[str] = None, depth: int = 200,
             name: Optional[str] = None) -> Dict[str, Any]:
-    """Return {ok, path, kind, name, lineage} or {ok: False, error}. Always a copy under work_root."""
+    """Return {ok, path, kind, name, lineage, skipped_symlinks} or {ok: False, error}. Always a copy under work_root.
+
+    ``skipped_symlinks`` counts symlinks/junctions found in a local-folder source: they are never materialised in
+    the work copy (so the copy cannot be used to read or, via patch.apply(), write outside it) - the count is
+    reported instead of being silently dropped."""
     try:
         spec = normalize_source(src)
     except ValueError as exc:
@@ -107,18 +145,19 @@ def prepare(src: str, work_root: str, *, ref: Optional[str] = None, depth: int =
             shutil.rmtree(dest, ignore_errors=True)
             return {"ok": False, "error": "git clone failed: " + err.strip()[-300:]}
         lin = head(dest)
-        lin.update(source=spec["url"], ref=ref or "")
-        return {"ok": True, "path": dest, "kind": "git", "name": nm, "lineage": lin}
+        lin.update(source=spec["url"], ref=ref or "", skipped_symlinks=0)
+        return {"ok": True, "path": dest, "kind": "git", "name": nm, "lineage": lin, "skipped_symlinks": 0}
 
     p = spec["path"]
     if not os.path.exists(p):
         return {"ok": False, "error": "path does not exist: %s" % p}
+    skipped_symlinks = 0
     if os.path.isfile(p):
         os.makedirs(dest)
         shutil.copy2(p, dest)
         kind = "local-file"
     else:
-        shutil.copytree(p, dest, ignore=_IGNORE, symlinks=True)
+        skipped_symlinks = _copy_tree_no_symlinks(p, dest, _IGNORE)
         kind = "local-copy"
     dirty = False
     if shutil.which("git"):
@@ -130,8 +169,8 @@ def prepare(src: str, work_root: str, *, ref: Optional[str] = None, depth: int =
         git(dest, "add", "-A")
         git(dest, "commit", "-q", "--allow-empty", "-m", "bts-sbom: baseline snapshot of work copy")
     lin = head(dest)
-    lin.update(source=p, uncommitted_changes_included=dirty)
-    return {"ok": True, "path": dest, "kind": kind, "name": nm, "lineage": lin}
+    lin.update(source=p, uncommitted_changes_included=dirty, skipped_symlinks=skipped_symlinks)
+    return {"ok": True, "path": dest, "kind": kind, "name": nm, "lineage": lin, "skipped_symlinks": skipped_symlinks}
 
 
 __all__ = ["prepare", "normalize_source", "git", "head"]

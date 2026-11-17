@@ -246,6 +246,29 @@ _REGEN = {"package.json": "npm install --package-lock-only --ignore-scripts  (or
           "composer.json": "composer update {name}", "pom.xml": "mvn -q versions:display-dependency-updates"}
 
 
+def _contained_target(root: str, rel: str) -> Optional[str]:
+    """Absolute path of ``rel`` under ``root`` if it stays inside ``root`` and crosses no symlink on the way there;
+    None if it escapes root (``..`` traversal, an absolute/drive path, or any symlinked component) - the caller
+    must then write/read nothing for it."""
+    if not rel or os.path.isabs(rel) or os.path.splitdrive(rel)[0]:
+        return None
+    cur = root
+    for part in re.split(r"[\\/]+", rel):
+        if not part or part == ".":
+            continue
+        cur = os.path.join(cur, part)
+        if os.path.islink(cur):
+            return None
+    try:
+        root_real = os.path.realpath(root)
+        real = os.path.realpath(cur)
+        if os.path.commonpath([real, root_real]) != root_real:
+            return None
+    except (OSError, ValueError):
+        return None
+    return cur
+
+
 def _targets_for(plan: Dict[str, Any], root: str) -> List[Tuple[str, str]]:
     """[(manifest_rel, kind)] candidate files to edit for this plan, ordered by preference."""
     out: List[Tuple[str, str]] = []
@@ -298,8 +321,14 @@ def _edit(kind: str, text: str, plan: Dict[str, Any], root: str, rel: str) -> Ed
 
 # ------------------------------------------------------------------ approval + apply
 def approval_digest(plans: List[Dict[str, Any]]) -> str:
-    items = sorted((p["ecosystem"], p["component"], p["current_version"], p.get("safe_version") or "") for p in plans
-                   if p.get("status") == "upgrade")
+    """Token binding an approval to exactly these plans: the dependency identity (ecosystem/component/versions),
+    the target files that will be edited, and the verification state. A plan that is later swapped for one with
+    different targets or a different verification outcome - even with identical dependency identity - yields a
+    different digest, so an old token can never be replayed onto it (the one caller that matters, apply(), always
+    recomputes this from the plans it was actually given)."""
+    items = sorted((p["ecosystem"], p["component"], p["current_version"], p.get("safe_version") or "",
+                    tuple(sorted(p.get("files") or [])), str((p.get("verification") or {}).get("clean")))
+                   for p in plans if p.get("status") == "upgrade")
     return hashlib.sha256(json.dumps(items).encode()).hexdigest()[:16]
 
 
@@ -329,7 +358,11 @@ def apply(root: str, plans: List[Dict[str, Any]], *, approved: bool, token: Opti
                "status": "manual", "file": "", "detail": ""}
         applied = False
         for rel, kind in targets:
-            fp = os.path.join(root, rel)
+            fp = _contained_target(root, rel)
+            if fp is None:
+                res["detail"] = "%s: outside work copy" % rel
+                res["status"] = "blocked"
+                continue
             text = pending.get(rel)
             if text is None:
                 try:
