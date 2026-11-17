@@ -48,6 +48,12 @@ VERDICT_REACHABLE = "REACHABLE"
 VERDICT_UNREACHABLE = "UNREACHABLE"
 VERDICT_UNKNOWN = "REACHABILITY_UNKNOWN"
 
+# Informativeness ranking used only to merge a same-identity result
+# collision in enrich_sca_vulns(): REACHABILITY_UNKNOWN must never replace
+# an already-recorded REACHABLE/UNREACHABLE verdict for the same
+# (cve_id, package, version) key (HONEST VERDICT CONTRACT above).
+_VERDICT_RANK = {VERDICT_UNKNOWN: 0, VERDICT_UNREACHABLE: 1, VERDICT_REACHABLE: 2}
+
 # Functions that are typical entry points in ECU/embedded code
 _DEFAULT_ENTRY_POINTS = {
     "main", "app_main", "os_main",
@@ -585,12 +591,42 @@ def enrich_sca_vulns(
                                  never surface as exploitable=false.
 
     An UNKNOWN verdict is never converted into a safe/downgraded state here.
+
+    Result keying (fix for the cve_id-only collision — report item
+    "reach-overwrite"): internally this maps each analyzed result to its
+    vuln dict by the tuple ``(cve_id, package, version)`` — the real
+    component identity — NOT by cve_id alone. Two different packages (or two
+    versions of the same package) that happen to share one CVE id therefore
+    each keep their OWN verdict; neither is overwritten by the other. If two
+    input vulns legitimately collide on that same full identity (duplicate
+    findings for the identical package/version/CVE, e.g. from two scanners
+    with different precision), the more informative verdict wins and a
+    REACHABILITY_UNKNOWN is NEVER allowed to replace an already-recorded
+    REACHABLE/UNREACHABLE for that same identity — only an upgrade (e.g.
+    UNKNOWN -> REACHABLE) is applied. This is purely an internal lookup
+    precision fix: the function signature, return shape (the same `vulns`
+    list, mutated in place) and per-vuln field names are unchanged, so every
+    existing caller — including one that never sets `package`/`version` on
+    its vuln dicts — keeps working exactly as before.
     """
     engine = ReachabilityEngine(entry_points=entry_points, build_model=build_model)
     results = engine.analyze(source_files, vulns)
-    by_cve = {r.cve_id: r for r in results}
+    # Keyed by (cve_id, package, version) component identity rather than by
+    # cve_id alone (see docstring above). Merge collisions on the IDENTICAL
+    # key by keeping the most informative verdict: REACHABILITY_UNKNOWN must
+    # never clobber an already-recorded REACHABLE/UNREACHABLE for that key.
+    by_cve: Dict[tuple, ReachabilityResult] = {}
+    for r in results:
+        key = (r.cve_id, r.package, r.version)
+        prev = by_cve.get(key)
+        if prev is None or (
+            _VERDICT_RANK.get(r.verdict, 0) >= _VERDICT_RANK.get(prev.verdict, 0)
+        ):
+            by_cve[key] = r
     for v in vulns:
-        r = by_cve.get(v.get("cve_id", ""))
+        key = (v.get("cve_id", ""), v.get("package", v.get("name", "")),
+               v.get("version", ""))
+        r = by_cve.get(key)
         if r:
             v["reachability"] = r.verdict
             v["reachability_path"] = r.reachable_via
