@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(python -m pytest*)",
+      "Bash(ruff check*)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git tag*)",
+      "Bash(pip install*)",
+      "Bash(curl*)"
+    ],
+    "deny": [
+      "Read(./.env*)",
+      "Read(./*.pem)",
+      "Read(./*secret*)",
+      "Bash(rm -rf*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_destructive.py\""
+          }
+        ]
+      }
+    ]
+  },
+  "disableBypassPermissionsMode": "disable"
+}
