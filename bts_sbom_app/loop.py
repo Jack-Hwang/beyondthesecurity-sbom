@@ -40,27 +40,63 @@ def flatten(batch_summary: Dict[str, Any], rag_eval: Optional[Dict[str, Any]] = 
     return m
 
 
+COUNTS = ("components", "vulns")      # detection volume on the fixed golden set: a collapse here means the scanner stopped seeing things
+COLLAPSE_KEEP = 0.5                    # a candidate that keeps less than this share of the baseline count is a collapse (blocking)
+
+
 def gate(base: Dict[str, Any], cand: Dict[str, Any], delta: float = 0.02) -> Dict[str, Any]:
-    """Pass when every blocking metric present in both vectors satisfies  cand - base >= -delta  (lower-is-better: relative cap)."""
+    """Pass when every blocking metric present in both vectors satisfies  cand - base >= -delta  (lower-is-better: relative cap).
+
+    Absent evidence is never a pass: a blocking metric the baseline has but the candidate lacks (missing or None) is
+    ``undecidable`` and blocks acceptance, and so does a candidate with no comparable metric at all. Detection volume
+    (``COUNTS``) is blocking when it collapses below ``COLLAPSE_KEEP`` of the baseline (a scanner that sees nothing has
+    no metric left to regress) and advisory for smaller drops (merging duplicates legitimately lowers the counts).
+    """
     deltas: Dict[str, float] = {}
     failed: List[str] = []
+    undecidable: List[str] = []
+    compared = 0
     for k in HIGHER:
         b, c = base.get(k), cand.get(k)
-        if b is None or c is None:
+        if b is None:
             continue
+        if c is None:
+            undecidable.append("%s: baseline %.3f, candidate has no value" % (k, b))
+            continue
+        compared += 1
         deltas[k] = round(c - b, 4)
         if c - b < -delta - 1e-9:                         # a drop of exactly `delta` passes (float noise: 0.917 -> 0.897)
             failed.append("%s: %.3f -> %.3f" % (k, b, c))
     warnings: List[str] = []
     for k, rel in LOWER.items():
         b, c = base.get(k), cand.get(k)
-        if b is None or c is None:
+        if b is None:
             continue
+        if c is None:
+            (undecidable if k in BLOCKING_LOWER else warnings).append("%s: baseline %s, candidate has no value" % (k, b))
+            continue
+        compared += 1
         deltas[k] = round(c - b, 4)
         if c > b * (1 + rel) + 1e-9:
             msg = "%s: %s -> %s (allowed +%d%%)" % (k, b, c, int(rel * 100))
             (failed if k in BLOCKING_LOWER else warnings).append(msg)       # wall-clock time is advisory (network noise)
-    return {"pass": not failed, "deltas": deltas, "failed": failed, "warnings": warnings, "delta_limit": delta}
+    for k in COUNTS:
+        b, c = base.get(k), cand.get(k)
+        if not isinstance(b, (int, float)) or isinstance(b, bool) or b <= 0:
+            continue
+        if not isinstance(c, (int, float)) or isinstance(c, bool):
+            undecidable.append("%s: baseline %s, candidate has no value" % (k, b))
+            continue
+        compared += 1
+        deltas[k] = round(c - b, 4)
+        if c < b * COLLAPSE_KEEP:
+            failed.append("%s: %s -> %s (detection collapse, keeps < %d%%)" % (k, b, c, int(COLLAPSE_KEEP * 100)))
+        elif c < b:
+            warnings.append("%s: %s -> %s (lower than baseline; check engine.adjustments)" % (k, b, c))
+    if not compared and not undecidable:
+        undecidable.append("no metric is comparable between baseline and candidate")
+    return {"pass": not failed and not undecidable, "deltas": deltas, "failed": failed, "undecidable": undecidable,
+            "warnings": warnings, "delta_limit": delta}
 
 
 def plateau(history: List[Dict[str, Any]], n: int = 3) -> bool:
@@ -191,18 +227,25 @@ def run_rag_pass(tag: str, loop_root: str, root: str, *, variable: str, hypothes
     hist = read_json(rag_history_path(loop_root), []) or []
     base = next((h for h in reversed(hist) if h.get("decision") in ("baseline", "accept")), None)
     failed: List[str] = []
+    undecidable: List[str] = []
     deltas: Dict[str, float] = {}
     if base:
-        for k, v in metrics.items():
-            b = base["metrics"].get(k)
-            if b is None or v is None:
+        for k, b in base["metrics"].items():
+            if b is None:
+                continue
+            v = metrics.get(k)
+            if v is None:                                   # absent evidence is never a pass (a vanished eval set must not read as "no regression")
+                undecidable.append("%s: baseline %.3f, candidate has no value" % (k, b))
                 continue
             deltas[k] = round(v - b, 4)
-            if v - b < -delta:
+            if v - b < -delta - 1e-9:
                 failed.append("%s: %.3f -> %.3f" % (k, b, v))
-    decision = "baseline" if base is None else ("accept" if not failed else "rollback")
+    if base and not deltas and not undecidable:             # nothing was compared (empty/all-None baseline, or no eval set at all): not a pass
+        undecidable.append("no metric is comparable between baseline and candidate")
+    ok = not failed and not undecidable
+    decision = "baseline" if base is None else ("accept" if ok else "rollback")
     entry = {"pass": len(hist) + 1, "tag": tag, "at": now_iso(), "variable": variable, "hypothesis": hypothesis, "decision": decision,
-             "gate": {"pass": not failed, "failed": failed, "deltas": deltas, "delta_limit": delta}, "metrics": metrics,
+             "gate": {"pass": ok, "failed": failed, "undecidable": undecidable, "deltas": deltas, "delta_limit": delta}, "metrics": metrics,
              "misses": {n: r["misses"] for n, r in res.items()},
              "code": code_fingerprint(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))}
     hist.append(entry)

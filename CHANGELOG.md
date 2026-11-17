@@ -2,6 +2,56 @@
 
 All notable changes to bts-sbom are documented here.
 
+## Unreleased
+
+### `bts_sbom_app/`
+
+* **Loop gate no longer passes on absent evidence** (`loop.gate`, `run_rag_pass`): a blocking metric the baseline has but the candidate
+  lacks is `undecidable` and blocks acceptance; component/vulnerability counts are gated (blocking below 50% of the baseline, advisory
+  for smaller drops). New `gate["undecidable"]` field. A pass that previously compared fewer metrics may now roll back - that is intended.
+* **Chatbot plans its tool calls with the LLM** (`--llm`): read-only tools incl. new `what_if_upgrade`, plan validated (tool, arguments,
+  component names that exist in the project, advisory ids well-formed - an absent id gets an honest "not present" answer; the model sees only trusted passages), regex router kept as the stated fallback (`routing`, `routing_note`). Costs one extra LLM call per
+  question against the daily budget. Paraphrase baseline of the regex router: 0 of 5 (`evals.chat_paraphrase_eval`).
+* **Chatbot hardening**: an unknown `project` id answers `found=false` instead of the only loaded project; advisory text is a separate
+  `untrusted-quote` passage (`contains_untrusted`).
+* **License council** (`bts_sbom_app/council.py`, commands `council` and `evallicense`): several models read unresolved license evidence
+  independently, review each other anonymously, a chairman picks; the decision is code (2/3 endorsement, < 1/3 abstaining, verbatim quote,
+  known SPDX ids) and a reading that conflicts with the deterministic one is `needs_human`. Suggestions only - nothing is written into a
+  component's license. Needs `BTS_SBOM_COUNCIL_CONFIG` with >= 2 members; 7 calls per item for 3 members. New `evals/license_gold.json`
+  (44 hand-written cases) with a measured deterministic baseline: 21 correct / 6 confident wrong / 10 missed / 7 abstained correctly.
+  `licenses.scan_tree` now keeps a 3000-character excerpt of undetected license files; `LGPLv2+` is no longer returned verbatim as an SPDX id.
+* Spec: BSA-AC-88..112; tests: `tests/bts_sbom_app/test_council.py`, `evallicense --max-cases N` bounds a council run (44 cases x 7 calls = 308 calls for 3 members).
+* Spec (earlier line, kept for the chat/gate part): BSA-AC-88..96, 97, 98; tests: `tests/bts_sbom_app/test_chat_tools_gate.py`.
+
+### `bts_sbom_app/` - SBOM governance and vulnerability follow-up (from the 6th FOSSLight Community Day, 2026-10-28)
+
+Inferred from the talk topics (changing SBOM regulations, Hub's strengthened vulnerability handling, Hub + Enterprise operations); the
+slides themselves were not read - see `docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md` for the evidence, the inference and what was left out.
+
+* **SBOM conformance matrix** (`conformance.py`, command `conformance`, `GET /api/conformance/<project>`): one CycloneDX / SPDX document checked
+  against NTIA 2021, the CISA 2025 draft, EU CRA Annex I Part II(1), BSI TR-03183-2 and a vulnerability/VEX-readiness baseline, with per-element
+  coverage and a "fix once, satisfy many" ranking. Absent evidence is a gap; the regimes are a checked subset with a review date
+  (`as_of`), not a legal assessment. `--require REGIME` gates CI. Every analysed project now records its matrix, and the CycloneDX declares
+  `metadata.lifecycles` = `pre-build` when it was made from source manifests (CISA generation context).
+* **Change tracking and alerts** (`changes.py`, command `diff`, `GET /api/changes/<project>`): a second analysis keeps the earlier record as
+  `<name>.prev.json` and attaches `changes`; also compares two records or two SBOM documents. Alerts follow Hub's mail rule (finding at or
+  above the threshold appears / an existing one crosses it up or down) plus malicious package and copyleft introduced; unscored findings count
+  as the lower bound of their label. `--fail-on-alert` for CI; nothing is sent. `--llm` narrative is verified against the computed facts.
+* **Triage -> OpenVEX, fail-closed** (`triage.py`, command `vex` / `review`, `GET /api/vex/<project>`, `POST /api/triage` extra fields
+  `justification`, `expires`, `scope`, `by`): closes the documented gap that console decisions never reached the OpenVEX document.
+  `false-positive` is `not_affected` only with an OpenVEX justification and a 10+ character reason; acceptances stay `affected` with owner and
+  end date; expired decisions reopen; a `fixed` claim the scan contradicts is refused; scoped decisions (`ID@package`) beat global ones.
+  `sbom.openvex(..., triage=, today=)` and `sbom.cyclonedx(..., lifecycle=)` gained optional arguments.
+* **Affected-projects lookup and portfolio roll-up** (`fleet.py`, command `fleet`, `GET /api/fleet`, `GET /api/affected`): which analysed projects
+  use a component (with version constraints such as `<2.20,>=2.0`) or are hit by an advisory (any alias); versionless components are reported as
+  `version_unknown`; the roll-up lists weighted ranking and advisories / components shared by projects.
+* **Chatbot**: three more read-only tools (12 in total): `affected_projects` (answers without naming a project), `sbom_conformance`,
+  `what_changed`; the LLM planner may choose them, the regex router is the fallback. Knowledge file `knowledge/domain/sbom_governance.md`
+  (retrieval metrics unchanged: golden 1.0 / 0.95, dev 1.0 / 0.869, held-out test recall 0.917, MRR 0.715 -> 0.711).
+* Spec: BSA-AC-150..175 (BSA-AC-95 now counts 12 tools); tests: `test_sbom_conformance.py`, `test_changes_triage.py`, `test_fleet_chat.py`.
+* Not done (needs input we do not have): CVSS v4.0 scoring (needs the official macro-vector lookup table), FOSSLight Scanner report import
+  (needs sample files), web-console panes for the new data (API and CLI only).
+
 ## 0.2.0 - 2026-11-17
 
 BTS-SBOM 0.2.0 adds the end-to-end workflow layer next to the core (second package `bts_sbom_app/`, same distribution, still zero

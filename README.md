@@ -163,6 +163,11 @@ patched code was not built or tested, push/PR was verified against a local bare 
 Full detail, commands and the honest gap list: [docs/WORKFLOW.md](docs/WORKFLOW.md); open core defects found on the way:
 [docs/CORE_ISSUES.md](docs/CORE_ISSUES.md).
 
+SBOM governance commands (read-only, from the 6th FOSSLight Community Day analysis in
+[docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md](docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md)): `bts-sbom-app conformance <sbom|project>` checks one
+SBOM against NTIA 2021, the CISA 2025 draft, EU CRA, BSI TR-03183-2 and VEX readiness; `diff` compares two analyses with Hub-style threshold
+alerts; `vex` exports OpenVEX with triage decisions applied fail-closed; `fleet` finds the projects hit by an advisory or using a component.
+
 ## Status & scope honesty
 
 Vendored from the BTS platform's SCA stack (Apache-2.0). Deliberately NOT
