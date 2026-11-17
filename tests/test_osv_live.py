@@ -15,7 +15,7 @@ import re
 import threading
 import urllib.parse
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 
@@ -833,7 +833,7 @@ def test_watch_reports_new_updated_and_resolved_with_lag_and_rechecks_only_candi
     rep = w.cycle()
     assert rep["events"] == [] and rep["errors"] == []
     lines = (tmp_path / "ev.jsonl").read_text(encoding="utf-8").strip().splitlines()
-    assert [json.loads(l)["type"] for l in lines] == ["new", "updated", "resolved"]
+    assert [json.loads(ln)["type"] for ln in lines] == ["new", "updated", "resolved"]
 
 
 def test_watch_state_file_makes_a_restart_report_what_changed_while_down(world, tmp_path):
@@ -927,8 +927,8 @@ def test_cli_help_is_ascii_for_every_osv_subcommand():
 
 
 # ======================================================================== regressions from the adversarial review
-import gzip as _gzip
-import sqlite3 as _sqlite3
+import gzip as _gzip  # noqa: E402
+import sqlite3 as _sqlite3  # noqa: E402
 
 
 def test_feed_read_survives_the_object_changing_between_pages_without_losing_the_newest_row(world):
@@ -1201,7 +1201,7 @@ def test_cache_entry_cannot_be_validated_without_a_modified_from_osv(world):
 
 
 def test_scanner_fixed_version_ignores_git_ranges():
-    from bts_sbom.osvscanner import OsvScanner, _fixed_version
+    from bts_sbom.osvscanner import _fixed_version
     rec = {"id": "X", "modified": "2026-01-01T00:00:00Z", "affected": [
         {"package": {"ecosystem": "npm", "name": "p"}, "ranges": [{"type": "GIT", "events": [{"introduced": "0"}, {"fixed": "9abcdef0123456789abcdef0123456789abcdef0"}]}]}]}
     assert _fixed_version(rec, "p", "1.0.0") is None
