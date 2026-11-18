@@ -28,9 +28,11 @@ row, or if two rows claim overlapping/nesting paths.
 | `evidence/` | app-layer-scope | Runtime evidence sidecar: loop history and batch-run summaries. |
 | `examples/` | core-scanner-scope | Sample SBOM/VEX/EOL fixtures used by core examples and docs. |
 | `knowledge/` | app-layer-scope | RAG knowledge corpus indexed by `bts_sbom_app/rag.py`. |
+| `scripts/` | core-scanner-scope | Developer scripts (OSV live-layer benchmark); not shipped in the wheel. |
 | `specs/` | release-docs-scope | EARS acceptance-criteria spec; ACs are appended by the release session. |
 | `tests/` | shared-test-scope | Test suite for both layers; `tests/bts_sbom_app/` is app-only within it. |
+| `tools/` | shared-test-scope | Repository tooling run by CI (stdlib secret scanner); not shipped in the wheel. |
 | `tutorials/` | release-docs-scope | End-user walkthroughs. |
 
-Directories outside this table (`.git/`, `.github/`, caches) are VCS/CI
+Directories outside this table (`.git/`, `.github/`, `.claude/` - the PreToolUse safety hook and permission tiers, owned by release-docs-scope - and caches) are VCS/CI
 metadata, not product modules, and are not owned by a product scope.
