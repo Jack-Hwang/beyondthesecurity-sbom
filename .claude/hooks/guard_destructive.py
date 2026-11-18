@@ -3,7 +3,7 @@
 
 Gap-closing item "dev_safety_hooks" (audit methods advlab-harness:M16,
 advlab-harness:M18, advlab-project:M33 -- own implementation, not copied
-from course material). Wired in ../settings.json as a PreToolUse hook
+from course material). Wired by the opt-in example ../settings.example.json as a PreToolUse hook
 matching the Bash tool.
 
 Protocol (Claude Code hook stdin/exit-code contract used by this item):

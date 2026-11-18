@@ -1,4 +1,5 @@
 {
+  "_comment": "OPT-IN EXAMPLE, not active: copy to .claude/settings.json (or settings.local.json) to enable the guard hook and the permission tiers for Claude Code sessions in this repository. It is intentionally not shipped as settings.json because project settings apply to every Claude Code session in the checkout (including operators who run with their own permission mode).",
   "permissions": {
     "allow": [
       "Bash(git status)",
@@ -32,6 +33,5 @@
         ]
       }
     ]
-  },
-  "disableBypassPermissionsMode": "disable"
+  }
 }

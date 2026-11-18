@@ -7,7 +7,7 @@
 # NEW file per the task's no-conflict rule.
 #
 # RED -> GREEN: before .claude/hooks/guard_destructive.py and
-# .claude/settings.json exist, every test below fails (the subprocess tests
+# .claude/settings.example.json exist, every test below fails (the subprocess tests
 # fail because the script path does not exist / cannot be launched, and the
 # settings tests fail with FileNotFoundError). After the hook and settings
 # file are added, all tests pass.
@@ -21,7 +21,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPO_ROOT / ".claude" / "hooks" / "guard_destructive.py"
-SETTINGS_PATH = REPO_ROOT / ".claude" / "settings.json"
+SETTINGS_PATH = REPO_ROOT / ".claude" / "settings.example.json"
 
 
 def run_hook(payload):
@@ -143,7 +143,7 @@ class GuardDestructiveFailsClosedOnMalformedInput(unittest.TestCase):
 
 
 class ClaudeSettingsJsonWiresTheHook(unittest.TestCase):
-    """.claude/settings.json must exist, be valid JSON, wire a PreToolUse
+    """.claude/settings.example.json (an OPT-IN example, deliberately not an active settings.json) must exist, be valid JSON, wire a PreToolUse
     hook to guard_destructive.py, declare the three permission tiers
     (allow/ask/deny) from method M16, and disable bypass-permissions mode."""
 
@@ -170,8 +170,10 @@ class ClaudeSettingsJsonWiresTheHook(unittest.TestCase):
             self.assertIsInstance(permissions[tier], list)
             self.assertGreater(len(permissions[tier]), 0)
 
-    def test_bypass_permissions_mode_is_disabled(self):
-        self.assertEqual(self.settings.get("disableBypassPermissionsMode"), "disable")
+    def test_example_does_not_touch_the_operators_permission_mode(self):
+        # a repository must never switch off an operator's own permission mode (e.g. bypass) from checked-in settings
+        self.assertNotIn("disableBypassPermissionsMode", self.settings)
+        self.assertFalse((REPO_ROOT / ".claude" / "settings.json").exists(), "the guard is opt-in: no active settings.json is shipped")
 
 
 if __name__ == "__main__":
