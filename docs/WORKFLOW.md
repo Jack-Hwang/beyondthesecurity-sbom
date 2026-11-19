@@ -124,6 +124,11 @@ CSS 5개와 `sca_app.js` 는 플랫폼에서 **원본 그대로 복사**했고(`
   import 사이트는 후보일 뿐 reachability 는 unknown 이며, `verify_site` 가 path:line 을 다시 읽어 확인해 줍니다.
 - 재분석하면 이전 기록이 `<이름>.prev.json` 으로 남고 새 기록에 `changes` 가 붙습니다(`bts-sbom-app diff`, `GET /api/changes/<프로젝트>`).
   SBOM 규제 적합도는 `bts-sbom-app conformance`, 여러 프로젝트에 걸친 조회는 `bts-sbom-app fleet` 입니다(`docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md`).
+- **결정 커버리지 그래프**: `bts-sbom-app coverage <프로젝트>`(`GET /api/coverage/<프로젝트>`, 챗 도구 `coverage`)는 기록된 워크플로가 어디까지
+  처리했는지를 권고별로 답합니다 — 확정된 결정(decided), 검증된 업그레이드 계획(planned), 규칙이 유지하지 못한 결정(rejected·expired),
+  아무 기록도 없는 것(unhandled) — 과 미처리 작업 목록, 모든 적용 결정의 앵커(키·상태·담당자·시각), 권고별 `발견 → 계획/결정 → 결과` 체인.
+  ARTEX 의 듀얼 그래프(자산 그래프 + 탐색 그래프 + 테스트 커버리지) 개념을 SBOM 거버넌스에 맞게 새로 구현한 것입니다(개념 차용, 코드 무공유).
+  정직 경계: 기록된 것만 세며, unhandled 이 곧 미검토를 뜻하지는 않고 판정은 reachability 를 함의하지 않습니다.
 - 승인 패치는 `approval_token`(검토한 계획의 다이제스트)이 없으면 HTTP 400 입니다. 패치는 서버가 만든 임시 작업 복사본에만 적용되고
   원본은 바뀌지 않습니다. 패치가 적용되지 않은 작업의 복사본은 작업이 끝나면 지웁니다.
 - 컨테이너 이미지 분석과 파일 붙여넣기·업로드는 지원하지 않습니다(화면에 그렇게 표시).

@@ -12,11 +12,11 @@ import os
 import sys
 from typing import Any, Dict, Optional, Tuple
 
-from . import changes, conformance, fleet, sbom, triage
+from . import changes, conformance, coverage, fleet, sbom, triage
 from .llm import ChatClient
 from .util import console_text, read_json, write_json
 
-COMMANDS = ("conformance", "diff", "vex", "review", "fleet")
+COMMANDS = ("conformance", "diff", "vex", "review", "fleet", "coverage")
 
 
 def add_commands(sub: Any) -> None:
@@ -53,6 +53,10 @@ def add_commands(sub: Any) -> None:
     f.add_argument("--component", default=None)
     f.add_argument("--version", default=None, help="constraint, e.g. '<2.0,>=1.0' or '2.19.1'")
     ev(f)
+    cv = sub.add_parser("coverage", help="decision coverage: which advisories a standing decision or a verified plan already handles, and the worklist")
+    cv.add_argument("project", help="project record file, or a project name in the evidence folder")
+    cv.add_argument("--triage", default=None, help="decision store (default: <evidence>/.triage.json)")
+    ev(cv)
 
 
 def _evidence(a: argparse.Namespace) -> str:
@@ -172,6 +176,14 @@ def run(a: argparse.Namespace) -> int:
             return 0
         res = fleet.rollup(projs)
         _say(res, a.json, fleet.render_rollup_md(res))
+        return 0
+    if a.cmd == "coverage":
+        folder, rec = _record(a.project, _evidence(a))
+        if rec is None:
+            print("ERROR: %r is neither a record file nor a project in %s" % (a.project, _evidence(a)), file=sys.stderr)
+            return 2
+        c = coverage.build(rec, _store(a))
+        _say(coverage.compact(c), a.json, coverage.to_md(c))
         return 0
     return 2
 

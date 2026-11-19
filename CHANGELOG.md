@@ -46,10 +46,16 @@ slides themselves were not read - see `docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md`
 * **Affected-projects lookup and portfolio roll-up** (`fleet.py`, command `fleet`, `GET /api/fleet`, `GET /api/affected`): which analysed projects
   use a component (with version constraints such as `<2.20,>=2.0`) or are hit by an advisory (any alias); versionless components are reported as
   `version_unknown`; the roll-up lists weighted ranking and advisories / components shared by projects.
+* **Decision coverage graph** (`coverage.py`, command `coverage`, `GET /api/coverage/<project>`, chat tool `coverage` - the tool catalog is now 21):
+  which advisories a standing decision or a verified plan already handles and which are still open - decided / planned / rejected / expired /
+  unhandled per advisory (fail-closed through `triage.decide`), the unhandled worklist, every applied decision anchored to its advisory
+  (key, state, owner, time) and a per-advisory `finding -> plan/decision -> outcome` chain. Concept after ARTEX's dual-graph architecture
+  (github.com/Autumn-27/ARTEX, AGPL-3.0 - idea credit only; no ARTEX code or text is used). Computed from recorded data only: unhandled does
+  not mean unexamined, and a verdict never implies reachability. Spec BSA-AC-219..222; tests: `test_coverage.py`.
 * **Chatbot**: three more read-only tools (12 in total): `affected_projects` (answers without naming a project), `sbom_conformance`,
   `what_changed`; the LLM planner may choose them, the regex router is the fallback. Knowledge file `knowledge/domain/sbom_governance.md`
   (retrieval metrics unchanged: golden 1.0 / 0.95, dev 1.0 / 0.869, held-out test recall 0.917, MRR 0.715 -> 0.711).
-* Spec: BSA-AC-150..175 (BSA-AC-95 now counts 12 tools); tests: `test_sbom_conformance.py`, `test_changes_triage.py`, `test_fleet_chat.py`.
+* Spec: BSA-AC-150..175 and 219..222 (BSA-AC-95 now counts 21 tools); tests: `test_sbom_conformance.py`, `test_changes_triage.py`, `test_fleet_chat.py`, `test_coverage.py`.
 * Not done (needs input we do not have): CVSS v4.0 scoring (needs the official macro-vector lookup table), FOSSLight Scanner report import
   (needs sample files), web-console panes for the new data (API and CLI only).
 

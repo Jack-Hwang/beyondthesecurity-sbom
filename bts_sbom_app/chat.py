@@ -23,7 +23,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from . import actions as actionsmod, ai, conformance, fleet, licenses, rag, sbom, triage, workspace
+from . import actions as actionsmod, ai, conformance, coverage as coverage_mod, fleet, licenses, rag, sbom, triage, workspace
 from .llm import ChatClient, LLMError, LLMUnavailable
 
 _ID = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+|RUSTSEC-\d{4}-\d+|GO-\d{4}-\d+)\b", re.I)
@@ -67,10 +67,11 @@ def _overview(rec: Dict[str, Any]) -> List[str]:
 
 def _top_vulns(rec: Dict[str, Any], n: int = 5) -> List[str]:
     rank = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
-    vs = sorted(rec.get("vulns") or [], key=lambda v: (-rank.get(v["severity"], 0), -(v.get("cvss") or 0)))[:n]
-    return ["%s affects %s %s, severity %s%s, fixed in %s." % (v["id"], v["package"], v["version"], v["severity"],
+    vs = sorted((v for v in rec.get("vulns") or [] if isinstance(v, dict) and v.get("id")),
+                key=lambda v: (-rank.get(v.get("severity"), 0), -(v.get("cvss") or 0)))[:n]
+    return ["%s affects %s %s, severity %s%s, fixed in %s." % (v.get("id"), v.get("package"), v.get("version"), v.get("severity") or "UNKNOWN",
                                                              (" (CVSS %s)" % v["cvss"]) if v.get("cvss") is not None else "",
-                                                             v["fixed_version"] or "no known version") for v in vs] or \
+                                                             v.get("fixed_version") or "no known version") for v in vs] or \
            ["No vulnerabilities were found in %s." % rec["name"]]
 
 
@@ -384,6 +385,7 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "sbom_conformance": {"args": {"regime": "optional: " + "|".join(sorted(conformance.REGIMES))},
                          "doc": "SBOM conformance per regime (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2) and the fields to fix once"},
     "what_changed": {"args": {}, "doc": "what changed since the previous analysis of this project: new and resolved findings, alerts"},
+    "coverage": {"args": {}, "doc": "decision coverage: which advisories a standing decision or a verified plan already handles, the unhandled worklist, and the lineage of every recorded decision"},
     "license_risks": {"args": {"distribution": "optional: " + "|".join(_DIST)}, "doc": "license policy screening for a distribution model: copyleft / unknown components, obligations, unresolved licenses"},
     "proposals": {"args": {}, "doc": "the fix proposals recorded for this project (LLM-written ones were validated against the evidence)"},
     "plan_patch": {"args": {"components": "optional: comma-separated component names"}, "doc": "preview of the patch plan and its approval token; changes nothing"},
@@ -481,6 +483,8 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
         return [_result(rec, tool, _conformance(rec, args.get("regime")), suffix=(":" + args["regime"]) if args.get("regime") else "")]
     if tool == "what_changed":
         return [_result(rec, tool, _changes(rec))]
+    if tool == "coverage":
+        return [_result(rec, tool, coverage_mod.lines(coverage_mod.build(rec, triage_store or {})))]
     if tool == "overview":
         return [_result(rec, tool, _overview(rec))]
     if tool == "top_vulns":
@@ -693,6 +697,8 @@ class Chatbot:
             calls.append(("sbom_conformance", {"regime": reg} if reg else {}))
         if re.search(r"바뀌|바뀐|변경|달라|이전.{0,8}(스캔|분석)|지난.{0,8}(스캔|분석)|what changed|changes since|since the last|since last|diff\b", low):
             calls.append(("what_changed", {}))
+        if re.search(r"커버리지|coverage|미결정|결정 ?안 ?된|처리 ?안 ?된|남은 ?취약|unhandled|worklist|혈통|lineage", low):
+            calls.append(("coverage", {}))
         if self.projects and _FLEET_Q.search(low):
             calls.extend(("affected_projects", a) for a in ([{"id": i} for i in ids] or [{"component": n} for n in names[:1]]))
         acts = self._action_calls(q, rec)
