@@ -119,6 +119,9 @@ a stage that cannot run is recorded, not hidden.
 - BSA-AC-55 [Unwanted] If the API receives an unsafe scan source or an empty question, the system shall answer HTTP 400 for 2 of 2 requests.
 - BSA-AC-56 [Event] When a project has been analysed, the chat API shall answer a CVE question with found true, 1.0 citation accuracy and the vuln_lookup tool (1 of 1).
 - BSA-AC-57 [Event] When the CLI runs evalrag on the shipped corpus, the process shall exit 0 and print recall, MRR, nDCG and citation accuracy (4 figures).
+- BSA-AC-216 [Event] When an API key is posted to /api/llm, the status shall name the model with only the last 4 characters of the key (1 of 1) and the key itself shall appear in no server response and in exactly one file, the saved evidence/.llm_config.json (2 of 2); a chat question with use_llm shall be planned by the connected model (routing llm, 1 of 1), and a request without a key and without a localhost base shall be refused (1 of 1).
+- BSA-AC-217 [Event] When a server is restarted on an evidence folder that holds the saved key and no startup configuration, it shall connect from the saved file (1 of 1), and POST /api/llm/clear shall disconnect and remove the saved file (2 of 2), after which the chat plans with the regex router again (1 of 1).
+- BSA-AC-218 [Unwanted] If the process was started with a key in the environment, the saved file shall not replace it (1 of 1), and a clear shall fall back to that startup key and say that a saved file was removed (2 of 2), still masking the key to its last 4 characters (1 of 1).
 
 ## Open-source security screen (bts_sbom_app/console.py, server.py, web/)
 

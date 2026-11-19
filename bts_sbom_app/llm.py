@@ -58,21 +58,27 @@ class ChatClient:
 
     # -- configuration
     @classmethod
+    def from_config(cls, key: str, base_url: str = "", model: str = "", *, ledger: Optional[str] = None) -> "ChatClient":
+        """A client from explicit parts (the web console sends exactly these). A localhost base needs no key and has no daily budget."""
+        eff_model = model or DEFAULT_MODEL
+        c = cls(key or "", base_url or DEFAULT_BASE, eff_model, ledger=ledger,
+                provider="exaone" if "exaone" in eff_model.lower() else "openai-compatible")
+        if c.base_url.startswith(("http://localhost", "http://127.0.0.1")):
+            if not c.api_key:
+                c.api_key = "local"                  # local servers ignore the key
+            c.daily_budget = 10 ** 9                 # no provider-side daily limit on a local server
+        return c
+
+    @classmethod
     def from_env(cls, ledger: Optional[str] = None) -> "ChatClient":
         cfg: Dict[str, Any] = {}
         path = os.environ.get("BTS_SBOM_LLM_CONFIG", "")
         if path:
             cfg = read_json(path, {}) or {}
         key = os.environ.get("EXAONE_API_KEY") or cfg.get("exaone_api_key") or cfg.get("api_key") or os.environ.get("LLM_API_KEY", "")
-        base = os.environ.get("EXAONE_BASE_URL") or cfg.get("exaone_base_url") or cfg.get("base_url") or os.environ.get("LLM_BASE_URL") or DEFAULT_BASE
-        model = os.environ.get("EXAONE_MODEL") or cfg.get("exaone_model") or cfg.get("model") or os.environ.get("LLM_MODEL") or DEFAULT_MODEL
-        local = base.startswith(("http://localhost", "http://127.0.0.1"))
-        c = cls(key, base, model, ledger=ledger, provider="exaone" if "exaone" in model.lower() else "openai-compatible")
-        if local and not key:
-            c.api_key = "local"                      # local servers ignore the key
-        if local:
-            c.daily_budget = 10 ** 9                 # no provider-side daily limit on a local server
-        return c
+        base = os.environ.get("EXAONE_BASE_URL") or cfg.get("exaone_base_url") or cfg.get("base_url") or os.environ.get("LLM_BASE_URL") or ""
+        model = os.environ.get("EXAONE_MODEL") or cfg.get("exaone_model") or cfg.get("model") or os.environ.get("LLM_MODEL") or ""
+        return cls.from_config(key, base, model, ledger=ledger)
 
     @property
     def available(self) -> bool:

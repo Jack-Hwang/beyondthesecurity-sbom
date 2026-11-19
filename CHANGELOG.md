@@ -70,6 +70,11 @@ slides themselves were not read - see `docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md`
   paraphrased governance questions, LLM planner 8 of 8 (a forged reason is not credited: 7 of 8).
 * **Regime table review date**: the conformance result, Markdown, record and chat answer say when the table was last reviewed and flag a review as
   due after 6 months.
+* **EXAONE connection from the web console** (`POST /api/llm`, engine bar of the page): an API key typed into the page connects the AI for upgrade
+  proposals and LLM chat planning without a restart; with `save` it is kept in `evidence/.llm_config.json` (plain text - the evidence folder is local)
+  and a restarted server reconnects from it, while an explicit startup configuration (env / `--llm-config`) still wins. `POST /api/llm/clear`
+  disconnects and removes the saved file. The status shows at most the last 4 characters of the key, never the key itself; only a localhost
+  base_url may connect without a key. Spec: BSA-AC-216..218; tests: `test_server_cli.py`.
 * Spec: BSA-AC-200..210 (BSA-AC-95 now counts a catalog of 20 tools); tests: `test_chat_actions.py`, `test_sbom_conformance.py`.
 
 ## 0.2.0 - 2026-11-17

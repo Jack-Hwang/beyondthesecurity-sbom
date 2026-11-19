@@ -5,6 +5,10 @@ POST /api/scan   {source, patch?, approved?, approval_token?, offline?, use_llm?
                                            (background thread; the origin is never modified; ``approved`` needs the digest of the reviewed plan)
 GET  /api/jobs/<id>                        -> status + metrics + artifact paths
 POST /api/chat   {question, project?, use_llm?}  -> grounded answer with verified claims
+POST /api/llm    {api_key, base_url?, model?, remember?} -> connect the AI for this process (never returns the key; ``remember`` keeps
+                                           it in evidence/.llm_config.json so a restart reconnects - only a localhost base_url may omit the key)
+POST /api/llm/clear                       -> disconnect: saved key file removed, back to the startup configuration
+GET  /api/llm                             -> connection status (model, provider, masked key tail, whether a key is saved)
 GET  /api/projects                         -> names of the analysed projects (from the evidence folder)
 GET  /api/history                          -> one row per analysed project (counts, analysis time)
 GET  /api/engine                           -> core version, LLM state, evidence folder
@@ -35,6 +39,7 @@ from typing import Any, Dict, Optional, Tuple
 from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, engine, evals, fleet, pipeline, report, sbom, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
+from .util import read_json, write_json
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 _CTYPES = {".html": "text/html", ".js": "application/javascript", ".css": "text/css"}
@@ -64,7 +69,56 @@ class State:
         if cfg:
             os.environ["BTS_SBOM_LLM_CONFIG"] = cfg
         self.client = ChatClient.from_env(ledger=os.path.join(root, "evidence", ".llm_ledger.json"))
+        self.startup_client = self.client                    # a disconnect falls back to what the process was started with
+        if not self.client.available:                        # the key entered in the web console survives a restart (evidence/.llm_config.json);
+            saved = self.saved_llm_config()                  # an explicit startup configuration (env / --llm-config) still wins over the saved file
+            if saved.get("api_key"):
+                self.client = ChatClient.from_config(str(saved.get("api_key")), str(saved.get("base_url") or ""),
+                                                     str(saved.get("model") or ""), ledger=os.path.join(root, "evidence", ".llm_ledger.json"))
         self.triage_path = os.path.join(evidence, ".triage.json")
+
+    def _llm_config_path(self) -> str:
+        return os.path.join(self.evidence, ".llm_config.json")
+
+    def saved_llm_config(self) -> Dict[str, Any]:
+        """The key the user entered in the web console and chose to keep (evidence/.llm_config.json, plain text - the evidence folder is local)."""
+        d = read_json(self._llm_config_path(), {})
+        return d if isinstance(d, dict) else {}
+
+    def set_llm(self, cfg: Dict[str, Any], remember: bool) -> Dict[str, Any]:
+        """Swap the LLM client for this process (scan jobs and the chatbot read it on every use); ``remember`` also keeps the key in the evidence folder."""
+        key = str(cfg.get("api_key") or "").strip()
+        base, model = str(cfg.get("base_url") or "").strip(), str(cfg.get("model") or "").strip()
+        c = ChatClient.from_config(key, base, model, ledger=os.path.join(self.root, "evidence", ".llm_ledger.json"))
+        if not c.available:
+            return {}
+        with self.lock:
+            self.client = c
+            if remember:
+                os.makedirs(self.evidence, exist_ok=True)
+                write_json(self._llm_config_path(), {"api_key": key, **({"base_url": base} if base else {}), **({"model": model} if model else {})})
+        return self.llm_status()
+
+    def clear_llm(self) -> Dict[str, Any]:
+        """Disconnect: the saved key file is removed and the client falls back to the startup configuration (which may still hold an env key)."""
+        saved = os.path.exists(self._llm_config_path())
+        try:
+            os.remove(self._llm_config_path())
+        except OSError:
+            saved = os.path.exists(self._llm_config_path())
+        with self.lock:
+            self.client = self.startup_client
+        st = self.llm_status()
+        st["saved_removed"] = saved
+        return st
+
+    def llm_status(self) -> Dict[str, Any]:
+        """Connection status for the web console: the key is never returned, at most its last 4 characters."""
+        d = dict(self.client.describe())
+        key = self.client.api_key
+        d["key_tail"] = key[-4:] if (self.client.available and len(key) >= 8) else ""
+        d["saved"] = os.path.exists(self._llm_config_path())
+        return d
 
     def bot(self) -> chatmod.Chatbot:
         projs = load_projects(self.evidence)
@@ -178,6 +232,8 @@ def make_handler(st: State):
                 return self._file(files[rel]) if rel in files else self._send(404, {"error": "not found"})
             if path == "/api/health":
                 return self._send(200, {"ok": True, "llm": st.client.describe()})
+            if path == "/api/llm":
+                return self._send(200, st.llm_status())
             if path == "/api/engine":
                 try:
                     core: Any = engine.core_info()
@@ -291,6 +347,16 @@ def make_handler(st: State):
                 if not q:
                     return self._send(400, {"error": "question required"})
                 return self._send(200, st.bot().ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm"))))
+            if path == "/api/llm":
+                key = str(b.get("api_key") or "").strip()
+                base = str(b.get("base_url") or "").strip()
+                if len(key) > 400 or len(base) > 300 or len(str(b.get("model") or "")) > 200:
+                    return self._send(400, {"error": "field too long"})
+                if not key and not base.startswith(("http://localhost", "http://127.0.0.1")):
+                    return self._send(400, {"error": "api_key required (only a localhost base_url may connect without one)"})
+                return self._send(200, {"ok": True, "llm": st.set_llm(b, remember=bool(b.get("remember")))})
+            if path == "/api/llm/clear":
+                return self._send(200, {"ok": True, "llm": st.clear_llm()})
             self._send(404, {"error": "not found"})
 
     return H

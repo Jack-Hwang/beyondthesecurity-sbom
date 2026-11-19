@@ -29,10 +29,19 @@
         <div class="lede">Scan a <b>Git repo</b> or a local path for open-source vulnerabilities (OSV.dev), licenses (lockfile &rarr; deps.dev &rarr; registry, with the source recorded),
           CycloneDX / SPDX / OpenVEX documents, industry reports and legacy-architecture findings &mdash; with verified upgrade plans and an approval-gated patch.</div>
 
-        <div id="engineBar" class="bts-bar">
+        <div id="engineBar" class="bts-bar" style="flex-wrap:wrap">
           <span>&#129504; Engine:</span>
           <span id="engineTxt">checking&hellip;</span>
           <button type="button" id="engineRefresh" class="bts-mini" title="Reload the engine state and the list of analysed projects">&#8635; Refresh</button>
+          <span id="llmSet" style="display:inline-flex;gap:6px;align-items:center;margin-left:8px;flex-wrap:wrap" title="Connect LG EXAONE: AI upgrade proposals and LLM chat planning. Without a key everything runs rule-based.">
+            <label class="sub" for="llmKey" style="margin:0">EXAONE</label>
+            <input id="llmKey" type="password" placeholder="API key" autocomplete="off" spellcheck="false" style="width:200px;font-family:ui-monospace,monospace">
+            <input id="llmModel" placeholder="model (k-exaone_v2.5)" spellcheck="false" style="width:150px;font-family:ui-monospace,monospace">
+            <label class="sub" style="margin:0" title="Keep the key in evidence/.llm_config.json (plain text, this machine only) so a server restart reconnects"><input type="checkbox" id="llmSave"> save</label>
+            <button type="button" id="llmConnect" class="bts-mini" title="Connect with this key for the running server">Connect</button>
+            <button type="button" id="llmClear" class="bts-mini" title="Disconnect and delete the saved key file">Disconnect</button>
+            <span class="sub" id="llmStatus"></span>
+          </span>
         </div>
 
         <div class="rtabs" id="scanTabs">

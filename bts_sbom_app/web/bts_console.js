@@ -170,6 +170,30 @@
                                      : '<option value="">(none analysed yet)</option>';
     if (S.project) { sel.value = S.project; }
   }
+  /* ---------- EXAONE connection (key typed in the page; the server never sends the key back, only its masked tail) ---------- */
+  function loadLlm() {
+    return api('/api/llm').then(function (r) {
+      var d = (r && r.data) || {};
+      $('#llmStatus').textContent = d.key_configured
+        ? 'connected: ' + (d.model || '') + (d.key_tail ? ' (key …' + d.key_tail + ')' : '') + (d.saved ? ' · saved in the evidence folder' : '')
+        : 'not connected (rule-based proposals and answers)';
+      $('#llmKey').value = '';                       // the key is never echoed back into the page
+      return d;
+    });
+  }
+  function connectLlm() {
+    var body = { api_key: ($('#llmKey').value || '').trim(), model: ($('#llmModel').value || '').trim(), remember: !!$('#llmSave').checked };
+    if (!body.api_key) { $('#llmStatus').textContent = 'Enter an API key first.'; return; }
+    api('/api/llm', body).then(function (r) {
+      if (!r.ok) { $('#llmStatus').textContent = (r.data && r.data.error) || 'Connection failed.'; return; }
+      $('#llmKey').value = '';
+      loadEngine();                                  // the engine line reflects key_configured
+      return loadLlm();
+    });
+  }
+  function clearLlm() {
+    api('/api/llm/clear', {}).then(function () { loadEngine(); return loadLlm(); });
+  }
   function loadHistory() {
     return api('/api/history').then(function (r) { S.history = (r.data && r.data.history) || []; fillSelect(); renderHistory(); });
   }
@@ -479,12 +503,16 @@
     $('#scaDemoBtn').addEventListener('click', function () { $('#scaGitUrl').value = 'https://github.com/adeyosemanputra/pygoat.git'; analyse($('#scaGitUrl').value); });
     $('#runLock').addEventListener('click', function () { var p = $('#lockPath').value.trim(); $('#scaGitUrl').value = p; activate('git'); analyse(p); });
     $('#projSel').addEventListener('change', function () { selectProject($('#projSel').value); });
-    $('#engineRefresh').addEventListener('click', function () { loadEngine(); loadHistory(); });
+    $('#engineRefresh').addEventListener('click', function () { loadEngine(); loadHistory(); loadLlm(); });
+    $('#llmConnect').addEventListener('click', connectLlm);
+    $('#llmKey').addEventListener('keydown', function (e) { if (e.key === 'Enter') { connectLlm(); } });
+    $('#llmClear').addEventListener('click', clearLlm);
     $('#chatBtn').addEventListener('click', ask);
     $('#chatQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') { ask(); } });
     watchBrand();
     renderPanes();
     loadEngine();
+    loadLlm();
     loadHistory().then(function () {
       if (S.history.length && !S.project) { selectProject(S.history[0].name); }
     });
