@@ -114,7 +114,7 @@ into green checkmarks. The rules here are enforced, not aspirational:
 
 ## Implementation status (구현 내역)
 
-Implemented as of 2026-11-16 (module → capability → tests):
+Implemented as of 2026-11-20 (module → capability → tests). The core (`bts_sbom`):
 
 | Module | Implements | Key API / CLI | Tests |
 |---|---|---|---|
@@ -139,6 +139,20 @@ Cross-platform: Windows / Linux / macOS (CI matrix `ubuntu-latest, windows-lates
 macos-latest` × Python 3.10/3.12; UTF-8 enforced on Windows jobs). Zero
 third-party runtime dependencies — asserted by the self-SBOM.
 
+The 0.2 workflow layer (`bts_sbom_app/`, same distribution, standard library only, built on top of the core without modifying its files):
+
+| Module | Implements | Key API / CLI | Tests |
+|---|---|---|---|
+| `workspace.py`, `pipeline.py`, `engine.py` | clone/read a source → one analysis record (SBOM, licenses with provenance, OSV findings, remediation, architecture) | `run_project()`, CLI `scan` / `batch` | app suite |
+| `remediate.py`, `patch.py`, `deliver.py` | OSV-re-verified upgrade plan; **approval-gated** manifest patch with re-scan and revert on a regression; delivery (branch / folder / inplace / GitHub PR) | `patch --approve --token`, `--deliver` | `test_patch_delivery.py` |
+| `licenses.py`, `council.py` | license resolution with recorded provenance; multi-model license **council** with a chairman decision (suggestions only, nothing written) | `council`, `evallicense` | `test_council.py`, `test_engine_licenses.py` |
+| `conformance.py`, `changes.py`, `triage.py`, `fleet.py` | SBOM conformance matrix (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2) with a review date; diff alerts; **fail-closed** triage → OpenVEX; portfolio lookup | `conformance`, `diff`, `vex`, `fleet` | `test_sbom_conformance.py`, `test_changes_triage.py`, `test_fleet_chat.py` |
+| `chat.py`, `rag.py`, `actions.py`, `evals_chat.py` | grounded chatbot (20-tool catalog, the LLM plans the calls, the validator drops forged authority); **chat actions**: analyse / approved patch / VEX decisions, each behind user-typed approvals | `chat [--actions]`, `evalchat` | `test_chat_tools_gate.py`, `test_chat_actions.py` |
+| `contextpack.py` | bounded read-only view of a local tree: license files + the import sites of one package; binaries, oversized files and symlinks excluded and listed; all text untrusted | `contextpack [--package P] [--cxml]` | `test_contextpack.py` |
+| `console.py`, `server.py`, `web/` | Open-Source Security web screen + JSON API; EXAONE key connection from the page (`POST /api/llm`, masked status, saved key file) | `serve [--chat-actions]` | `test_server_cli.py`, `test_console_ui.py` |
+| `llm.py`, `ai.py` | EXAONE / OpenAI-compatible client with a daily-budget ledger; LLM upgrade proposals behind a four-layer validator | `BTS_SBOM_LLM_CONFIG`, `EXAONE_API_KEY` | `test_ai_rag_loop.py` |
+| `loop.py`, `evals.py` | loop-engineering harness: golden/dev/test sets, regression gate where absent evidence is `undecidable` and blocks acceptance | `loop`, `ragloop`, `evalrag` | `test_ai_rag_loop.py` |
+
 ## End-to-end workflow: analyse, patch, architecture, chatbot (`bts_sbom_app/`, command `bts-sbom-app`)
 
 Part of BTS-SBOM: a second, standard-library-only package in this repository (`bts_sbom_app/`, command `bts-sbom-app`),
@@ -150,13 +164,29 @@ architecture analysis (hotspots, change coupling, import cycles, runtime EOL), i
 finance, maritime draft, CRA, robot), LG EXAONE proposals behind a four-layer validator with a deterministic fallback, a grounded
 RAG chatbot, and a measured loop-engineering harness.
 
+What 0.2 and the work after it added (every feature spec'd in `specs/bts_sbom_app_features.md` with measured acceptance criteria):
+
+* **Governance** (BSA-AC-150..175): SBOM conformance matrix (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2) with a "fix once, satisfy many"
+  ranking and a regime-table review date; Hub-style diff alerts; triage decisions that reach OpenVEX fail-closed; fleet lookup across all analysed
+  projects.
+* **License council** (BSA-AC-88..112): several models read unresolved license evidence independently, review each other anonymously, a chairman
+  picks; deterministic baseline measured on 44 hand-written cases.
+* **Chat** (BSA-AC-88..98, 200..210): the LLM plans tool calls against a 20-tool catalog (regex fallback, its misses measured by `evalchat`); with
+  `--actions` the chatbot can also analyse a source (isolated work copy), apply an approved patch and record VEX decisions — only a token or confirm
+  code typed by the user authorises anything, a model-invented one is dropped.
+* **Web console** (BSA-AC-216..218): the Open-Source Security screen + JSON API; the EXAONE key can be entered in the page (`POST /api/llm`) —
+  proposals and chat planning use the AI immediately, the key survives a restart in `evidence/.llm_config.json` when saved, and Disconnect removes
+  it; responses show at most the last 4 characters of the key.
+* **Evidence plumbing**: the repository context pack (BSA-AC-176..181, 211..215) and a hardened loop gate where absent evidence is `undecidable`
+  and blocks acceptance instead of passing.
+
 ```console
 $ python -I -X utf8 run_bts_sbom_app.py scan https://github.com/OWASP/NodeGoat.git
 $ python -I -X utf8 run_bts_sbom_app.py patch <source> --approve     # without --approve: plan only, 0 files changed
 $ python -I -X utf8 run_bts_sbom_app.py contextpack <folder> --package <name> --cxml   # bounded read-only repo view for an LLM
 $ python -I -X utf8 run_bts_sbom_app.py chat --actions -i            # chat that can also patch (with YOUR typed token) and record VEX decisions
 $ python -I -X utf8 run_bts_sbom_app.py serve --port 8800 --evidence <runs folder>   # the Open-Source Security web screen
-$ python -m pytest -q tests/bts_sbom_app                              # 173 tests, all network faked
+$ python -m pytest -q tests/bts_sbom_app                              # 176 tests, all network faked
 ```
 
 Measured on 10 real GitHub repositories (chosen by the author, several deliberately vulnerable): 2,478 components,
@@ -206,8 +236,10 @@ UNECE R155/R156 · EO 14028 · 금융 OSS 가이드 · 로봇/ISO 10218.
   않고 `not_evidence`로 정직 표기됩니다.
 * **서드파티 런타임 의존성 0개** (표준 라이브러리만 사용, Python >= 3.10).
   `python -m bts_sbom selfsbom`로 자기 자신의 SBOM을 생성해 증명합니다.
-* **엔드투엔드 워크플로** (`bts_sbom_app/`, 명령 `bts-sbom-app`): BTS-SBOM 코어 위에 얹은 상위 기능 — 라이선스 자동 식별, 취약점 리포트, 승인형 패치(재스캔 검증),
-  레거시 아키텍처 분석, LG EXAONE 제안, 근거 기반 RAG 챗봇. 자세한 내용과 한계는 [docs/WORKFLOW.md](docs/WORKFLOW.md).
+* **엔드투엔드 워크플로** (`bts_sbom_app/`, 명령 `bts-sbom-app`, 0.2.0): BTS-SBOM 코어 위에 얹은 상위 기능 — 라이선스 자동 식별(다중 모델 카운슬 포함),
+  취약점 리포트, 승인형 패치(재스캔 검증, 회귀 시 되돌림), 레거시 아키텍처 분석, LG EXAONE 제안, 근거 기반 RAG 챗봇(도구 20종, `--actions` 로 승인형
+  분석·패치·VEX 기록), SBOM 규제 적합도·차이 알림·fail-closed OpenVEX·포트폴리오 조회, 레포 컨텍스트 팩, 웹 콘솔(페이지에서 EXAONE 키 연결).
+  자세한 내용과 한계는 [docs/WORKFLOW.md](docs/WORKFLOW.md).
 
 ```console
 $ pip install bts-sbom
