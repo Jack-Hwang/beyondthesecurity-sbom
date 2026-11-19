@@ -16,6 +16,7 @@ Honesty rules (same contract as the rest of the app):
 """
 from __future__ import annotations
 
+import datetime
 import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -23,6 +24,9 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from .util import read_json
 
 SCHEMA = "bts-sbom.conformance.v1"
+#: when the regime table below was last checked against the official texts as a whole; a table older than STALE_AFTER_MONTHS is flagged
+TABLE_REVIEWED = "2026-11"
+STALE_AFTER_MONTHS = 6
 _ABSENT = {"", "noassertion", "none", "unknown", "n/a"}
 _LIFECYCLE = re.compile(r"\b(pre-?build|build|post-?build|design|operations|discovery|decommission)\b", re.I)
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -244,12 +248,21 @@ def _spdx_facts(doc: Dict[str, Any]) -> Dict[str, Any]:
     return {"format": "SPDX", "components": len(pkgs), "per": per, "doc": docf, "supplier_kinds": []}
 
 
+def table_age(today: Optional[datetime.date] = None) -> Dict[str, Any]:
+    """How old the regime table is. Regulations move (the CISA text is a draft); an old table must say so instead of passing as current."""
+    t = today or datetime.date.today()
+    y, m = int(TABLE_REVIEWED[:4]), int(TABLE_REVIEWED[5:7])
+    months = max(0, (t.year - y) * 12 + t.month - m)
+    return {"reviewed": TABLE_REVIEWED, "age_months": months, "stale": months >= STALE_AFTER_MONTHS,
+            "note": "regime table last reviewed %s%s" % (TABLE_REVIEWED, " - REVIEW DUE: check it against the official texts" if months >= STALE_AFTER_MONTHS else "")}
+
+
 def no_data(reason: str) -> Dict[str, Any]:
     return {"schema": SCHEMA, "status": "NO_DATA", "reason": reason, "format": None, "components": 0, "elements": {}, "regimes": {}, "fix_once": [],
             "honesty": HONESTY}
 
 
-def evaluate(doc: Any, regimes: Optional[Iterable[str]] = None) -> Dict[str, Any]:
+def evaluate(doc: Any, regimes: Optional[Iterable[str]] = None, today: Optional[datetime.date] = None) -> Dict[str, Any]:
     """Score ``doc`` (a parsed CycloneDX or SPDX JSON document) against ``regimes`` (default: all)."""
     if not isinstance(doc, dict):
         return no_data("document is not a JSON object")
@@ -311,14 +324,14 @@ def evaluate(doc: Any, regimes: Optional[Iterable[str]] = None) -> Dict[str, Any
                     "regimes": unblocks, "hint": ELEMENTS[eid]["hint"]})
     fix.sort(key=lambda f: (-len(f["regimes"]), f["pct"], f["element"]))
     return {"schema": SCHEMA, "status": "OK", "format": facts["format"], "components": n, "elements": elements, "regimes": out_regimes,
-            "fix_once": fix, "honesty": HONESTY}
+            "fix_once": fix, "table": table_age(today), "honesty": HONESTY}
 
 
 def compact(res: Dict[str, Any]) -> Dict[str, Any]:
     """The part worth persisting in a project record (verdict per regime + the fix list)."""
     if res.get("status") != "OK":
         return {"schema": SCHEMA, "status": res.get("status"), "reason": res.get("reason")}
-    return {"schema": SCHEMA, "status": "OK", "format": res["format"], "components": res["components"],
+    return {"schema": SCHEMA, "status": "OK", "format": res["format"], "components": res["components"], "table": res.get("table"),
             "regimes": {k: {f: v[f] for f in ("title", "verdict", "pass", "partial", "gap", "total", "draft", "as_of")} for k, v in res["regimes"].items()},
             "elements": {k: {f: v[f] for f in ("status", "pct", "missing")} for k, v in res["elements"].items()},
             "fix_once": [{f: x[f] for f in ("element", "status", "pct", "missing", "regimes")} for x in res["fix_once"]]}
@@ -354,6 +367,9 @@ def render_md(res: Dict[str, Any]) -> str:
         L += ["", "## Fix once, satisfy many", ""]
         for f in res["fix_once"]:
             L.append("- **%s** (%s%%, %s): blocks %s. %s" % (f["element"], f["pct"], f["status"], ", ".join(f["regimes"]) or "no open regime", f["hint"]))
+    t = res.get("table") or {}
+    if t:
+        L += ["", "%s." % t["note"]]
     L += ["", "_%s_" % res["honesty"], ""]
     return "\n".join(L)
 

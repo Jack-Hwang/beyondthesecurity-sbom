@@ -162,7 +162,7 @@ def test_what_if_upgrade_answers_only_from_the_verified_plan():
 def test_plan_validation_drops_invented_tools_arguments_and_identifiers():
     """AC: BSA-AC-95"""
     rec = evals.synthetic_project()
-    calls = [{"tool": "apply_patch", "args": {}},                                             # tool outside the read-only catalog
+    calls = [{"tool": "rm_rf", "args": {}},                                                   # tool outside the catalog
              {"tool": "component_lookup", "args": {"name": "ghostpkg"}},                      # component not in the project
              {"tool": "component_lookup", "args": {"name": "requests", "extra": "x"}},        # unknown argument
              {"tool": "vuln_lookup", "args": {"id": "not-an-advisory"}},                      # not an advisory id
@@ -181,7 +181,8 @@ def test_plan_validation_drops_invented_tools_arguments_and_identifiers():
     assert chat.validate_calls([many[0], many[0]], rec)[1]["duplicate"] == 1
     assert chat.run_tool(rec, "overview", {})[0]["tool"] == "overview"
     assert set(chat.TOOL_CATALOG) == {"overview", "top_vulns", "vuln_lookup", "component_lookup", "license", "patch", "architecture", "sector", "what_if_upgrade",
-                                      "affected_projects", "sbom_conformance", "what_changed"}
+                                      "affected_projects", "sbom_conformance", "what_changed", "license_risks", "proposals", "plan_patch", "export_vex",
+                                      "record_decision", "analyze_project", "apply_patch", "confirm_decision"}
 
 
 def test_unavailable_or_invalid_plan_falls_back_to_regex_and_says_so(world):

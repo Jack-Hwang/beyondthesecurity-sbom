@@ -32,7 +32,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 
-from . import __version__, chat as chatmod, conformance, console, engine, evals, fleet, pipeline, report, sbom, triage as triagemod, workspace
+from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, engine, evals, fleet, pipeline, report, sbom, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 
@@ -56,8 +56,9 @@ def static_files() -> Dict[str, str]:
 
 
 class State:
-    def __init__(self, root: str, evidence: str, cfg: Optional[str]):
+    def __init__(self, root: str, evidence: str, cfg: Optional[str], chat_actions: bool = False):
         self.root, self.evidence = root, evidence
+        self.chat_actions = chat_actions                     # /api/chat may analyse, patch (approved) and record decisions only when the service was started so
         self.jobs: Dict[str, Dict[str, Any]] = {}
         self.lock = threading.Lock()
         if cfg:
@@ -67,7 +68,9 @@ class State:
 
     def bot(self) -> chatmod.Chatbot:
         projs = load_projects(self.evidence)
-        return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs)), projs, self.client if self.client.available else None)
+        client = self.client if self.client.available else None
+        acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
+        return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs)), projs, client, acts, self.triage())
 
     def triage(self) -> Dict[str, Any]:
         with self.lock:
@@ -293,8 +296,8 @@ def make_handler(st: State):
     return H
 
 
-def serve(root: str, host: str, port: int, evidence: str, cfg: Optional[str] = None) -> int:
-    st = State(root, evidence, cfg)
+def serve(root: str, host: str, port: int, evidence: str, cfg: Optional[str] = None, chat_actions: bool = False) -> int:
+    st = State(root, evidence, cfg, chat_actions)
     httpd = ThreadingHTTPServer((host, port), make_handler(st))
     print("BTS-SBOM serving on http://%s:%d (evidence: %s)" % (host, port, evidence), flush=True)
     try:

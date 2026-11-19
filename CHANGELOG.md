@@ -20,6 +20,7 @@ All notable changes to bts-sbom are documented here.
   component's license. Needs `BTS_SBOM_COUNCIL_CONFIG` with >= 2 members; 7 calls per item for 3 members. New `evals/license_gold.json`
   (44 hand-written cases) with a measured deterministic baseline: 21 correct / 6 confident wrong / 10 missed / 7 abstained correctly.
   `licenses.scan_tree` now keeps a 3000-character excerpt of undetected license files; `LGPLv2+` is no longer returned verbatim as an SPDX id.
+* **Repository context pack** (`bts_sbom_app/contextpack.py`, command `contextpack <folder> [--package P] [--cxml]`): bounded read-only view of a local tree - license files plus the import sites of one package with context; binaries, oversized files, node_modules and symlinks excluded and listed; all text untrusted (escaped CXML, instruction-like files flagged); import sites are candidates, reachability stays unknown; `verify_site` re-confirms a path:line. Spec BSA-AC-176..181 and 211..215; `evalchat` measures the routing baseline (BSA-AC-209).
 * Spec: BSA-AC-88..112; tests: `tests/bts_sbom_app/test_council.py`, `evallicense --max-cases N` bounds a council run (44 cases x 7 calls = 308 calls for 3 members).
 * Spec (earlier line, kept for the chat/gate part): BSA-AC-88..96, 97, 98; tests: `tests/bts_sbom_app/test_chat_tools_gate.py`.
 
@@ -51,6 +52,25 @@ slides themselves were not read - see `docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md`
 * Spec: BSA-AC-150..175 (BSA-AC-95 now counts 12 tools); tests: `test_sbom_conformance.py`, `test_changes_triage.py`, `test_fleet_chat.py`.
 * Not done (needs input we do not have): CVSS v4.0 scoring (needs the official macro-vector lookup table), FOSSLight Scanner report import
   (needs sample files), web-console panes for the new data (API and CLI only).
+
+### `bts_sbom_app/` - chat-driven analysis, approved patching and VEX decisions
+
+* **Chat actions** (`actions.py`, `chat --actions [-i]`, `serve --chat-actions`): in a session opened with actions the chatbot can analyse a source
+  (isolated work copy, normal pipeline), apply an approved patch and record a VEX decision; the default session stays read-only. Every effect keeps
+  its gate and only the user's own text can open it: a patch needs the 16-hex approval token of exactly the plan that `plan_patch` showed (computed
+  from the recorded plans, so a token for all upgrades does not open a subset), is applied for ONE round (no follow-up plans nobody approved), is
+  re-scanned and reverted on a regression, and ends as a branch in the work copy - nothing is pushed, the origin is never written; a VEX decision
+  is previewed (effect under the triage rules, nothing written) and recorded only with the 12-hex confirm code of that exact content (staged in
+  `.pending_decisions.json`, 24 h, content-hashed). `validate_calls(calls, rec, question)` drops a token, source, confirm code or reason that is not
+  verbatim in the question and a justification the user did not name, so a model plan cannot authorise anything; regex-built calls pass the same
+  validator.
+* **New chat tools** (20 in total, 3 of them offered only to sessions with actions): `license_risks` (policy screening per distribution model, obligations,
+  unresolved licenses), `proposals` (LLM-written ones are tagged untrusted-quote), `plan_patch`, `export_vex` (writes `<project>.triaged.vex.json` only
+  with actions), `record_decision`, `analyze_project`, `apply_patch`, `confirm_decision`. Routing measured in `evals_chat.py`: regex router 2 of 8
+  paraphrased governance questions, LLM planner 8 of 8 (a forged reason is not credited: 7 of 8).
+* **Regime table review date**: the conformance result, Markdown, record and chat answer say when the table was last reviewed and flag a review as
+  due after 6 months.
+* Spec: BSA-AC-200..210 (BSA-AC-95 now counts a catalog of 20 tools); tests: `test_chat_actions.py`, `test_sbom_conformance.py`.
 
 ## 0.2.0 - 2026-11-17
 

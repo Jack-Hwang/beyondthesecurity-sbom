@@ -2,7 +2,7 @@
 
 - 작성일: 2026-11-17
 - 대상: https://fosslight.org/news/news/2026-10-28-community_day/
-- 구현: `bts_sbom_app/conformance.py`, `changes.py`, `triage.py`, `fleet.py`, `cli_ext.py` (스펙 BSA-AC-150..175, 테스트 26개 AC)
+- 구현: `bts_sbom_app/conformance.py`, `changes.py`, `triage.py`, `fleet.py`, `cli_ext.py` (BSA-AC-150..175), 이어서 챗봇 기반 분석·패치·VEX `actions.py`, `evals_chat.py` (BSA-AC-200..210)
 
 ## 1. 먼저 밝힐 한계
 
@@ -67,13 +67,33 @@ bts-sbom-app fleet [--cve CVE-...] [--component requests --version "<2.20,>=2.0"
 - **전체 조회**: 권고 ID(별칭 포함) 또는 컴포넌트+버전 제약으로 영향받는 프로젝트를 찾음. 버전이 없는 컴포넌트는 `version_unknown` 으로 드러냄. 인자 없이 실행하면 포트폴리오 요약.
 - **서버 API**: `/api/conformance/<p>`, `/api/changes/<p>`, `/api/vex/<p>`, `/api/fleet`, `/api/affected`.
 
+### 5-1. 챗봇으로 분석하고, 승인하면 패치하고, VEX 를 남긴다 (2차 구현)
+
+```bash
+bts-sbom-app chat --actions --evidence evidence/runs -i
+> C:/work/myrepo 분석해줘                         # 격리된 작업 복사본에서 분석, 라이선스·취약점·계획·토큰 요약
+> 배포하면 라이선스 의무가 뭐야                    # license_risks (binary | saas | internal)
+> 패치 해줘                                       # plan_patch: 업그레이드 목록 + 승인 토큰(변경 없음)
+> 패치 승인 64a2aba63040b0e7                      # 사용자가 입력한 토큰일 때만 적용(1라운드, 재스캔, 악화 시 되돌림)
+> CVE-2020-1747 오탐 vulnerable_code_not_in_execute_path 사유: 신뢰된 입력만 파싱한다   # 미리보기 + 확인 코드
+> 확정 500bbe4318b9                               # 그 코드를 입력해야 기록
+> VEX 내보내줘                                    # 결정이 적용된 OpenVEX 파일
+```
+
+- 기본 세션은 읽기 전용이다. `--actions` 가 있어야 분석·패치·결정 기록이 일어난다(서버는 `serve --chat-actions`).
+- 모델은 계획만 세울 수 있고 승인할 수 없다. 토큰·소스·확인 코드·사유가 **질문에 글자 그대로** 없으면 버려지고, 사용자가 이름을 말하지 않은 justification 은 추정하지 않는다.
+- 패치는 승인한 선택(전체 또는 지정한 컴포넌트)에 대해서만, 한 라운드만 적용한다. 원본은 바뀌지 않고 푸시하지 않는다.
+- 실측(실제 OSV): requests 2.19.1 + pyyaml 5.3 → 분석(취약점 7) → 계획(업그레이드 2, OSV 검증) → 잘못된 토큰 거부 → 올바른 토큰으로 적용(7건 해결, 신규 0) → 원본 `requirements.txt` 불변,
+  결정 미리보기(정당한 것은 `not_affected`, justification 없는 것은 `rejected` 로 표시) → 확인 코드로 기록 → VEX 7개 문장 중 1개 `not_affected`.
+- 라우팅 측정(`evals_chat.py`): 정규식 라우터 8문항 중 2, LLM 계획기 8 중 8, 모델이 쓴 사유는 점수에서 제외(7 of 8).
+
 ## 6. 일부러 하지 않은 것
 
 | 항목 | 이유 |
 |---|---|
 | CVSS v4.0 점수 계산 | 점수는 공식 매크로벡터 조회표가 필요하고, 표를 기억으로 옮기면 틀릴 위험이 큼. 표 파일(FIRST 공개본)을 받아 검증하며 구현해야 함 |
 | FOSSLight Scanner 리포트(Excel/YAML) 가져오기 | 실제 샘플 파일이 없어 열 이름·형식을 검증할 수 없음. 참고로 CycloneDX/SPDX 로 내보낸 SBOM 은 `scan <파일>` 로 이미 읽힘(파일 이름과 무관, 실측) |
-| 웹 콘솔에 새 패널 추가 | 플랫폼 파일 6개는 수정 금지(NOTICE.md)라 새 페이지 코드가 필요. API 는 준비됨 |
+| 웹 콘솔에 새 패널 추가 | 플랫폼 파일 6개는 수정 금지(NOTICE.md)라 새 페이지 코드가 필요. API 는 준비됨. 별도 세션에서 진행 중 |
 | LLM 이 `not_affected` 나 triage 결정을 만드는 것 | VEX 는 fail-closed. `review` 는 사람이 볼 목록만 제공 |
 | 메일·티켓 자동 발송 | 외부로 나가는 동작은 별도 명시 플래그가 필요한 이 저장소의 규칙 |
 

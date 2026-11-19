@@ -35,3 +35,11 @@ A component with no recorded version is reported as version_unknown. Without arg
 ## chatbot tools
 
 Read-only tools affected_projects (all projects, no project name needed), sbom_conformance, what_changed. A missing record is answered as not recorded.
+
+## chat actions: analyse, patch, VEX decision
+
+Command `bts-sbom-app chat --actions --evidence <dir>` (interactive: `-i`) or `bts-sbom-app serve --chat-actions`. Without it the chat is read-only.
+Flow: ask to analyse a source (path or URL); license_risks for a distribution model (binary, saas, internal); plan_patch prints an approval token for exactly the upgrades shown;
+reply `apply patch <token>` to apply them in an isolated work copy, one round, re-scan, revert on regression; the origin is untouched and nothing is pushed.
+VEX decision: write the advisory id, false-positive, accepted or wontfix, an OpenVEX justification name and the reason last after `reason:`; the preview shows the effect and a confirm code; reply `confirm <code>` to record it.
+Token, source, confirm code and reason must be typed by the user; a model plan that supplies them itself is dropped.

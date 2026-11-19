@@ -153,8 +153,10 @@ RAG chatbot, and a measured loop-engineering harness.
 ```console
 $ python -I -X utf8 run_bts_sbom_app.py scan https://github.com/OWASP/NodeGoat.git
 $ python -I -X utf8 run_bts_sbom_app.py patch <source> --approve     # without --approve: plan only, 0 files changed
+$ python -I -X utf8 run_bts_sbom_app.py contextpack <folder> --package <name> --cxml   # bounded read-only repo view for an LLM
+$ python -I -X utf8 run_bts_sbom_app.py chat --actions -i            # chat that can also patch (with YOUR typed token) and record VEX decisions
 $ python -I -X utf8 run_bts_sbom_app.py serve --port 8800 --evidence <runs folder>   # the Open-Source Security web screen
-$ python -m pytest -q tests/bts_sbom_app                              # 78 tests, all network faked
+$ python -m pytest -q tests/bts_sbom_app                              # 173 tests, all network faked
 ```
 
 Measured on 10 real GitHub repositories (chosen by the author, several deliberately vulnerable): 2,478 components,
@@ -167,6 +169,17 @@ SBOM governance commands (read-only, from the 6th FOSSLight Community Day analys
 [docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md](docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md)): `bts-sbom-app conformance <sbom|project>` checks one
 SBOM against NTIA 2021, the CISA 2025 draft, EU CRA, BSI TR-03183-2 and VEX readiness; `diff` compares two analyses with Hub-style threshold
 alerts; `vex` exports OpenVEX with triage decisions applied fail-closed; `fleet` finds the projects hit by an advisory or using a component.
+
+Chat actions and the repository context pack (`bts_sbom_app/actions.py`, `contextpack.py`, `evals_chat.py`; spec BSA-AC-176..181,
+200..215): `chat --actions` (or `serve --chat-actions`) lets the chatbot analyse a source (isolated work copy), apply an approved patch
+and record VEX decisions — but nothing is authorised by the model: a patch needs the 16-hex approval token of exactly the plan it was
+shown and a decision the 12-hex confirm code of its preview, both typed by the user, and every token, source and reason the model
+invents is dropped by the validator. The patch is applied for ONE round in the work copy, re-scanned, reverted on a regression, and
+nothing is pushed; a default session is read-only. `contextpack <folder> [--package P] [--cxml]` builds a bounded read-only view of a
+local tree — license files plus the import sites of one package with context — excluding binaries, oversized files, node_modules and
+symlinks with reasons; all repository text is untrusted (escaped CXML, instruction-like files flagged) and import sites are candidates:
+reachability stays unknown, `verify_site` re-confirms a claimed path:line. `evalchat` measures tool routing on 8 paraphrased
+governance/action questions (regex router 2/8 measured, LLM planner 8/8; a reason the user did not type is never credited).
 
 ## Status & scope honesty
 

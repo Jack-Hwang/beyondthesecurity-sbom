@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import json
 
 import pytest
@@ -111,3 +112,18 @@ def test_cli_require_gates_on_a_regime(tmp_path, capsys):
     assert cli.main(["conformance", str(tmp_path / "missing.json")]) == 2
     assert cli.main(["conformance", str(p), "--json", "--regime", "eu-cra-annex-i"]) == 0
     assert json.loads(capsys.readouterr().out)["regimes"]["eu-cra-annex-i"]["verdict"] == "conformant"
+
+
+def test_an_old_regime_table_says_so_instead_of_passing_as_current():
+    """AC: BSA-AC-210"""
+    fresh = conformance.evaluate(FULL_CDX, today=datetime.date(2026, 11, 30))
+    assert fresh["table"] == {"reviewed": "2026-11", "age_months": 0, "stale": False, "note": "regime table last reviewed 2026-11"}
+    edge = conformance.evaluate(FULL_CDX, today=datetime.date(2027, 4, 30))
+    assert edge["table"]["age_months"] == 5 and edge["table"]["stale"] is False
+    old = conformance.evaluate(FULL_CDX, today=datetime.date(2027, 5, 1))
+    assert old["table"]["age_months"] == 6 and old["table"]["stale"] is True and "REVIEW DUE" in conformance.render_md(old)
+    assert "REVIEW DUE" not in conformance.render_md(fresh) and conformance.compact(old)["table"]["stale"] is True
+    rec = {"name": "demo", "conformance": conformance.compact(old)}
+    from bts_sbom_app import chat
+    assert any("overdue for a review" in x for x in chat.run_tool(rec, "sbom_conformance", {})[0]["lines"])
+    assert conformance.no_data("x").get("table") is None                                              # no data: no table claim either

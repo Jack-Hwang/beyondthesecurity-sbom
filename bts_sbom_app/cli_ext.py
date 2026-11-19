@@ -174,3 +174,41 @@ def run(a: argparse.Namespace) -> int:
         _say(res, a.json, fleet.render_rollup_md(res))
         return 0
     return 2
+
+
+# ------------------------------------------------------------------ chat (read-only by default; --actions opens the gated actions)
+def add_chat_flags(c: argparse.ArgumentParser) -> None:
+    c.add_argument("--actions", action="store_true", help="let the chat analyse sources, apply an APPROVED patch (token typed by you) and record VEX decisions "
+                                                          "(confirm code typed by you); nothing is pushed and the origin is never written")
+    c.add_argument("--work", default=None, help="folder for work copies (default: a temp folder per action)")
+    c.add_argument("--offline", action="store_true", help="analyses started from the chat do not query the network")
+    c.add_argument("-i", "--interactive", action="store_true", help="keep asking: one question per line until an empty line or EOF")
+
+
+def chat_main(a: argparse.Namespace) -> int:
+    from . import actions as actionsmod, chat as chatmod, evals
+    from .cli import _client, _print, evidence_chunks, load_projects
+    evidence = a.evidence or (os.path.join(a.root, "evidence", "runs") if a.actions else None)
+    if not a.question and not a.interactive:
+        print("ERROR: give a question, or --interactive", file=sys.stderr)
+        return 2
+    projs = load_projects(evidence) if evidence else {}
+    client = _client(a.root, not a.llm, getattr(a, "llm_config", None))
+    acts = actionsmod.ChatActions(a.root, evidence, client=client, work_root=a.work, offline=a.offline, use_llm=bool(a.llm)) if a.actions else None
+    store = read_json(os.path.join(evidence, ".triage.json"), {}) if evidence else {}
+    bot = chatmod.Chatbot(evals.build_index(a.root, evidence_chunks(projs)), projs, client, acts, store if isinstance(store, dict) else {})
+
+    def one(q: str) -> None:
+        r = bot.ask(q, project=a.project, use_llm=bool(a.llm))
+        note = (" note=" + r["llm_note"]) if r.get("llm_note") else ""
+        _print(r, a.json, "found=%s source=%s citation_accuracy=%s%s\n%s" % (r["found"], r["answer_source"], r["citation_accuracy"], note, r["answer"]))
+
+    if a.question:
+        one(a.question)
+    if a.interactive:
+        print(console_text("actions %s - type a question, empty line to stop" % ("ON (each gated)" if acts else "off (read-only)")))
+        for line in sys.stdin:
+            if not line.strip():
+                break
+            one(line.strip())
+    return 0

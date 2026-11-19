@@ -84,6 +84,8 @@ python -I -X utf8 run_bts_sbom_app.py arch <소스>                          # �
 python -I -X utf8 run_bts_sbom_app.py batch evals/e2e_sources.json --tag t  # 여러 소스
 python -I -X utf8 run_bts_sbom_app.py loop evals/e2e_sources.json --variable "<바꾼 한 가지>"   # 골든 배치 + 게이트
 python -I -X utf8 run_bts_sbom_app.py evalrag                               # 검색 + 챗봇 근거성
+python -I -X utf8 run_bts_sbom_app.py evalchat                              # 거버넌스·액션 도구 8문항 라우팅 측정 (정규식 기준선 2/8, --llm-config 로 계획기 8/8)
+python -I -X utf8 run_bts_sbom_app.py contextpack <로컬 폴더> --package <패키지> [--cxml]   # bounded 읽기전용 레포 뷰: 라이선스 파일 + import 사이트
 python -I -X utf8 run_bts_sbom_app.py chat "CVE-2018-18074 가 뭐야" --evidence <runs 폴더> [--llm]
 python -I -X utf8 run_bts_sbom_app.py serve --port 8800 --evidence <runs 폴더>   # 웹 화면 + JSON API (인증 없음: localhost 전용)
 ```
@@ -107,6 +109,15 @@ CSS 5개와 `sca_app.js` 는 플랫폼에서 **원본 그대로 복사**했고(`
 - "사유와 함께 무시" 결정은 증거 폴더의 `.triage.json` 에 저장됩니다. 분석 때 만든 OpenVEX 파일에는 반영되지 않지만, **`bts-sbom-app vex <프로젝트>` 와
   `GET /api/vex/<프로젝트>` 가 결정을 적용한 OpenVEX 를 새로 만듭니다**(fail-closed: 오탐은 VEX justification + 10자 이상 사유가 있어야 `not_affected`, 만료되면 다시 열림,
   규칙은 `bts_sbom_app/triage.py`). 화면이 보내는 결정에 justification 이 없으면 `affected` 로 남고 이유가 `status_notes` 에 적힙니다.
+- **챗봇으로 분석·패치·VEX**: `bts-sbom-app chat --actions --evidence <폴더>`(대화형 `-i`) 또는 `serve --chat-actions` 로 열면 챗봇이 소스를 분석하고
+  (격리된 작업 복사본), **사용자가 입력한 승인 토큰**으로만 패치를 적용하고(계획 미리보기에서 보여준 업그레이드에 대한 16자리 토큰, 1라운드, 재스캔, 악화되면 되돌림,
+  푸시 없음, 원본 무변경), VEX 결정은 미리보기 후 **확인 코드(12자리)** 를 입력해야 기록합니다. 토큰·소스·확인 코드·사유가 질문에 그대로 없으면 모델이 계획해도 버려집니다.
+  기본 세션은 읽기 전용입니다(`bts-sbom-app patch ... --approve --token` 경로 안내).
+- **레포 컨텍스트 팩**: `bts-sbom-app contextpack <로컬 폴더> [--package <패키지>] [--cxml]` 은 로컬 트리를 bounded 로 읽어 **라이선스 파일**과
+  **해당 패키지의 import 사이트(주변 몇 줄 포함)** 만 담은 텍스트를 만듭니다(karpathy/rendergit 아이디어 축소판). 바이너리·200KB 초과 파일·node_modules·
+  심링크/정션(Windows 포함)은 사유와 함께 제외 목록에 적히고, 전체는 `max_chars`(기본 60,000) 안에서 잘리며 넘어간 항목 수를 숨기지 않고 셉니다.
+  팩의 모든 텍스트는 untrusted 취급입니다 — CXML 내보내기에서 이스케이프되고, "이전 지시를 무시하라" 류 문장이 담긴 파일은 `suspicious` 로 표시(걸러내지는 않음).
+  import 사이트는 후보일 뿐 reachability 는 unknown 이며, `verify_site` 가 path:line 을 다시 읽어 확인해 줍니다.
 - 재분석하면 이전 기록이 `<이름>.prev.json` 으로 남고 새 기록에 `changes` 가 붙습니다(`bts-sbom-app diff`, `GET /api/changes/<프로젝트>`).
   SBOM 규제 적합도는 `bts-sbom-app conformance`, 여러 프로젝트에 걸친 조회는 `bts-sbom-app fleet` 입니다(`docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md`).
 - 승인 패치는 `approval_token`(검토한 계획의 다이제스트)이 없으면 HTTP 400 입니다. 패치는 서버가 만든 임시 작업 복사본에만 적용되고

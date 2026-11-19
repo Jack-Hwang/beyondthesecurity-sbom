@@ -1,4 +1,4 @@
-"""Command line: scan | patch | arch | batch | loop | evalrag | chat | serve."""
+"""Command line: scan | patch | arch | batch | loop | evalrag | evalchat | contextpack | chat | serve."""
 from __future__ import annotations
 
 import argparse
@@ -95,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
     _common(l); _patch_args(l)
     e = sub.add_parser("evalrag", help="retrieval + chatbot grounding evaluation")
     e.add_argument("--golden", default=None); e.add_argument("--json", action="store_true")
+    ec = sub.add_parser("evalchat", help="tool-routing evaluation of the governance and action tools (BSA-AC-209): regex baseline, LLM planner with --llm-config")
+    ec.add_argument("--llm-config", default=None); ec.add_argument("--json", action="store_true")
+    cp = sub.add_parser("contextpack", help="bounded read-only view of a LOCAL source folder: license files + import sites of one package")
+    cp.add_argument("folder"); cp.add_argument("--package", default=None); cp.add_argument("--max-chars", type=int, default=60000)
+    cp.add_argument("--cxml", action="store_true", help="print the rendergit-style text for an LLM chat"); cp.add_argument("--json", action="store_true")
     el = sub.add_parser("evallicense", help="license identification gold set: deterministic baseline, and the council when configured")
     el.add_argument("--council-config", default=None); el.add_argument("--max-cases", type=int, default=None); el.add_argument("--json", action="store_true")
     co = sub.add_parser("council", help="license council over the unresolved license evidence of one analysed project (suggestions only)")
@@ -105,12 +110,14 @@ def build_parser() -> argparse.ArgumentParser:
     rl = sub.add_parser("ragloop", help="retrieval-only loop pass over the golden/dev/test sets")
     rl.add_argument("--variable", required=True); rl.add_argument("--hypothesis", default=""); rl.add_argument("--tag", default="rag")
     rl.add_argument("--json", action="store_true")
-    c = sub.add_parser("chat", help="ask a grounded question")
-    c.add_argument("question"); c.add_argument("--evidence", default=None); c.add_argument("--project", default=None)
+    c = sub.add_parser("chat", help="ask a grounded question (with --actions: analyse, patch with an approval token, record VEX decisions)")
+    c.add_argument("question", nargs="?", default=None); c.add_argument("--evidence", default=None); c.add_argument("--project", default=None)
     c.add_argument("--llm", action="store_true"); c.add_argument("--llm-config", default=None); c.add_argument("--json", action="store_true")
+    cli_ext.add_chat_flags(c)
     sv = sub.add_parser("serve", help="JSON API + small web UI")
     sv.add_argument("--port", type=int, default=8800); sv.add_argument("--host", default="127.0.0.1"); sv.add_argument("--evidence", default=None)
     sv.add_argument("--llm-config", default=None)
+    sv.add_argument("--chat-actions", action="store_true", help="let /api/chat analyse sources, apply approved patches and record VEX decisions (each behind its confirmation)")
     cli_ext.add_commands(sub)
     return ap
 
@@ -215,6 +222,24 @@ def main(argv: Optional[List[str]] = None) -> int:
         c = evals.chat_eval(a.root)
         _print({"rag": r, "chat": c}, a.json, "RAG recall@5=%s mrr=%s ndcg@5=%s ood=%s | chat found=%s routing=%s citation=%s" % (r["recall_at_k"], r["mrr"], r["ndcg_at_k"], r["ood_rate"], c["found_rate"], c["tool_routing_rate"], c["citation_accuracy"]))
         return 0 if not r["misses"] and not c["misses"] else 1
+    if a.cmd == "evalchat":
+        from . import evals_chat
+        client = _client(a.root, False, a.llm_config) if a.llm_config else None
+        r = evals_chat.governance_routing_eval(a.root, client)
+        miss = "".join(" | %s -> expected %s, got %s" % (m["q"], m["expected"], ",".join(m.get("tools") or [])) for m in r["misses"][:4])
+        _print(r, a.json, "%s router: %d of %d paraphrased governance/action questions reached the expected tool%s" % (
+            r["router"], r["cases"] - len(r["misses"]), r["cases"], miss))
+        return 0                                                  # the numbers are a measurement, not a target: the regex baseline misses on purpose
+    if a.cmd == "contextpack":
+        from . import contextpack
+        try:
+            pack = contextpack.build(a.folder, a.package, max_chars=a.max_chars)
+        except ValueError as exc:
+            _print({"error": str(exc)}, a.json, str(exc))
+            return 2
+        _print(pack, a.json, contextpack.to_cxml(pack) if a.cxml else "contextpack %s: %d items, %d import sites listed of %d, %d excluded, %d over budget, %d chars" % (
+            pack["root"], len(pack["items"]), pack["import_sites_listed"], pack["import_sites_found"], len(pack["excluded"]), len(pack["dropped_over_budget"]), pack["chars"]))
+        return 0
     if a.cmd == "evallicense":
         from . import council
         members, chair, note = council.members_from_config(a.council_config, os.path.join(a.root, "evidence", "llm"))
@@ -254,16 +279,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         _print(e, a.json, "rag pass %s [%s] decision=%s failed=%s undecidable=%s\n%s" % (e["pass"], a.variable, e["decision"], e["gate"]["failed"], e["gate"].get("undecidable", []), json.dumps(e["metrics"], sort_keys=True)))
         return 0 if e["decision"] != "rollback" else 1
     if a.cmd == "chat":
-        projs = load_projects(a.evidence) if a.evidence else {}
-        idx = evals.build_index(a.root, evidence_chunks(projs))
-        client = _client(a.root, not a.llm, getattr(a, "llm_config", None))
-        r = chatmod.Chatbot(idx, projs, client).ask(a.question, project=a.project, use_llm=bool(a.llm))
-        note = (" note=" + r["llm_note"]) if r.get("llm_note") else ""
-        _print(r, a.json, "found=%s source=%s citation_accuracy=%s%s\n%s" % (r["found"], r["answer_source"], r["citation_accuracy"], note, r["answer"]))
-        return 0
+        return cli_ext.chat_main(a)
     if a.cmd == "serve":
         from . import server
-        return server.serve(a.root, a.host, a.port, a.evidence or os.path.join(a.root, "evidence", "runs"), getattr(a, "llm_config", None))
+        return server.serve(a.root, a.host, a.port, a.evidence or os.path.join(a.root, "evidence", "runs"), getattr(a, "llm_config", None),
+                            chat_actions=bool(getattr(a, "chat_actions", False)))
     return 2
 
 
