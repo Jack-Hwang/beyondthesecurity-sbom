@@ -13,7 +13,9 @@ platform repository and are then re-copied (update `PLATFORM_ASSETS.sha256` at t
 | `sca_app.css` | `server/static/sca_app.css` | `21c3eac` | `693dcd5c9515406b` |
 | `sca_app.js` | `server/static/sca_app.js` | `41dafaa` | `77c8805e18f27ab0` |
 
-Everything else in this folder (`index.html`, `bts_console.js`) is new code written for BTS-SBOM.
+Everything else in this folder is new code written for BTS-SBOM and is not pinned: `index.html`, `bts_console.css`, `bts_console.js` (fetch + wiring), `bts_ui.js` (the one place that
+escapes, plus the markup helpers) and `bts_governance.js` (pure render and form functions of the SBOM-governance panes: conformance, what changed, VEX + decisions, fleet).
+None of them edits or wraps a copied platform file.
 
 Provenance and licence: the files come from the same authors (BTS) and the core's README describes the SCA stack as vendored
 from the platform under Apache-2.0. The platform repository's own licence file was not checked here - confirm it before

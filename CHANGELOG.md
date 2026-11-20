@@ -20,7 +20,7 @@ All notable changes to bts-sbom are documented here.
   component's license. Needs `BTS_SBOM_COUNCIL_CONFIG` with >= 2 members; 7 calls per item for 3 members. New `evals/license_gold.json`
   (44 hand-written cases) with a measured deterministic baseline: 21 correct / 6 confident wrong / 10 missed / 7 abstained correctly.
   `licenses.scan_tree` now keeps a 3000-character excerpt of undetected license files; `LGPLv2+` is no longer returned verbatim as an SPDX id.
-* **Repository context pack** (`bts_sbom_app/contextpack.py`, command `contextpack <folder> [--package P] [--cxml]`): bounded read-only view of a local tree - license files plus the import sites of one package with context; binaries, oversized files, node_modules and symlinks excluded and listed; all text untrusted (escaped CXML, instruction-like files flagged); import sites are candidates, reachability stays unknown; `verify_site` re-confirms a path:line. Spec BSA-AC-176..181 and 211..215; `evalchat` measures the routing baseline (BSA-AC-209).
+* **Repository context pack** (`bts_sbom_app/contextpack.py`, command `contextpack <folder> [--package P] [--cxml]`): bounded read-only view of a local tree - license files plus the import sites of one package with context; binaries, oversized files, node_modules and symlinks excluded and listed; all text untrusted (escaped CXML, instruction-like files flagged); import sites are candidates, reachability stays unknown; `verify_site` re-confirms a path:line. Spec BSA-AC-223..181 and 211..215; `evalchat` measures the routing baseline (BSA-AC-209).
 * Spec: BSA-AC-88..112; tests: `tests/bts_sbom_app/test_council.py`, `evallicense --max-cases N` bounds a council run (44 cases x 7 calls = 308 calls for 3 members).
 * Spec (earlier line, kept for the chat/gate part): BSA-AC-88..96, 97, 98; tests: `tests/bts_sbom_app/test_chat_tools_gate.py`.
 
@@ -97,6 +97,28 @@ slides themselves were not read - see `docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md`
 
 BTS-SBOM 0.2.0 adds the end-to-end workflow layer next to the core (second package `bts_sbom_app/`, same distribution, still zero
 third-party runtime dependencies) and repairs the core's console-encoding crash and its red CI.
+
+### `bts_sbom_app/web/` - governance panes on the open-source security screen
+
+The data of the governance features above is now visible without calling the endpoints by hand. Nothing in the six copied platform files changed (pins and BSA-AC-75/83 still match).
+
+* **New tabs**: Findings -> *What changed* (`/api/changes`: verdict, 8 count cards, alerts, new / resolved / rescored findings, version and licence changes, copyleft
+  introduced; "nothing to compare" when the project was analysed once), Compliance -> *SBOM conformance* (`/api/conformance`: verdict per regime with the
+  **DRAFT** flag, the review date of the regime table with a **Review due** flag when it is 6 months or more old, and an always-visible "not a legal assessment" line, per-element coverage matrix, "fix once, satisfy many" ranking; NO_DATA and errors are
+  stated, never a verdict) and *VEX - Decisions* (`/api/vex`: the OpenVEX with decisions applied, what each decision did, the recorded decisions with expired ones
+  marked), CI/CD - History -> *Fleet - Affected* (`/api/fleet`, `/api/affected`: ranking with the age of each analysis, shared advisories and components, search by advisory,
+  component and version constraint; "not found" is never worded as "unaffected").
+* **Decision form** (VEX - Decisions): finding, decision, the five OpenVEX justifications, reason, end date, scope, owner. The page says that without a justification
+  and a reason of at least 10 characters a false positive stays *affected*, and a live line shows the effect on the OpenVEX statement; that prediction is a mirror of
+  `triage.decide` and a test compares it with the service for 375 input combinations. Nothing is preselected.
+* **Honesty**: every value from analysed data is escaped in one place (`bts_ui.js`; a JSON object with an `html` key can no longer pass as markup - the old `{html}`
+  duck-typing of `cell()` is gone); an absent field is a dash, never a default 0; a score that is only the floor of a severity label reads `>= 7.0 (label)`; a cut list says
+  "first N of M".
+* **Fixed**: the VEX pane still said decisions were "not yet written into the OpenVEX file", and the SBOM-documents pane said no NTIA score is computed; both were stale since
+  the governance features. The OpenVEX button there is now labelled "as analysed" and points to the decision-aware download.
+* New files `web/bts_ui.js`, `web/bts_governance.js`; `bts_console.js` now only fetches and wires. Spec: BSA-AC-226..240; tests: `tests/bts_sbom_app/test_governance_ui.py`
+  (render/form tests run the page scripts under Node via `tests/bts_sbom_app/js/render_harness.js` and skip when Node is absent; the fetch + wiring in `bts_console.js` was
+  checked by hand in a browser and by the page-shape test, there is no DOM test).
 
 ### Workflow layer (`bts_sbom_app/`)
 

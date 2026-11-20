@@ -98,12 +98,12 @@ CSS 5개와 `sca_app.js` 는 플랫폼에서 **원본 그대로 복사**했고(`
 | 탭 | 내용 | 데이터 |
 |---|---|---|
 | Scan | Git URL 또는 로컬 경로 분석(1~4단계 진행 표시), 데모 저장소 | 실제 분석 |
-| Findings | 위험 요약 카드, 심각도 막대, 상위 10건, 결과 콘솔(이슈·의존성·라이선스, "사유와 함께 무시") | 실제 |
+| Findings | 위험 요약 카드, 심각도 막대, 상위 10건, 결과 콘솔(이슈·의존성·라이선스, "사유와 함께 무시") / **What changed**(재분석 대비 새·해결된 발견, 임계값 알림, 버전·라이선스 변화) | 실제. What changed 는 이전 분석이 있을 때만 — 없으면 "비교할 기록 없음"이라고 말하고 숫자를 만들지 않음 |
 | Prioritize | SSVC · EPSS · Exploit Mat. | **계산하지 않음**: 데이터 원천이 없어 값을 만들지 않고 그렇게 표시 |
 | Graph & Health | 매니페스트별 의존성, 레거시 아키텍처(핫스팟·결합·순환·EOL) / Supply Chain | 실제 / Supply Chain 은 계산하지 않음 |
-| Compliance | SBOM 문서 검사·다운로드(CycloneDX·SPDX·OpenVEX), 라이선스 위험, 산업 리포트 7종 | 실제 (NTIA 점수는 계산하지 않음) |
+| Compliance | SBOM 문서 검사·다운로드(CycloneDX·SPDX·OpenVEX) / **SBOM conformance**(NTIA 2021·CISA 2025 초안·EU CRA·BSI TR-03183-2·VEX 준비도 규제별 판정, 요소별 충족률, "한 번에 고칠 항목") / **VEX · Decisions**(결정이 적용된 OpenVEX, 결정 입력 폼: VEX justification 5종 + 10자 이상 사유 — 없으면 `affected` 유지) / 라이선스 위험, 산업 리포트 7종 | 실제. conformance 는 초안 규제에 DRAFT 를 표시하고 "법적 판정이 아님"을 항상 적음; 데이터가 없으면 NO_DATA 이지 통과가 아님 |
 | Fix | 업그레이드 계획, 제안, **승인형 패치**(계획 미리보기 → 다이제스트 검토 → 승인 → 재스캔 → diff) | 실제 |
-| CI/CD · History | 분석한 프로젝트 목록 | 프로젝트별 최신 1건(시계열 아님). CI 게이트는 코어의 `bts-sbom policy` |
+| CI/CD · History | 분석한 프로젝트 목록 / **Fleet · Affected**(프로젝트 순위, 여러 프로젝트가 공유하는 권고·구성요소, 권고 ID·구성요소·버전 조건으로 영향 프로젝트 검색) | 프로젝트별 최신 1건(시계열 아님). Fleet 은 각 프로젝트의 마지막 분석 기준이라 오프라인 분석은 발견이 빠질 수 있음(하한). CI 게이트는 코어의 `bts-sbom policy` |
 
 - KEV · EPSS · 도달성 · 우선순위 · 발견별 VEX 상태는 계산하지 않으므로 리포트에서 **필드 자체를 뺍니다**("악용 안 됨"·"점수 0"으로 보이지 않게).
 - "사유와 함께 무시" 결정은 증거 폴더의 `.triage.json` 에 저장됩니다. 분석 때 만든 OpenVEX 파일에는 반영되지 않지만, **`bts-sbom-app vex <프로젝트>` 와

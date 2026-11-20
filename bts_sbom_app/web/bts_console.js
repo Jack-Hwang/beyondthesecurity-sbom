@@ -3,67 +3,52 @@
  * Written for BTS-SBOM; the renderer it drives (sca_app.js) and the platform stylesheets are copied unmodified (see NOTICE.md).
  * Rules: every dynamic value goes through esc() (analysed data comes from untrusted repositories and registries); no inline
  * event handlers (the page is served with a strict Content-Security-Policy); a pane shows "not computed" instead of a made-up value.
+ * The markup helpers live in bts_ui.js and the SBOM-governance renderers (conformance, what changed, VEX + decisions, fleet) in
+ * bts_governance.js; both are loaded before this file. This file fetches the data and wires the page.
  */
 (function () {
   'use strict';
+  var U = window.BtsUi, G = window.BtsGovernance;
+  if (!U || !G) {
+    document.body.insertAdjacentHTML('afterbegin', '<div class="bts-note bad" style="margin:12px">The page scripts bts_ui.js / bts_governance.js did not load, so this screen cannot start.</div>');
+    return;
+  }
 
   var GROUPS = {
-    'git': ['git', 'lock', 'container'], 'risk': ['risk'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
-    'graph-health': ['dep-graph', 'arch', 'supply-chain'], 'compliance': ['ntia', 'vex', 'license-risk', 'sectors'],
-    'fix': ['fix-plan', 'fix-pr'], 'oss': ['oss'], 'more': ['more']
+    'git': ['git', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
+    'graph-health': ['dep-graph', 'arch', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
+    'fix': ['fix-plan', 'fix-pr'], 'oss': ['oss'], 'more': ['more', 'fleet']
   };
   var LABELS = {
-    'git': '🌐 Git repo', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Overview',
+    'git': '🌐 Git repo', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Overview', 'changes': '🔔 What changed',
     'ssvc': '🎯 SSVC', 'epss': '📡 EPSS', 'exploit-mat': '🔥 Exploit Mat.', 'dep-graph': '🕸 Dep Graph',
-    'arch': '🏛 Architecture', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'vex': '📋 VEX',
-    'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
-    'fix-pr': '🔧 Patch', 'oss': '📜 OSS Scanner', 'more': '⚙️ CI/CD · History'
+    'arch': '🏛 Architecture', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
+    'vex': '📋 VEX · Decisions', 'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
+    'fix-pr': '🔧 Patch', 'oss': '📜 OSS Scanner', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
   };
   var SEVS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
-  var SEV_COLOR = { CRITICAL: '#9F4BDD', HIGH: '#BC5F04', MEDIUM: '#EDAB00', LOW: '#4A76AA', UNKNOWN: '#6e7681' };
+  var SEV_COLOR = U.SEV_COLOR;
   var STEPS = ['Input', 'Configure', 'Analyze', 'Results'];
-  var S = { project: '', view: null, triage: {}, history: [], members: {}, lastJob: null, busy: false };
+  // gov: the per-project API results of the selected project (null = still loading); seq drops answers for a project that is no longer selected.
+  // fleet / affected: the portfolio roll-up and the last "who is affected" search (null = not asked yet).
+  var S = { project: '', view: null, triage: {}, history: [], members: {}, lastJob: null, busy: false,
+            gov: { seq: 0, conformance: null, changes: null, vex: null }, fleet: null, affected: null };
 
-  /* ---------- helpers ---------- */
+  /* ---------- helpers (markup helpers: bts_ui.js) ---------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function esc(v) {
-    return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-  function H(html) { return { html: html }; }                       // markup built here from escaped parts
-  function cell(c) { return (c && c.html !== undefined) ? c.html : esc(c); }
+  var esc = U.esc, H = U.H, table = U.table, sevBadge = U.sevBadge, pill = U.pill, note = U.note, heading = U.heading, kv = U.kv,
+      unavailable = U.unavailable, when = U.when;
   function api(url, body) {
     var opt = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
     return fetch(url, opt).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
     }).catch(function (e) { return { ok: false, status: 0, data: { error: String(e) } }; });
   }
-  function table(heads, rows, empty) {
-    if (!rows.length) return '<div class="bts-note">' + esc(empty || 'Nothing to show.') + '</div>';
-    return '<div class="bts-wrap"><table class="bts-table"><thead><tr>' + heads.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') +
-      '</tr></thead><tbody>' + rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + cell(c) + '</td>'; }).join('') + '</tr>'; }).join('') +
-      '</tbody></table></div>';
-  }
-  function sevBadge(s) {
-    s = String(s || 'UNKNOWN').toUpperCase();
-    return H('<span class="bts-sev" style="background:' + (SEV_COLOR[s] || SEV_COLOR.UNKNOWN) + '">' + esc(s) + '</span>');
-  }
-  function pill(text, cls) { return H('<span class="bts-pill ' + esc(cls) + '">' + esc(text) + '</span>'); }
-  function note(html, cls) { return '<div class="bts-note ' + (cls || '') + '">' + html + '</div>'; }   // html: already escaped by the caller
-  function heading(t, sub) { return '<div class="bts-h">' + esc(t) + (sub ? ' <span class="sub">' + esc(sub) + '</span>' : '') + '</div>'; }
-  function kv(pairs) {
-    return '<dl class="bts-kv">' + pairs.map(function (p) { return '<dt>' + esc(p[0]) + '</dt><dd>' + cell(p[1]) + '</dd>'; }).join('') + '</dl>';
-  }
-  function unavailable(title, why) {
-    return heading(title) + note('<b>Not computed by BTS-SBOM.</b> ' + esc(why) + ' Nothing is shown rather than a made-up value.', 'warn');
-  }
   function needProject() {
     return note('No project is selected. Analyse a repository on the <b>Scan</b> tab, or pick an analysed project in the title bar.');
   }
   function fixedAt(f) { return f ? esc(f) : '—'; }
-  function when(iso) { return iso ? String(iso).replace('T', ' ').slice(0, 16) : '—'; }
   function btn(label, act, extra, attrs) {
     return '<button type="button" class="run" data-act="' + esc(act) + '"' + (attrs || '') + (S.busy && extra === 'job' ? ' disabled' : '') + '>' + label + '</button>';
   }
@@ -195,15 +180,20 @@
     api('/api/llm/clear', {}).then(function () { loadEngine(); return loadLlm(); });
   }
   function loadHistory() {
-    return api('/api/history').then(function (r) { S.history = (r.data && r.data.history) || []; fillSelect(); renderHistory(); });
+    return api('/api/history').then(function (r) {
+      S.history = (r.data && r.data.history) || [];
+      fillSelect(); renderHistory();
+      loadFleet();                                                     // the roll-up covers the same evidence folder: refresh it with the list
+    });
   }
   function selectProject(name, keepStep) {
-    if (!name) { S.project = ''; S.view = null; renderAll(); return Promise.resolve(); }
+    if (!name) { S.project = ''; S.view = null; resetGovernance(); renderAll(); return Promise.resolve(); }
     S.project = name;
     $('#projSel').value = name;
     return Promise.all([api('/api/view/' + encodeURIComponent(name)), api('/api/triage')]).then(function (rs) {
       if (!rs[0].ok) {
         S.view = null;
+        resetGovernance();
         $('#scaReportOut').innerHTML = note(esc((rs[0].data && rs[0].data.error) || 'The project could not be loaded.'), 'bad');
         renderPanes();
         return;
@@ -211,8 +201,34 @@
       S.view = rs[0].data;
       S.triage = (rs[1].data && rs[1].data.triage) || {};
       renderAll();
+      loadGovernance(name);
       if (!keepStep) { setStep(4, 'Showing ' + name + ' (analysed ' + when(S.view.analysed_at) + ').'); }
     });
+  }
+
+  /* ---------- SBOM governance data: conformance, what changed, OpenVEX with decisions, fleet ---------- */
+  function resetGovernance() {
+    S.gov = { seq: S.gov.seq + 1, conformance: null, changes: null, vex: null };
+  }
+  function loadGovernance(name) {
+    resetGovernance();
+    var seq = S.gov.seq, n = encodeURIComponent(name);
+    renderGovernance();
+    [['conformance', '/api/conformance/'], ['changes', '/api/changes/'], ['vex', '/api/vex/']].forEach(function (p) {
+      api(p[1] + n).then(function (r) {
+        if (S.gov.seq !== seq || S.project !== name) { return; }      // another project was selected meanwhile
+        S.gov[p[0]] = r;
+        renderGovernance();
+      });
+    });
+  }
+  function loadFleet() {
+    return api('/api/fleet').then(function (r) { S.fleet = r; renderGovernance(); });
+  }
+  function analysedMap() {
+    var m = Object.create(null);
+    S.history.forEach(function (h) { m[h.name] = h.analysed_at; });
+    return m;
   }
 
   /* ---------- console (sca_app.js) ---------- */
@@ -229,9 +245,9 @@
     var mount = $('#scaReportOut');
     new MutationObserver(function () { rebrand(mount); }).observe(mount, { childList: true, subtree: true });
   }
-  function download(url) {
+  function download(url, fname) {
     var a = document.createElement('a');
-    a.href = url; a.download = '';
+    a.href = url; a.download = fname || '';
     document.body.appendChild(a); a.click(); a.remove();
   }
   function toolNote(text) {
@@ -343,19 +359,11 @@
                ['Vulnerability references resolved', ri.affects ? (ri.resolved + ' of ' + ri.affects + ' (' + ri.rate + ')') : '—']]);
     (c.cyclonedx_errors || []).concat(c.spdx_errors || []).forEach(function (e) { out += note(esc(e), 'bad'); });
     out += '<div class="bts-actions">' + btn('⬇ CycloneDX JSON', 'dl', '', ' data-url="/api/sbom/' + n + '?format=cdx"') +
-      btn('⬇ SPDX JSON', 'dl', '', ' data-url="/api/sbom/' + n + '?format=spdx"') + btn('⬇ OpenVEX JSON', 'dl', '', ' data-url="/api/sbom/' + n + '?format=vex"') +
+      btn('⬇ SPDX JSON', 'dl', '', ' data-url="/api/sbom/' + n + '?format=spdx"') +
+      btn('⬇ OpenVEX JSON (as analysed)', 'dl', '', ' data-url="/api/sbom/' + n + '?format=vex"') +
       btn('⬇ Report (Markdown)', 'dl', '', ' data-url="/api/doc/' + n + '"') + '</div>';
-    return out + note('NTIA minimum-element scoring is not run in this workflow, so no NTIA score is shown.');
-  }
-  function vex(v) {
-    var fs = v.report.findings, n = encodeURIComponent(v.project);
-    var marked = fs.filter(function (f) { return f.triage_status && f.triage_status !== 'open'; });
-    var out = heading('OpenVEX', fs.length + ' statement(s) generated from the findings');
-    out += '<div class="bts-actions">' + btn('⬇ OpenVEX JSON', 'dl', '', ' data-url="/api/sbom/' + n + '?format=vex"') + '</div>';
-    out += note('<b>Ignore decisions</b> made in the console (accepted, won\'t fix, false positive, fixed) are stored next to the evidence, but they are <b>not yet written into the OpenVEX file</b>.' +
-      ' Decisions on this project\'s findings: <b>' + marked.length + '</b>.');
-    out += table(['Advisory', 'Package', 'Decision', 'Note'], marked.slice(0, 50).map(function (f) { return [f.cve || f.id, f.name + ' ' + f.version, f.triage_status, f.triage_note || '']; }), 'No ignore decision has been recorded.');
-    return out;
+    return out + note('The OpenVEX file above is the one written when the project was analysed, <b>without</b> later decisions; the <b>VEX &middot; Decisions</b> tab downloads it with them applied. ' +
+      'NTIA 2021 and three more regimes are checked per element on the <button type="button" class="bts-link" data-act="goto" data-sv="conformance">SBOM conformance</button> tab.');
   }
   /* FOSSLight-report-style license risk colors: red = strong/network copyleft, orange = weak copyleft / proprietary, green = permissive, gray = unknown. */
   var LIC_COLOR = { strong_copyleft: '#c0392b', network_copyleft: '#c0392b', weak_copyleft: '#d97a09',
@@ -481,15 +489,68 @@
     $('#paneEpss').innerHTML = unavailable('EPSS', 'No EPSS feed is wired into this workflow, so a finding has no score (it is absent, not zero).');
     $('#paneExploit').innerHTML = unavailable('Exploit maturity', 'It needs exploit-database and CISA KEV matching, which this workflow does not do.');
     $('#paneSupply').innerHTML = unavailable('Supply chain', 'Typosquatting and dependency-confusion detection exists in the core (bts_sbom.supply_chain) but is not wired into this workflow yet.');
-    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneSbom: sbomChecks, paneVex: vex, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
+    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
     Object.keys(map).forEach(function (id) { $('#' + id).innerHTML = v ? map[id](v) : needProject(); });
     renderHistory();
+    renderGovernance();
   }
   function renderAll() {
     renderConsole();
     renderPanes();
     var ack = $('#ackPlan');
     if (ack) { ack.addEventListener('change', function () { var b = $('[data-act="apply"]'); if (b) { b.disabled = !ack.checked || S.busy; } }); }
+  }
+
+  /* ---------- governance panes: conformance, what changed, VEX + decisions, fleet ---------- */
+  function renderGovernance() {
+    var v = S.view, g = S.gov, ages = analysedMap();
+    $('#paneConformance').innerHTML = v ? G.renderConformance(g.conformance)
+      : heading('SBOM conformance') + note(G.LEGAL_NOTE, 'warn') + needProject();
+    $('#paneChanges').innerHTML = v ? G.renderChanges(g.changes) : needProject();
+    renderVexPane();
+    $('#paneFleet').innerHTML = G.renderFleet(S.fleet, ages);
+    $('#paneAffected').innerHTML = G.renderAffected(S.affected, ages);
+  }
+  function renderVexPane() {
+    var v = S.view, form = $('#paneTriage');
+    form.style.display = v ? '' : 'none';
+    if (!v) { $('#paneVex').innerHTML = needProject(); return; }
+    $('#paneVex').innerHTML = '<div class="bts-actions">' +
+      btn('⬇ OpenVEX with decisions applied', 'dl', '', ' data-url="/api/vex/' + encodeURIComponent(v.project) + '" data-fname="' + esc(v.project) + '.vex.json"') + '</div>' +
+      G.renderVex(S.gov.vex) + G.renderDecisions(S.triage);
+    var sel = $('#tfFinding');
+    sel.innerHTML = G.findingOptions(v.report.findings, sel.value);          // the chosen finding survives a re-render
+    updateTriageHint();
+  }
+  function triageValues() {
+    return { finding: $('#tfFinding').value, status: $('#tfStatus').value, justification: $('#tfJust').value, reason: $('#tfReason').value,
+             expires: $('#tfExpires').value, scope: $('#tfScope').value, by: $('#tfBy').value };
+  }
+  function updateTriageHint() {
+    var f = triageValues(), fp = f.status === 'false-positive', n = Array.from(f.reason.trim()).length, o = f.status ? G.triageOutcome(f) : null;
+    $('#tfJust').disabled = !fp;                                              // a justification only means something for a false positive
+    $('#tfStatusHint').textContent = G.statusHint(f.status);
+    $('#tfCount').textContent = n + ' / 500 characters; at least ' + G.MIN_REASON + ' are needed to make a false positive or an accepted risk count';
+    $('#tfOutcome').innerHTML = o ? note('<b>Effect on the OpenVEX statement:</b> ' + esc(o.text), o.tone) : note('Choose a decision to see what it does to the OpenVEX statement.');
+  }
+  function saveDecision() {
+    var out = $('#tfResult'), vals = triageValues(), r = G.triageRequest(vals);
+    if (r.error) { out.innerHTML = note(esc(r.error), 'bad'); return; }
+    var o = G.triageOutcome(vals), key = r.body.check_id;
+    out.innerHTML = note('Saving…');
+    api('/api/triage', r.body).then(function (res) {
+      if (!res.ok) { out.innerHTML = note('<b>Not saved.</b> ' + esc((res.data && res.data.error) || ('HTTP ' + res.status)), 'bad'); return; }
+      ['#tfReason', '#tfExpires', '#tfScope', '#tfJust', '#tfStatus'].forEach(function (id) { $(id).value = ''; });      // finding and owner stay for the next one
+      return selectProject(S.project, true).then(function () {
+        out.innerHTML = note('<b>Saved</b> the decision for <code>' + esc(key) + '</code>. ' + esc(o.text) + ' The OpenVEX below was regenerated from the stored decisions.', o.tone === 'bad' ? 'warn' : o.tone);
+      });
+    });
+  }
+  function searchAffected() {
+    var q = G.affectedQuery({ cve: $('#afCve').value, component: $('#afComp').value, version: $('#afVer').value }), box = $('#paneAffected');
+    if (q.error) { S.affected = { ok: false, status: 0, data: { error: q.error } }; box.innerHTML = G.renderAffected(S.affected, analysedMap()); return; }
+    box.innerHTML = note('Searching…');
+    api(q.url).then(function (r) { S.affected = r; box.innerHTML = G.renderAffected(r, analysedMap()); });
   }
 
   /* ---------- chat ---------- */
@@ -515,7 +576,9 @@
     if (t.classList.contains('egchip')) { $('#scaGitUrl').value = t.getAttribute('data-url'); $('#scaGitUrl').focus(); return; }
     var act = t.getAttribute('data-act');
     if (act === 'goto') { activate(t.getAttribute('data-sv')); }
-    else if (act === 'dl') { download(t.getAttribute('data-url')); }
+    else if (act === 'dl') { download(t.getAttribute('data-url'), t.getAttribute('data-fname')); }
+    else if (act === 'triage-save') { saveDecision(); }
+    else if (act === 'affected') { searchAffected(); }
     else if (act === 'open') { selectProject(t.getAttribute('data-name')).then(function () { activate('risk'); }); }
     else if (act === 'plan' && S.view) { runJob({ source: S.view.source, patch: true, approved: false, offline: !!$('#scaOffline').checked }, 'Plan preview').then(function () { activate('fix-pr'); }); }
     else if (act === 'apply' && S.view && S.view.patch && S.view.patch.digest && ($('#ackPlan') || {}).checked) {
@@ -534,6 +597,13 @@
     $('#llmConnect').addEventListener('click', connectLlm);
     $('#llmKey').addEventListener('keydown', function (e) { if (e.key === 'Enter') { connectLlm(); } });
     $('#llmClear').addEventListener('click', clearLlm);
+    $('#tfStatus').innerHTML = G.statusOptions();
+    $('#tfJust').innerHTML = G.justificationOptions();
+    ['#tfFinding', '#tfStatus', '#tfJust', '#tfReason', '#tfExpires', '#tfScope', '#tfBy'].forEach(function (id) {
+      $(id).addEventListener('input', updateTriageHint);
+      $(id).addEventListener('change', updateTriageHint);
+    });
+    ['#afCve', '#afComp', '#afVer'].forEach(function (id) { $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { searchAffected(); } }); });
     $('#chatBtn').addEventListener('click', ask);
     $('#chatQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') { ask(); } });
     watchBrand();
