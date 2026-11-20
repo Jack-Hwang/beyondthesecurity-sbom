@@ -203,6 +203,7 @@ SBOM governance commands (read-only, from the 6th FOSSLight Community Day analys
 [docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md](docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md)): `bts-sbom-app conformance <sbom|project>` checks one
 SBOM against NTIA 2021, the CISA 2025 draft, EU CRA, BSI TR-03183-2 and VEX readiness; `diff` compares two analyses with Hub-style threshold
 alerts; `vex` exports OpenVEX with triage decisions applied fail-closed; `fleet` finds the projects hit by an advisory or using a component.
+The web screen shows the same data: **Findings → What changed**, **Compliance → SBOM conformance** and **VEX · Decisions** (with the decision form), **CI/CD · History → Fleet · Affected**.
 
 Chat actions and the repository context pack (`bts_sbom_app/actions.py`, `contextpack.py`, `evals_chat.py`; spec BSA-AC-176..181,
 200..215): `chat --actions` (or `serve --chat-actions`) lets the chatbot analyse a source (isolated work copy), apply an approved patch

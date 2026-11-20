@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BTS-SBOM</title>
 <!-- tokens.css, app.css, light_theme_overrides.css, view_scan.css, sca_app.css and sca_app.js are copied unmodified from the BTS
-     platform (see NOTICE.md). Only this page, bts_console.css and bts_console.js are written for BTS-SBOM. -->
+     platform (see NOTICE.md). Only this page, bts_console.css, bts_ui.js, bts_governance.js and bts_console.js are written for BTS-SBOM. -->
 <link rel="stylesheet" href="/static/css/tokens.css">
 <link rel="stylesheet" href="/static/css/app.css">
 <link rel="stylesheet" href="/static/css/light_theme_overrides.css">
@@ -95,14 +95,57 @@
         <div class="rpane" data-sv="dep-graph"><div id="paneDep"></div></div>
         <div class="rpane" data-sv="arch"><div id="paneArch"></div></div>
         <div class="rpane" data-sv="supply-chain"><div id="paneSupply"></div></div>
+        <div class="rpane" data-sv="changes"><div id="paneChanges"></div></div>
         <div class="rpane" data-sv="ntia"><div id="paneSbom"></div></div>
-        <div class="rpane" data-sv="vex"><div id="paneVex"></div></div>
+        <div class="rpane" data-sv="conformance"><div id="paneConformance"></div></div>
+        <div class="rpane" data-sv="vex">
+          <!-- decision form: static markup (no inline handlers, no <form>: the page's CSP has form-action 'none'); bts_console.js fills the lists and reads the fields -->
+          <div id="paneTriage" class="bts-formbox" style="display:none">
+            <div class="bts-h">Record a decision <span class="sub">&mdash; why a finding is not a problem for this product, or who accepted the risk until when</span></div>
+            <div class="bts-note warn"><b>Without a VEX justification and a reason of at least 10 characters, a false positive stays <i>affected</i>.</b>
+              The decision is stored, but the OpenVEX statement does not change. A risk acceptance also needs a reason of at least 10 characters and always stays <i>affected</i>
+              (OpenVEX has no accepted-risk status); a decision past its end date no longer applies. The store is shared by every project in this evidence folder: a decision on an
+              advisory applies wherever it is reported, unless you limit it with a scope.</div>
+            <div class="bts-fields">
+              <label for="tfFinding">Finding</label><select id="tfFinding"><option value="">(choose a finding)</option></select>
+              <label for="tfStatus">Decision</label>
+              <div><select id="tfStatus"></select><div class="bts-small" id="tfStatusHint"></div></div>
+              <label for="tfJust">VEX justification</label>
+              <div><select id="tfJust" disabled></select><div class="bts-small">One of the five OpenVEX justifications; used only for a false positive.</div></div>
+              <label for="tfReason">Reason</label>
+              <div><textarea id="tfReason" rows="3" maxlength="500" placeholder="What was checked, and where (a ticket, a code path, a mitigation)"></textarea><div class="bts-small" id="tfCount"></div></div>
+              <label for="tfExpires">Ends on</label>
+              <div><input type="date" id="tfExpires"><span class="bts-small"> optional; after this day the finding is open again</span></div>
+              <label for="tfScope">Scope</label>
+              <div><input id="tfScope" maxlength="200" spellcheck="false" placeholder="package name or purl prefix, e.g. requests"><span class="bts-small"> optional; empty = every package that reports this advisory</span></div>
+              <label for="tfBy">Owner</label>
+              <div><input id="tfBy" maxlength="80" placeholder="who decided"><span class="bts-small"> optional; written into the OpenVEX statement</span></div>
+            </div>
+            <div id="tfOutcome"></div>
+            <div class="bts-actions"><button type="button" class="run" data-act="triage-save">Save decision</button></div>
+            <div id="tfResult"></div>
+          </div>
+          <div id="paneVex"></div>
+        </div>
         <div class="rpane" data-sv="license-risk"><div id="paneLic"></div></div>
         <div class="rpane" data-sv="sectors"><div id="paneSectors"></div></div>
         <div class="rpane" data-sv="fix-plan"><div id="paneFixPlan"></div></div>
         <div class="rpane" data-sv="fix-pr"><div id="paneFixPr"></div></div>
         <div class="rpane" data-sv="oss"><div id="paneOss"></div></div>
         <div class="rpane" data-sv="more"><div id="paneHistory"></div></div>
+        <div class="rpane" data-sv="fleet">
+          <div class="bts-formbox">
+            <div class="bts-h">Which projects are affected? <span class="sub">&mdash; an advisory, a component, or both; over the last analysis of every project</span></div>
+            <div class="bts-fields">
+              <label for="afCve">Advisory</label><input id="afCve" spellcheck="false" placeholder="CVE-2020-1111, GHSA-xxxx-xxxx-xxxx, ...">
+              <label for="afComp">Component</label><input id="afComp" spellcheck="false" placeholder="requests">
+              <label for="afVer">Version</label><div><input id="afVer" spellcheck="false" placeholder="&lt;2.20  or  &gt;=2.0,&lt;2.20  or  2.19.1"><span class="bts-small"> optional constraint</span></div>
+            </div>
+            <div class="bts-actions"><button type="button" class="run" data-act="affected">&#128269; Find projects</button></div>
+          </div>
+          <div id="paneAffected"></div>
+          <div id="paneFleet"></div>
+        </div>
 
         <details class="bts-chat" id="chatBox" open>
           <summary>&#128172; Ask about the selected project <span class="sub">&mdash; answers cite their source; nothing is answered from memory</span></summary>
@@ -119,6 +162,8 @@
   <div class="status"><span id="statusTxt">BTS-SBOM</span><span class="sub" style="margin-left:auto">localhost only &middot; no authentication</span></div>
 </div>
 <script src="/static/sca_app.js"></script>
+<script src="/static/bts_ui.js"></script>
+<script src="/static/bts_governance.js"></script>
 <script src="/static/bts_console.js"></script>
 <script src="/static/oss_scanner.js"></script>
 </body>
