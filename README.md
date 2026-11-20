@@ -148,6 +148,7 @@ The 0.2 workflow layer (`bts_sbom_app/`, same distribution, standard library onl
 | `licenses.py`, `council.py` | license resolution with recorded provenance; multi-model license **council** with a chairman decision (suggestions only, nothing written) | `council`, `evallicense` | `test_council.py`, `test_engine_licenses.py` |
 | `conformance.py`, `changes.py`, `triage.py`, `fleet.py` | SBOM conformance matrix (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2) with a review date; diff alerts; **fail-closed** triage → OpenVEX; portfolio lookup | `conformance`, `diff`, `vex`, `fleet` | `test_sbom_conformance.py`, `test_changes_triage.py`, `test_fleet_chat.py` |
 | `coverage.py` | **decision coverage graph**: per advisory, whether a standing decision or a verified plan already handles it (decided / planned / rejected / expired / unhandled), the unhandled worklist, decision lineage and `finding → plan/decision → outcome` chains (concept after ARTEX's dual-graph architecture, reimplemented) | `coverage`, `GET /api/coverage/<project>`, chat `coverage` | `test_coverage.py` |
+| `srcscan.py`, `binscan.py`, `selfcheck.py` | FOSSLight Scanner features rebuilt on this package's rules: per-file source scan (SPDX tags, copyright lines, license files) with the FOSSLight Scanner-Info header, binary list + embedded license/copyright **string evidence** (no binary DB - a lead, not an identification), and the self-check sheet as CSV from the record | `srcscan`, `binscan`, `selfcheck`, `GET /api/selfcheck/<project>` | `test_fosslight_scan.py` |
 | `chat.py`, `rag.py`, `actions.py`, `evals_chat.py` | grounded chatbot (20-tool catalog, the LLM plans the calls, the validator drops forged authority); **chat actions**: analyse / approved patch / VEX decisions, each behind user-typed approvals | `chat [--actions]`, `evalchat` | `test_chat_tools_gate.py`, `test_chat_actions.py` |
 | `contextpack.py` | bounded read-only view of a local tree: license files + the import sites of one package; binaries, oversized files and symlinks excluded and listed; all text untrusted | `contextpack [--package P] [--cxml]` | `test_contextpack.py` |
 | `console.py`, `server.py`, `web/` | Open-Source Security web screen + JSON API; EXAONE key connection from the page (`POST /api/llm`, masked status, saved key file) | `serve [--chat-actions]` | `test_server_cli.py`, `test_console_ui.py` |
@@ -170,7 +171,8 @@ What 0.2 and the work after it added (every feature spec'd in `specs/bts_sbom_ap
 * **Governance** (BSA-AC-150..175, 219..222): SBOM conformance matrix (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2) with a "fix once, satisfy many"
   ranking and a regime-table review date; Hub-style diff alerts; triage decisions that reach OpenVEX fail-closed; fleet lookup across all analysed
   projects; and the decision coverage graph — which advisories are handled (decided / planned) vs still open, with the lineage of every recorded
-  decision (concept after ARTEX's dual-graph architecture, reimplemented from scratch).
+  decision (concept after ARTEX's dual-graph architecture, reimplemented from scratch); FOSSLight Scanner features (source scan, binary string
+  evidence, self-check sheet) rebuilt with honest bounds and the License Risk pane styled after the FOSSLight report.
 * **License council** (BSA-AC-88..112): several models read unresolved license evidence independently, review each other anonymously, a chairman
   picks; deterministic baseline measured on 44 hand-written cases.
 * **Chat** (BSA-AC-88..98, 200..210): the LLM plans tool calls against a 21-tool catalog (regex fallback, its misses measured by `evalchat`); with
@@ -188,7 +190,7 @@ $ python -I -X utf8 run_bts_sbom_app.py patch <source> --approve     # without -
 $ python -I -X utf8 run_bts_sbom_app.py contextpack <folder> --package <name> --cxml   # bounded read-only repo view for an LLM
 $ python -I -X utf8 run_bts_sbom_app.py chat --actions -i            # chat that can also patch (with YOUR typed token) and record VEX decisions
 $ python -I -X utf8 run_bts_sbom_app.py serve --port 8800 --evidence <runs folder>   # the Open-Source Security web screen
-$ python -m pytest -q tests/bts_sbom_app                              # 180 tests, all network faked
+$ python -m pytest -q tests/bts_sbom_app                              # 183 tests, all network faked
 ```
 
 Measured on 10 real GitHub repositories (chosen by the author, several deliberately vulnerable): 2,478 components,

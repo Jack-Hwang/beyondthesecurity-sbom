@@ -17,6 +17,7 @@ GET  /api/sbom/<project>?format=cdx|spdx|vex , GET /api/doc/<project>   -> downl
 GET|POST /api/triage                       -> "ignore with reason" decisions (stored next to the evidence; optional justification, expires, scope, by)
 GET  /api/vex/<project>                    -> OpenVEX with the triage decisions applied (fail-closed, see triage.py)
 GET  /api/coverage/<project>               -> decision coverage graph: verdict per advisory, the worklist, the decision lineage and chains
+GET  /api/selfcheck/<project>              -> FOSSLight-style self-check sheet (CSV download): OSS name/version/license per component
 GET  /api/conformance/<project>            -> SBOM conformance matrix (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2, vulnerability readiness)
 GET  /api/changes/<project>                -> what changed since the previous analysis (alerts, new / resolved findings)
 GET  /api/fleet , /api/affected?cve=&component=&version=   -> portfolio roll-up, projects hit by an advisory / using a component
@@ -37,7 +38,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 
-from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, coverage, engine, evals, fleet, pipeline, report, sbom, triage as triagemod, workspace
+from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, coverage, engine, evals, fleet, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 from .util import read_json, write_json
@@ -251,6 +252,12 @@ def make_handler(st: State):
                 return self._send(200, {"triage": st.triage()})
             if path == "/api/fleet":
                 return self._send(200, fleet.rollup(load_projects(st.evidence)))
+            if path.startswith("/api/selfcheck/"):
+                hit = st.project(urllib.parse.unquote(path[len("/api/selfcheck/"):]))
+                if hit is None:
+                    return self._send(404, {"error": "unknown project"})
+                folder, rec = hit
+                return self._send(200, selfcheck.to_csv(rec), "text/csv", {"Content-Disposition": 'attachment; filename="%s-selfcheck.csv"' % rec.get("name", "project")})
             if path == "/api/affected":
                 try:
                     return self._send(200, fleet.affected(load_projects(st.evidence), vuln_id=(q.get("cve") or [None])[0], component=(q.get("component") or [None])[0],

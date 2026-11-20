@@ -357,13 +357,40 @@
     out += table(['Advisory', 'Package', 'Decision', 'Note'], marked.slice(0, 50).map(function (f) { return [f.cve || f.id, f.name + ' ' + f.version, f.triage_status, f.triage_note || '']; }), 'No ignore decision has been recorded.');
     return out;
   }
+  /* FOSSLight-report-style license risk colors: red = strong/network copyleft, orange = weak copyleft / proprietary, green = permissive, gray = unknown. */
+  var LIC_COLOR = { strong_copyleft: '#c0392b', network_copyleft: '#c0392b', weak_copyleft: '#d97a09',
+                    proprietary: '#d97a09', permissive: '#2e7d32', public_domain: '#2e7d32', unknown: '#6e7681' };
+  function licBadge(cat) {
+    cat = String(cat || 'unknown');
+    var label = cat.replace(/_/g, ' ');
+    var color = LIC_COLOR[cat] || LIC_COLOR.unknown;
+    return H('<span class="bts-pill" style="background:' + color + '">' + esc(label) + '</span>');
+  }
+  function progressBar(pct) {   // FOSSLight-report-style resolved bar
+    if (pct === null || pct === undefined || isNaN(pct)) { return '<span class="sub">—</span>'; }
+    var w = Math.max(0, Math.min(100, Math.round(pct)));
+    return H('<div style="display:flex;align-items:center;gap:8px;min-width:220px">' +
+      '<div style="flex:1;height:10px;border-radius:5px;background:var(--line,rgba(127,127,127,.25));overflow:hidden">' +
+      '<div style="width:' + w + '%;height:100%;background:' + (w >= 90 ? '#2e7d32' : w >= 60 ? '#d97a09' : '#c0392b') + '"></div></div>' +
+      '<span class="sub" style="min-width:52px">' + w + '%</span></div>');
+  }
   function licences(v) {
     var l = v.license || {}, st = l.stats || {}, cats = (v.report.licenses || {}).summary || {}, cc = cats.category_counts || {};
-    var out = heading('License risk', 'resolved from lockfile, deps.dev or the registry; the source is recorded per component');
+    var out = heading('License risk', 'resolved from lockfile, deps.dev or the registry; the source is recorded per component · sheet style after the FOSSLight report');
     out += kv([['Project license', (l.project_license || '—') + (l.project_license_source ? ' (' + l.project_license_source + ')' : '')],
-               ['Resolved', (st.resolved || 0) + ' of ' + (st.total || 0) + (st.resolved_rate !== undefined && st.resolved_rate !== null ? ' (' + st.resolved_rate + ')' : '')],
-               ['By source', Object.keys(st.by_source || {}).map(function (k) { return k + ': ' + st.by_source[k]; }).join(', ') || '—'],
-               ['Categories', Object.keys(cc).map(function (k) { return k + ': ' + cc[k]; }).join(', ') || '—']]);
+               ['Resolved', progressBar(st.resolved !== undefined && st.total ? Math.round(100 * st.resolved / st.total) : null)],
+               ['Count', (st.resolved || 0) + ' of ' + (st.total || 0)],
+               ['By source', Object.keys(st.by_source || {}).map(function (k) { return k + ': ' + st.by_source[k]; }).join(', ') || '—']]);
+    out += '<div style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;flex-wrap:wrap">' +
+      '<a class="bts-mini" id="selfcheckBtn" href="/api/selfcheck/' + encodeURIComponent(S.project || '') + '" download' + (S.project ? '' : ' style="pointer-events:none;opacity:.5"') +
+      ' title="FOSSLight-style self-check sheet (CSV): OSS name / version / license per component, unresolved left empty">⬇ Self-check sheet (CSV)</a>' +
+      '<span class="sub">folder scans run from the CLI: <code>bts-sbom-app srcscan &lt;folder&gt;</code> · <code>bts-sbom-app binscan &lt;folder&gt;</code></span></div>';
+    if ((l.components || []).length) {
+      out += heading('Components', 'risk color: red strong/network copyleft · orange weak copyleft, proprietary · green permissive · gray unknown');
+      out += table(['Component', 'Version', 'License', 'Risk', 'Source'], l.components.slice(0, 40).map(function (c) {
+        return [c.name, c.version, c.license || '<span class="sub">(unresolved)</span>', licBadge(c.category), c.source || '—'];
+      }), 'No component was recorded.');
+    }
     out += heading('Policy findings', 'default policy: distribution = binary');
     out += table(['Category', 'Severity', 'Components', 'Affected'], (l.policy || []).map(function (p) {
       return [p.category, sevBadge(p.severity), p.count, (p.components || []).slice(0, 6).join(', ') + ((p.components || []).length > 6 ? ' …' : '')];

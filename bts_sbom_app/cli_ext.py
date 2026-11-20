@@ -12,11 +12,11 @@ import os
 import sys
 from typing import Any, Dict, Optional, Tuple
 
-from . import changes, conformance, coverage, fleet, sbom, triage
+from . import binscan, changes, conformance, coverage, fleet, sbom, selfcheck, srcscan, triage
 from .llm import ChatClient
 from .util import console_text, read_json, write_json
 
-COMMANDS = ("conformance", "diff", "vex", "review", "fleet", "coverage")
+COMMANDS = ("conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck")
 
 
 def add_commands(sub: Any) -> None:
@@ -57,6 +57,16 @@ def add_commands(sub: Any) -> None:
     cv.add_argument("project", help="project record file, or a project name in the evidence folder")
     cv.add_argument("--triage", default=None, help="decision store (default: <evidence>/.triage.json)")
     ev(cv)
+    ss = sub.add_parser("srcscan", help="FOSSLight-style source scan: SPDX tags, copyright lines and license files, per file (read-only, bounded)")
+    ss.add_argument("folder", help="LOCAL source folder to scan")
+    ss.add_argument("--json", action="store_true")
+    bs = sub.add_parser("binscan", help="FOSSLight-style binary scan: binary list + embedded license/copyright string evidence (no binary DB - evidence, not identification)")
+    bs.add_argument("folder", help="LOCAL source folder to scan")
+    bs.add_argument("--json", action="store_true")
+    sc = sub.add_parser("selfcheck", help="FOSSLight-style self-check sheet (CSV) of an analysed project: OSS name/version/license per component, unresolved left empty")
+    sc.add_argument("project", help="project record file, or a project name in the evidence folder")
+    sc.add_argument("--out", default=None, help="write the CSV here (default: print)")
+    ev(sc)
 
 
 def _evidence(a: argparse.Namespace) -> str:
@@ -184,6 +194,28 @@ def run(a: argparse.Namespace) -> int:
             return 2
         c = coverage.build(rec, _store(a))
         _say(coverage.compact(c), a.json, coverage.to_md(c))
+        return 0
+    if a.cmd in ("srcscan", "binscan"):
+        try:
+            c = srcscan.build(a.folder) if a.cmd == "srcscan" else binscan.build(a.folder)
+        except ValueError as exc:
+            print("ERROR: %s" % exc, file=sys.stderr)
+            return 2
+        mod = srcscan if a.cmd == "srcscan" else binscan
+        _say(c, a.json, mod.to_md(c))
+        return 0
+    if a.cmd == "selfcheck":
+        folder, rec = _record(a.project, _evidence(a))
+        if rec is None:
+            print("ERROR: %r is neither a record file nor a project in %s" % (a.project, _evidence(a)), file=sys.stderr)
+            return 2
+        csv_text = selfcheck.to_csv(rec)
+        if a.out:
+            with open(a.out, "w", encoding="utf-8", newline="") as fh:      # a CSV is text, not JSON: written directly
+                fh.write(csv_text)
+            print(console_text("self-check sheet written to %s (%d rows)" % (a.out, selfcheck.build(rec)["components"])))
+        else:
+            _say(selfcheck.build(rec), a.json, csv_text)
         return 0
     return 2
 

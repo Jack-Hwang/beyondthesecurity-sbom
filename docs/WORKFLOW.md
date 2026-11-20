@@ -129,6 +129,12 @@ CSS 5개와 `sca_app.js` 는 플랫폼에서 **원본 그대로 복사**했고(`
   아무 기록도 없는 것(unhandled) — 과 미처리 작업 목록, 모든 적용 결정의 앵커(키·상태·담당자·시각), 권고별 `발견 → 계획/결정 → 결과` 체인.
   ARTEX 의 듀얼 그래프(자산 그래프 + 탐색 그래프 + 테스트 커버리지) 개념을 SBOM 거버넌스에 맞게 새로 구현한 것입니다(개념 차용, 코드 무공유).
   정직 경계: 기록된 것만 세며, unhandled 이 곧 미검토를 뜻하지는 않고 판정은 reachability 를 함의하지 않습니다.
+- **FOSSLight Scanner 기능 통합** (가이드 fosslight.org/fosslight-guide/scanner/ · FOSSLight Scanner 는 Apache-2.0, 기능 아이디어만 크레딧하고 코드는 자체 구현):
+  `bts-sbom-app srcscan <폴더>` 는 파일별 SPDX 태그·copyright 줄·라이선스 파일을 수집하고(FOSSLight 리포트의 Scanner Info 헤더 형식: 도구·버전·시각·경로·제외 목록),
+  `bts-sbom-app binscan <폴더>` 는 바이너리 목록과 임베디드 라이선스/copyright **문자열 증거**를 뽑습니다(바이너리 DB 가 없으므로 식별이 아니라 사람용 단서, 언패킹·실행 없음),
+  `bts-sbom-app selfcheck <프로젝트>` 는 FOSSLight 셀프체크 시트(CSV)를 만듭니다(웹 License Risk 패널의 다운로드 버튼, `GET /api/selfcheck/<프로젝트>`).
+  의존성 스캔과 비교(diff)는 이미 파이프라인에 있고, Excel 출력은 서드파티 의존성 0 원칙 때문에 CSV 로 대체했습니다.
+  웹 화면 License Risk 패널은 FOSSLight 리포트 스타일(라이선스 리스크 색 배지, 해결률 진행바, 셀프체크 다운로드)로 개선했습니다.
 - 승인 패치는 `approval_token`(검토한 계획의 다이제스트)이 없으면 HTTP 400 입니다. 패치는 서버가 만든 임시 작업 복사본에만 적용되고
   원본은 바뀌지 않습니다. 패치가 적용되지 않은 작업의 복사본은 작업이 끝나면 지웁니다.
 - 컨테이너 이미지 분석과 파일 붙여넣기·업로드는 지원하지 않습니다(화면에 그렇게 표시).

@@ -55,6 +55,16 @@ slides themselves were not read - see `docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md`
 * **Chatbot**: three more read-only tools (12 in total): `affected_projects` (answers without naming a project), `sbom_conformance`,
   `what_changed`; the LLM planner may choose them, the regex router is the fallback. Knowledge file `knowledge/domain/sbom_governance.md`
   (retrieval metrics unchanged: golden 1.0 / 0.95, dev 1.0 / 0.869, held-out test recall 0.917, MRR 0.715 -> 0.711).
+* **FOSSLight Scanner features integrated** (guide fosslight.org/fosslight-guide/scanner/; FOSSLight Scanner is Apache-2.0, feature
+  inspiration credited, code is ours): `srcscan <folder>` walks a LOCAL tree per file - SPDX-License-Identifier tags, copyright lines
+  (license files included) and every license-named file detected by text, with the FOSSLight "Scanner Info" header (tool, version,
+  started, path, excluded: skipped dependency folders, links, binaries, oversized, unreadable) and CSV output; `binscan <folder>`
+  collects the binary list (NUL-sniff) and extracts bounded license/copyright **string evidence** - this tool ships no binary DB, so
+  it is a lead for a human, never an identification, and nothing is unpacked or executed; `selfcheck <project>` (`GET
+  /api/selfcheck/<project>`, CSV download button in the License Risk pane) generates the FOSSLight-style self-check sheet from the
+  record - OSS Name / Version / License / Category / Source / Ecosystem / Vulns, unresolved licenses stay empty. Dependency scanning
+  and compare (`diff`) were already covered by the pipeline; Excel output is deliberately replaced by CSV (zero third-party
+  dependencies). Spec BSA-AC-223..225; tests: `test_fosslight_scan.py`.
 * Spec: BSA-AC-150..175 and 219..222 (BSA-AC-95 now counts 21 tools); tests: `test_sbom_conformance.py`, `test_changes_triage.py`, `test_fleet_chat.py`, `test_coverage.py`.
 * Not done (needs input we do not have): CVSS v4.0 scoring (needs the official macro-vector lookup table), FOSSLight Scanner report import
   (needs sample files), web-console panes for the new data (API and CLI only).

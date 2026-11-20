@@ -207,6 +207,9 @@ def build_view(rec: Dict[str, Any], triage: Optional[Dict[str, Dict[str, Any]]] 
                     "project_license_source": (rec.get("license") or {}).get("project_license_source"),
                     "stats": {k: ((rec.get("license") or {}).get("stats") or {}).get(k) for k in ("by_source", "resolved", "total", "resolved_rate")},
                     "policy": (rec.get("license") or {}).get("policy") or [],
+                    "components": [{"name": c.get("name"), "version": c.get("version"), "license": c.get("license") or "",
+                                    "category": c.get("license_category") or "", "source": c.get("license_source") or ""}
+                                   for c in rec.get("components") or []][:60],
                     "unresolved": [c.get("name") + "@" + str(c.get("version")) for c in rec.get("components") or [] if not c.get("license")][:60]},
     }
 
