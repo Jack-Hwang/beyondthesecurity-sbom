@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/static/css/view_scan.css">
 <link rel="stylesheet" href="/static/sca_app.css">
 <link rel="stylesheet" href="/static/bts_console.css">
+<link rel="stylesheet" href="/static/oss_scanner.css">
 </head>
 <body>
 <div class="app">
@@ -51,6 +52,7 @@
           <div class="rtab" data-sv="graph-health" style="color:#818cf8">&#128376; Graph &amp; Health</div>
           <div class="rtab" data-sv="compliance" style="color:#34d399">&#9989; Compliance</div>
           <div class="rtab" data-sv="fix" style="color:#a78bfa">&#128295; Fix</div>
+          <div class="rtab" data-sv="oss">&#128220; OSS Scanner</div>
           <div class="rtab" data-sv="more">&#9881;&#65039; CI/CD &middot; History</div>
         </div>
         <div id="scanSubNav" style="display:none;gap:6px;flex-wrap:wrap;margin:-6px 0 12px" aria-label="Group sub-tabs"></div>
@@ -99,6 +101,7 @@
         <div class="rpane" data-sv="sectors"><div id="paneSectors"></div></div>
         <div class="rpane" data-sv="fix-plan"><div id="paneFixPlan"></div></div>
         <div class="rpane" data-sv="fix-pr"><div id="paneFixPr"></div></div>
+        <div class="rpane" data-sv="oss"><div id="paneOss"></div></div>
         <div class="rpane" data-sv="more"><div id="paneHistory"></div></div>
 
         <details class="bts-chat" id="chatBox" open>
@@ -117,5 +120,6 @@
 </div>
 <script src="/static/sca_app.js"></script>
 <script src="/static/bts_console.js"></script>
+<script src="/static/oss_scanner.js"></script>
 </body>
 </html>

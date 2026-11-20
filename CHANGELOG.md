@@ -123,6 +123,35 @@ third-party runtime dependencies) and repairs the core's console-encoding crash 
   scan, server-made work copies removed after the job unless a patch was applied. New endpoints: `/api/view`, `/api/history`,
   `/api/engine`, `/api/sbom`, `/api/doc`, `/api/triage`. Ignore decisions are stored but not yet written into OpenVEX.
 
+### OSS scanners and OSS notice automation (`bts-sbom oss ...`, `bts-sbom notice`)
+
+* **FOSSLight-style scanner suite, native and offline** (standard library only; reimplemented from FOSSLight's public user guides - no FOSSLight
+  code is used; the GPL-3.0 Prechecker was written clean-room from the REUSE specification): source scanner (SPDX tags, license headers, LICENSE
+  files, copyrights, package identity, license/NOTICE text capture, default-exclusion flags), dependency scanner (static parsing of npm/yarn/pnpm,
+  pip incl. setup.py/uv.lock, maven/gradle, cocoapods, carthage, swift, pub, go, nuget, helm, unity, cargo - no package manager is run),
+  binary scanner (magic-byte detection, hashes, local KB match, JAR/pom analysis, version banners, embedded Go/Rust/.NET/ELF metadata),
+  Yocto scanner (bom.json, buildhistory, installed packages, license.manifest), Android scanner (module-info, MODULE_LICENSE, NOTICE states),
+  and a REUSE-style precheck (lint / add / convert / download). TLSH matching against FOSSLight's Binary DB, SCANOSS and the LGE KB are not implemented.
+* **One report model** (`bts_sbom/ossreport.py`) with FOSSLight-Report column names; xlsx / csv / json / yaml / spdx-json / spdx-tag /
+  cyclonedx-json / cyclonedx-xml output, xlsx / json / yaml input, `sbom-info.yaml` corrections (stdlib YAML-subset reader), report compare.
+* **OSS notice generator** (`bts_sbom/notice.py`): html, text, simple-html, simple-text (en / ko). License texts come from the component's own
+  license file, a local directory or - only on request - the SPDX list; a missing text, license or copyright is reported in an audit and never
+  invented; the source-code written offer is an opt-in template that needs a contact and is flagged for legal review.
+* **Targets**: folder, archive (zip family, tar family, bz2, gz, rpm / src.rpm), git URL, archive URL - safe extraction limits, hooks-off shallow
+  clone, dangerous transports refused. **Web console**: a new "OSS Scanner" tab (scan stages, result tables, license risk tiers, downloads, notice,
+  previous scans, compare) backed by `bts_sbom_app/oss_api.py`; every request must carry the service's own Host (DNS-rebinding guard), mutating
+  requests from another origin / `Sec-Fetch-Site: cross-site` are refused, URL targets resolving to non-public addresses are refused
+  (`BTS_OSS_ALLOW_PRIVATE_HOSTS=1` to opt in), cancel works mid-walk / mid-extraction / mid-download / mid-clone.
+* **Hardening found by an adversarial review of the suite and fixed with regression tests**: Prechecker `add` writes through one verified
+  descriptor (no symlink/hard-link redirect between check and write); `WITH` exceptions are kept in licenses and their texts required; notice
+  flags `needs_check` (unverified) licenses in the audit, the document and `--strict`, and keeps `AND`/`OR`/`WITH` in HTML; rpm payloads
+  are inflated as a bounded stream (decompression bomb), corrupt cpio is a clean error; XML goes through `safe_xml` (DOCTYPE/ENTITY refused in any
+  encoding or position); reports carry `Needs Check` / `Notice Status`; SPDX tag-value injection closed and CycloneDX `bom-ref` made unique; the YAML
+  writer/reader round-trips multi-line strings exactly and reads multi-line flow collections with quoted brackets; Podfile.lock `direct` is
+  per full subspec name; pnpm v9 peer-suffixed snapshots and single-line uv.lock arrays are read; a POST with a bad `Content-Length` is a
+  400/413 instead of a crash or a hang (applies to the whole app server); finished/failed scan jobs no longer accumulate in memory.
+* Design, FOSSLight mapping, limits: `docs/OSS_SCANNERS.md`.
+
 ### Core (`bts_sbom/`)
 
 * **Fix: `bts-sbom --help` (and every sub-command help) crashed with

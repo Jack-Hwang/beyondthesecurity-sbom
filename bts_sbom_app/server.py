@@ -22,6 +22,7 @@ GET  /api/conformance/<project>            -> SBOM conformance matrix (NTIA 2021
 GET  /api/changes/<project>                -> what changed since the previous analysis (alerts, new / resolved findings)
 GET  /api/fleet , /api/affected?cve=&component=&version=   -> portfolio roll-up, projects hit by an advisory / using a component
 GET  /api/health
+*    /api/oss/...                          -> the OSS Scanner screen (oss_api.py: scan folder / archive / URL, results, reports, notice, compare)
 Binds to 127.0.0.1 by default. There is no authentication: do not expose it beyond localhost without a reverse proxy.
 Scan sources are restricted to https/ssh/file git URLs, owner/repo shorthands and EXISTING local folders.
 """
@@ -38,7 +39,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 
-from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, coverage, engine, evals, fleet, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, coverage, engine, evals, fleet, oss_api, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 from .util import read_json, write_json
@@ -185,6 +186,12 @@ def _history_row(name: str, folder: str, rec: Dict[str, Any]) -> Dict[str, Any]:
             "patch_status": m.get("patch_status"), "proposal_source": m.get("proposal_source"), "stage_errors": m.get("stage_errors")}
 
 
+class _BadBody(Exception):
+    def __init__(self, code: int, msg: str) -> None:
+        super().__init__(msg)
+        self.code = code
+
+
 def make_handler(st: State):
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a: Any) -> None:
@@ -216,12 +223,32 @@ def make_handler(st: State):
                 self._send(404, {"error": "not found"})
 
         def _body(self) -> Dict[str, Any]:
-            n = min(int(self.headers.get("Content-Length") or 0), 1_000_000)
+            """The JSON object of the request body.  A Content-Length that is not a plain non-negative integer, or is over
+            1,000,000, raises _BadBody (a negative value would otherwise make ``rfile.read`` wait for EOF - a hang - and
+            a non-numeric one used to crash the handler); no Content-Length means no body."""
+            raw = (self.headers.get("Content-Length") or "").strip()
+            if raw and not raw.isdigit():
+                raise _BadBody(400, "invalid Content-Length")
+            n = int(raw or 0)
+            if n > 1_000_000:
+                raise _BadBody(413, "request body larger than 1000000 bytes")
             try:
                 d = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
                 return d if isinstance(d, dict) else {}
             except ValueError:
                 return {}
+
+        def _oss(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
+            """The OSS Scanner screen's API (oss_api.py); False when the path is not one of its routes."""
+            hit = oss_api.route(method, path, q, body, self.headers, st, bind=tuple(self.server.server_address[:2]))
+            if hit is None:
+                return False
+            code, obj, ctype, headers = hit
+            if isinstance(obj, (bytes, bytearray)):
+                self._emit(code, bytes(obj), ctype, headers)
+            else:
+                self._send(code, obj, ctype, headers)
+            return True
 
         def do_GET(self) -> None:                                    # noqa: N802
             u = urllib.parse.urlsplit(self.path)
@@ -302,10 +329,15 @@ def make_handler(st: State):
                     except OSError:
                         return self._send(404, {"error": "this project has no %s document" % fmt})
                     return self._send(200, doc, "application/json", {"Content-Disposition": 'attachment; filename="%s.%s.json"' % (base, fmt)})
+            if self._oss("GET", path, q, {}):
+                return
             self._send(404, {"error": "not found"})
 
         def do_POST(self) -> None:                                   # noqa: N802
-            b = self._body()
+            try:
+                b = self._body()
+            except _BadBody as exc:
+                return self._send(exc.code, {"error": str(exc)})
             path = urllib.parse.urlsplit(self.path).path
             if path == "/api/triage":
                 key, status, note = b.get("check_id"), b.get("status"), b.get("note")
@@ -367,6 +399,8 @@ def make_handler(st: State):
                 return self._send(200, {"ok": True, "llm": st.set_llm(b, remember=bool(b.get("remember")))})
             if path == "/api/llm/clear":
                 return self._send(200, {"ok": True, "llm": st.clear_llm()})
+            if self._oss("POST", path, {}, b):
+                return
             self._send(404, {"error": "not found"})
 
     return H

@@ -11,6 +11,8 @@ Subcommands
     policy     policy gate over a findings JSON (scan output shape) with
                optional --sbom (license rules) and --vex (suppression):
                exit 1 on a policy violation (CI gate mode), 0 on pass
+    oss        OSS compliance scanners (source / dependency / binary / yocto / android / precheck),
+               report compare;  notice: OSS notice (html / text) generated from a report
     selfsbom   generate an SBOM of the bts-sbom package itself (also the default
                when the CLI is invoked with no arguments)
 
@@ -342,6 +344,9 @@ def build_parser() -> argparse.ArgumentParser:
     ss.add_argument("--created", default=None, help="creation timestamp (RFC-3339)")
     ss.add_argument("--out", default=None, help="write JSON to FILE")
     ss.set_defaults(func=cmd_selfsbom)
+
+    from bts_sbom import oss_cli            # OSS scanners, reports, notice (bts-sbom oss ... / bts-sbom notice ...)
+    oss_cli.register(sub)
     return p
 
 

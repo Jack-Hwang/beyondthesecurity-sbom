@@ -10,14 +10,14 @@
   var GROUPS = {
     'git': ['git', 'lock', 'container'], 'risk': ['risk'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
     'graph-health': ['dep-graph', 'arch', 'supply-chain'], 'compliance': ['ntia', 'vex', 'license-risk', 'sectors'],
-    'fix': ['fix-plan', 'fix-pr'], 'more': ['more']
+    'fix': ['fix-plan', 'fix-pr'], 'oss': ['oss'], 'more': ['more']
   };
   var LABELS = {
     'git': '🌐 Git repo', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Overview',
     'ssvc': '🎯 SSVC', 'epss': '📡 EPSS', 'exploit-mat': '🔥 Exploit Mat.', 'dep-graph': '🕸 Dep Graph',
     'arch': '🏛 Architecture', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'vex': '📋 VEX',
     'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
-    'fix-pr': '🔧 Patch', 'more': '⚙️ CI/CD · History'
+    'fix-pr': '🔧 Patch', 'oss': '📜 OSS Scanner', 'more': '⚙️ CI/CD · History'
   };
   var SEVS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
   var SEV_COLOR = { CRITICAL: '#9F4BDD', HIGH: '#BC5F04', MEDIUM: '#EDAB00', LOW: '#4A76AA', UNKNOWN: '#6e7681' };
