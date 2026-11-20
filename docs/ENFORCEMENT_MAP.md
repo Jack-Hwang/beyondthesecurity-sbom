@@ -1,0 +1,28 @@
+# 강제장치 지도 (Enforcement Map)
+
+"정직 계약"(근거가 없으면 통과가 아니다 / 원본은 건드리지 않는다 / 푸시·적용은 명시 플래그와 사람 승인 뒤에만 / 실행하지
+못한 단계는 숨기지 않고 기록한다)이 코드의 어디에서, 어떤 기존 테스트로 강제되는지 한 장에 모은다. AC id 는
+`specs/bts_sbom_app_features.md` 에서, 테스트는 `tests/` 에서 실제 존재를 확인하고 적었다(아래 마지막 4행은 같은 브랜치에서 함께
+들어온 회복력·패치 영향·준비 상태 기능의 강제 지점이다). 위치·검증 테스트 칸은 `doclint.py` 가 참조
+존재를 기계적으로 확인한다(dangling 참조는 린트 오류).
+
+| 위험 | 강제 수단 | 위치 | 검증 테스트 |
+|---|---|---|---|
+| 패치 전후 원본 소스 트리가 바뀜 | 분석·패치 전후 원본 디렉터리의 트리 해시를 비교해 기록한다(바뀌면 `origin_unchanged=false`); `deliver_target` 이 `inplace` 가 아닌 모든 실행에 적용된다 (BSA-AC-1) | `bts_sbom_app/pipeline.py:run_project` | `tests/bts_sbom_app/test_patch_delivery.py::test_pipeline_patch_flow_origin_untouched_and_findings_to_zero` |
+| 안전하지 않은 소스(`ext::` 전송, 옵션처럼 보이는 값, 평문 `http`)로 원격 저장소를 복제함 | 소스 문자열 정규화 단계에서 이런 형태를 전부 거부하고 복제 0건을 보장한다 (BSA-AC-2) | `bts_sbom_app/workspace.py:normalize_source` | `tests/bts_sbom_app/test_patch_delivery.py::test_unsafe_sources_are_refused` |
+| 사람 승인 없이 매니페스트 패치가 적용됨 | `approved=True` 가 아니면 파일을 0건 변경하고 `not_approved` 를 보고한다 (BSA-AC-14, ADR-0008) | `bts_sbom_app/patch.py:apply` | `tests/bts_sbom_app/test_patch_delivery.py::test_no_approval_changes_nothing` |
+| 승인 토큰이 보여준 계획과 다른데도 패치가 적용됨 | 토큰을 그 계획의 `approval_digest` 와 정확히 비교해, 불일치 시 0건 적용하고 `digest_mismatch` 를 보고한다 (BSA-AC-15, ADR-0008) | `bts_sbom_app/patch.py:apply` | `tests/bts_sbom_app/test_patch_delivery.py::test_digest_mismatch_applies_nothing` |
+| 적용된 패치가 회귀를 유발했는데도 그대로 남음 | 편집한 파일 범위로 한정한 재스캔 발견이 늘면 패치 전 커밋으로 작업 사본을 되돌리고 `regression_reverted` 를 보고한다 (BSA-AC-18, ADR-0008) | `bts_sbom_app/pipeline.py:_patch_loop` | `tests/bts_sbom_app/test_patch_delivery.py::test_regression_after_patch_is_reverted` |
+| 모델이 계획한 도구 호출이 사용자가 타이핑하지 않은 승인 토큰·확인 코드·출처·사유를 스스로 지어냄 | 호출 검증기가 그 세션에서 사용자가 실제로 입력한 문자열과 다른 값은 전부 드롭한다 (BSA-AC-203) | `bts_sbom_app/chat.py:validate_calls` | `tests/bts_sbom_app/test_chat_actions.py::test_tokens_sources_codes_and_reasons_must_be_the_users_own_text` |
+| 트리아지 규칙상 성립하지 않는 VEX 결정(사유 없는 false positive, 발견 없는 advisory 등)이 그대로 기록됨 | 기록 전에 트리아지 규칙으로 효과를 미리 계산해 미리보기에 보여주고, 그 내용 그대로의 확인 코드 없이는 기록되지 않는다(fail-closed) (BSA-AC-205) | `bts_sbom_app/actions.py:decision_effect` | `tests/bts_sbom_app/test_chat_actions.py::test_decisions_keep_the_fail_closed_rules_and_the_vex_export_shows_them` |
+| EXAONE API 키가 응답·상태 조회에 그대로 노출됨 | 연결 상태 응답은 키의 마지막 4자만 내보내고 원문 키는 어떤 응답에도 담지 않는다 (BSA-AC-216..218) | `bts_sbom_app/server.py:llm_status` | `tests/bts_sbom_app/test_server_cli.py::test_api_llm_connects_masks_the_key_and_plans_with_the_llm` |
+| 챗봇이 이번 질문에서 실제로 조회되지 않은 문서를 출처로 인용함(근거 없는 출처) | 주장의 `source`/`quote` 가 이번 질문에 실제로 조회된 문서 집합에 그 문구 그대로 있을 때만 검증을 통과시킨다 (BSA-AC-40, BSA-AC-41) | `bts_sbom_app/chat.py:verify_claims` | `tests/bts_sbom_app/test_ai_rag_loop.py::test_claim_pointing_to_unretrieved_source_is_rejected` |
+| EXAONE 의 일일 한도(HTTP 429)를 맞고도 재시도를 반복해 호출을 더 소비함 | day/daily/quota 성격의 429 는 정확히 1회 호출 후 재시도 없이 즉시 결정적 경로로 강등한다 (BSA-AC-33, ADR-0010) | `bts_sbom_app/llm.py:_complete` | `tests/bts_sbom_app/test_ai_rag_loop.py::test_http_429_day_limit_downgrades_after_one_call` |
+| EXAONE 제안 중 근거 없는 것(알 수 없는 id 인용, 닫힌 집합 밖 action, 계획과 다른 target_version)이 그대로 채택됨 | 스키마·규칙·의미·교차필드 4계층을 모두 통과한 항목만 채택하고 나머지는 사유별로 집계해 드롭한다 (BSA-AC-34, ADR-0010) | `bts_sbom_app/ai.py:validate` | `tests/bts_sbom_app/test_ai_rag_loop.py::test_four_layer_validation_keeps_exactly_one` |
+| 루프 엔지니어링 패스가 실제 품질 저하를 반복 재시도로 "통과"처럼 둔갑시킴 | 후보가 기준 대비 차단 지표를 허용 폭(0.02)보다 더 깎으면 게이트가 `pass=false` 를 반환한다 (BSA-AC-42) | `bts_sbom_app/loop.py:gate` | `tests/bts_sbom_app/test_ai_rag_loop.py::test_regression_gate_blocks_drop_over_delta` |
+| 반입된 저장소 텍스트(라이선스 파일 등)에 심어진 지시문이 그대로 신뢰되어 모델의 행동에 영향을 줌(프롬프트 인젝션) | 지시문처럼 보이는 내용을 `suspicious` 로 표시하되 텍스트는 바꾸지 않고, CXML 출력 시 모든 문서를 이스케이프하고 신뢰 불가로 명시한다 (BSA-AC-179) | `bts_sbom_app/contextpack.py:to_cxml` | `tests/bts_sbom_app/test_contextpack.py::test_cxml_escapes_repository_text_and_flags_instruction_like_files` |
+| 오래된 규제 적합도(conformance) 표가 최신인 것처럼 조용히 통과 처리됨 | 검토 기준일로부터 6개월 이상 지나면 결과·Markdown·기록·챗봇 답변 전부에 "검토 필요"를 표시한다 (BSA-AC-210) | `bts_sbom_app/conformance.py:table_age` | `tests/bts_sbom_app/test_sbom_conformance.py::test_an_old_regime_table_says_so_instead_of_passing_as_current` |
+| 외부 조회가 계속 실패하는데 호출을 계속 때리거나, 접속 실패를 "찾지 못함"처럼 보이게 함 | 호스트별 서킷브레이커(연속 실패 3회 → 60초 동안 호출 0회 → 탐침 1회)와 4상태 결과(`success`/`empty_result`/`partial_result`/`access_failure`); 404 는 실패로 세지 않는다 (BSA-AC-301~, ADR-0011) | `bts_sbom_app/net.py:fetch_json` | `tests/bts_sbom_app/test_resilience.py::test_open_breaker_short_circuits_five_calls_with_zero_transport_attempts` |
+| 패치가 수정하지 않은 다른 매니페스트·전이 의존성·다른 프로젝트(shared)의 취약점을 놓침 | 회귀 4분면(direct/upstream/downstream/shared) 분류; 자료가 없는 분면은 `unverified` 이고 종합 판정은 `clean` 이 되지 못한다 (ADR-0012) | `bts_sbom_app/impact.py:classify` | `tests/bts_sbom_app/test_impact_review.py::test_verdict_never_clean_while_a_quadrant_is_unverified` |
+| 리뷰어가 계획기의 내부 상태에 기대어 같은 오류를 되풀이함 | 독립 리뷰어는 산출물(계획 다이제스트·변경 파일·diff 통계·영향 분류)만 입력으로 받는다 — 함수 서명에 `rec` 가 없다 (ADR-0012) | `bts_sbom_app/review.py:review` | `tests/bts_sbom_app/test_impact_review.py::test_review_signature_has_no_rec_parameter` |
+| 준비되지 않은 서버가 트래픽을 받음 | `/readyz` 가 증거 폴더 쓰기·코어 import·지식 코퍼스를 점검해 하나라도 실패하면 503 과 실패 항목 이름만 돌려준다(경로·예외 문자열 비노출) | `bts_sbom_app/server.py:readyz_checks` | `tests/bts_sbom_app/test_ops_probes.py::test_readyz_http_503_while_failing_then_200_once_fixed` |

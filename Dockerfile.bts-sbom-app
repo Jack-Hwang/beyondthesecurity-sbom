@@ -1,5 +1,7 @@
 # BTS-SBOM chatbot / API service (stdlib only; the bts_sbom core is part of this repository, so there is nothing else to install).
-# NOT BUILT YET: written locally, `docker build` has never been run on it.
+# NOT BUILT YET: written/edited locally, `docker build` has never been run to completion on this file - see docs/RUNBOOK.md
+# "Delivery State" for exactly what was and was not verified (the current edit only ran the static policy tests in
+# tests/bts_sbom_app/test_container_policy.py, which read this file's text; they do not invoke the Docker daemon).
 # Build:  docker build -f Dockerfile.bts-sbom-app -t bts-sbom-app .
 # Run:    docker run --rm -p 127.0.0.1:8800:8800 -e EXAONE_API_KEY=... bts-sbom-app
 # The service binds 0.0.0.0 inside the container; publish the port on localhost only (as above) - it has NO authentication.
@@ -14,5 +16,12 @@ COPY evals ./evals
 RUN pip install --no-cache-dir --no-deps .
 ENV PYTHONUNBUFFERED=1 PYTHONUTF8=1
 EXPOSE 8800
-USER nobody
+# Non-root, numeric UID (no /etc/passwd entry needed): GET /readyz checks the evidence folder is writable, so it must
+# exist and be owned by this UID before the switch - /app itself stays owned by root (world-readable is enough to run it).
+RUN mkdir -p /tmp/evidence && chown -R 10001:10001 /tmp/evidence
+USER 10001
+# urllib is stdlib (no curl in the image to keep it minimal); failure is "not ready", which docker reports as unhealthy,
+# not "process is down" - the process itself may be fine while a dependency (e.g. the evidence volume) is not.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["python", "-c", "import sys,urllib.request as u; sys.exit(0 if u.urlopen('http://127.0.0.1:8800/readyz', timeout=2).status == 200 else 1)"]
 CMD ["python", "-m", "bts_sbom_app", "--root", "/app", "serve", "--host", "0.0.0.0", "--port", "8800", "--evidence", "/tmp/evidence"]

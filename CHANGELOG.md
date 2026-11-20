@@ -4,6 +4,33 @@ All notable changes to bts-sbom are documented here.
 
 ## Unreleased
 
+### Course methodologies applied (`bts_sbom_app/`, docs) - offline-measured, not run on GitHub or in Docker
+
+Chosen from the AI-application course material (weeks 1-4 plus the governance and portfolio guides) after checking what `main` and
+`rel/v0.2.0` already had; all additive (no existing return value, status code or CLI argument changed). Specs: BSA-AC-301..400.
+
+* **Circuit breaker and honest no-answer outcomes** (`resilience.py`, `net.fetch_json` / `fetch_text`): per-host breaker (3 consecutive
+  failed calls -> open for 60 s -> one probe), four outcome states, `Retry-After` honoured (cap 30 s), `net.STATS` gains `short_circuited` /
+  `empty` / `partial`. `http_json` / `http_text` keep their return values. `BTS_SBOM_BREAKER_THRESHOLD=0` switches it off. The existing
+  callers (`licenses.py`, `osv.py`, `arch.py`) still use the unchanged wrappers, so they do not yet report the four states separately.
+* **Patch regression quadrants and independent review** (`impact.py`, `review.py`, `pipeline._patch_loop`): direct / upstream / downstream /
+  shared classification; a quadrant without data is `unverified`, never `ok`. From `_patch_loop` the fleet half of "shared" is always
+  `unverified` (no fleet access there). The reviewer is advisory and takes artifacts only.
+* **Scan progress events (SSE)** (`events.py`, `GET /api/jobs/<id>/events`, `run_project(progress=...)`), **`/healthz` and `/readyz`**,
+  Dockerfile hardening (numeric non-root user, HEALTHCHECK) and `docs/RUNBOOK.md`. `docker build` was NOT run (no daemon in the build
+  environment); the Dockerfile is only checked by static policy tests.
+* **Design-rationale and governance pack**: `docs/adr/` (0007-0013, each with rejected alternatives), `docs/governance/` (AI impact
+  assessment - a self-assessment, not legal advice -, model card, origin lineage, data contract), `docs/ENFORCEMENT_MAP.md`, and
+  `python -m bts_sbom_app.doclint [--strict]` (new CI step).
+* **Traceability and evidence**: `bts-sbom-app trace` (AC x module x test; `docs/TRACEABILITY.md`), `portfolio export`, `proof`
+  (PASS / FAIL / NOT RUN; NOT RUN is never PASS; evidence sidecar). EARS State-pattern ACs go from 0 to 5.
+* **Fixes found by an independent review of the above** (BSA-AC-358..360, 441, 442): a failed license lookup (outage or an open
+  circuit) is no longer cached as "no license" for a week (`licenses.resolve` reports `lookup_unavailable`; before this the breaker
+  could have turned a short blip into 7 days of missing licenses); a late failure of a call that began before the breaker opened can no
+  longer reopen it under the half-open probe; `portfolio export` and the enforcement-map check refuse paths that leave the repository
+  (symlinks, `..`, absolute paths); the in-memory event buses are capped at 64 (closed ones go first).
+
+
 ### `bts_sbom_app/`
 
 * **Loop gate no longer passes on absent evidence** (`loop.gate`, `run_rag_pass`): a blocking metric the baseline has but the candidate

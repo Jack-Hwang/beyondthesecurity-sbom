@@ -155,6 +155,15 @@ def no_network():
     net.TRANSPORT, llm.TRANSPORT = None, None
 
 
+@pytest.fixture(autouse=True)
+def _reset_circuit_breakers():
+    """Course package A: net.py's per-host circuit breakers are module-level state, so one test's failures must
+    never carry over and open a breaker for the next test (or vice versa)."""
+    net.reset_breakers()
+    yield
+    net.reset_breakers()
+
+
 @pytest.fixture
 def world() -> FakeWorld:
     w = FakeWorld()

@@ -22,6 +22,13 @@ GET  /api/conformance/<project>            -> SBOM conformance matrix (NTIA 2021
 GET  /api/changes/<project>                -> what changed since the previous analysis (alerts, new / resolved findings)
 GET  /api/fleet , /api/affected?cve=&component=&version=   -> portfolio roll-up, projects hit by an advisory / using a component
 GET  /api/health
+GET  /api/jobs/<id>/events                 -> the same job as Server-Sent Events (bts-sbom.events.v1, see events.py): job_start,
+                                           step_start/step_end per pipeline stage, patch_gate (when a patch was requested),
+                                           then exactly one of final/error. ``Last-Event-ID`` (or ``?after=``) resumes after
+                                           a drop; periodic heartbeat comment lines keep a quiet connection alive.
+GET  /healthz                              -> the process is alive (always 200, no checks)
+GET  /readyz                               -> the process can actually serve: evidence folder writable, core importable,
+                                           knowledge corpus present. 503 with just the failed check names if not (4-1 probes).
 *    /api/oss/...                          -> the OSS Scanner screen (oss_api.py: scan folder / archive / URL, results, reports, notice, compare)
 Binds to 127.0.0.1 by default. There is no authentication: do not expose it beyond localhost without a reverse proxy.
 Scan sources are restricted to https/ssh/file git URLs, owner/repo shorthands and EXISTING local folders.
@@ -37,16 +44,34 @@ import threading
 import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, coverage, engine, evals, fleet, oss_api, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, coverage, engine, events, evals, fleet, oss_api, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
-from .util import read_json, write_json
+from .util import clip, read_json, write_json
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 _CTYPES = {".html": "text/html", ".js": "application/javascript", ".css": "text/css"}
 _SBOM_FILES = {"cdx": ".cdx.json", "spdx": ".spdx.json", "vex": ".vex.json"}
+# Seconds a GET /api/jobs/<id>/events connection waits for a new event before writing a heartbeat comment line.
+# A module-level name (read fresh on every wait, never captured as a default argument) so tests can shrink it.
+EVENTS_HEARTBEAT_SECONDS = 15.0
+_READYZ_PROBE_NAME = ".readyz_probe"
+MAX_BUSES = 64                                                # event buses kept in memory; the oldest CLOSED ones are dropped first
+
+
+def _prune_buses(buses: Dict[str, "events.EventBus"], keep: int) -> int:
+    """Drop the oldest closed buses until at most ``keep`` remain. A bus that is still open (its job is running) is never dropped,
+    so the cap can be exceeded by running jobs only. Returns how many were dropped."""
+    dropped = 0
+    for jid in list(buses):
+        if len(buses) <= keep:
+            break
+        bus = buses.get(jid)
+        if bus is not None and bus.closed and buses.pop(jid, None) is not None:
+            dropped += 1
+    return dropped
 # The page loads only its own files; everything it renders from analysed data is escaped, and this policy is the second line of defence.
 _CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
         "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
@@ -68,6 +93,7 @@ class State:
         self.root, self.evidence = root, evidence
         self.chat_actions = chat_actions                     # /api/chat may analyse, patch (approved) and record decisions only when the service was started so
         self.jobs: Dict[str, Dict[str, Any]] = {}
+        self.buses: Dict[str, events.EventBus] = {}           # one EventBus per job id, same lifetime as the job's entry in self.jobs
         self.lock = threading.Lock()
         if cfg:
             os.environ["BTS_SBOM_LLM_CONFIG"] = cfg
@@ -179,6 +205,34 @@ def _record_file(folder: str) -> str:
     return os.path.join(folder, os.path.basename(folder) + ".json")
 
 
+def readyz_checks(st: "State") -> List[str]:
+    """Names of the readiness probes that fail right now (empty list = ready). Each probe reports only its own name:
+    paths, exception text and other internals never reach the caller (this answers an unauthenticated GET)."""
+    failed: List[str] = []
+    try:
+        os.makedirs(st.evidence, exist_ok=True)
+        # A name unique to this call/thread: concurrent /readyz requests (the Docker HEALTHCHECK and a human curious
+        # at the same moment, say) must never race on the same probe file and have one's os.remove fail because the
+        # other already deleted it.
+        probe = os.path.join(st.evidence, "%s.%d.%d" % (_READYZ_PROBE_NAME, os.getpid(), threading.get_ident()))
+        with open(probe, "w", encoding="utf-8") as fh:
+            fh.write("ok")
+        os.remove(probe)
+    except OSError:
+        failed.append("evidence_writable")
+    try:
+        engine.core_version()
+    except Exception:                                             # noqa: BLE001 - readiness probe: name only, never the exception
+        failed.append("core_import")
+    try:
+        kdir = os.path.join(evals.repo_root(), "knowledge")
+        if not (os.path.isdir(kdir) and os.listdir(kdir)):
+            failed.append("knowledge_corpus")
+    except OSError:
+        failed.append("knowledge_corpus")
+    return failed
+
+
 def _history_row(name: str, folder: str, rec: Dict[str, Any]) -> Dict[str, Any]:
     m = rec.get("metrics") or {}
     return {"name": name, "source": rec.get("source"), "analysed_at": _mtime_iso(_record_file(folder)), "components": m.get("components"),
@@ -250,6 +304,36 @@ def make_handler(st: State):
                 self._send(code, obj, ctype, headers)
             return True
 
+        def _serve_events(self, jid: str, q: Dict[str, Any]) -> None:
+            """GET /api/jobs/<jid>/events as text/event-stream. Unknown job -> plain 404 JSON (never a stream).
+            Resumes after ``Last-Event-ID`` (header takes precedence over ``?after=``); heartbeats keep an idle
+            connection open; the stream ends for good right after a final/error event."""
+            bus = st.buses.get(jid)
+            if bus is None:
+                return self._send(404, {"error": "unknown job"})
+            try:
+                after = int(self.headers.get("Last-Event-ID") or (q.get("after") or ["0"])[0])
+            except (TypeError, ValueError):
+                after = 0
+            try:
+                bus.subscribe()
+            except events.TooManySubscribers:
+                return self._send(503, {"error": "too many event subscribers for this job (max %d)" % events.EventBus.MAX_SUBSCRIBERS})
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                for item in bus.iter_events(after_seq=after, timeout=EVENTS_HEARTBEAT_SECONDS):
+                    chunk = b": heartbeat\n\n" if item is None else events.format_sse(item).encode("utf-8")
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass                                               # the reader went away mid-stream: nothing left to do
+            finally:
+                bus.unsubscribe()
+
         def do_GET(self) -> None:                                    # noqa: N802
             u = urllib.parse.urlsplit(self.path)
             path, q = u.path, urllib.parse.parse_qs(u.query)
@@ -259,6 +343,11 @@ def make_handler(st: State):
                 files = static_files()
                 rel = urllib.parse.unquote(path[len("/static/"):])
                 return self._file(files[rel]) if rel in files else self._send(404, {"error": "not found"})
+            if path == "/healthz":
+                return self._send(200, {"ok": True})
+            if path == "/readyz":
+                failed = readyz_checks(st)
+                return self._send(503 if failed else 200, {"ready": not failed, "failed": failed})
             if path == "/api/health":
                 return self._send(200, {"ok": True, "llm": st.client.describe()})
             if path == "/api/llm":
@@ -305,6 +394,9 @@ def make_handler(st: State):
                         return self._send(200, rec.get("changes") or {"note": "no earlier analysis of this project was recorded"})
                     doc, note = conformance.load_document(_record_file(folder))
                     return self._send(200 if doc else 404, conformance.evaluate(doc) if doc else {"error": note})
+            if path.startswith("/api/jobs/") and path.endswith("/events"):
+                jid = path[len("/api/jobs/"):-len("/events")].strip("/")
+                return self._serve_events(jid, q)
             if path.startswith("/api/jobs/"):
                 j = st.jobs.get(path.rsplit("/", 1)[-1])
                 return self._send(200 if j else 404, j or {"error": "unknown job"})
@@ -361,25 +453,55 @@ def make_handler(st: State):
                     return self._send(400, {"error": "approved needs approval_token: the digest of the plan you reviewed (from a patch run without approval)"})
                 jid = uuid.uuid4().hex[:10]
                 st.jobs[jid] = {"state": "running", "source": src}
+                bus = events.EventBus(jid)
+                _prune_buses(st.buses, MAX_BUSES - 1)
+                st.buses[jid] = bus                                   # registered before the thread starts: an immediate GET .../events never 404s
+
+                def on_progress(event_type: str, name: str, **fields: Any) -> None:
+                    bus.publish(event_type, name=name, **fields)
 
                 def work() -> None:
                     wdir = tempfile.mkdtemp(prefix="bts_sbom_job_")
                     keep = False
                     final: Dict[str, Any]
                     try:
+                        bus.publish("job_start", source=src)
+                    except Exception:                                 # noqa: BLE001 - the job must run even if its own telemetry cannot
+                        pass
+                    try:
                         rec = pipeline.run_project(src, work_root=wdir, out_dir=st.evidence, patch=patch, approved=approved,
                                                    approval_token=token.strip() if approved else None, offline=bool(b.get("offline")),
                                                    use_llm=bool(b.get("use_llm")), client=st.client if st.client.available else None,
-                                                   cache_dir=os.path.join(st.root, "evidence", "cache"))
+                                                   cache_dir=os.path.join(st.root, "evidence", "cache"), progress=on_progress)
                         keep = bool(patch and approved and (rec.get("patch") or {}).get("status") == "applied")
                         final = {"state": "error" if rec.get("error") else "done", "source": src, "name": rec.get("name"),
                                  "error": rec.get("error"), "metrics": rec.get("metrics"), "artifacts": rec.get("artifacts"),
                                  "stage_errors": rec.get("stage_errors"), "work_copy": wdir if keep else None}
+                        try:
+                            pstatus = (rec.get("patch") or {}).get("status")
+                            if patch and pstatus:                     # one patch_gate event, only when a patch was actually requested
+                                if pstatus == "not_approved":
+                                    bus.publish("patch_gate", state="awaiting_approval", digest=rec["patch"].get("digest"))
+                                elif pstatus != "not_requested":
+                                    bus.publish("patch_gate", state="approved")
+                            if rec.get("error"):
+                                bus.publish("error", error_type="analysis_error", severity="high", retryable=False,
+                                            recovery_hint=clip(rec["error"], 200))
+                            else:
+                                bus.publish("final", state="done")
+                        except Exception:                             # noqa: BLE001 - telemetry must never mask the real result below
+                            pass
                     except Exception as exc:                          # noqa: BLE001
                         final = {"state": "error", "source": src, "error": "%s: %s" % (type(exc).__name__, str(exc)[:200])}
+                        try:
+                            bus.publish("error", error_type=type(exc).__name__, severity="high", retryable=False,
+                                        recovery_hint=clip(str(exc), 200))
+                        except Exception:                             # noqa: BLE001
+                            pass
                     finally:
                         if not keep:                                  # an applied patch lives in the work copy, so only that one is kept
                             shutil.rmtree(wdir, onerror=workspace._force_remove)
+                        bus.close()                                    # safety net: idempotent if final/error already closed it
                     st.jobs[jid] = final                              # published only after the clean-up: "done" implies the copy is gone
 
                 threading.Thread(target=work, daemon=True).start()

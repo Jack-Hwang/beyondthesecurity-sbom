@@ -28,6 +28,13 @@
 | Batches API (50% 비용) | 적용 불가 | EXAONE 은 동기 OpenAI 호환 API 뿐 |
 | LoRA 파인튜닝 | 적용 불가 | API 호출만 가능 |
 | 요구 6분류 태깅(SFR/DAR/...) | **미구현** | AC 를 기능 영역(모듈)별로만 묶었다 |
+| 서킷브레이커 3상태 + "없음의 4상태" (3주차 1·2차시) | 구현 | `resilience.py`, `net.fetch_json`, AC-301~315. 기존 호출부는 아직 래퍼를 써서 4상태를 따로 보고하지 않음 |
+| 회귀 4분면 + 독립 리뷰 (3주차 3차시) | 구현 | `impact.py`, `review.py`, AC-316~335. 패치 루프에서는 fleet 부분이 항상 unverified |
+| SSE 이벤트 스키마 + 발행 전 승인 이벤트 (4주차 3차시) | 구현 | `events.py`, `/api/jobs/<id>/events`, AC-336~357 |
+| 프로브 3종·비루트·런북 4블록 (4주차 1·2차시) | 부분 | `/healthz`, `/readyz`, Dockerfile 정적 정책, `docs/RUNBOOK.md`. 실제 `docker build` 는 미실행, startup 프로브 없음 |
+| ADR(기각 대안 필수)·영향평가서·model card·강제장치 지도 (1·5·6주차) | 구현 | `docs/adr/`, `docs/governance/`, `docs/ENFORCEMENT_MAP.md`, `doclint.py`, AC-361~380 |
+| 추적성 매트릭스·증거 사이드카·포트폴리오 export | 구현 | `traceability.py`, `portfolio.py`, AC-381~400 |
+| NL2SQL 가드, coordinator-subagent 재구조화, 요구 6분류 태깅 | **미구현** | 제품에 SQL 질의 표면이 없음 / 구조 변경 이득 불명 / 모듈별 묶음만 있음 |
 
 저작권 메모: `knowledge/lecture/` 는 강의 내용을 **의역·요약**한 것이며 슬라이드 원문을 옮기지 않았다. 레포를 공개하기 전에
 수강 약관/출처 표기 정책을 확인하고, 필요하면 해당 폴더를 제외하라.

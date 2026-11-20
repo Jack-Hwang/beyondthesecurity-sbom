@@ -451,7 +451,8 @@ def resolve(components: List[Dict[str, Any]], root: str, *, online: bool = True,
             continue
         todo.append(c)
 
-    def look(c: Dict[str, Any]) -> Tuple[Dict[str, Any], Any, str]:
+    def look(c: Dict[str, Any]) -> Tuple[Dict[str, Any], Any, str, bool]:
+        fails_before = net.thread_access_failures()
         first: Tuple[Any, str] = (None, "")
         for src, fn in (("deps.dev", _depsdev), ("registry", lambda e, n, v: _registry(e, n, v, extra_registries))):
             if src not in sources:
@@ -459,17 +460,22 @@ def resolve(components: List[Dict[str, Any]], root: str, *, online: bool = True,
             raw = fn(c["ecosystem"], c["name"], c["version"])
             label = "deps.dev" if src == "deps.dev" else "registry:" + c["ecosystem"].lower()
             if raw and normalize(raw)[0]:
-                return c, raw, label                          # first source whose evidence we can actually read
+                return c, raw, label, False                   # first source whose evidence we can actually read
             if raw and first[0] is None:
                 first = (raw, label)                          # keep unreadable evidence for the report, keep looking
-        return c, first[0], first[1]
+        return c, first[0], first[1], net.thread_access_failures() > fails_before     # True: some lookup could not be made
 
     if online and todo:
         todo = todo[:max_remote]
         with cf.ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
-            for c, raw, src in ex.map(look, todo):
+            for c, raw, src, unavailable in ex.map(look, todo):
                 stats["remote_lookups"] += 1
                 apply(c, raw, src)
+                if unavailable and not raw:
+                    # a source could not be reached (outage, or the circuit breaker was open): that is "could not check", not
+                    # "no license" - caching it as a miss would hide the component from every run for the next ttl_s
+                    stats["lookup_unavailable"] = stats.get("lookup_unavailable", 0) + 1
+                    continue
                 cache[ckey(c)] = {"raw": raw, "source": src, "extra": extra_registries, "ts": time.time()}
         if cpath:
             write_json(cpath, cache)
