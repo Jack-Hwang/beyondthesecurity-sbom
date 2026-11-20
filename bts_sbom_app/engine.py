@@ -250,6 +250,9 @@ def normalize(native: Dict[str, Any], root: str, *, dedupe: bool = True, merge_r
                     continue
                 best = max(grp, key=lambda v: (cvss.severity_of(v)[1] or -1))
                 label, score, src_kind = cvss.severity_of(best)
+                both = [cvss.scores_of(v) for v in grp]                  # an advisory group may carry a v3 vector in one record and a v4 vector in another
+                s3 = max([b["v3"] for b in both if b["v3"] is not None], default=None)
+                s4 = max([b["v4"] for b in both if b["v4"] is not None], default=None)
                 malicious = any(i.startswith("MAL-") for i in ids)       # OSV malicious-package advisory: not a bug, an attack
                 if malicious:
                     label, src_kind = "CRITICAL", "malware-advisory"
@@ -268,6 +271,10 @@ def normalize(native: Dict[str, Any], root: str, *, dedupe: bool = True, merge_r
                        "summary": clip(best.get("summary") or best.get("details") or "", 240),
                        "published": best.get("published", ""), "files": [f],
                        "references": [r.get("url") for r in (best.get("references") or [])[:3] if r.get("url")]}
+                if s3 is not None:
+                    rec["cvss_v3"] = s3
+                if s4 is not None:
+                    rec["cvss_v4"] = s4
                 vulns.append(rec)
                 seen_vuln[vkey] = rec
                 c["vulns"] += 1

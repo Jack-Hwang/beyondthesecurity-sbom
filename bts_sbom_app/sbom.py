@@ -13,7 +13,7 @@ import json
 import re
 from typing import Any, Dict, Iterable, List, Optional, Set
 
-from . import __version__, engine
+from . import __version__, cvss, engine
 from .util import now_iso
 
 _SEV_MAP = {"CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low", "NONE": "none", "UNKNOWN": "unknown"}
@@ -68,10 +68,14 @@ def cyclonedx(name: str, components: List[Dict[str, Any]], vulns: List[Dict[str,
         if not ref:
             continue                                   # unresolvable -> never emit a dangling reference
         rating: Dict[str, Any] = {"source": {"name": "OSV"}, "severity": _SEV_MAP.get(v["severity"], "unknown")}
+        ratings = [rating]
         if v.get("cvss") is not None:
-            rating.update(score=v["cvss"], method="CVSSv31")
+            rating.update(score=v["cvss"], method="CVSSv4" if v.get("score_source") == "cvss_v4_vector" else "CVSSv31")
+            other, method = (v.get("cvss_v3"), "CVSSv31") if v.get("score_source") == "cvss_v4_vector" else (v.get("cvss_v4"), "CVSSv4")
+            if other is not None and other != v["cvss"]:                 # the advisory has both: keep both, the primary first
+                ratings.append({"source": {"name": "OSV"}, "severity": _SEV_MAP.get(cvss.label(other), "unknown"), "score": other, "method": method})
         vs.append({"id": v["id"], "source": {"name": "OSV", "url": "https://osv.dev/vulnerability/" + (v.get("osv_ids") or [v["id"]])[0]},
-                   "ratings": [rating], "description": v.get("summary", ""),
+                   "ratings": ratings, "description": v.get("summary", ""),
                    "recommendation": ("Upgrade %s to %s or later" % (v["package"], v["fixed_version"])) if v.get("fixed_version")
                    else "No fixed version is known - evaluate a replacement or document risk acceptance",
                    "advisories": [{"url": u} for u in (v.get("references") or [])[:3]],

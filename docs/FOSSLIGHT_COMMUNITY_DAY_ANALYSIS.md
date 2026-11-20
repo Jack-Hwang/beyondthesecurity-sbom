@@ -91,7 +91,7 @@ bts-sbom-app chat --actions --evidence evidence/runs -i
 
 | 항목 | 이유 |
 |---|---|
-| CVSS v4.0 점수 계산 | 점수는 공식 매크로벡터 조회표가 필요하고, 표를 기억으로 옮기면 틀릴 위험이 큼. 표 파일(FIRST 공개본)을 받아 검증하며 구현해야 함 |
+| ~~CVSS v4.0 점수 계산~~ | **구현함(2026-11-20)**: 허락을 받고 FIRST 공식 계산기(BSD-2-Clause)의 표 파일을 내려받아 `cvss4.py` / `cvss4_data.py` 로 이식. 공개 예제 25개와 25개 모두 일치. v3 가 기본 우선(기존 점수 불변), `BTS_SBOM_CVSS_PREFER=v4` 로 Hub 처럼 v4 우선 |
 | FOSSLight Scanner 리포트(Excel/YAML) 가져오기 | 실제 샘플 파일이 없어 열 이름·형식을 검증할 수 없음. 참고로 CycloneDX/SPDX 로 내보낸 SBOM 은 `scan <파일>` 로 이미 읽힘(파일 이름과 무관, 실측) |
 | 웹 콘솔에 새 패널 추가 | 플랫폼 파일 6개는 수정 금지(NOTICE.md)라 새 페이지 코드가 필요. API 는 준비됨. 별도 세션에서 진행 중 |
 | LLM 이 `not_affected` 나 triage 결정을 만드는 것 | VEX 는 fail-closed. `review` 는 사람이 볼 목록만 제공 |

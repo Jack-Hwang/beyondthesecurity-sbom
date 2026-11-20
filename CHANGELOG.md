@@ -93,6 +93,17 @@ slides themselves were not read - see `docs/FOSSLIGHT_COMMUNITY_DAY_ANALYSIS.md`
   base_url may connect without a key. Spec: BSA-AC-216..218; tests: `test_server_cli.py`.
 * Spec: BSA-AC-200..210 (BSA-AC-95 now counts a catalog of 20 tools); tests: `test_chat_actions.py`, `test_sbom_conformance.py`.
 
+### `bts_sbom_app/` - CVSS v4.0 scoring
+
+* **CVSS v4.0 scores** (`cvss4.py`, tables in `cvss4_data.py`): findings whose advisory has a v4 vector are scored instead of falling back to the
+  advisory label or UNKNOWN. A faithful port of FIRST's reference calculator (270 macro vectors, severity-distance interpolation, threat and
+  environmental metrics, specified defaults); invalid or incomplete vectors give no score. The tables come from FIRST's `cvss-v4-calculator`
+  (BSD-2-Clause, notice kept in `cvss4_data.py`, sha256 of the source files recorded there), downloaded 2026-11-20 with the user's permission and
+  turned into a data module by a generator that checks the 270 valid keys. `cvss.severity_of(prefer=)` / `BTS_SBOM_CVSS_PREFER=v4` choose the
+  primary version (default v3, so existing scores do not move; Hub prefers v4); records keep `cvss_v3` / `cvss_v4` when present and the CycloneDX
+  vulnerability gets one rating per version with its `method` (CVSSv4 / CVSSv31). Verified against 25 published FIRST examples (25 of 25).
+* Spec: BSA-AC-250..254; tests: `tests/bts_sbom_app/test_cvss4.py`.
+
 ## 0.2.0 - 2026-11-17
 
 BTS-SBOM 0.2.0 adds the end-to-end workflow layer next to the core (second package `bts_sbom_app/`, same distribution, still zero
