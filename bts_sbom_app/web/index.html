@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BTS-SBOM</title>
 <!-- tokens.css, app.css, light_theme_overrides.css, view_scan.css, sca_app.css and sca_app.js are copied unmodified from the BTS
-     platform (see NOTICE.md). Only this page, bts_console.css, bts_ui.js, bts_governance.js and bts_console.js are written for BTS-SBOM. -->
+     platform (see NOTICE.md). This page, bts_console.css, bts_ui.js, bts_governance.js, bts_console.js, oss_scanner.js/.css,
+     arch_intel_render.js, arch_intel.js and arch_intel.css are written for BTS-SBOM; web/vendor/mermaid.min.js is a vendored
+     third-party asset (NOTICE.md). -->
 <link rel="stylesheet" href="/static/css/tokens.css">
 <link rel="stylesheet" href="/static/css/app.css">
 <link rel="stylesheet" href="/static/css/light_theme_overrides.css">
@@ -13,6 +15,7 @@
 <link rel="stylesheet" href="/static/sca_app.css">
 <link rel="stylesheet" href="/static/bts_console.css">
 <link rel="stylesheet" href="/static/oss_scanner.css">
+<link rel="stylesheet" href="/static/arch_intel.css">
 </head>
 <body>
 <div class="app">
@@ -53,6 +56,7 @@
           <div class="rtab" data-sv="compliance" style="color:#34d399">&#9989; Compliance</div>
           <div class="rtab" data-sv="fix" style="color:#a78bfa">&#128295; Fix</div>
           <div class="rtab" data-sv="oss">&#128220; OSS Scanner</div>
+          <div class="rtab" data-sv="archintel" style="color:#7dd3fc">&#129517; Arch Intel</div>
           <div class="rtab" data-sv="more">&#9881;&#65039; CI/CD &middot; History</div>
         </div>
         <div id="scanSubNav" style="display:none;gap:6px;flex-wrap:wrap;margin:-6px 0 12px" aria-label="Group sub-tabs"></div>
@@ -132,6 +136,7 @@
         <div class="rpane" data-sv="fix-plan"><div id="paneFixPlan"></div></div>
         <div class="rpane" data-sv="fix-pr"><div id="paneFixPr"></div></div>
         <div class="rpane" data-sv="oss"><div id="paneOss"></div></div>
+        <div class="rpane" data-sv="archintel"><div id="paneArchIntel"></div></div>
         <div class="rpane" data-sv="more"><div id="paneHistory"></div></div>
         <div class="rpane" data-sv="fleet">
           <div class="bts-formbox">
@@ -166,5 +171,7 @@
 <script src="/static/bts_governance.js"></script>
 <script src="/static/bts_console.js"></script>
 <script src="/static/oss_scanner.js"></script>
+<script src="/static/arch_intel_render.js"></script>
+<script src="/static/arch_intel.js"></script>
 </body>
 </html>

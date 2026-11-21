@@ -30,6 +30,7 @@ GET  /healthz                              -> the process is alive (always 200, 
 GET  /readyz                               -> the process can actually serve: evidence folder writable, core importable,
                                            knowledge corpus present. 503 with just the failed check names if not (4-1 probes).
 *    /api/oss/...                          -> the OSS Scanner screen (oss_api.py: scan folder / archive / URL, results, reports, notice, compare)
+*    /api/arch/...                         -> the Arch Intel screen (arch_api.py: license verdict + AI architecture deep-dive of one source tree)
 Binds to 127.0.0.1 by default. There is no authentication: do not expose it beyond localhost without a reverse proxy.
 Scan sources are restricted to https/ssh/file git URLs, owner/repo shorthands and EXISTING local folders.
 """
@@ -46,7 +47,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, coverage, engine, events, evals, fleet, oss_api, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, actions as actionsmod, arch_api, chat as chatmod, conformance, console, coverage, engine, events, evals, fleet, oss_api, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 from .util import clip, read_json, write_json
@@ -304,6 +305,18 @@ def make_handler(st: State):
                 self._send(code, obj, ctype, headers)
             return True
 
+        def _arch(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
+            """The Arch Intel screen's API (arch_api.py); False when the path is not one of its routes."""
+            hit = arch_api.route(method, path, q, body, self.headers, st, bind=tuple(self.server.server_address[:2]))
+            if hit is None:
+                return False
+            code, obj, ctype, headers = hit
+            if isinstance(obj, (bytes, bytearray)):
+                self._emit(code, bytes(obj), ctype, headers)
+            else:
+                self._send(code, obj, ctype, headers)
+            return True
+
         def _serve_events(self, jid: str, q: Dict[str, Any]) -> None:
             """GET /api/jobs/<jid>/events as text/event-stream. Unknown job -> plain 404 JSON (never a stream).
             Resumes after ``Last-Event-ID`` (header takes precedence over ``?after=``); heartbeats keep an idle
@@ -394,6 +407,9 @@ def make_handler(st: State):
                         return self._send(200, rec.get("changes") or {"note": "no earlier analysis of this project was recorded"})
                     doc, note = conformance.load_document(_record_file(folder))
                     return self._send(200 if doc else 404, conformance.evaluate(doc) if doc else {"error": note})
+            if path.startswith("/api/arch/jobs/") and path.endswith("/events"):
+                jid = path[len("/api/arch/jobs/"):-len("/events")].strip("/")
+                return arch_api.serve_events(st, self, jid, q)
             if path.startswith("/api/jobs/") and path.endswith("/events"):
                 jid = path[len("/api/jobs/"):-len("/events")].strip("/")
                 return self._serve_events(jid, q)
@@ -422,6 +438,8 @@ def make_handler(st: State):
                         return self._send(404, {"error": "this project has no %s document" % fmt})
                     return self._send(200, doc, "application/json", {"Content-Disposition": 'attachment; filename="%s.%s.json"' % (base, fmt)})
             if self._oss("GET", path, q, {}):
+                return
+            if self._arch("GET", path, q, {}):
                 return
             self._send(404, {"error": "not found"})
 
@@ -522,6 +540,8 @@ def make_handler(st: State):
             if path == "/api/llm/clear":
                 return self._send(200, {"ok": True, "llm": st.clear_llm()})
             if self._oss("POST", path, {}, b):
+                return
+            if self._arch("POST", path, {}, b):
                 return
             self._send(404, {"error": "not found"})
 

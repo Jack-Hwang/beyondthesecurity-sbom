@@ -30,7 +30,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 HARNESS = os.path.join(HERE, "js", "render_harness.js")
 WEB = server.WEB_DIR
 TODAY = "2026-11-17"
-SCRIPTS = ["/static/sca_app.js", "/static/bts_ui.js", "/static/bts_governance.js", "/static/bts_console.js", "/static/oss_scanner.js"]   # + the OSS Scanner screen
+SCRIPTS = ["/static/sca_app.js", "/static/bts_ui.js", "/static/bts_governance.js", "/static/bts_console.js", "/static/oss_scanner.js",
+           "/static/arch_intel_render.js", "/static/arch_intel.js"]   # + the OSS Scanner and Arch Intel screens
 
 
 # ------------------------------------------------------------------ helpers

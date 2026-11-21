@@ -403,3 +403,34 @@ own gates (pytest, speclint, doclint when present, evalrag) and records PASS/FAI
 - BSA-AC-360 [Unwanted] If more than 64 job event buses are registered, the system shall drop the oldest closed buses first and drop 0 of the 5 still-open buses.
 - BSA-AC-441 [Unwanted] If the license lookups of 20 components all fail because a host is down or its circuit is open, the system shall write 0 of those 20 misses to the license cache and report 20 lookup_unavailable (a failed lookup is not a verified absence).
 - BSA-AC-442 [State] While a half-open probe is in flight, the breaker shall ignore the late failure of 1 call that began before it opened, so the probe's success still closes the breaker (final state closed, 0 spurious reopens).
+
+## Arch Intel: license verdict + AI architecture deep-dive (bts_sbom_app/arch_intel.py, bts_sbom_app/arch_api.py)
+
+One input (a local folder or a git URL) is prepared into an isolated work copy (`workspace.prepare`), its project
+license is categorized with obligations, a per-distribution verdict, a GPL/AGPL notice checklist and a pairwise
+compatibility matrix; deterministic architecture facts (arch.analyze) plus entry-point detection and a bounded
+key-file selection ground an EXAONE architecture lane that follows the ai.propose contract (prompt-hash cache,
+four validation layers, honest deterministic fallback). Diagrams are generated deterministically from the
+VALIDATED analysis, bounded highlighted snippets anchor the architecture in real files, and the result is served
+under /api/arch/... for the Arch Intel pane. Clean-room guardrails are testable invariants: the LLM prompt
+carries metadata only, code-shaped model output is dropped, the model never writes Mermaid, and the analysed
+tree is never executed.
+
+- BSA-AC-443 [Event] When entry_points runs over a fixture tree holding exactly one file of each of 5 kinds (a __main__.py, a python __main__-guard script, a package.json main, a package.json bin and a Go package-main file), it shall return exactly those 5 paths with their 5 kinds (5 of 5 detected, 0 false entries).
+- BSA-AC-444 [Event] When a tree whose root LICENSE carries GPL-3.0 text is analysed, license_verdict shall report project_license GPL-3.0-only, category strong-copyleft and a checklist of at least 3 clauses (3 of 3 fields correct in 1 of 1 fixture).
+- BSA-AC-445 [Event] When a tree whose root LICENSE carries AGPL-3.0 text is analysed, notice_checklist shall flag network_clause true, include 1 AGPL-13 clause and report 3 of 3 distribution verdicts (3 measured fields).
+- BSA-AC-446 [Event] When compat_matrix runs for GPL-3.0-only, it shall return 6 of 6 candidate rows, mark the MIT row incompatible (1 of 1 verdict) and mark the GPL-3.0-only row compatible (1 of 1 verdict).
+- BSA-AC-447 [Event] When prompt_evidence is built over a tree whose source carries a distinctive function-body string, the evidence JSON shall contain 0 occurrences of that string and at least 1 occurrence of a real file path (2 of 2 checks).
+- BSA-AC-448 [Unwanted] If a model answer names a file that is not in the analysed tree, validate_arch shall drop that component into the semantic bucket (1 of 1 dropped) and return 0 components with ungrounded files (0 of N kept).
+- BSA-AC-449 [Unwanted] If a model string contains a markdown code fence, validate_arch shall drop the item that carries it into the rule bucket (1 of 1 dropped) - the tool never echoes code on any of its 3 item kinds.
+- BSA-AC-450 [State] While no LLM client is configured, propose_arch shall return source deterministic with at least 1 component built from measured clusters and 0 scenario steps beyond the static-inference entry flow (2 of 2 fields), with the cause recorded in llm_note (1 of 1 note).
+- BSA-AC-451 [Event] When build_diagrams renders a scenario whose step target is "User", the sequence text shall use 1 -->> return arrow for that step (1 of 1), and mermaid_label shall sanitize a hostile label's quotes, newlines and -- sequence in 3 of 3 sanitizations.
+- BSA-AC-452 [Event] When code_snippets runs over a 200-line key file with an anchor regex matching at line 100, it shall return at most 60 lines (1 bound) whose window includes line 100 (1 of 1 hit), with truncated true (1 of 1 flag).
+- BSA-AC-453 [Event] When highlight renders a Python snippet holding 1 keyword, 1 string, 1 comment and 1 number, it shall wrap exactly those 4 tokens in tok-* spans (4 of 4), escape a raw <script payload (1 of 1) and emit 0 spans for an unknown language (0 of 4 spans).
+- BSA-AC-454 [Event] When POST /api/arch/scan starts a run over a fixture tree, polling GET /api/arch/jobs/<id> shall observe state running then done, and the finished job's overview shall carry project_license, category and ai_source (3 of 3 fields).
+- BSA-AC-455 [Event] When the SSE stream GET /api/arch/jobs/<id>/events is consumed for a finished run, every event shall pass events.validate with 0 problems and the stream shall end after exactly 1 terminal event (2 of 2 checks).
+- BSA-AC-456 [Unwanted] If a request to /api/arch carries a Host header that is not the service's own address, the route shall answer 403 for 1 of 1 requests and serve 0 of 1 responses.
+- BSA-AC-457 [Event] When GET /api/arch/report/<id>?format=md is fetched for a finished run, the body shall be markdown holding the project license string and at least 1 mermaid fence (2 of 2 checks) and format=xz shall be refused with 400 (1 of 1).
+- BSA-AC-458 [Event] When a running scan job is cancelled, the job shall end in state cancelled with 1 cancellation recorded (2 of 2 fields) and a finished run shall appear in GET /api/arch/history with 1 row (1 of 1 rows).
+- BSA-AC-459 [Event] When the Arch Intel renderer renders a result whose component name carries a <script> payload, the returned markup shall contain 0 unescaped occurrences (0 of 1 possible) and the navigation shall list exactly 7 sections (7 of 7).
+- BSA-AC-460 [Event] When a diagram block holds non-empty Mermaid source, the renderer shall emit exactly 1 hidden pre.arc-mermaid-src per block (1 of 1) so the pane still shows the diagram source when the vendored renderer cannot load (0 empty panes).

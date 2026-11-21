@@ -2,6 +2,22 @@
 
 All notable changes to bts-sbom are documented here.
 
+## 0.3.0 - 2026-11-21
+
+### Arch Intel: license verdict + AI architecture deep-dive (`bts_sbom_app/arch_intel.py`, `bts_sbom_app/arch_api.py`, web pane)
+
+One input (a local folder or a git URL) -> license verdict (category, obligations, per-distribution verdict,
+GPL/AGPL notice checklist incl. AGPL §13, pairwise compatibility matrix) -> deterministic architecture facts
+(entry points, import graph, hotspots, cycles) -> an EXAONE architecture lane that follows the ai.propose contract
+(prompt-hash cache, four validation layers, honest deterministic fallback) -> component / sequence / activity
+diagrams generated deterministically from the VALIDATED analysis -> bounded, syntax-highlighted code excerpts
+anchoring the architecture in real files. Served under `/api/arch/...` (scan, jobs, SSE events, result, report
+download, history) behind the same Host/CSRF guards as the OSS screen, and rendered in a new "Arch Intel" tab
+(`web/arch_intel_render.js` pure renderers under the Node harness + `web/arch_intel.js` wiring).
+Specs: BSA-AC-443..460. ADR-0014 documents the clean-room guardrails (the LLM prompt carries metadata only;
+code-shaped model output is dropped; the analysed tree is never executed) and the vendored Mermaid asset
+(`web/vendor/mermaid.min.js`, NOTICE.md, lazy-loaded, source-text fallback).
+
 ## Unreleased
 
 ### Course methodologies applied (`bts_sbom_app/`, docs) - offline-measured, not run on GitHub or in Docker

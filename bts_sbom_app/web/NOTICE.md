@@ -28,3 +28,19 @@ priority, VEX status per finding) are left out of the report rather than invente
 Two labels inside `sca_app.js` say "AutoGuard" (the organisation badge and the breadcrumb) and the renderer has no option for them.
 Because the file must stay an unmodified copy, `bts_console.js` rewrites those two labels to "BTS-SBOM" after every render
 (`rebrand()`); the copy itself is unchanged.
+
+## Vendored third-party asset: Mermaid
+
+`vendor/mermaid.min.js` is the Mermaid diagram rendering library, vendored so the Arch Intel pane can draw its
+component / sequence / activity diagrams without a CDN (the page's CSP is `script-src 'self'`). It is loaded
+lazily, only when a diagram is on screen; when it cannot load, every diagram falls back to its Mermaid source
+text (`arch_intel.js`). Mermaid runs in `securityLevel: 'strict'`, and every label that reaches it is sanitized
+server-side first (`arch_intel.mermaid_label`). This is a browser asset only — ADR-0007 (zero Python runtime
+dependencies) still holds.
+
+| file | source | version | sha256 |
+|---|---|---|---|
+| `vendor/mermaid.min.js` | https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js | 11.12.2 | `d0830a6c05546e9edb8fe20a8f545f3e0dc7c4c3134d584bad9c13a99d7a71e0` |
+
+Mermaid is MIT-licensed (https://github.com/mermaid-js/mermaid/blob/main/LICENSE). Everything else in `vendor/`
+must get its own row here before it is referenced from the page.

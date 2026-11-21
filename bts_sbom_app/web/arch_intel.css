@@ -1,0 +1,28 @@
+/*
+ * arch_intel.css - the "Arch Intel" pane (license verdict + AI architecture deep-dive).
+ * Written for BTS-SBOM; every rule is scoped under #paneArchIntel (same convention as oss_scanner.css).
+ */
+#paneArchIntel .arc-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0 8px; border-bottom: 1px solid var(--line, #30363d); }
+#paneArchIntel .arc-tab { border: none; background: none; color: var(--ink, #c9d1d9); font: 12px inherit; padding: 5px 10px; cursor: pointer; border-bottom: 2px solid transparent; opacity: .75; }
+#paneArchIntel .arc-tab:hover { opacity: 1; }
+#paneArchIntel .arc-tab.on { border-bottom-color: var(--acc2, #58a6ff); opacity: 1; font-weight: 600; }
+#paneArchIntel .arc-sec { display: none; }
+#paneArchIntel .arc-sec.on { display: block; }
+
+#paneArchIntel .arc-dwrap { margin: 6px 0 14px; overflow: auto; max-height: 520px; border: 1px solid var(--line, #30363d); border-radius: 6px; padding: 10px; background: var(--dcard-bg, #161b22); }
+#paneArchIntel .arc-diagram svg { max-width: 100%; height: auto; }
+#paneArchIntel .arc-mermaid-src { margin: 0; padding: 8px; font: 11.5px/1.5 ui-monospace, monospace; color: var(--ink, #c9d1d9); white-space: pre; overflow: auto; }
+#paneArchIntel .arc-mermaid-src::before { content: 'Mermaid source (renderer unavailable - paste into mermaid.live):'; display: block; font: 10px inherit; opacity: .6; margin-bottom: 4px; }
+
+#paneArchIntel details.arc-scenario { margin: 8px 0; border: 1px solid var(--line, #30363d); border-radius: 6px; padding: 8px 10px; background: var(--dcard-bg, #161b22); color: var(--dcard-light, #e6edf3); }
+#paneArchIntel details.arc-scenario summary { cursor: pointer; font-weight: 600; font-size: 12.5px; color: var(--dcard-light, #e6edf3); }
+#paneArchIntel .arc-codemeta { font: 11px/1.6 inherit; color: var(--dcard-muted, #9aa4ae); margin: 6px 0 4px; }
+
+#paneArchIntel pre.arc-code { background: #0d1117; color: #e6edf3; font: 11.5px/1.45 ui-monospace, monospace; max-height: 420px; overflow: auto; white-space: pre; margin: 4px 0; padding: 10px; border-radius: 6px; }
+#paneArchIntel .arc-code .tok-kw { color: #ff7b72; font-weight: 600; }
+#paneArchIntel .arc-code .tok-str { color: #a5d6ff; }
+#paneArchIntel .arc-code .tok-com { color: #8b949e; font-style: italic; }
+#paneArchIntel .arc-code .tok-num { color: #79c0ff; }
+
+#paneArchIntel .arc-histbox { margin-top: 14px; }
+#paneArchIntel .arc-histbox summary { cursor: pointer; color: var(--ink, #c9d1d9); font-size: 12.5px; }
