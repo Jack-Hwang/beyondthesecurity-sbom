@@ -18,10 +18,12 @@ llm.json
 llm_local.json
 *.key
 
-# work copies, caches, LLM call ledger
+# work copies, caches, LLM call ledger, the web-console-saved key (plain text, never commit), scan job records
 evidence/batch/work/
 evidence/cache/
 evidence/.llm_ledger.json
+evidence/.llm_config.json
+evidence/.jobs/
 evidence/runs/
 bts_sbom_work_*/
 

@@ -264,3 +264,472 @@ FOSSLight Hub scores with CVSS v4.0 first; the tables are FIRST's reference tabl
 - BSA-AC-252 [Ubiquitous] The system shall hold exactly the 270 valid macro vectors in its lookup table with every value between 0.0 and 10.0 (270 of 270), and every vector of a 1-in-64 sweep of the 104976 base vectors shall score between 0.0 and 10.0 with one decimal (1640 of 1640).
 - BSA-AC-253 [Event] When an advisory has only a v4 vector, the finding shall carry its v4 score and severity CRITICAL for 9.3 with score_source cvss_v4_vector instead of UNKNOWN (1 of 1), when it has both the v3 score shall stay the default and the preference for v4 shall switch it (2 of 2), the scores of an alias group shall be kept per version (2 of 2), and an unscorable vector shall fall back to the advisory label or to UNKNOWN (2 of 2).
 - BSA-AC-254 [Event] When a CycloneDX document is built for a finding with both versions, the vulnerability shall carry 2 ratings naming their methods CVSSv4 and CVSSv31 with the primary first (3 of 3 orders), an identical second score shall add no rating (1 of 1), and the document shall stay valid (4 of 4).
+
+
+## Secret storage hygiene for the EXAONE key (.gitignore, bts_sbom_app/server.py, bts_sbom_app/llm.py)
+
+- BSA-AC-425 [Ubiquitous] The system shall ship a .gitignore that lists evidence/.llm_config.json and evidence/.jobs/ (2 of 2 entries).
+- BSA-AC-426 [Event] When a key is saved from the console on a POSIX host, the saved file shall be readable by its owner only (mode & 0o077 equals 0, 1 of 1 file).
+- BSA-AC-427 [Unwanted] If any of 8 GET routes or the chat route is called after a key was set, the system shall return a body that contains the key 0 times.
+- BSA-AC-428 [State] While a key is saved, GET /api/llm shall report storage plaintext-file, and after disconnect 0 files under the evidence folder shall contain the key.
+- BSA-AC-429 [Unwanted] If a provider error string contains the key, the system shall raise a message and write an evidence record that contain the key 0 times.
+- BSA-AC-430 [Event] When EXAONE_API_KEY_FILE names a file holding a key and a trailing newline, the client shall be available with the trimmed key (1 of 1) and write 0 copies to disk.
+- BSA-AC-431 [Unwanted] If the key file is missing or unreadable, the client shall be unavailable with 1 recorded reason and 0 exceptions.
+- BSA-AC-432 [Ubiquitous] The repository shall track 0 files named .llm_config.json.
+
+
+## Security methods ported from the release branch (tools/secret_scan.py, .claude/hooks/, tests/)
+
+- BSA-AC-433 [Event] When any of the 3 critical-severity adversarial prompt-injection fixtures in evals/redteam/injection_fixtures.md is fed through Chatbot.ask()/verify_claims(), the system shall return zero verified claims sourced from the injected text (critical attack-success-rate 0%).
+- BSA-AC-440 [State] While the secret scanner runs over a tree that holds 1 planted fake AWS-style key, the system shall report 1 finding containing the file and line but 0 characters of the key value.
+
+
+## Resilience: per-host circuit breaker and honest fetch outcomes (bts_sbom_app/resilience.py, bts_sbom_app/net.py)
+
+- BSA-AC-301 [Event] When 3 consecutive calls to one host fail after their retries, the system shall open that host's circuit (1 of 1 hosts opened).
+- BSA-AC-302 [State] While a host's circuit is open, the system shall send 0 requests to it across 5 further calls and report each as access_failure with reason circuit_open.
+- BSA-AC-303 [Event] When the 60-second cooldown has elapsed and 4 calls arrive concurrently, the system shall let exactly 1 probe request through (1 probe of 4 calls).
+- BSA-AC-304 [Event] When the probe succeeds, the system shall close the circuit and send the next 3 calls (3 of 3).
+- BSA-AC-305 [Event] When the probe fails, the system shall reopen the circuit for a fresh cooldown and send 0 requests in the next 5 calls.
+- BSA-AC-306 [Event] When 2 hosts are called and only the first fails 3 times, the system shall keep the second host's circuit closed (1 open of 2 hosts).
+- BSA-AC-307 [Event] When a call returns HTTP 404, the system shall classify it empty_result and add 0 to the failure count and 0 to the consecutive-failure count.
+- BSA-AC-308 [Event] When a text body reaches the byte limit, the system shall classify it partial_result and still return the truncated text (1 of 1).
+- BSA-AC-309 [Event] When a 429 reply carries Retry-After 7, the system shall wait 7.0 seconds before the retry, and wait at most 30.0 seconds for Retry-After 90.
+- BSA-AC-310 [Unwanted] If a non-retryable status such as 403 is returned, the system shall make 1 attempt and 0 retries.
+- BSA-AC-311 [Ubiquitous] The system shall keep http_json and http_text returning the same values as before (data or None) for 6 of 6 representative cases.
+- BSA-AC-312 [Event] When BTS_SBOM_BREAKER_THRESHOLD is 0, the system shall open 0 circuits across 10 consecutive failures.
+- BSA-AC-313 [Event] When 5 calls were skipped by an open circuit, the system shall report short_circuited equal to 5 in the net statistics.
+
+
+## Patch regression quadrants and independent review (bts_sbom_app/impact.py, bts_sbom_app/review.py, bts_sbom_app/pipeline.py)
+
+- BSA-AC-316 [Event] When one component is declared in 2 manifests and only 1 manifest is edited, the shared quadrant shall be regression and list 1 unpatched manifest.
+- BSA-AC-317 [Event] When the upgraded component clears 2 of its 2 advisories, the direct quadrant shall be ok with 2 cleared and 0 introduced.
+- BSA-AC-318 [Event] When the upgrade introduces 1 new advisory on the same package, the direct quadrant shall be regression.
+- BSA-AC-319 [Event] When an untouched sibling in an edited manifest gains 1 new advisory, the upstream quadrant shall be regression.
+- BSA-AC-320 [Event] When a transitive component of an edited manifest gains 1 new advisory, the downstream quadrant shall be regression.
+- BSA-AC-321 [Event] When an upgraded component is still pinned by 1 unedited lockfile, the downstream quadrant shall be unverified and list that 1 lockfile for regeneration.
+- BSA-AC-322 [State] While any quadrant is unverified, the verdict shall be incomplete and never clean (1 of 1 unverified cases).
+- BSA-AC-323 [Event] When all 4 quadrants are checked and ok, the verdict shall be clean (1 of 1 fully clean case).
+- BSA-AC-324 [Event] When fleet records are supplied and 2 other projects use the upgraded component at the old version, the shared quadrant shall report other_projects checked true and count 2.
+- BSA-AC-325 [Event] When no fleet records are supplied, the shared quadrant shall report other_projects checked false and count 0 and keep its own status unchanged.
+- BSA-AC-326 [Event] When the impact verdict is regression, the review shall return reject with rule R4 (1 of 1).
+- BSA-AC-327 [Event] When the impact verdict is incomplete, the review shall return changes_requested with rule R5 (1 of 1).
+- BSA-AC-328 [Event] When a lockfile appears among the changed files, the review shall return changes_requested with rule R2 (1 of 1).
+- BSA-AC-329 [Event] When a breaking-risk-high upgrade is applied without acknowledgement, the review shall return changes_requested with rule R3 (1 of 1).
+- BSA-AC-330 [Event] When every rule passes, the review shall return approve with 0 findings (1 of 1).
+- BSA-AC-331 [Ubiquitous] The review function shall take 0 parameters named rec, record or plans (signature check, 1 of 1).
+- BSA-AC-332 [Event] When an approved patch is applied through the pipeline, the patch result shall carry impact and review and keep all of its earlier keys (0 keys lost).
+- BSA-AC-333 [Unwanted] If computing the impact raises an exception, the patch result shall carry an impact error entry and keep its original status (1 of 1).
+
+
+## Advisory-source conflicts shown, never hidden (bts_sbom_app/engine.py, bts_sbom_app/chat.py)
+
+- BSA-AC-413 [Event] When 2 records of one advisory group name fixed versions 2.20.0 and 2.31.0, the system shall record 1 conflict with 2 values that each carry a source id and a date, and keep fixed_version 2.31.0.
+- BSA-AC-414 [Event] When 3 records of one advisory group agree on the fixed version, the system shall record 0 conflicts and add 0 conflicts keys to the finding.
+- BSA-AC-415 [Event] When 1 record carries no fix information and another names 2.20.0, the system shall record 0 conflicts (absence is not disagreement).
+- BSA-AC-416 [Event] When 2 records carry CVSS v3 scores 9.8 and 7.5, the system shall record 1 cvss_v3 conflict marked material because the severity bands differ (CRITICAL vs HIGH).
+- BSA-AC-417 [State] While a finding carries a conflict, the lookup answer shall state both values and both source ids (4 of 4 present in the answer text).
+- BSA-AC-418 [Ubiquitous] The system shall attach a date to a lookup claim only when the advisory carries one (1 of 1 dated claims), and shall fabricate 0 dates.
+- BSA-AC-419 [Event] When a conflict line is included in an answer, the claim verifier shall accept it verbatim (accuracy 1.0 over 1 of 1 claims).
+- BSA-AC-420 [Unwanted] If conflict detection fails on 1 malformed record, the system shall finish the analysis with 0 conflicts and count 1 advisory_conflict_errors adjustment.
+- BSA-AC-421 [Event] When 1 conflict is detected, the system shall report advisory_conflicts equal to 1 in the engine adjustments.
+- BSA-AC-422 [Ubiquitous] The system shall leave every retrieval and grounding metric of the evalrag command unchanged (0 differences against the baseline).
+- BSA-AC-423 [Event] When the same finding is reported by 2 manifests, the system shall list its conflicts once (1 entry, not 2).
+- BSA-AC-424 [Event] When the persisted project record is reloaded, the system shall return the same conflicts entries (1 of 1 round trip).
+
+
+## Scan-progress SSE events, readiness probes, container hardening and runbook (bts_sbom_app/events.py, bts_sbom_app/server.py, Dockerfile.bts-sbom-app, docs/RUNBOOK.md)
+
+- BSA-AC-336 [Event] When a job runs, the event stream shall start with job_start and end with final with seq strictly increasing over at least 4 events.
+- BSA-AC-337 [Event] When a client reconnects with Last-Event-ID 2, the stream shall send only events whose seq is above 2 (0 earlier events resent).
+- BSA-AC-338 [Unwanted] If the job id is unknown, the events endpoint shall answer 404 with a JSON error and open 0 streams.
+- BSA-AC-339 [Unwanted] If an event lacks a required field, the event bus shall refuse it and publish 0 events (1 problem reported).
+- BSA-AC-340 [Event] When the progress callback raises, the analysis shall still finish with its normal result and record 1 progress_callback stage error.
+- BSA-AC-341 [Ubiquitous] The pipeline shall return the same record keys with and without a progress callback (0 differences).
+- BSA-AC-342 [Event] When an approved patch is requested, the stream shall contain 1 patch_gate event and 0 characters of the approval token.
+- BSA-AC-343 [Unwanted] If 5 subscribers attach to one job, the system shall refuse the 5th with status 429 (4 accepted).
+- BSA-AC-344 [Event] When no event arrives for one heartbeat interval, the stream shall send at least 1 comment line within 2 intervals.
+- BSA-AC-345 [State] While a readiness check fails, GET /readyz shall return 503 listing only the failed check names and 0 filesystem paths.
+- BSA-AC-346 [Event] When all 3 readiness checks pass, GET /readyz shall return 200.
+- BSA-AC-347 [Ubiquitous] GET /healthz shall return 200 within 1 second even while a readiness check fails.
+- BSA-AC-348 [Ubiquitous] The Dockerfile shall run as a numeric non-root USER (1 of 1).
+- BSA-AC-349 [Ubiquitous] The Dockerfile shall declare 1 HEALTHCHECK that calls /readyz.
+- BSA-AC-350 [Ubiquitous] The Dockerfile base image shall carry a pinned minor tag and not latest (1 of 1).
+- BSA-AC-351 [Ubiquitous] The Dockerfile shall set 0 secret-looking ENV or ARG values.
+- BSA-AC-352 [Ubiquitous] The Dockerfile EXPOSE port shall equal the server default port (1 of 1).
+- BSA-AC-353 [Ubiquitous] docs/RUNBOOK.md shall contain the 4 blocks Delivery State, Deployment, Rollback and Monitoring.
+- BSA-AC-354 [Event] When /api/health and /api/jobs/<id> are called, they shall return their earlier response shapes (2 of 2).
+
+
+## Persistent scan-job records (bts_sbom_app/jobstore.py, bts_sbom_app/server.py)
+
+- BSA-AC-401 [Event] When a scan job finishes, the system shall have written its record to <evidence>/.jobs/<id>.json that a new server state reads back with state done (1 of 1 jobs).
+- BSA-AC-402 [State] While a job record is still queued or running when the server starts, the system shall mark it interrupted with reason server_restart (2 of 2 stale records).
+- BSA-AC-403 [Unwanted] If a scan request carries an approval token, the system shall write that token into 0 job files.
+- BSA-AC-404 [Unwanted] If a scan source contains user credentials, the system shall store the source with 0 credential characters (1 of 1 sources).
+- BSA-AC-405 [Unwanted] If a job id is not 10 lowercase hex characters, the system shall answer 404 and open 0 files outside the jobs folder (3 of 3 malformed ids).
+- BSA-AC-406 [Event] When 2 scan requests carry the same idempotency key within 24 hours and the first job is not failed, the system shall return the first job id and start 0 new threads.
+- BSA-AC-407 [Event] When the earlier job of an idempotency key ended in error or interrupted, the system shall start 1 new job for the same key.
+- BSA-AC-408 [Event] When 201 job records exist, the system shall delete the oldest finished records until 200 remain and delete 0 running records.
+- BSA-AC-409 [Unwanted] If 1 job file holds corrupt JSON, the system shall skip it, count 1 corrupt record and still serve the other 2 records.
+- BSA-AC-410 [Unwanted] If writing a job record fails midway, the system shall leave 0 partial files in the jobs folder.
+- BSA-AC-411 [Event] When a job finished before a restart is requested after the restart, the system shall return its state and metrics (1 of 1 jobs) instead of unknown job.
+- BSA-AC-412 [Optional] Where the events module is present, the events of an interrupted job shall contain exactly 1 error event of type interrupted.
+
+
+## Cloud mode switch (bts_sbom_app/cloud.py, bts_sbom_app/server.py)
+
+- BSA-AC-465 [State] While cloud mode is on, POST /api/llm shall answer 403 and write 0 files under the evidence folder.
+- BSA-AC-466 [State] While cloud mode is on, chat actions shall stay off although the serve flag is given (1 of 1 refusals) unless BTS_SBOM_CLOUD_ALLOW_ACTIONS is 1.
+- BSA-AC-467 [Event] When cloud mode is on and BTS_SBOM_CLOUD_LLM is unset, a scan request that asks for use_llm shall make 0 LLM calls (1 of 1 requests).
+- BSA-AC-468 [Event] When GET /api/engine is called in cloud mode, the response shall report cloud enabled and the 4 policy flags and contain 0 secrets.
+- BSA-AC-469 [Unwanted] If BTS_SBOM_CLOUD holds an unrecognised value, the system shall treat cloud mode as on (3 of 3 odd values).
+- BSA-AC-470 [Ubiquitous] With cloud mode off, the system shall behave as before on 8 of 8 existing routes (0 differences).
+
+
+## Cloud-mode source policy (bts_sbom_app/workspace.py, bts_sbom_app/server.py, bts_sbom_app/actions.py)
+
+- BSA-AC-453 [State] While cloud mode is on, a local-path source shall be refused and 0 directories shall be read (3 of 3 paths).
+- BSA-AC-454 [Unwanted] If a source uses ssh://, git@ or file:// in cloud mode, the system shall refuse it (3 of 3 forms).
+- BSA-AC-455 [Unwanted] If the host resolves to 169.254.169.254, 127.0.0.1 or 10.0.0.5, the system shall refuse it and start 0 clones (3 of 3 addresses).
+- BSA-AC-456 [Event] When a host is not in the allow list, the system shall refuse it (1 of 1), and when an allowed host resolves to public addresses only it shall accept it (1 of 1).
+- BSA-AC-457 [Unwanted] If a URL carries user credentials in cloud mode, the system shall refuse it (1 of 1).
+- BSA-AC-458 [Event] When cloud mode is off, the system shall accept the 6 earlier source forms exactly as before (0 differences).
+- BSA-AC-459 [Event] When the chat analyze action receives a refused source in cloud mode, it shall refuse it with the same reason (1 of 1).
+- BSA-AC-460 [Event] When /api/scan refuses a source, it shall answer 400 with a reason and create 0 jobs.
+
+
+## Cloud-mode authentication, approver identity and audit log (bts_sbom_app/auth.py, bts_sbom_app/audit.py, bts_sbom_app/server.py)
+
+- BSA-AC-441 [Unwanted] If a cloud-mode request to /api/scan carries no valid credentials, the system shall answer 401 and create 0 jobs.
+- BSA-AC-442 [Event] When a request carries the correct bearer token, the system shall accept it (1 of 1), and a wrong token shall get the same 401 body as a missing token (2 of 2 identical bodies).
+- BSA-AC-443 [State] While cloud mode is on and no authentication method is configured, every /api route except the probes shall answer 503 auth_not_configured (all listed routes).
+- BSA-AC-444 [Event] When identity-header trust is on and the header is present, the system shall record that identity in the audit line (1 of 1).
+- BSA-AC-445 [Unwanted] If identity-header trust is off, the system shall ignore the identity header and record 0 identities from it.
+- BSA-AC-446 [Unwanted] If a patch approval or a VEX decision has no known identity in cloud mode, the system shall refuse it and change 0 files (2 of 2 actions).
+- BSA-AC-447 [Event] When a patch is approved with a known identity, the patch result shall carry approved_by with that identity (1 of 1).
+- BSA-AC-448 [Event] When a scan, an approval, a decision and an LLM connection happen, the system shall append 1 audit line for each (4 of 4) and write 0 token or key characters.
+- BSA-AC-449 [Event] When the audit file holds 3 lines, verification shall pass, and after 1 line is altered it shall fail naming the first line whose integrity no longer matches (2 of 2 altered positions).
+- BSA-AC-450 [Ubiquitous] The probes /healthz and /readyz shall need no credentials (2 of 2).
+- BSA-AC-451 [Ubiquitous] With cloud mode off, the system shall behave as before (0 differences on 8 routes).
+
+
+## Single-writer evidence lock and standby mode (bts_sbom_app/instance.py, bts_sbom_app/server.py)
+
+- BSA-AC-473 [Event] When the first instance acquires the store, the system shall create 1 lock file holding host, pid and heartbeat.
+- BSA-AC-474 [State] While a fresh lock is held by another instance, a second instance shall refuse to start (1 of 1) unless standby is allowed.
+- BSA-AC-475 [State] While an instance runs in standby mode, every write request shall be answered 503 standby and write 0 files (3 of 3 write routes).
+- BSA-AC-476 [Event] When the holder's heartbeat is older than 60 seconds, a second instance shall take over the lock (1 of 1) and switch from standby to active.
+- BSA-AC-477 [Event] When the holder shuts down, the system shall remove its lock file (1 of 1).
+- BSA-AC-478 [State] While the lock is lost, GET /readyz shall return 503 naming the evidence_lock check.
+- BSA-AC-479 [Ubiquitous] The system shall create scan work copies outside the evidence folder (1 of 1 jobs).
+- BSA-AC-480 [Ubiquitous] With a single instance and no lock file present, the system shall behave as before (0 differences on 8 routes).
+
+
+## Resource limits and graceful shutdown (bts_sbom_app/limits.py, bts_sbom_app/server.py, bts_sbom_app/pipeline.py, bts_sbom_app/workspace.py)
+
+- BSA-AC-483 [State] While 2 jobs run and the limit is 2, POST /api/scan shall answer 429 with a Retry-After header and start 0 new threads.
+- BSA-AC-484 [Event] When a running job finishes, the next scan request shall be accepted (1 of 1).
+- BSA-AC-485 [Unwanted] If a job runs past its deadline, the system shall stop it with state error and reason timeout and remove its work copy (1 of 1).
+- BSA-AC-486 [Unwanted] If a work copy exceeds the size limit, the system shall abort the job and leave 0 bytes of it on disk.
+- BSA-AC-487 [State] While the server is shutting down, GET /readyz shall return 503 with draining and POST /api/scan shall return 503 (2 of 2).
+- BSA-AC-488 [Event] When the drain period ends with 1 job still running, the system shall record it as interrupted with reason sigterm (1 of 1).
+- BSA-AC-489 [Unwanted] If a limit variable holds a non-integer or negative value, the system shall use its default (3 of 3 odd values).
+- BSA-AC-490 [Event] When 3 jobs fail in a row, the gate shall hold 0 leaked permits.
+- BSA-AC-491 [Ubiquitous] With cloud mode off and BTS_SBOM_MAX_JOBS unset, the system shall refuse 0 of 5 concurrent scan requests.
+
+
+## Observability: JSON access log, request ids and /metrics (bts_sbom_app/obslog.py, bts_sbom_app/metrics.py, bts_sbom_app/server.py)
+
+- BSA-AC-521 [Event] When any API route is called, the system shall write 1 access log line that parses as JSON and carries request_id, route_class, status and ms.
+- BSA-AC-522 [Unwanted] If a request carries a bearer token, a credentialed source URL or an approval token, the system shall write 0 occurrences of those values into the log (3 of 3 planted values).
+- BSA-AC-523 [Event] When a request carries an X-Request-Id of 64 safe characters, the response shall echo it, and an id with a newline or 65 characters shall be replaced (2 of 2 cases).
+- BSA-AC-524 [Event] When 100 distinct URL paths are requested, the metrics text shall contain at most 12 route_class series.
+- BSA-AC-525 [Event] When a job finishes in each of 2 states, the metrics shall count 1 job per state.
+- BSA-AC-526 [State] While cloud mode is on, GET /metrics without credentials shall answer 401 and the probes shall answer 200.
+- BSA-AC-527 [Ubiquitous] The existing response bodies and status codes shall stay unchanged on 8 of 8 routes (only the X-Request-Id header is added).
+- BSA-AC-528 [Ubiquitous] docs/RUNBOOK.md shall contain an SLO table that marks every target as an assumption (4 of 4 targets).
+
+
+## Infrastructure template (infra/main.bicep, infra/main.parameters.json, azure.yaml)
+
+- BSA-AC-497 [Ubiquitous] The infrastructure template shall declare httpsOnly true, minTlsVersion 1.2, ftpsState Disabled and healthCheckPath /readyz for the web app (4 of 4 settings).
+- BSA-AC-498 [Ubiquitous] The infrastructure template shall contain 0 secret-looking literals and 0 admin-enabled registries.
+- BSA-AC-499 [Ubiquitous] The parameters file shall hold only ${...} placeholders and 0 real subscription identifiers.
+- BSA-AC-500 [Ubiquitous] The template shall require the 3 tags team, week and owner with no default values.
+- BSA-AC-501 [Ubiquitous] The template shall set the plan capacity to 1 and declare 0 autoscale rules.
+- BSA-AC-502 [Event] When the template is read, it shall declare 1 budget with notifications at 50, 80 and 100 percent (3 of 3 thresholds).
+- BSA-AC-503 [Ubiquitous] The template shall declare the managed identity role assignments AcrPull and Key Vault Secrets User (2 of 2).
+- BSA-AC-504 [Ubiquitous] ADR-0016 shall name at least 3 rejected hosting alternatives with reasons.
+- BSA-AC-505 [State] While the bicep tool is not installed, the infrastructure check shall report NOT RUN and count 0 passes for the build step.
+
+
+## Deploy pipeline (static) (.github/workflows/deploy_azure.yml)
+
+- BSA-AC-509 [Ubiquitous] The deploy workflow shall declare top-level read-only contents permission and grant id-token write only to the login job (2 of 2 permission rules).
+- BSA-AC-510 [Ubiquitous] The deploy workflow shall contain 0 client secrets, 0 inline credentials JSON and 0 literal subscription identifiers.
+- BSA-AC-511 [Ubiquitous] The deploy workflow shall run the Trivy step with severity CRITICAL and exit code 1 (1 of 1 step).
+- BSA-AC-512 [Ubiquitous] The deploy workflow shall generate and upload the project's own SBOM before deploying (1 of 1 step, ordered before the deploy step).
+- BSA-AC-513 [Ubiquitous] The swap step shall run in a job that names a protected environment (1 of 1).
+- BSA-AC-514 [Ubiquitous] The workflow shall deploy to the staging slot and check /readyz before the swap (2 of 2 ordered steps).
+- BSA-AC-515 [Ubiquitous] The workflow shall use 0 actions referenced by a moving branch name and 0 pull_request_target triggers.
+- BSA-AC-516 [Event] When the swap or the post-swap check fails, the rollback job shall swap back (1 of 1 rollback job).
+- BSA-AC-517 [State] While the workflow has not been run on GitHub, the report shall mark its execution NOT RUN and count 0 executed runs.
+
+
+## Cost safety (tools/cost_estimate.py, docs/cost_assumptions.json, docs/COST.md)
+
+- BSA-AC-533 [Ubiquitous] The cost assumptions file shall mark every input as assumed and hold 0 invented prices (all price fields null until filled).
+- BSA-AC-534 [Event] When all price inputs are filled with 4 fake numbers, the estimate shall equal the documented formula result (1 of 1 exact match).
+- BSA-AC-535 [State] While any price input is null, the estimate shall report the total as incomplete and list that input as unknown (1 of 1 null inputs).
+- BSA-AC-536 [Ubiquitous] The estimate output shall state that it is an estimate and not a billed amount (1 of 1 outputs).
+- BSA-AC-537 [Ubiquitous] docs/COST.md shall contain the cleanup procedure and the 50, 80 and 100 percent budget thresholds (2 of 2 items).
+
+
+## LLM routing, outbound preview and the optional Azure OpenAI provider (bts_sbom_app/router.py, bts_sbom_app/llm.py, bts_sbom_app/ai.py, bts_sbom_app/server.py)
+
+- BSA-AC-541 [Ubiquitous] The outbound preview shall contain 0 file contents, 0 absolute paths and 0 credentials for 1 of 1 sample projects.
+- BSA-AC-542 [Event] When the preview is requested, the system shall send 0 requests to any LLM provider (0 transport calls).
+- BSA-AC-543 [State] While cloud LLM use is not allowed, the router shall return deterministic for 4 of 4 input combinations.
+- BSA-AC-544 [Event] When the data class is private, the router shall return deterministic even though a provider is configured (1 of 1).
+- BSA-AC-545 [Event] When the daily budget ratio is 0.9 or more, the router shall return deterministic (2 of 2 values 0.9 and 1.0).
+- BSA-AC-546 [Event] When the primary provider is throttled and a second provider is configured, the router shall return the second provider (1 of 1), and deterministic when none is configured (1 of 1).
+- BSA-AC-547 [Event] When the router returns deterministic, the proposal shall record the reason (1 of 1 reasons).
+- BSA-AC-548 [Unwanted] If an Azure OpenAI key is configured, the system shall write it into 0 log lines, 0 error messages and 0 status responses.
+- BSA-AC-549 [Event] When the Azure OpenAI provider builds a request, the URL shall contain the deployment name and api-version (1 of 1, fake transport).
+
+
+## Deterministic input guardrails (bts_sbom_app/guardrail.py, bts_sbom_app/chat.py, bts_sbom_app/server.py)
+
+- BSA-AC-551 [Event] When any of the 3 critical injection fixtures is asked in cloud mode, the system shall block it and call 0 tools (3 of 3 blocked).
+- BSA-AC-552 [Unwanted] If a question asks for an approval token, a confirmation code or an API key, the system shall refuse without repeating the request text (3 of 3 phrasings, English and Korean).
+- BSA-AC-553 [Event] When 20 benign questions are asked in cloud mode, the system shall block 0 of them.
+- BSA-AC-554 [Event] When an advisory text contains an instruction-override phrase, the system shall exclude that line from the model context and keep it in the deterministic view (1 of 1 lines).
+- BSA-AC-555 [State] While cloud mode is off, the system shall apply no input filter and answer the 8 evalchat questions as before (0 differences).
+
+
+## Tool groups behind a flag (bts_sbom_app/chat.py)
+
+- BSA-AC-561 [Ubiquitous] Each tool group shall hold at most 5 tools and the groups shall cover all 21 tools with 0 orphans.
+- BSA-AC-562 [Event] When the group flag is on and the question maps to a group, the planner shall be shown only that group's tools (at most 5 of 21).
+- BSA-AC-563 [Event] When the group flag is on and no group matches, the planner shall be shown all 21 tools and the fallback counter shall read 1.
+- BSA-AC-564 [Ubiquitous] With the group flag on, the evalchat accuracy shall be at least the flag-off accuracy (8 of 8 questions, 0 regressions).
+- BSA-AC-565 [State] While the group flag is off, the planner shall be shown all 21 tools exactly as before (21 of 21 tools, 0 differences).
+
+
+## Documentation lint, ADRs, governance documents and the enforcement map (bts_sbom_app/doclint.py, docs/adr/, docs/governance/, docs/ENFORCEMENT_MAP.md)
+
+- BSA-AC-361 [Event] When an ADR has no item under its rejected alternatives section, doclint shall report 1 problem naming that file.
+- BSA-AC-362 [Event] When every ADR in docs/adr carries the 5 required sections and at least 1 rejected alternative, doclint shall report 0 problems for all of them.
+- BSA-AC-363 [Event] When an enforcement-map row cites a test that does not exist, doclint shall report 1 dangling reference.
+- BSA-AC-364 [Event] When strict mode meets 1 TODO placeholder, doclint shall report 1 problem.
+- BSA-AC-365 [State] While a document kind has no file in the repository, doclint shall print it as not present and count it as 0 passes.
+- BSA-AC-366 [Ubiquitous] The repository documents shall pass doclint in strict mode with 0 problems.
+- BSA-AC-367 [Event] When one required section is removed from a document of each of the 5 kinds impact, modelcard, lineage, datacontract and runbook, doclint shall report 1 problem per document (5 of 5).
+- BSA-AC-368 [Ubiquitous] The enforcement map shall list at least 12 rows whose location and test both exist.
+- BSA-AC-369 [Ubiquitous] The CI workflow shall contain exactly 1 doclint step.
+- BSA-AC-370 [Event] When the impact assessment is linted, it shall carry all 8 required sections and state that it is a self-assessment and not legal advice (1 of 1).
+- BSA-AC-371 [Event] When the model card quotes the README evaluation figures, it shall also state that they are in-sample (1 of 1 figures qualified).
+- BSA-AC-372 [Event] When the lineage document is linted, every data source host named in the code shall appear in its sources table (0 missing hosts).
+
+
+## Traceability matrix, portfolio export and the proof contract (bts_sbom_app/traceability.py, bts_sbom_app/portfolio.py, bts_sbom_app/proof.py, bts_sbom_app/cli_ext.py)
+
+- BSA-AC-381 [Event] When the traceability matrix is generated twice from the same inputs, the system shall produce byte-identical output (2 of 2 runs).
+- BSA-AC-382 [Event] When a spec holds 1 AC that no test cites, the summary shall report 1 AC without a test.
+- BSA-AC-383 [Event] When a test cites 1 AC that the spec does not contain, the summary shall list that 1 reference.
+- BSA-AC-384 [Event] When 1 module appears in no section's module list, the summary shall list that 1 module.
+- BSA-AC-385 [State] While the spec holds 0 State-pattern ACs, the summary shall carry 1 warning about the missing pattern.
+- BSA-AC-386 [Event] When the portfolio is exported, the manifest shall list 8 packages each with a status and a sources list.
+- BSA-AC-387 [Event] When a package source file does not exist, the manifest shall mark it missing and fabricate 0 entries.
+- BSA-AC-388 [Ubiquitous] The manifest shall mark packages 7 and 8 human_required with a checklist (2 of 2).
+- BSA-AC-389 [Ubiquitous] The self-assessment shall contain 0 numeric rubric scores and mark judgement items human_review.
+- BSA-AC-390 [State] While the runner cannot execute 1 command, the proof shall classify it NOT RUN and report an overall status of incomplete, never pass.
+- BSA-AC-391 [Event] When 0 commands fail, at least 1 passes and 0 are NOT RUN, the proof shall report pass (1 of 1).
+- BSA-AC-392 [Event] When the proof runs twice, the summary file shall be overwritten and the runs folder shall hold 2 files.
+- BSA-AC-393 [Event] When the proof runs twice within one second, the system shall write 2 distinct run files (0 collisions).
+- BSA-AC-394 [Ubiquitous] The command line shall offer the 3 sub-commands trace, portfolio and proof and leave every earlier sub-command unchanged.
+
+
+## Post-deployment verification contract (.agentic-dev/contract.json, bts_sbom_app/verifydev.py)
+
+- BSA-AC-567 [State] While DEV_BASE_URL is unset, verify-dev shall print NOT RUN and exit with code 2, never 0.
+- BSA-AC-568 [Event] When both probes answer 200 and the unauthenticated API route answers 401, verify-dev shall report PASS (1 of 1).
+- BSA-AC-569 [Event] When an unauthenticated API route answers 200 on a cloud-mode deployment, verify-dev shall report FAIL for the authentication check (1 of 1).
+- BSA-AC-570 [Unwanted] If the URL uses plain http on a non-local host, verify-dev shall refuse it and send 0 requests carrying the token.
+- BSA-AC-571 [Ubiquitous] verify-dev shall write 0 token characters to its output and to its sidecar files.
+- BSA-AC-572 [Ubiquitous] The contract file shall hold the 5 blocks and 4 command verbs and name only commands whose modules exist (4 of 4 verbs).
+
+
+## License obligations by component and scenario (bts_sbom_app/obligations.py)
+
+- BSA-AC-601 [Event] When 4 components (MIT, LGPL-3.0-only, GPL-3.0-only, AGPL-3.0-only) are assessed for the binary scenario, the system shall report offer for exactly 3 of them with scopes library_only, combined_work and combined_work_incl_network (3 of 3 scopes).
+- BSA-AC-602 [Unwanted] If a component license is unresolved, the system shall report verdict unknown in all 3 scenarios and count it as none in 0 scenarios.
+- BSA-AC-603 [State] While at least 1 component is unresolved, the scenario status shall be incomplete or exposed and never clean (3 of 3 scenarios).
+- BSA-AC-604 [Event] When the saas scenario meets a network-copyleft component, the system shall report scope combined_work_incl_network (1 of 1), and for a strong-copyleft component in saas it shall report scope none with a why text (1 of 1).
+- BSA-AC-605 [Event] When the internal scenario meets a strong-copyleft component, the system shall report scope none and a why text that says redistribution changes the result (1 of 1).
+- BSA-AC-606 [Event] When 5 reference license pairs are checked, the system shall return the expected 5 labels and return no_rule for 1 unlisted pair, and never return a label that says compatible (0 occurrences).
+- BSA-AC-607 [Ubiquitous] The system shall attach the disclaimer text to 4 of 4 surfaces (assessment JSON, CLI output, API response, report section).
+- BSA-AC-608 [Event] When a component has verdict offer, the system shall list exactly 5 mitigation options in the fixed order, each with needs_human true (5 of 5).
+- BSA-AC-609 [Unwanted] If the obligations stage raises, the system shall keep the analysis result and record the failure in stage_errors (1 of 1).
+- BSA-AC-610 [Event] When GET /api/obligations/<project> is called for an analysed project, the response shall hold 3 scenarios, and an unknown project shall get 404 (2 of 2 cases).
+- BSA-AC-611 [Event] When the CLI runs with --distribution saas, it shall print only the saas scenario, exit 0 and make 0 network calls.
+- BSA-AC-612 [State] While a stored record has no obligations key, the API shall compute the result on read and set computed_on_read to true (1 of 1 old records).
+- BSA-AC-613 [Ubiquitous] The system shall leave the output of licenses.policy_findings unchanged (0 differences on the existing license policy tests).
+- BSA-AC-614 [Event] When 0 components are assessed, every scenario status shall be no_data and not clean (3 of 3 scenarios).
+
+
+## Legacy / EOL component assessment (bts_sbom_app/legacy.py)
+
+- BSA-AC-616 [Event] When a mapped component version falls in a cycle that endoflife data marks as ended before today, the system shall report eol status with source endoflife.date and risk high (1 of 1).
+- BSA-AC-617 [Event] When the cycle is still supported, the system shall report supported with the end date and risk low (1 of 1).
+- BSA-AC-618 [Unwanted] If a component has no mapping or the lookup fails or the version cannot be parsed, the system shall report eol status unknown and never supported (3 of 3 cases).
+- BSA-AC-619 [State] While online is off, the system shall make 0 network calls and shall keep UNVERIFIED in the source of any value taken from the embedded table (2 of 2 checks).
+- BSA-AC-620 [Event] When a plan row has status no_fix with at least 1 advisory, the system shall set no_upstream_fix true, and risk shall be high for max severity HIGH and medium for MEDIUM (2 of 2 cases).
+- BSA-AC-621 [Unwanted] If a plan row has status upgrade, the system shall set no_upstream_fix false (1 of 1).
+- BSA-AC-622 [Ubiquitous] The system shall sort rows by risk and then by name and shall produce identical bytes on 2 runs of the same input.
+- BSA-AC-623 [Unwanted] If a PRODUCTS entry lacks product or cycle_rule, the loader shall reject it and load 0 of 2 malformed entries.
+- BSA-AC-624 [Event] When the legacy stage raises, the system shall keep the analysis and record the failure in stage_errors (1 of 1).
+- BSA-AC-625 [State] While a stored record has no legacy key, the API shall compute it on read with computed_on_read true (1 of 1 old records).
+- BSA-AC-626 [Event] When GET /api/legacy/<project> is called, the response shall carry the summary counts, and an unknown project shall get 404 (2 of 2 cases).
+- BSA-AC-627 [Ubiquitous] The system shall leave arch.runtime_eol output unchanged (0 differences on the existing architecture tests).
+- BSA-AC-628 [Ubiquitous] The system shall attach the disclaimer text to 3 of 3 surfaces (JSON, CLI output, report section).
+
+
+## Replacement candidates: evidence table + verified AI candidates (bts_sbom_app/alternatives.py)
+
+- BSA-AC-631 [Event] When a flagged component matches a table entry that has a source, the system shall return its options with origin table and the source text (1 of 1).
+- BSA-AC-632 [Unwanted] If a table option has no source, the loader shall drop it and load 0 of 2 sourceless options.
+- BSA-AC-633 [State] While no LLM client is available, the system shall return table results only and record ai used false with a reason (1 of 1).
+- BSA-AC-634 [Event] When an AI candidate resolves to a strong-copyleft license, the system shall drop it with reason license_not_allowed (1 of 1) and keep 0 such candidates in the options.
+- BSA-AC-635 [Event] When an AI candidate resolves to a permissive license, the system shall mark it ai_candidate_license_verified (1 of 1).
+- BSA-AC-636 [State] While the resolver cannot answer (offline), every kept AI candidate shall be marked ai_candidate_unverified with license unknown (2 of 2 candidates).
+- BSA-AC-637 [Unwanted] If a candidate name equals the original, has an invalid format or belongs to another ecosystem, the system shall drop it (3 of 3 cases).
+- BSA-AC-638 [Ubiquitous] The system shall mark every option needs_human true and shall apply 0 changes to any manifest (0 files written).
+- BSA-AC-639 [Unwanted] If the LLM call raises, the system shall fall back to table results and record the failure (1 of 1).
+- BSA-AC-640 [Ubiquitous] The system shall ship alternatives.json with 0 entries and the loader shall ignore alternatives.example.json (2 of 2 checks).
+- BSA-AC-641 [Event] When the API is called for a record without an alternatives key, it shall compute table-only results with computed_on_read true and make 0 LLM calls (1 of 1).
+- BSA-AC-642 [Ubiquitous] The system shall attach the disclaimer text to 3 of 3 surfaces (JSON, CLI output, API response).
+
+
+## Migration / upgrade impact plan with waves (bts_sbom_app/migration.py)
+
+- BSA-AC-646 [Event] When a direct component has an upgrade plan with a minor jump and 3 import sites, the system shall place it in wave A (1 of 1).
+- BSA-AC-647 [Event] When the plan is a major jump, or the import sites exceed 10, the system shall place it in wave B (2 of 2 cases).
+- BSA-AC-648 [Event] When a plan has status no_fix, or the legacy row risk is high, the system shall place it in wave C with options from replace, accept_risk, pin and monitor (2 of 2 cases).
+- BSA-AC-649 [State] While the source folder is not available, the system shall report code_sites available false with the note source not provided for 3 of 3 direct components and never report 0 sites (0 occurrences of a zero-site claim).
+- BSA-AC-650 [Unwanted] If a direct component has 0 import sites in a given source, the system shall add the note that this does not prove no impact (1 of 1).
+- BSA-AC-651 [Event] When the component is a transitive dependency, the system shall report available false with the transitive note (1 of 1).
+- BSA-AC-652 [Ubiquitous] The system shall mark every item needs_human true and shall write 0 files into the analysed source (tree hash unchanged, 1 of 1).
+- BSA-AC-653 [Ubiquitous] The system shall cap each component at the configured site limit and report bounded true when the cap was hit (1 of 1).
+- BSA-AC-654 [Event] When the migration stage raises, the system shall keep the analysis and record the failure in stage_errors (1 of 1).
+- BSA-AC-655 [Event] When GET /api/migration/<project> is called for a record without the key, it shall compute on read with source_available false (1 of 1).
+- BSA-AC-656 [Event] When the CLI is run with --source on a local folder, the system shall read 0 files outside that folder and make 0 network calls (2 of 2 checks).
+- BSA-AC-657 [Ubiquitous] The system shall produce identical bytes on 2 runs of the same input and attach the disclaimer text to 3 of 3 surfaces.
+
+
+## Code-edit proposals, propose-only (bts_sbom_app/codeprop.py)
+
+- BSA-AC-661 [Event] When the fake model returns a valid edit inside a shown site range, the system shall build a unified diff from the real file content and mark status proposed (1 of 1).
+- BSA-AC-662 [Unwanted] If an edit names a file outside the import-site files, the system shall reject that edit and keep 0 such files in the diff (1 of 1).
+- BSA-AC-663 [Unwanted] If an edit range lies outside the lines that were shown to the model, the system shall reject it (1 of 1).
+- BSA-AC-664 [Unwanted] If a replacement adds an import that is neither in the file nor in the SBOM, the system shall reject it with reason adds_dependency (1 of 1).
+- BSA-AC-665 [Unwanted] If a Python edit makes the file fail ast.parse, the system shall reject it and report validation V5 fail (1 of 1).
+- BSA-AC-666 [Unwanted] If the edit count, edit lines or diff lines exceed the caps, the system shall reject the excess (3 of 3 caps).
+- BSA-AC-667 [State] While no LLM client is available, the system shall return status llm_unavailable with the site list and the checklist and no diff (1 of 1).
+- BSA-AC-668 [Unwanted] If the model call raises, the system shall return llm_unavailable and record the failure (1 of 1).
+- BSA-AC-669 [Ubiquitous] The system shall execute 0 lines of the analysed repository and shall write 0 files into it while proposing (tree hash unchanged, 1 of 1).
+- BSA-AC-670 [Event] When a code snippet contains an instruction aimed at the model, the system shall still apply only the 6 validations and shall not follow the instruction (1 of 1 injected snippets).
+- BSA-AC-671 [Unwanted] If apply is called without a token, the system shall change 0 files and report not_approved (1 of 1).
+- BSA-AC-672 [Unwanted] If the token does not match the diff digest, the system shall change 0 files and report digest_mismatch (1 of 1).
+- BSA-AC-673 [Event] When apply is called with the matching token, the system shall change exactly the proposed files in a new work copy on branch bts-sbom/code-proposal and leave the origin tree hash unchanged (1 of 1).
+- BSA-AC-674 [Unwanted] If git apply --check fails, the system shall change 0 files in the work copy and report apply_failed (1 of 1).
+- BSA-AC-675 [Ubiquitous] The system shall record tests_run false and the not-built-or-tested note in 2 of 2 results (proposal and apply).
+- BSA-AC-676 [Ubiquitous] The system shall expose 0 apply routes on the web API and 0 chat tools that apply a code proposal.
+- BSA-AC-677 [State] While the proposal status is rejected or llm_unavailable, the system shall keep digest empty and refuse apply (2 of 2 statuses).
+- BSA-AC-678 [Ubiquitous] The system shall attach the disclaimer text to 3 of 3 surfaces (JSON, CLI output, API response).
+
+
+## Sector policy starter presets (bts_sbom_app/sector_policy.py)
+
+- BSA-AC-686 [Ubiquitous] The system shall ship exactly 5 sector presets and each shall carry the starter-template basis text (5 of 5).
+- BSA-AC-687 [Event] When --sector-policy defense is given, the effective policy shall deny strong-copyleft and carry eol_tolerance fail (2 of 2 fields).
+- BSA-AC-688 [Unwanted] If an unknown preset name is given, the system shall exit with an error that lists the 5 known names and run 0 analyses (1 of 1).
+- BSA-AC-689 [Unwanted] If --policy and --sector-policy are both given, the system shall refuse (1 of 1) and change 0 files.
+- BSA-AC-690 [State] While no sector preset is selected, the system shall use the existing default policy and produce 0 differences on the existing license policy tests.
+- BSA-AC-691 [Event] When a user presets file defines 1 valid and 1 invalid preset, the system shall load 1 and reject 1 with a reason (2 of 2 checks).
+- BSA-AC-692 [Ubiquitous] The system shall print the effective policy and its basis text on 3 of 3 commands (scan, obligations, legacy).
+
+
+## Chat tools for obligations / legacy / migration / proposals (bts_sbom_app/chat.py, bts_sbom_app/evals_chat.py, evals/obligations_gold.json)
+
+- BSA-AC-696 [Ubiquitous] The system shall register 4 new read-only chat tools and keep WRITE_TOOLS unchanged at 3 tools (0 new write tools).
+- BSA-AC-697 [Ubiquitous] The system shall expose 0 chat tools that apply a code proposal.
+- BSA-AC-698 [Event] When a user asks about source disclosure duties for a project, the system shall answer from the obligations tool with the disclaimer line and a verified citation (1 of 1 questions, citation accuracy 1.0).
+- BSA-AC-699 [Unwanted] If the project has no stored obligations and no components, the system shall answer that no data is available and never answer that the project is clean (1 of 1).
+- BSA-AC-700 [State] While no code proposal is stored for a project, the propose_code tool shall answer with the CLI instructions and create 0 proposals (1 of 1).
+- BSA-AC-701 [Ubiquitous] The system shall keep the routing of the existing 8 evalchat questions unchanged (8 of 8, 0 differences) after the new keywords are added.
+- BSA-AC-702 [Event] When the 4 new evalchat questions are run through the regex router, the system shall report the measured routing count out of 4 and record each miss (4 of 4 questions reported).
+- BSA-AC-703 [Ubiquitous] The system shall match 12 of 12 gold license expressions on category and binary scope.
+- BSA-AC-704 [Ubiquitous] The system shall leave the evalrag metrics at or above the baseline after the new knowledge document is indexed (3 of 3 metrics, 0 regressions).
+- BSA-AC-705 [Ubiquitous] The system shall keep each tool group at 5 or fewer tools with 0 orphans across 25 tools (only when the group feature exists).
+
+
+## V&V evidence report (bts_sbom_app/vnv.py)
+
+- BSA-AC-721 [Event] When an online project with no unresolved items is reported, the system shall grade it pass with the fixed existence-only scope statement (1 of 1).
+- BSA-AC-722 [Unwanted] If the analysis ran offline, the system shall grade the report pass with restrictions and never pass (1 of 1).
+- BSA-AC-723 [Unwanted] If any component license is unresolved, the system shall add a restriction and grade pass with restrictions (1 of 1).
+- BSA-AC-724 [Unwanted] If the analysis failed, the system shall grade the report fail (1 of 1).
+- BSA-AC-725 [Unwanted] If the project holds 0 components, the system shall grade the report pass with restrictions and never pass (1 of 1).
+- BSA-AC-726 [Ubiquitous] The scope shall carry the fixed statement that exploitability was not demonstrated and only existence was checked (1 of 1 statement, every report).
+- BSA-AC-727 [Event] When user plan and requirement references are given, the traceability shall carry them with the tool name, core version and online flag (4 of 4 fields).
+- BSA-AC-728 [Ubiquitous] The report shall produce identical bytes for the same record and shall surface the disclaimer, results and conclusion in the markdown (2 of 2 surfaces).
+- BSA-AC-729 [Event] When GET /api/vnv/<project> is called for an analysed project it shall answer with the report schema, and an unknown project shall get 404 (2 of 2 cases).
+- BSA-AC-730 [Unwanted] If a pipeline stage raised, the report shall list it under deviations from plan (1 of 1 stage errors).
+
+
+## Attack inputs, CWE aggregation and the evidence bundle (bts_sbom_app/evidence.py, bts_sbom_app/engine.py)
+
+- BSA-AC-731 [Event] When a finding carries CVSS v3 and v4 vectors, the system shall decompose the v3 AV/AC/PR/UI and v4 AV/AC/AT/PR/UI metrics as attack inputs and note that no rating is computed (2 of 2 vector versions).
+- BSA-AC-732 [Unwanted] If a finding carries no vector, the system shall report empty vectors and never fabricate metric values (1 of 1 findings).
+- BSA-AC-733 [Event] When findings carry CWE ids, the aggregation shall rank them by count with a distinct-CWE total (1 of 1 distributions).
+- BSA-AC-734 [Unwanted] If no finding carries a CWE id, the system shall report 0 distinct CWEs and 0 counts, never guessed ids (1 of 1 projects).
+- BSA-AC-735 [Event] When the evidence bundle is written, it shall list the SBOM, VEX and record artifacts with SHA-256, byte size, tool and core versions (4 of 4 artifact kinds).
+- BSA-AC-736 [Ubiquitous] The bundle manifest shall be deterministic apart from the timestamp (2 of 2 runs identical on the 4 content fields).
+- BSA-AC-737 [Unwanted] If the OSV records carry no cwe_ids, the engine records shall hold no cwe field rather than an invented one (1 of 1 fake worlds).
+- BSA-AC-738 [Ubiquitous] The attack-input output shall state that it is inputs only and no rating is computed (1 of 1 notes per finding).
+- BSA-AC-739 [Ubiquitous] The bundle shall state that it provides content addressing only and that signatures are out of scope (1 of 1 manifests).
+- BSA-AC-740 [Ubiquitous] Building attack inputs, the CWE aggregation and the bundle shall make 0 network calls (3 of 3 functions).
+
+
+## Provider SBOM vs artifact reconciliation (bts_sbom_app/reconcile.py)
+
+- BSA-AC-741 [Event] When the scan finds a component the provider SBOM does not declare, the system shall report it as an undeclared candidate (1 of 1 components).
+- BSA-AC-742 [Unwanted] If the provider SBOM declares a component the scan cannot find, the system shall report it missing with the bundling/unused/renamed possibilities (1 of 1 components).
+- BSA-AC-743 [Event] When a declared version differs from the scanned version, the system shall report the mismatch naming both versions (1 of 1 mismatches).
+- BSA-AC-744 [Event] When the BOM-based findings differ from the scan-based findings, the system shall report the difference in both directions (2 of 2 directions).
+- BSA-AC-745 [State] While binary string evidence is given, undeclared components shall be labelled candidates with the note that string evidence is not identification (1 of 1 components).
+- BSA-AC-746 [Ubiquitous] The reconcile output shall state that it carries reconciliation findings only and issues no conformance verdict (1 of 1 outputs).
+- BSA-AC-747 [Ubiquitous] The reconcile output shall carry the disclaimer, the declared and scanned component counts and its schema id (3 of 3 fields).
+- BSA-AC-748 [Ubiquitous] The reconcile output shall produce identical bytes for the same inputs (2 of 2 runs).
+
+
+## Frozen handover baseline, post-handover findings and the assumption register (bts_sbom_app/handover.py)
+
+- BSA-AC-749 [Event] When a baseline is frozen, the system shall write it once with the component hash, declared components and the known finding ids, and never overwrite an existing baseline (1 of 1 overwrite attempts).
+- BSA-AC-750 [Event] When a new advisory sits on a component declared in the frozen baseline, the system shall flag it as post-handover with the other-party note (1 of 1 advisories).
+- BSA-AC-751 [Unwanted] If the component hash changed since the freeze, the post-handover report shall say it no longer matches (1 of 1 changes).
+- BSA-AC-752 [State] While a false-positive decision's note carries no evidence reference, the assumption register shall keep it unverified and fail closed (2 of 2 decisions).
+- BSA-AC-753 [Event] When the baseline is frozen from a record, its files section shall list the SBOM, VEX artifacts with SHA-256 (2 of 2 kinds).
+- BSA-AC-754 [Unwanted] Even when the VEX export passes a justified not_affected, the assumption register shall keep the entry unverified while its note carries no evidence reference (1 of 1 decisions).
+- BSA-AC-755 [Ubiquitous] The register evaluation shall produce identical bytes for the same input (2 of 2 runs).
+- BSA-AC-756 [Ubiquitous] The freeze manifest, the post-handover report and the assumption register shall each carry the disclaimer text (3 of 3 outputs).
+
+
+## End-to-end TR 8477 pipeline and security sweep (tests/bts_sbom_app/test_tr8477_e2e.py)
+
+- BSA-AC-757 [Event] When one analysed git repo flows through the V&V report, attack inputs, evidence bundle, provider reconciliation and a frozen baseline, the origin tree hash shall stay unchanged and each stage shall answer with its schema (5 of 5 stages).
+- BSA-AC-758 [Unwanted] If the analysis ran offline with an unresolved license, the report shall grade pass with restrictions and never emit a bare pass (1 of 1 reports).
+- BSA-AC-759 [Unwanted] If a source URL carries credentials, the V&V report, the attack inputs, the CWE aggregation, the reconcile output and the assumption register shall contain 0 occurrences of the credential or the credentialed URL (5 of 5 outputs).

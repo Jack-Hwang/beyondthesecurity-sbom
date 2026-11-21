@@ -1,0 +1,169 @@
+# Deploy pipeline for the BTS-SBOM app service to Azure App Service (task 16).
+#
+# NOT RUN: this workflow has never been executed on GitHub - it needs Azure + GitHub configuration
+# (OIDC federated credential, ACR, App Service) that does not exist in the writing environment. Every
+# execution claim about it is NOT RUN until someone wires the variables below.
+#
+# Secrets are referenced, never inlined: azure/login uses OIDC (no client secret), with client-id,
+# tenant-id and subscription-id taken from vars./secrets. references ONLY.
+# Actions are pinned to tags (moving @main/@master refs are forbidden here); pinning them to commit SHAs
+# would be stronger, but the SHAs were NOT verified in this environment ("확인 필요") - noted in RUNBOOK/ADR.
+name: Deploy BTS-SBOM to Azure
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Tests, spec lint and self-SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (stdlib only, no runtime dependencies)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+      - name: BTS-SBOM tests (network faked)
+        run: python -m pytest -q -p no:cacheprovider tests/bts_sbom_app
+      - name: Spec lint
+        run: python -m bts_sbom_app.speclint
+      - name: Retrieval + chatbot grounding eval
+        run: python -I -X utf8 run_bts_sbom_app.py evalrag
+      - name: Trivy vulnerability scan (fail on CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          severity: CRITICAL
+          exit-code: "1"
+      - name: Generate this project's own SBOM (dogfooding)
+        run: python -m bts_sbom selfsbom > bts-sbom-app.cdx.json
+      - name: Upload the self-SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-sbom
+          path: bts-sbom-app.cdx.json
+
+  login:
+    name: OIDC login to Azure (no secrets)
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Azure login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Keep the session alive for later jobs
+        run: echo "logged in via OIDC"
+
+  image:
+    name: Build and push the container image to ACR
+    needs: login
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Azure login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Build the image
+        run: docker build -f Dockerfile.bts-sbom-app -t bts-sbom-app:${{ github.sha }} .
+      - name: Push to ACR (managed-identity based login, no admin account)
+        run: |
+          az acr login --name ${{ vars.ACR_NAME }}
+          docker tag bts-sbom-app:${{ github.sha }} ${{ vars.ACR_NAME }}.azurecr.io/bts-sbom-app:${{ github.sha }}
+          docker push ${{ vars.ACR_NAME }}.azurecr.io/bts-sbom-app:${{ github.sha }}
+
+  staging:
+    name: Deploy to the staging slot and smoke it
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Azure login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy to the staging slot
+        run: |
+          az webapp config container set --name ${{ vars.APP_NAME }} --slot staging \
+            --image ${{ vars.ACR_NAME }}.azurecr.io/bts-sbom-app:${{ github.sha }}
+      - name: Wait for /readyz on staging
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://${{ vars.APP_NAME }}-staging.azurewebsites.net/readyz || true)
+            echo "readyz: $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "staging never became ready" && exit 1
+      - name: Smoke the probes
+        run: |
+          curl -fsS https://${{ vars.APP_NAME }}-staging.azurewebsites.net/healthz
+
+  swap:
+    name: Swap staging into production (human-approved environment gate)
+    needs: staging
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Azure login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Swap
+        run: az webapp deployment slot swap --name ${{ vars.APP_NAME }} --slot staging --target-slot production
+      - name: Check production /readyz
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://${{ vars.APP_NAME }}.azurewebsites.net/readyz || true)
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "production never became ready after the swap" && exit 1
+
+  rollback:
+    name: Roll back by swapping back
+    needs: swap
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Azure login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Swap back
+        run: az webapp deployment slot swap --name ${{ vars.APP_NAME }} --slot production --target-slot staging

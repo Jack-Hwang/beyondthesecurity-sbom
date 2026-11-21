@@ -22,7 +22,7 @@
 | 툴 출력 트림 | 부분 | `ai.evidence` 가 상위 N개만 전달. 버린 필드의 trim 로그는 **미구현** |
 | 계층(parent-child) 청킹 | **미구현** | 코퍼스가 작고(수백 청크) 골든 Recall@5 가 이미 높아 측정된 필요가 없었다. 라이선스 전문을 코퍼스에 넣을 때 재검토 |
 | 리랭킹 | **미구현** | stdlib 전용 제약. 외부 크로스인코더는 적용 불가 |
-| 정보원 상충 로그(`conflicts`) | **미구현** | 라이선스 출처가 둘 이상 답해도 첫 해석 가능한 근거를 쓴다. 다음 개선 후보 |
+| 정보원 상충 로그(`conflicts`) | 구현 | `engine.detect_conflicts` 가 권고 레코드 묶음에서 수정 버전·CVSS 점수의 불일치를 `conflicts[]`(값·출처·날짜)로 기록하고 챗봇 `vuln_lookup` 이 양쪽 값을 보여 준다 (`tests/bts_sbom_app/test_advisory_conflicts.py`, AC-413~424). 한계: 수정 버전과 CVSS 점수만 비교하고 출처 레코드가 2개 이상일 때만 동작 |
 | 형식 오류만 재시도, 정보 부재는 null | **미구현** | EXAONE 일일 한도 때문에 호출당 1회 + 결정적 강등을 택했다 |
 | LLM-as-judge 의 Cohen's κ 보정 | 해당 없음 | 판정 모델을 쓰지 않는다(근거성은 코드로 계산) |
 | Batches API (50% 비용) | 적용 불가 | EXAONE 은 동기 OpenAI 호환 API 뿐 |

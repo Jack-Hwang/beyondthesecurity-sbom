@@ -2,6 +2,52 @@
 
 All notable changes to bts-sbom are documented here.
 
+## Unreleased (branch course/glm, 2026-11-21 - course methodology + Azure readiness, brief 1 tasks 1-22)
+
+구현 / 미구현 / NOT RUN 을 정직하게 구분한다(측정값은 실제 실행 값만).
+
+### 구현 (테스트·AC 있음; 전체 457 passed 기준)
+
+* **방법론 적용**: 승인 패치 회귀 4분면 + 독립 리뷰(`impact.py`·`review.py`, AC-316~333), 호스트별 서킷브레이커와
+  4상태 Outcome(`resilience.py`·`net.py:fetch_*`, AC-301~313), 권고 출처 상충 `conflicts[]` + 인용 날짜(`engine.detect_conflicts`,
+  AC-413~424), 스캔 진행 SSE 6종 이벤트(`events.py`, AC-336~344), `/healthz`·`/readyz` 프로브(AC-345~347), 컨테이너 하드닝
+  + RUNBOOK 4블록(AC-348~354), 스캔 작업 영속화(`jobstore.py`, AC-401~412), 문서 린트 `doclint --strict`(AC-361~372),
+  ADR-0007~0013·0016~0019, 거버넌스 문서 4종, 강제장치 지도(AC-368), 추적성 매트릭스/포트폴리오/proof
+  (`traceability.py`·`portfolio.py`·`proof.py`, AC-381~394), EXAONE 키 위생(AC-425~432), rel/v0.2.0 보안 4건 이식(AC-433·440).
+* **Azure 배포 준비**: 클라우드 모드 스위치(`cloud.py`, AC-465~470), 소스 정책(AC-453~460), 인증+승인자 신원+감사 해시 체인
+  (`auth.py`·`audit.py`, AC-441~451), 단일 인스턴스 잠금+standby(`instance.py`, AC-473~480), 자원 한도+SIGTERM 드레인
+  (`limits.py`, AC-483~491), 관측성 JSON 로그+`/metrics`(AC-521~528), IaC `infra/main.bicep`(AC-497~505), 배포 워크플로
+  `.github/workflows/deploy_azure.yml`(AC-509~517), 비용 추정 도구(AC-533~537), LLM 라우터+전송 미리보기+Azure OpenAI
+  제공자(AC-541~549), 결정적 입력 가드레일(AC-551~555), 도구 그룹(플래그 게이트, AC-561~565), verify-dev 계약
+  (`.agentic-dev/contract.json`, AC-567~572).
+
+### 구현 (TR 8477 묶음, 이어서 — 검토서 docs/ISO_SAE_TR_8477_REVIEW.md §7 추천 순서)
+
+* **P1**: V&V 증거 보고서(`vnv.py`, pass / pass with restrictions / fail — 오프라인·조회 실패·미해결이 있으면 절대 bare pass 아님,
+  악용 입증 미시행 고정 문구, AC 721~730), 공격 실현 가능성 입력(`evidence.attack_inputs` — 지표 분해만, 등급 없음, AC 731~732·738),
+  CWE 집계(`evidence.cwe_top` — engine 레코드에 cwe 저장, AC 733~734·737), 증거 묶음(`evidence.bundle` — SHA-256 매니페스트,
+  AC 735~736·739~740). ADR-0026~0027.
+* **P2**: 공급자 SBOM 대 산출물 대조(`reconcile.py` — 미선언 후보·미발견·버전 불일치·권고 차이 양방향, 적합 판정 없음,
+  AC 741~748, ADR-0028), 동결 기준선+인수 후 발견(`handover.py` — 한 번만 기록, fail-closed 부품 판정, AC 749~751·753),
+  가정 등록부(`handover.evaluate` — 미검증 가정 fail-closed, AC 752·754~756, ADR-0029).
+* **e2e+보안**: 파이프라인→보고서→번들→대조→동결 한 흐름(AC 757~758), **보안 스윕으로 자격 증명 유출 1건 발견·수정**
+  (vnv traceability 가 credentialed source URL 을 그대로 출력 → sanitize_source 적용, AC 759).
+* 챗 도구 4개(license_obligations·legacy_components·migration_plan·propose_code — 읽기 전용, AC 696~700), 골드 12례(AC 703),
+  evalchat 문항 4개 추가(AC 702), 도구 그룹 obligations(AC 705), 지식 문서(AC 704 — ndcg 0.948→0.95 역전 달성).
+
+### 미구현 (확인 필요/범위 밖 — 구체 사유)
+
+* Azure AI Content Safety 연동(작업 20의 선택 항목): API 경로·버전 확인 불가(오프라인 환경).
+* Azure OpenAI 관리 ID 토큰 방식(작업 19): 토큰 엔드포인트 환경변수 확인 불가 — API 키 방식만 구현.
+* infra 의 WEBSITES_ENABLE_APP_SERVICE_STORAGE·Azure Files 마운트, 메트릭 경보 규칙: 공식 문서 확인 전 템플릿에서 뺌.
+* git clone 리다이렉트 차단(`http.followRedirects=false`): git 문서 확인 불가 — needs_decision 으로 남김.
+
+### NOT RUN (실행 불가 환경)
+
+* `docker build`(Dockerfile.bts-sbom-app — "NOT BUILT YET" 주석 유지), `az bicep build`/`azd provision --preview`,
+  GitHub Actions 워크플로 실행, `verify-dev` 의 실제 배포 대상(DEV_BASE_URL 없음 → exit 2), 공유 파일시스템에서의
+  O_EXCL·os.replace 원자성. SKIP(POSIX-only 테스트 1건)은 PASS 로 세지 않는다.
+
 ## Unreleased
 
 ### `bts_sbom_app/`

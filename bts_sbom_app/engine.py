@@ -130,6 +130,51 @@ def _primary_id(ids: List[str]) -> str:
     return ids[0] if ids else "?"
 
 
+def detect_conflicts(grp: List[Dict[str, Any]], name: str, eco: str, ver: str) -> List[Dict[str, Any]]:
+    """Records of one advisory group that disagree (fixed version, CVSS v3/v4) -> honest conflict entries.
+
+    Each value carries the source record id and the record's date (modified, else published, YYYY-MM-DD; omitted when
+    the record has neither - never fabricated). Absence is not disagreement: a record without a fix or without a
+    score contributes nothing. The chosen value is the engine's resolution (highest fix version / highest score).
+    """
+    def _entry(v: Dict[str, Any], value: Any) -> Dict[str, Any]:
+        e: Dict[str, Any] = {"value": value, "source": v.get("id", "")}
+        d = str(v.get("modified") or "")[:10] or str(v.get("published") or "")[:10]
+        if d:
+            e["date"] = d
+        return e
+
+    for v in grp:                                              # shape check: a malformed record must fail HERE, where the
+        if not isinstance(v, dict):                            # caller counts advisory_conflict_errors, not break the analysis
+            raise ValueError("advisory record is not a dict")
+        if v.get("severity") is not None and not isinstance(v.get("severity"), list):
+            raise ValueError("severity is not a list")
+        if v.get("affected") is not None and not isinstance(v.get("affected"), list):
+            raise ValueError("affected is not a list")
+
+    conflicts: List[Dict[str, Any]] = []
+    fixes: List[Tuple[Dict[str, Any], str]] = []
+    scores: Dict[str, List[Tuple[Dict[str, Any], float]]] = {"v3": [], "v4": []}
+    for v in grp:
+        fv, _hit = fixed_versions(v, name, eco, ver)
+        best_fix = versions.max_version(fv) if fv else None
+        if best_fix:
+            fixes.append((_entry(v, best_fix), best_fix))
+        sc = cvss.scores_of(v)
+        for key in ("v3", "v4"):
+            if sc.get(key) is not None:
+                scores[key].append((_entry(v, sc[key]), sc[key]))
+    if len({b for _, b in fixes}) > 1:
+        conflicts.append({"field": "fixed_version", "values": [e for e, _ in fixes],
+                          "chosen": versions.max_version([b for _, b in fixes]) or "", "resolution": "highest_version",
+                          "material": True})
+    for field, rows in (("cvss_v3", scores["v3"]), ("cvss_v4", scores["v4"])):
+        if len({s for _, s in rows}) > 1:
+            conflicts.append({"field": field, "values": [e for e, _ in rows], "chosen": max(s for _, s in rows),
+                              "resolution": "highest_score", "material": len({cvss.label(s) for _, s in rows}) > 1})
+    return conflicts
+
+
 def _merge_vulns(raw: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
     """Union-find over id+aliases: one group per real advisory."""
     parent: Dict[str, str] = {}
@@ -198,7 +243,8 @@ def normalize(native: Dict[str, Any], root: str, *, dedupe: bool = True, merge_r
             r = p
         return r.replace("\\", "/")
 
-    adj = {"duplicate_findings_merged": 0, "ruby_platform_variants_merged": 0, "go_sum_only_dropped": 0}
+    adj = {"duplicate_findings_merged": 0, "ruby_platform_variants_merged": 0, "go_sum_only_dropped": 0,
+           "advisory_conflicts": 0, "advisory_conflict_errors": 0}
     comps: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
     vulns: List[Dict[str, Any]] = []
     seen_vuln: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
@@ -271,10 +317,29 @@ def normalize(native: Dict[str, Any], root: str, *, dedupe: bool = True, merge_r
                        "summary": clip(best.get("summary") or best.get("details") or "", 240),
                        "published": best.get("published", ""), "files": [f],
                        "references": [r.get("url") for r in (best.get("references") or [])[:3] if r.get("url")]}
+                cwes = uniq([str(c) for v in grp for c in ((v.get("database_specific") or {}).get("cwe_ids") or []) if c])
+                if cwes:
+                    rec["cwe"] = cwes[:8]
+                v3_vec = next((str(s.get("score")) for s in (best.get("severity") or [])
+                               if isinstance(s, dict) and str(s.get("score") or "").startswith("CVSS:3.")), "")
+                v4_vec = next((str(s.get("score")) for s in (best.get("severity") or [])
+                               if isinstance(s, dict) and str(s.get("score") or "").startswith("CVSS:4.0")), "")
+                if v3_vec:
+                    rec["cvss_v3_vector"] = v3_vec
+                if v4_vec:
+                    rec["cvss_v4_vector"] = v4_vec
                 if s3 is not None:
                     rec["cvss_v3"] = s3
                 if s4 is not None:
                     rec["cvss_v4"] = s4
+                try:                                                   # sources disagreeing is evidence, not an error: show it
+                    conflicts = detect_conflicts(grp, name, eco, ver)
+                except Exception:                               # noqa: BLE001 - counted, never hides the analysis
+                    conflicts = []
+                    adj["advisory_conflict_errors"] = adj.get("advisory_conflict_errors", 0) + 1
+                if conflicts:
+                    rec["conflicts"] = conflicts
+                    adj["advisory_conflicts"] = adj.get("advisory_conflicts", 0) + len(conflicts)
                 vulns.append(rec)
                 seen_vuln[vkey] = rec
                 c["vulns"] += 1

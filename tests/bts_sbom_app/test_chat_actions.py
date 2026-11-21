@@ -264,7 +264,8 @@ def test_the_llm_planner_reaches_the_governance_tools_the_regex_router_misses(wo
     from bts_sbom_app import evals_chat
     from bts_sbom_app.llm import ChatClient
     base = evals_chat.governance_routing_eval()
-    assert base["cases"] == 8 and base["tool_routing_rate"] == 0.25 and base["routing"] == {"regex": 8}            # measured: 2 of 8 by keyword
+    # task 29 appended 4 new-tool questions: totals are 12 now; the ORIGINAL 8 keep their 2/8 baseline (AC-701)
+    assert base["cases"] == 12 and base["tool_routing_rate"] == 0.5 and base["routing"] == {"regex": 12}
     plans = {"미국 정부": [{"tool": "sbom_conformance", "args": {}}], "저번 검사": [{"tool": "what_changed", "args": {}}],
              "SaaS": [{"tool": "license_risks", "args": {"distribution": "saas"}}], "해결책": [{"tool": "proposals", "args": {}}],
              "건드리지": [{"tool": "plan_patch", "args": {}}], "copyleft": [{"tool": "license_risks", "args": {}}],
@@ -283,10 +284,11 @@ def test_the_llm_planner_reaches_the_governance_tools_the_regex_router_misses(wo
 
     world.llm_handler = handler
     r = evals_chat.governance_routing_eval(client=ChatClient("k"))
-    assert r["tool_routing_rate"] == 1.0 and r["routing"] == {"llm": 8} and r["misses"] == []
+    # the fake planner only knows the original 8 questions: the 4 new-tool questions fall back to the regex router
+    assert r["tool_routing_rate"] == 1.0 and r["routing"] == {"llm": 8, "regex": 4} and r["misses"] == []
     plans["쓰임새"] = [{"tool": "record_decision", "args": {"id": "CVE-2018-18074", "status": "false-positive", "reason": "모델이 새로 쓴 사유"}}]      # a paraphrased reason
     forged = evals_chat.governance_routing_eval(client=ChatClient("k"))
-    assert forged["tool_routing_rate"] == 0.875 and [m["expected"] for m in forged["misses"]] == ["record_decision"]
+    assert forged["tool_routing_rate"] == round(11 / 12, 3) and [m["expected"] for m in forged["misses"]] == ["record_decision"]
 
 
 def test_evalchat_command_runs_the_regex_baseline_and_lists_the_misses(capsys):
@@ -294,7 +296,8 @@ def test_evalchat_command_runs_the_regex_baseline_and_lists_the_misses(capsys):
     assert cli.main(["evalchat", "--json"]) == 0
     out = capsys.readouterr().out
     r = json.loads(out)
-    assert r["cases"] == 8 and r["router"] == "regex" and r["tool_routing_rate"] == 0.25 and len(r["misses"]) == 6
+    # task 29 appended 4 questions for the new tools; the original 8 keep their 2/8 regex baseline (AC-701)
+    assert r["cases"] == 12 and r["router"] == "regex" and r["tool_routing_rate"] == 0.5 and len(r["misses"]) == 6
     assert cli.main(["evalchat"]) == 0
     line = capsys.readouterr().out
-    assert "regex router: 2 of 8" in line and "license_risks" in line
+    assert "regex router: 6 of 12" in line and "license_risks" in line

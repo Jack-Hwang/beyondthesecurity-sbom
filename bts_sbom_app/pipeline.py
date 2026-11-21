@@ -12,7 +12,7 @@ import shutil
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from . import ai, arch as archmod, changes as changesmod, conformance, deliver as delivermod, engine, licenses, patch as patchmod, remediate, sbom, sectors, workspace
+from . import ai, arch as archmod, alternatives as alternativesmod, evidence as evidencemod, migration as migrationmod, vnv as vnvmod, legacy as legacymod, obligations as obligationsmod, changes as changesmod, conformance, deliver as delivermod, engine, impact as impactmod, licenses, patch as patchmod, remediate, review as reviewmod, sbom, sectors, workspace
 from .llm import ChatClient
 from .util import safe_name, tree_hash, write_json
 
@@ -23,20 +23,49 @@ PROJECT_SCHEMAS_ACCEPTED = (PROJECT_SCHEMA, "sbomplus.project.v1")
 
 
 class _Stages:
-    def __init__(self, rec: Dict[str, Any]):
+    def __init__(self, rec: Dict[str, Any], progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+                 deadline: Optional[Any] = None):
         self.rec = rec
+        self.progress = progress
+        self.deadline = deadline
         rec["timings"] = {}
         rec["stage_errors"] = {}
 
     def run(self, name: str, fn: Callable[[], Any], default: Any = None) -> Any:
+        if self.deadline is not None and not self.deadline.exceeded:
+            try:                                    # the deadline is checked at stage boundaries: past it, later
+                self.deadline.check()                   # stages are skipped (each records its timeout) instead of running
+            except TimeoutError as exc:
+                self.rec["stage_errors"][name] = str(exc)
+                self.rec["error"] = "timeout: %s" % exc
+                self.deadline.exceeded = True
+                return default
+        if self.progress is not None:
+            self._emit({"type": "step_start", "step": name})
         t = time.time()
+        ok = True
         try:
             return fn()
         except Exception as exc:                                   # noqa: BLE001 - recorded, never swallowed silently
+            ok = False
             self.rec["stage_errors"][name] = "%s: %s" % (type(exc).__name__, str(exc)[:240])
             return default
         finally:
-            self.rec["timings"][name] = round(time.time() - t, 2)
+            seconds = round(time.time() - t, 2)
+            self.rec["timings"][name] = seconds
+            if self.progress is not None:
+                ev: Dict[str, Any] = {"type": "step_end", "step": name, "ok": ok, "seconds": seconds}
+                err = self.rec["stage_errors"].get(name)
+                if err:
+                    ev["error"] = err
+                self._emit(ev)
+
+    def _emit(self, ev: Dict[str, Any]) -> None:
+        """The progress callback must never break the analysis: one recorded stage error, then carry on."""
+        try:
+            self.progress(ev)
+        except Exception as exc:                                   # noqa: BLE001
+            self.rec["stage_errors"].setdefault("progress_callback", "%s: %s" % (type(exc).__name__, str(exc)[:240]))
 
 
 def _ids(vulns: List[Dict[str, Any]]) -> set:
@@ -53,12 +82,14 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
                 deliver_target: str = "branch", deliver_kw: Optional[Dict[str, Any]] = None, use_llm: bool = True,
                 client: Optional[ChatClient] = None, industries: Optional[List[str]] = None, policy: Optional[Dict[str, Any]] = None,
                 cache_dir: Optional[str] = None, lang: str = "ko", arch_online: bool = False, scanner: Any = None,
-                run_arch: bool = True, run_proposals: bool = True, engine_opts: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                run_arch: bool = True, run_proposals: bool = True, engine_opts: Optional[Dict[str, Any]] = None,
+                progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+                deadline: Optional[Any] = None, max_copy_mb: int = 0, plan_ref: str = "", req_ref: str = "") -> Dict[str, Any]:
     t0 = time.time()
     rec: Dict[str, Any] = {"schema": PROJECT_SCHEMA, "name": name or safe_name(os.path.basename(src.rstrip("/\\")) or "project"),
                            "source": src, "ref": ref or "", "components": [], "vulns": [], "plans": [], "license": {}, "arch": {},
                            "sectors": {}, "patch": {}, "proposals": {}, "sbom_check": {}, "engine": {"core": ""}, "error": None}
-    S = _Stages(rec)
+    S = _Stages(rec, progress, deadline)
     try:
         kind = workspace.normalize_source(src)
     except ValueError:
@@ -66,9 +97,9 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
     origin = kind.get("path") if kind.get("kind") == "local" else None
     origin_hash = tree_hash(origin) if origin and os.path.isdir(origin) else None
 
-    ws = S.run("prepare", lambda: workspace.prepare(src, work_root, ref=ref, depth=depth, name=rec["name"]))
+    ws = S.run("prepare", lambda: workspace.prepare(src, work_root, ref=ref, depth=depth, name=rec["name"], max_copy_mb=max_copy_mb))
     if not ws or not ws.get("ok"):
-        rec["error"] = (ws or {}).get("error") or "workspace preparation failed"
+        rec["error"] = rec.get("error") or (ws or {}).get("error") or "workspace preparation failed"
         rec["elapsed_s"] = round(time.time() - t0, 1)
         return rec
     path = ws["path"]
@@ -82,6 +113,7 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
         return rec
     rec["components"], rec["vulns"] = ana["components"], ana["vulns"]
     rec["engine"] = {"core": S.run("core_version", engine.core_version, ""), "sources": ana["sources"], "unsupported": ana["unsupported"],
+                     "offline": bool(offline),
                      "status": ana["status"], "adjustments": ana["adjustments"], "data_status": ana["data_status"], "vulnerability_presence": ana["vulnerability_presence"],
                      "notes": ana["notes"]}
 
@@ -91,8 +123,37 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
     rec["license"] = {"stats": lic_stats, "project_license": (tree or {}).get("project_license", ""),
                       "project_license_source": (tree or {}).get("project_license_source", ""), "tree": tree,
                       "policy": licenses.policy_findings(rec["components"], policy, (tree or {}).get("project_license", ""))}
+    rec["obligations"] = S.run("obligations", lambda: obligationsmod.assess(rec["components"], policy=policy,
+                                                                             project_license=(tree or {}).get("project_license", "")), {})
 
     rec["plans"] = S.run("plan", lambda: remediate.plan(rec["components"], rec["vulns"]), [])
+    rec["legacy"] = S.run("legacy", lambda: legacymod.assess(rec["components"], rec["plans"], online=arch_online), {})
+
+    def _flagged() -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        ob = rec.get("obligations") or {}
+        for s in ("internal", "binary", "saas"):
+            for row in ((ob.get("scenarios") or {}).get(s) or {}).get("components", []):
+                if row.get("verdict") == "offer":
+                    out.append({"component": row.get("name"), "version": row.get("version"), "ecosystem": "", "reason": "copyleft"})
+                    break
+        lg = rec.get("legacy") or {}
+        for row in lg.get("rows") or []:
+            if row.get("risk") == "high":
+                out.append({"component": row.get("component"), "version": row.get("version"), "ecosystem": row.get("ecosystem"), "reason": "eol"})
+        seen, uniq = set(), []
+        for f in out:
+            key = (f["component"], f["reason"])
+            if key not in seen:
+                seen.add(key)
+                uniq.append(f)
+        return uniq
+
+    rec["alternatives"] = S.run("alternatives", lambda: alternativesmod.suggest(_flagged(), client=client if (use_llm and client is not None) else None), {})
+    rec["migration"] = S.run("migration", lambda: migrationmod.plan(rec, root=path, max_sites_per_component=40), {})
+    rec["vnv"] = S.run("vnv", lambda: vnvmod.report(rec, plan_ref=plan_ref, req_ref=req_ref), {})
+    rec["attack_inputs"] = S.run("attack_inputs", lambda: evidencemod.attack_inputs(rec), {})
+    rec["cwe"] = S.run("cwe", lambda: evidencemod.cwe_top(rec), {})
     if rec["plans"] and not offline:
         S.run("verify", lambda: remediate.verify(rec["plans"], max_rounds=verify_rounds))
     rec["plan_summary"] = remediate.summary(rec["plans"])
@@ -160,6 +221,9 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
     seen_plan_sets: List[tuple] = []
     applied_total = 0
     last: Dict[str, Any] = {}
+    edited_all: set = set()
+    results_all: List[Dict[str, Any]] = []
+    last_after: Optional[Dict[str, Any]] = None
     for rnd in range(1, rounds + 1):
         key = tuple(sorted((p["component"], p["safe_version"]) for p in cur_plans if p["status"] == "upgrade"))
         if key in seen_plan_sets:                                  # spinning guard: identical plan twice = no progress possible
@@ -167,6 +231,8 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
             break
         seen_plan_sets.append(key)
         pr = patchmod.apply(path, cur_plans, approved=True, token=token if rnd == 1 else None)
+        edited_all |= set(pr.get("changed_files") or [])
+        results_all.extend(pr.get("results") or [])
         entry = {"round": rnd, "status": pr["status"], "applied": sum(1 for r in pr["results"] if r["status"] == "applied"),
                  "blocked": sum(1 for r in pr["results"] if r["status"] == "blocked"), "manual": sum(1 for r in pr["results"] if r["status"] == "manual"),
                  "results": pr["results"][:60], "regenerate": pr.get("regenerate", [])}
@@ -185,6 +251,7 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
             break
         applied_total += entry["applied"]
         after = engine.analyze(path, offline=offline, scanner=scanner, **(engine_opts or {}))
+        last_after = after
         b, a = _ids(cur_vulns), _ids(after["vulns"])
         # Regression is judged on the findings attributable to the files we EDITED. A lockfile we deliberately did not touch still
         # pins the old versions, so comparing grand totals blamed the patch for findings it cannot influence (measured: a
@@ -231,6 +298,26 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
                     "vulns_estimated": max(0, len(rec["vulns"]) - len(est))}
     if base and out["status"] == "applied":
         out["diff"] = patchmod.diff(path, base)
+    if applied_total > 0 or out["status"] == "regression_reverted":
+        # four-quadrant impact + an independent (advice-only) review of the outputs; a failure here is recorded,
+        # never allowed to change the patch status the loop already decided
+        try:
+            out["impact"] = impactmod.classify(before_components=rec["components"], before_vulns=rec["vulns"],
+                                               after_components=(last_after or {}).get("components"),
+                                               after_vulns=(last_after or {}).get("vulns"),
+                                               edited_files=edited_all, results=results_all, fleet_projects=None,
+                                               project_name=rec.get("name"))
+        except Exception as exc:                                   # noqa: BLE001 - recorded, never hides the patch status
+            out["impact"] = {"error": "%s: %s" % (type(exc).__name__, str(exc)[:200])}
+        try:
+            ups = [{"component": p.get("component"), "from": p.get("current_version"), "to": p.get("safe_version"),
+                    "breaking_risk": p.get("breaking_risk")} for p in rec["plans"] if p.get("status") == "upgrade"]
+            planned = sorted({f for p in rec["plans"] if p.get("status") == "upgrade" for f in (p.get("files") or [])})
+            out["review"] = reviewmod.review(planned_files=planned, changed_files=sorted(edited_all),
+                                             diff_lines=len(((out.get("diff") or {}).get("patch") or "").splitlines()),
+                                             impact=out.get("impact"), upgrades=ups)
+        except Exception as exc:                                   # noqa: BLE001
+            out["review"] = {"error": "%s: %s" % (type(exc).__name__, str(exc)[:200])}
     return out
 
 

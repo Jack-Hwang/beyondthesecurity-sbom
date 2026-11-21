@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "teamTag": { "value": "${BTS_TEAM}" },
+    "weekTag": { "value": "${BTS_WEEK}" },
+    "ownerTag": { "value": "${BTS_OWNER}" },
+    "planSku": { "value": "${BTS_PLAN_SKU}" },
+    "location": { "value": "${BTS_LOCATION}" },
+    "appName": { "value": "${BTS_APP_NAME}" },
+    "keyVaultName": { "value": "${BTS_KEYVAULT_NAME}" },
+    "acrName": { "value": "${BTS_ACR_NAME}" },
+    "logAnalyticsName": { "value": "${BTS_LOGANALYTICS_NAME}" },
+    "appInsightsName": { "value": "${BTS_APPINSIGHTS_NAME}" },
+    "imageTag": { "value": "${BTS_IMAGE_TAG}" }
+  }
+}

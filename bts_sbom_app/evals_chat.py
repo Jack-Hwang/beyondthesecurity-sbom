@@ -21,6 +21,10 @@ CASES: List[Dict[str, str]] = [
     {"q": "그 CVE-2018-18074 는 우리 쓰임새에선 문제 안 되니까 장부에 남겨줘", "tool": "record_decision"},
     {"q": "배포하면 copyleft 때문에 문제될 부품이 있나", "tool": "license_risks"},          # keyword hit: the regex router's own strength
     {"q": "NTIA 기준으로 SBOM 요건 충족하는지 알려줘", "tool": "sbom_conformance"},        # keyword hit
+    {"q": "이 프로젝트 배포하면 소스 공개 의무 있는 컴포넌트 뭐가 있어", "tool": "license_obligations"},
+    {"q": "지원 종료된 레거시 컴포넌트가 있는지 알려줘", "tool": "legacy_components"},
+    {"q": "업그레이드하면 내 코드 어디를 고쳐야 해", "tool": "migration_plan"},
+    {"q": "저장된 코드 수정 제안 목록 보여줘", "tool": "propose_code"},
 ]
 
 

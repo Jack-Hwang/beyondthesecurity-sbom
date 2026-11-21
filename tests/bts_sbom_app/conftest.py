@@ -155,6 +155,14 @@ def no_network():
     net.TRANSPORT, llm.TRANSPORT = None, None
 
 
+@pytest.fixture(autouse=True)
+def fresh_breakers():
+    # one test's open circuit must never block the next test's calls
+    net.reset_breakers()
+    yield
+    net.reset_breakers()
+
+
 @pytest.fixture
 def world() -> FakeWorld:
     w = FakeWorld()

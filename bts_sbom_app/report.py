@@ -30,6 +30,40 @@ def project_md(rec: Dict[str, Any], top: int = 15) -> str:
         L += ["## Remediation plan (verified against OSV)", "", "| component | from | to | clears | major | verified clean |", "|---|---|---|---|---|---|"]
         L += ["| %s | %s | %s | %d | %s | %s |" % (p["component"], p["current_version"], p["safe_version"], len(p["clears"]), p["major_bump"], p["verification"].get("clean")) for p in ups]
         L.append("")
+    ob = rec.get("obligations")
+    if ob:
+        from .obligations import DISCLAIMER
+        L += ["## Obligations", "", "_%s_" % DISCLAIMER, ""]
+        for s in ("internal", "binary", "saas"):
+            sc = (ob.get("scenarios") or {}).get(s) or {}
+            L += ["- **%s**: %s (offer=%s, review=%s, unknown=%s)" % (s, sc.get("status"), (sc.get("counts") or {}).get("source_offer"),
+                                                                     (sc.get("counts") or {}).get("review"), (sc.get("counts") or {}).get("unknown"))]
+        offers = [row for s in ("internal", "binary", "saas") for row in ((ob.get("scenarios") or {}).get(s) or {}).get("components", []) if row.get("verdict") == "offer"][:10]
+        if offers:
+            L += ["", "| scenario | component | version | scope | why |", "|---|---|---|---|---|"]
+            for s in ("internal", "binary", "saas"):
+                for row in ((ob.get("scenarios") or {}).get(s) or {}).get("components", []):
+                    if row.get("verdict") == "offer":
+                        L.append("| %s | %s | %s | %s | %s |" % (s, row.get("name"), row.get("version"), row.get("scope"), row.get("why")))
+        L.append("")
+    lg = rec.get("legacy")
+    if lg:
+        from .legacy import DISCLAIMER as LDISCLAIMER
+        L += ["## Legacy assessment", "", "_%s_" % LDISCLAIMER, ""]
+        L += ["- summary: high=%(high)s medium=%(medium)s low=%(low)s unknown=%(unknown)s, eol=%(eol)s, no_upstream_fix=%(no_upstream_fix)s" % (lg.get("summary") or {}), ""]
+        for row in (lg.get("rows") or [])[:10]:
+            eol = row.get("eol") or {}
+            L.append("- %s %s: risk **%s** (eol=%s, no_upstream_fix=%s)" % (row.get("component"), row.get("version"), row.get("risk"), eol.get("status"), row.get("no_upstream_fix")))
+        L.append("")
+    mg = rec.get("migration")
+    if mg:
+        from .migration import DISCLAIMER as MDISCLAIMER
+        wv = mg.get("waves") or {}
+        L += ["## Migration plan", "", "_" + MDISCLAIMER + "_", "",
+              "- waves: A=%s B=%s C=%s (source_available=%s)" % (wv.get("A", 0), wv.get("B", 0), wv.get("C", 0), mg.get("source_available")), ""]
+        for item in (mg.get("items") or [])[:10]:
+            L.append("- %s %s → %s: wave **%s** (%s jump, sites=%s)" % (item.get("component"), item.get("from"), item.get("to"), item.get("wave"), item.get("jump"), (item.get("code_sites") or {}).get("sites")))
+        L.append("")
     pa = rec.get("patch") or {}
     if pa.get("status") not in (None, "not_requested"):
         L += ["## Patch", "", "- status: **%s** (approved=%s), applied components: %s, rescan fixed: %s" % (pa.get("status"), pa.get("approved"), pa.get("applied_components"), pa.get("rescan_fixed_total")), ""]

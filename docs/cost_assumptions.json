@@ -1,0 +1,14 @@
+{
+  "comment": "Cost inputs for tools/cost_estimate.py. Every input is an ASSUMPTION the user can edit. NO Azure price is invented in this file: all price fields are null until the user fills them from the Azure pricing calculator. The estimate is an estimate, never a billed amount.",
+  "plan_hours_per_month": {"value": 730, "unit": "hours", "assumed": true, "note": "a full month of always-on App Service"},
+  "instances": {"value": 1, "unit": "count", "assumed": true, "note": "capacity 1, no autoscale (ADR-0016/0019)"},
+  "plan_price_per_hour": {"value": null, "unit": "USD/hour", "assumed": true, "note": "Azure pricing calculator: App Service plan SKU S1 - fill me"},
+  "storage_gb": {"value": 5, "unit": "GB", "assumed": true, "note": "evidence folder growth estimate"},
+  "storage_price_per_gb_month": {"value": null, "unit": "USD/GB-month", "assumed": true, "note": "Azure pricing calculator: Files/managed disk tier - fill me"},
+  "log_gb": {"value": 2, "unit": "GB", "assumed": true, "note": "Log Analytics ingestion estimate (one JSON line per request)"},
+  "log_price_per_gb": {"value": null, "unit": "USD/GB", "assumed": true, "note": "Azure pricing calculator: Log Analytics - fill me"},
+  "llm_calls_per_day": {"value": 80, "unit": "calls/day", "assumed": true, "note": "matches the local daily budget default (80)"},
+  "llm_cost_per_call": {"value": null, "unit": "USD/call", "assumed": true, "note": "EXAONE pricing is external to Azure - fill me; 0 if unused"},
+  "bandwidth_gb": {"value": 1, "unit": "GB", "assumed": true, "note": "outbound egress estimate"},
+  "bandwidth_price_per_gb": {"value": null, "unit": "USD/GB", "assumed": true, "note": "Azure pricing calculator: egress - fill me"}
+}

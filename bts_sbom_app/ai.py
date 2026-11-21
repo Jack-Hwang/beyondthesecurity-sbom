@@ -19,6 +19,7 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from . import router
 from .llm import ChatClient, LLMError, LLMUnavailable
 from .util import clip
 
@@ -234,12 +235,23 @@ def propose(rec: Dict[str, Any], *, client: Optional[ChatClient] = None, cache_d
         except OSError:
             raw = None
     if raw is None and use_llm and client is not None:
-        try:
-            raw = client.complete(sys_prompt, prompt, max_tokens=8192, json_mode=True)    # reasoning tokens count against this
-        except LLMUnavailable as exc:
-            note = "EXAONE unavailable -> deterministic proposals: " + clip(str(exc), 220)
-        except LLMError as exc:
-            note = "EXAONE error -> deterministic proposals: " + clip(str(exc), 220)
+        # the router decides (data sovereignty / budget / throttling); a refused route is an honest downgrade with a reason
+        reasons: List[str] = []
+        budget = getattr(client, "daily_budget", 0) or 0
+        ratio = (client.calls_today() / budget) if budget else 1.0
+        backend = router.choose_backend(data_class="private" if rec.get("private") else "public",
+                                        daily_budget_ratio=ratio, throttled=False, cloud_llm_allowed=client.available,
+                                        providers={"primary": "exaone", "fallback": getattr(client, "provider", "") != "exaone" and "azure-openai"},
+                                        reasons=reasons)
+        if backend == "deterministic":
+            note = "router refused the LLM route -> deterministic: " + "; ".join(reasons)
+        else:
+            try:
+                raw = client.complete(sys_prompt, prompt, max_tokens=8192, json_mode=True)    # reasoning tokens count against this
+            except LLMUnavailable as exc:
+                note = "EXAONE unavailable -> deterministic proposals: " + clip(str(exc), 220)
+            except LLMError as exc:
+                note = "EXAONE error -> deterministic proposals: " + clip(str(exc), 220)
     elif raw is None:
         note = "use_llm=false" if not use_llm else "no LLM client configured"
     if raw is not None:

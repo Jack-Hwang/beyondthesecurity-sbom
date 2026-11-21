@@ -1,0 +1,13 @@
+{
+  "schema": "bts-sbom.alternatives.v1",
+  "_comment": "EXAMPLE ONLY - the loader ignores .example.json. Shows the required shape: every 'to' option MUST carry a 'source' (where the evidence came from or who verified it). No real package names are used here.",
+  "entries": [
+    {
+      "from": {"ecosystem": "PyPI", "name": "example-copyleft-lib"},
+      "reason": "copyleft",
+      "to": [
+        {"ecosystem": "PyPI", "name": "example-permissive-lib", "license": "MIT", "note": "example shape only - not a real package", "source": "EXAMPLE - not a real package"}
+      ]
+    }
+  ]
+}

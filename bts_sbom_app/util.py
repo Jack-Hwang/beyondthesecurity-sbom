@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -35,7 +36,16 @@ def write_json(path: str, obj: Any) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(obj, fh, ensure_ascii=False, indent=1, sort_keys=False, default=_json_default)
-        os.replace(tmp, path)
+        # Windows + antivirus: a freshly written file can be transiently locked, failing os.replace with
+        # WinError 32/5 - a short bounded retry turns that environment flake into a wait (measured flake ~1/6)
+        for attempt in range(8):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                if attempt == 7:
+                    raise
+                time.sleep(0.15)
     except BaseException:
         try:
             os.unlink(tmp)

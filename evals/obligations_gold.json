@@ -1,0 +1,66 @@
+{
+ "schema": "bts-sbom.obligations-gold.v1",
+ "note": "expectations DERIVED from licenses.category output and the task-23 SCOPE table (basis: table row) - not legal advice",
+ "cases": [
+  {
+   "license": "MIT",
+   "category": "permissive",
+   "binary_scope": "none"
+  },
+  {
+   "license": "Apache-2.0",
+   "category": "permissive",
+   "binary_scope": "none"
+  },
+  {
+   "license": "LGPL-3.0-only",
+   "category": "weak-copyleft",
+   "binary_scope": "library_only"
+  },
+  {
+   "license": "MPL-2.0",
+   "category": "weak-copyleft",
+   "binary_scope": "library_only"
+  },
+  {
+   "license": "GPL-3.0-only",
+   "category": "strong-copyleft",
+   "binary_scope": "combined_work"
+  },
+  {
+   "license": "GPL-2.0-only WITH Classpath-exception-2.0",
+   "category": "weak-copyleft",
+   "binary_scope": "library_only"
+  },
+  {
+   "license": "AGPL-3.0-only",
+   "category": "network-copyleft",
+   "binary_scope": "combined_work_incl_network"
+  },
+  {
+   "license": "MIT OR GPL-3.0-only",
+   "category": "permissive",
+   "binary_scope": "none"
+  },
+  {
+   "license": "MIT AND GPL-3.0-only",
+   "category": "strong-copyleft",
+   "binary_scope": "combined_work"
+  },
+  {
+   "license": "BUSL-1.1",
+   "category": "restricted",
+   "binary_scope": "unknown"
+  },
+  {
+   "license": "LicenseRef-custom",
+   "category": "unknown",
+   "binary_scope": "unknown"
+  },
+  {
+   "license": "",
+   "category": "unknown",
+   "binary_scope": "unknown"
+  }
+ ]
+}

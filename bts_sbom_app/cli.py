@@ -29,6 +29,12 @@ def _settings(a: argparse.Namespace) -> Dict[str, Any]:
     s["engine_opts"] = {"dedupe": not a.no_dedupe, "merge_ruby_platforms": not a.no_ruby_merge, "go_mvs": not a.no_go_mvs}
     if getattr(a, "industries", None):
         s["industries"] = [x.strip() for x in a.industries.split(",") if x.strip()]
+    if getattr(a, "policy", None) and getattr(a, "sector_policy", None):
+        raise SystemExit("ERROR: --policy and --sector-policy are mutually exclusive")
+    if getattr(a, "sector_policy", None):
+        from . import sector_policy
+        s["policy"] = sector_policy.resolve(a.sector_policy)
+        print(sector_policy.basis_line(s["policy"]))
     if getattr(a, "policy", None):
         s["policy"] = read_json(a.policy, {})
     if getattr(a, "patch", False) or a.cmd == "patch":
@@ -56,6 +62,7 @@ def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--arch-online", action="store_true", help="use endoflife.date for runtime EOL")
     p.add_argument("--industries", default=None)
     p.add_argument("--policy", default=None)
+    p.add_argument("--sector-policy", default=None)
     p.add_argument("--json", action="store_true")
 
 
@@ -117,8 +124,9 @@ def build_parser() -> argparse.ArgumentParser:
     sv = sub.add_parser("serve", help="JSON API + small web UI")
     sv.add_argument("--port", type=int, default=8800); sv.add_argument("--host", default="127.0.0.1"); sv.add_argument("--evidence", default=None)
     sv.add_argument("--llm-config", default=None)
-    sv.add_argument("--chat-actions", action="store_true", help="let /api/chat analyse sources, apply approved patches and record VEX decisions (each behind its confirmation)")
+    sv.add_argument("--chat-actions", action="store_true", help="let /api/chat analyse sources, apply approved patches and record VEX decisions (each behind its confirmation; refused in cloud mode unless BTS_SBOM_CLOUD_ALLOW_ACTIONS=1)")
     cli_ext.add_commands(sub)
+    cli_ext.add_commands_ext(sub)
     return ap
 
 

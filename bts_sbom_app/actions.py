@@ -78,6 +78,15 @@ class ChatActions:
     # ---------------------------------------------------------------- analyse
     def analyze(self, source: str) -> Dict[str, Any]:
         """Run the pipeline on ``source`` (git URL / owner/repo / local folder). Returns {ok, record} or {ok: False, error}."""
+        from .cloud import is_cloud
+        from .workspace import check_source_policy, normalize_source
+        try:
+            spec = normalize_source(source)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        refused = check_source_policy(spec, cloud=is_cloud())
+        if refused:                                                  # the chat action obeys the same policy as /api/scan
+            return {"ok": False, "error": refused}
         wdir = self.work_root or tempfile.mkdtemp(prefix="bts_sbom_chat_")
         try:
             rec = pipeline.run_project(source, work_root=wdir, out_dir=self.evidence, use_llm=self.use_llm, client=self.client, cache_dir=self.cache_dir,

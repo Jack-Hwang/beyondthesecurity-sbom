@@ -155,6 +155,42 @@ The 0.2 workflow layer (`bts_sbom_app/`, same distribution, standard library onl
 | `llm.py`, `ai.py` | EXAONE / OpenAI-compatible client with a daily-budget ledger; LLM upgrade proposals behind a four-layer validator | `BTS_SBOM_LLM_CONFIG`, `EXAONE_API_KEY` | `test_ai_rag_loop.py` |
 | `loop.py`, `evals.py` | loop-engineering harness: golden/dev/test sets, regression gate where absent evidence is `undecidable` and blocks acceptance | `loop`, `ragloop`, `evalrag` | `test_ai_rag_loop.py` |
 
+## Implementation status — course/glm branch (2026-11-21, brief 1 tasks 1-22)
+
+The `course/glm` branch adds the course methodology + Azure deployment readiness on top of the 0.2 workflow layer.
+구현/미구현/NOT RUN 을 구분한다(측정값은 실제 실행 값만; 상세는 CHANGELOG 와 각 ADR).
+
+Implemented (module → capability → AC range):
+
+| Module | Capability | AC |
+|---|---|---|
+| `impact.py`, `review.py` | patch-regression quadrants (direct/upstream/downstream/shared, unverified ≠ ok) + independent advice-only review | 316-333 |
+| `resilience.py`, `net.py` | per-host circuit breaker, four honest fetch outcomes (success/empty/partial/access_failure), Retry-After | 301-313 |
+| `events.py`, `server.py` | SSE progress events (6 types, Last-Event-ID reconnect, subscriber cap), `/healthz`, `/readyz` | 336-354 |
+| `jobstore.py` | persistent job records (`.jobs/<id>.json`), restart recovery, idempotency keys, secrets never stored | 401-412 |
+| `engine.detect_conflicts`, `chat.py` | advisory-source conflicts shown with sources+dates; lookup answers state both values | 413-424 |
+| `cloud.py` | `BTS_SBOM_CLOUD` switch: fail-closed defaults (no local paths, no key writes, LLM off) | 465-470 |
+| `workspace.check_source_policy` | cloud source policy: https-only, host allow-list, public-address check (SSRF), no credentials | 453-460 |
+| `auth.py`, `audit.py` | cloud auth (bearer token or Easy-Auth identity header, fail-closed 503), approver identity, hash-chained audit log | 441-451 |
+| `instance.py` | single-writer evidence lock with heartbeat, takeover, standby mode | 473-480 |
+| `limits.py` | concurrent-job gate (429 + Retry-After), job deadline, work-copy size cap, SIGTERM drain | 483-491 |
+| `obslog.py`, `metrics.py` | one-line JSON access logs (masked), X-Request-Id, `/metrics` with fixed low-cardinality labels | 521-528 |
+| `infra/main.bicep`, `azure.yaml` | IaC: App Service + staging slot, managed identity (AcrPull, Key Vault Secrets User), budget 50/80/100% | 497-505 |
+| `.github/workflows/deploy_azure.yml` | deploy pipeline (OIDC, Trivy CRITICAL gate, self-SBOM, staging → readyz → approved swap → rollback) — never executed | 509-517 |
+| `tools/cost_estimate.py` | monthly cost estimate from user-filled prices (0 invented prices; incomplete total until filled) | 533-537 |
+| `router.py`, `llm.py` | LLM backend routing with recorded reasons, outbound preview (0 requests), optional Azure OpenAI provider | 541-549 |
+| `guardrail.py` | deterministic input guardrails (injection/secret-request/tool-smuggling), suspicious advisory marking | 551-555 |
+| `chat.TOOL_GROUPS` | tool groups (≤5 per group, flag-gated, evalchat unchanged) | 561-565 |
+| `traceability.py`, `portfolio.py`, `proof.py` | traceability matrix, 8-package portfolio manifest (paths+hashes), PASS/FAIL/NOT RUN proof contract | 381-394 |
+| `verifydev.py`, `.agentic-dev/contract.json` | post-deployment verification (no deployment = NOT RUN exit 2, negative auth probe) | 567-572 |
+| `doclint.py`, `docs/adr/`, `docs/governance/`, `docs/ENFORCEMENT_MAP.md` | documentation lint (strict), 11 ADRs, 4 governance documents, enforcement map with existing tests only | 361-372 |
+
+Not implemented (need official-docs verification that this offline environment could not do):
+Azure AI Content Safety integration, the Azure OpenAI managed-identity token flow, the App Service persistent
+storage settings in the template, metric alert rules. NOT RUN: `docker build`, `az bicep build`, `azd provision
+--preview`, every GitHub Actions execution, a real `verify-dev` target, O_EXCL/`os.replace` atomicity on a shared
+filesystem. Skips (1 POSIX-only test) are counted separately, never as PASS.
+
 ## End-to-end workflow: analyse, patch, architecture, chatbot (`bts_sbom_app/`, command `bts-sbom-app`)
 
 Part of BTS-SBOM: a second, standard-library-only package in this repository (`bts_sbom_app/`, command `bts-sbom-app`),
@@ -215,6 +251,26 @@ local tree — license files plus the import sites of one package with context �
 symlinks with reasons; all repository text is untrusted (escaped CXML, instruction-like files flagged) and import sites are candidates:
 reachability stays unknown, `verify_site` re-confirms a claimed path:line. `evalchat` measures tool routing on 8 paraphrased
 governance/action questions (regex router 2/8 measured, LLM planner 8/8; a reason the user did not type is never credited).
+
+## Source-disclosure duties, legacy signals, migration waves and code proposals (course/glm)
+
+Four additions answer the project's stated problem (patching legacy / copyleft code is hard):
+
+- `bts-sbom-app obligations <project> [--distribution internal|binary|saas]` / `GET /api/obligations/<project>` — per-component
+  source-disclosure duties by use scenario (internal / binary / SaaS), a 5-rule compatibility reference table, and fixed-order
+  mitigation options. **Engineering signal, not legal advice** — the rules are widely-quoted reference rules, unresolved licenses
+  stay `unknown` in every scenario and are never counted as safe.
+- `bts-sbom-app legacy <project> [--online]` / `GET /api/legacy/<project>` — EOL and no-upstream-fix assessment (5 seeded
+  product mappings only; django/angular/spring-boot/rails/laravel). Unknown mappings stay unknown, never "supported".
+- `bts-sbom-app migration <project> [--source DIR]` / `GET /api/migration/<project>` — upgrade impact waves A/B/C with
+  bounded import-site counts from the work copy. 0 sites is never "no impact" (the import name may differ from the package name).
+- `bts-sbom-app codeprop <project> --source DIR --component NAME [--to VERSION] [--llm-config PATH]` — proposes code edits as a
+  unified diff built from the real file content (the model only proposes line-range replacements; 6 deterministic validations
+  gate it). **Propose-only**: applying needs `--apply --token <diff digest>` and happens in a fresh work copy on branch
+  `bts-sbom/code-proposal`; the web API and chat expose no apply route; `tests_run: false` is recorded (nothing is built or tested).
+
+Limits (stated honestly): the compat rules and sector presets are reference/starter values needing legal review; the
+alternatives table ships empty (fill it with verified entries only); proposals are syntax-checked, never built or tested.
 
 ## Status & scope honesty
 

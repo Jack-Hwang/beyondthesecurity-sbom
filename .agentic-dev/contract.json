@@ -1,0 +1,41 @@
+{
+  "spec": {
+    "name": "BTS-SBOM app service",
+    "specFile": "specs/bts_sbom_app_features.md",
+    "schema": "bts-sbom.project.v1",
+    "adrDir": "docs/adr",
+    "honestyContract": [
+      "absence of evidence is not a pass (verification null = could not check)",
+      "the analysed origin is never modified; pushes and patches happen only behind explicit flags and human approval",
+      "SKIP and NOT RUN are never counted as PASS",
+      "existing API return values, status codes and CLI arguments only gain, never change"
+    ]
+  },
+  "commands": {
+    "build": "python -X utf8 -m compileall -q bts_sbom_app bts_sbom tools",
+    "proof": "python -X utf8 -m bts_sbom_app proof --out evidence/proof",
+    "deploy_dev": "azd deploy --environment dev",
+    "verify_dev": "python -X utf8 -m bts_sbom_app verify-dev"
+  },
+  "artifacts": {
+    "proof_output": "evidence/proof/proof-results.json",
+    "proof_runs": "evidence/proof/proof-runs/",
+    "portfolio_manifest": "portfolio/manifest.json"
+  },
+  "integrations": {
+    "azure": {
+      "hosting": "App Service (Linux container + staging slot), see infra/main.bicep and docs/adr/ADR-0016",
+      "pipeline": ".github/workflows/deploy_azure.yml (workflow_dispatch only; OIDC login, no client secrets)",
+      "devEnvironment": "DEV_BASE_URL env var; unset = verify-dev is NOT RUN (exit 2), never a pass"
+    },
+    "llm": {
+      "provider": "EXAONE API (default k-exaone_v2.5); cloud mode keeps it off unless BTS_SBOM_CLOUD_LLM=1",
+      "router": "bts_sbom_app/router.py decides with recorded reasons"
+    }
+  },
+  "notes": [
+    "deploy_dev has never been executed (no Azure subscription in the writing environment) - it stays NOT RUN until someone runs azd with a real environment",
+    "every price in docs/cost_assumptions.json is null until a human fills it from the Azure pricing calculator",
+    "known unverified Azure facts are listed in the implementation brief appendix 1b and the ADRs (확인 필요)"
+  ]
+}

@@ -1,0 +1,21 @@
+# azd configuration for the BTS-SBOM app service (task 15).
+# Syntax per azd's azure.yaml schema - written from the course material's example shape; the exact schema
+# details were NOT verified against azd docs in this environment ("확인 필요"), so `azd provision --preview`
+# remains NOT RUN until someone can run it.
+name: bts-sbom-app
+metadata:
+  template: bts-sbom-app@0.1.0
+services:
+  app:
+    project: .
+    language: docker
+    host: appservice
+    resourceName: ${BTS_APP_NAME}
+infra:
+  path: infra
+  module: main
+pipeline:
+  variables:
+    - BTS_TEAM
+    - BTS_WEEK
+    - BTS_OWNER

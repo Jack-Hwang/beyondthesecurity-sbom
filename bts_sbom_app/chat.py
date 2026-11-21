@@ -20,10 +20,12 @@ passage with ``trust="untrusted-quote"`` - it can be quoted, never obeyed, and t
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import actions as actionsmod, ai, conformance, coverage as coverage_mod, fleet, licenses, rag, sbom, triage, workspace
+from . import guardrail as guardrailmod
 from .llm import ChatClient, LLMError, LLMUnavailable
 
 _ID = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+|RUSTSEC-\d{4}-\d+|GO-\d{4}-\d+)\b", re.I)
@@ -79,6 +81,21 @@ def _vuln_match(v: Dict[str, Any], vid: str) -> bool:
     return vid.lower() in [v["id"].lower()] + [a.lower() for a in v.get("aliases") or []] + [o.lower() for o in v.get("osv_ids") or []]
 
 
+def _conflict_line(v: Dict[str, Any], cf: Dict[str, Any]) -> str:
+    """One honest line for a fixed-version conflict: both values, both sources with dates, and what the plan uses."""
+
+    def _val(e: Dict[str, Any]) -> str:
+        d = (", " + str(e["date"])) if e.get("date") else ""
+        return "%s (%s%s)" % (e.get("value"), e.get("source"), d)
+
+    vals = cf.get("values") or []
+    if len(vals) < 2:
+        return ""
+    return "Sources disagree on fixed_version for %s: %s vs %s; the patch plan uses %s (%s)." % (
+        v["id"], _val(vals[0]), _val(vals[1]), cf.get("chosen"),
+        "highest" if cf.get("resolution") == "highest_version" else str(cf.get("resolution")))
+
+
 def _vuln(rec: Dict[str, Any], vid: str) -> List[str]:
     out = []
     for v in rec.get("vulns") or []:
@@ -86,6 +103,10 @@ def _vuln(rec: Dict[str, Any], vid: str) -> List[str]:
             out.append("%s affects %s %s, severity %s%s, fixed in %s." % (
                 v["id"], v["package"], v["version"], v["severity"], (" (CVSS %s)" % v["cvss"]) if v.get("cvss") is not None else "",
                 v["fixed_version"] or "no known version"))
+            for cf in v.get("conflicts") or []:
+                ln = _conflict_line(v, cf)
+                if ln:
+                    out.append(ln)
     return out or ["%s is not present in the analysed findings of %s." % (vid, rec["name"])]
 
 
@@ -93,6 +114,20 @@ def _advisory_text(rec: Dict[str, Any], vid: str) -> List[str]:
     """The advisory's own free text: third-party content, so it is a separate, untrusted passage."""
     return ["Advisory summary of %s: %s" % (v["id"], str(v["summary"]).strip()) for v in rec.get("vulns") or []
             if _vuln_match(v, vid) and str(v.get("summary") or "").strip()]
+
+
+def _advisory_suspicious(rec: Dict[str, Any], vid: str) -> Dict[str, Any]:
+    """One guardrail call site for untrusted advisory text: injected instruction lines are marked so the caller
+    keeps them in the deterministic view but never hands them to the model context."""
+    out: Dict[str, Any] = {"suspicious_count": 0, "rules": []}
+    for v in rec.get("vulns") or []:
+        if not _vuln_match(v, vid):
+            continue
+        marked = guardrailmod.suspicious_advisory(str(v.get("summary") or ""))
+        if marked["suspicious_count"]:
+            out["suspicious_count"] += marked["suspicious_count"]
+            out["rules"] += [ln["rule"] for ln in marked["lines"] if ln["suspicious"]]
+    return out
 
 
 def _component(rec: Dict[str, Any], name: str) -> List[str]:
@@ -380,6 +415,10 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "architecture": {"args": {}, "doc": "hotspots, dependency cycles, runtime end-of-life"},
     "sector": {"args": {"industry": "optional: " + "|".join(sorted(_INDUSTRY))}, "doc": "industry / regulatory report verdicts"},
     "what_if_upgrade": {"args": {"component": "component name", "version": "target version"}, "doc": "result of upgrading one component, from the verified plan"},
+    "license_obligations": {"args": {"distribution": "internal|binary|saas (optional)"}, "doc": "per-component source-disclosure duties by use scenario (reference rules, not legal advice)"},
+    "legacy_components": {"args": {}, "doc": "legacy / EOL component assessment: risk rows and no-upstream-fix signals"},
+    "migration_plan": {"args": {}, "doc": "upgrade impact plan with waves A/B/C and per-component code sites"},
+    "propose_code": {"args": {}, "doc": "list stored code-edit proposals (read-only; proposing and applying is a CLI action with the diff digest token)"},
     "affected_projects": {"args": {"id": "optional: advisory id or alias", "component": "optional: component name", "version": "optional: version constraint such as <2.0 or 2.19.1"},
                           "doc": "which analysed projects use a component or are hit by an advisory (looks across ALL projects; give an id and/or a component)"},
     "sbom_conformance": {"args": {"regime": "optional: " + "|".join(sorted(conformance.REGIMES))},
@@ -403,6 +442,39 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "confirm_decision": {"args": {"code": "the 12-hex confirm code exactly as the user typed it"}, "doc": "record the previewed VEX decision whose code the user typed"},
 }
 WRITE_TOOLS = ("analyze_project", "apply_patch", "confirm_decision")
+# Tool groups (task 21): the planner sees at most one group (<=5 tools) when BTS_SBOM_TOOL_GROUPS=1.
+# Lecture 3-3/4-3: catalogs beyond ~30 tools drop accuracy sharply and narrow trust boundaries help. Default OFF.
+TOOL_GROUPS: Dict[str, tuple] = {
+    "findings": ("overview", "top_vulns", "vuln_lookup", "component_lookup", "what_if_upgrade"),
+    "licenses": ("license", "license_risks", "sector", "sbom_conformance", "coverage"),
+    "project": ("architecture", "what_changed", "affected_projects", "proposals", "patch"),
+    "governance": ("plan_patch", "export_vex", "record_decision", "confirm_decision"),
+    "actions": ("analyze_project", "apply_patch"),
+    "obligations": ("license_obligations", "legacy_components", "migration_plan", "propose_code"),
+}
+GROUP_KEYWORDS: Dict[str, tuple] = {
+    "findings": ("취약", "vuln", "cve", "ghsa", "심각", "severity", "개요", "overview", "컴포넌트", "component", "what if", "what_if", "업그레이드하면"),
+    "licenses": ("라이선스", "라이센스", "license", "saas", "조건", "배포", "커버리지", "coverage", "컨포먼스", "conformance", "기준", "sector", "산업", "규제"),
+    "project": ("구조", "architecture", "아키텍처", "변화", "what changed", "what_changed", "이전", "비교", "영향", "affected", "proposal", "제안", "해결책", "patch", "패치"),
+    "governance": ("승인", "approve", "결정", "decision", "vex", "기록", "record", "plan_patch", "확인 코드"),
+    "actions": ("분석", "analyze", "적용", "apply"),
+    "obligations": ("소스 공개", "의무", "obligation", "agpl", "지원 종료", "레거시", "legacy", "이관", "migration", "코드 수정"),
+}
+GROUP_FALLBACKS = 0                                        # questions where no group matched (planner got all tools)
+
+
+def reset_group_fallbacks() -> None:
+    global GROUP_FALLBACKS
+    GROUP_FALLBACKS = 0
+
+
+def route_group(question: str) -> Optional[str]:
+    """Deterministic keyword routing to one tool group, or None (the planner then sees the full catalog)."""
+    q = str(question or "").lower()
+    for group, words in GROUP_KEYWORDS.items():
+        if any(w in q for w in words):
+            return group
+    return None
 NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision")       # these can run before any project is loaded
 FLEET_TOOLS = ("affected_projects",)
 MAX_CALLS = 4
@@ -414,8 +486,12 @@ def catalog(writable: bool) -> Dict[str, Dict[str, Any]]:
     return {k: v for k, v in TOOL_CATALOG.items() if writable or k not in WRITE_TOOLS}
 
 
-def _result(rec: Dict[str, Any], tool: str, lines: List[str], trust: str = "tool", suffix: str = "") -> Dict[str, Any]:
-    return {"tool": tool, "source": "project:%s:%s%s" % (rec["name"], tool, suffix), "lines": lines, "trust": trust}
+def _result(rec: Dict[str, Any], tool: str, lines: List[str], trust: str = "tool", suffix: str = "",
+            date: Optional[str] = None) -> Dict[str, Any]:
+    d = {"tool": tool, "source": "project:%s:%s%s" % (rec["name"], tool, suffix), "lines": lines, "trust": trust}
+    if date:                                                    # the advisory's own publication date, display-only
+        d["date"] = date
+    return d
 
 
 def _plain(tool: str, source: str, lines: List[str], trust: str = "tool") -> Dict[str, Any]:
@@ -491,10 +567,15 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
         return [_result(rec, tool, _top_vulns(rec))]
     if tool == "vuln_lookup":
         vid = str(args["id"])
-        out = [_result(rec, tool, _vuln(rec, vid), suffix=":" + vid.upper())]
+        v0 = next((v for v in rec.get("vulns") or [] if _vuln_match(v, vid)), None)
+        out = [_result(rec, tool, _vuln(rec, vid), suffix=":" + vid.upper(), date=(v0 or {}).get("published") or None)]
         adv = _advisory_text(rec, vid)
         if adv:
-            out.append(_result(rec, "advisory_text", adv, trust="untrusted-quote", suffix=":" + vid.upper()))
+            res = _result(rec, "advisory_text", adv, trust="untrusted-quote", suffix=":" + vid.upper())
+            sus = _advisory_suspicious(rec, vid)
+            if sus["suspicious_count"]:                      # marked, still in the deterministic view, never in the model context
+                res["suspicious"] = sus
+            out.append(res)
         return out
     if tool == "component_lookup":
         return [_result(rec, tool, _component(rec, str(args["name"])), suffix=":" + str(args["name"]).lower())]
@@ -508,6 +589,54 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
         return [_result(rec, tool, _sector(rec, args.get("industry")))]
     if tool == "what_if_upgrade":
         return [_result(rec, tool, _what_if(rec, str(args["component"]), str(args["version"])), suffix=":" + str(args["component"]).lower())]
+    if tool == "license_obligations":
+        from .obligations import DISCLAIMER as ODISCLAIMER, assess as _ob_assess
+        ob = rec.get("obligations") or _ob_assess(rec.get("components") or [], project_license=(rec.get("license") or {}).get("project_license", ""))
+        dist = str(args.get("distribution") or "").lower()
+        scen = [dist] if dist in ("internal", "binary", "saas") else ["internal", "binary", "saas"]
+        lines = ["License obligations (reference rules - " + ODISCLAIMER + ")"]
+        if not (rec.get("components") or []):
+            lines.append("no data available: this project has no analysed components (0 components) - obligations cannot be assessed")
+        for s in scen:
+            sc = (ob.get("scenarios") or {}).get(s) or {}
+            c = sc.get("counts") or {}
+            lines.append("%s: status %s (offer=%s review=%s unknown=%s none=%s)" % (s, sc.get("status"), c.get("source_offer"), c.get("review"), c.get("unknown"), c.get("none")))
+            for row in sc.get("components") or []:
+                if row.get("verdict") == "offer":
+                    lines.append("  offer: %s %s (%s) scope %s" % (row.get("name"), row.get("version"), row.get("license"), row.get("scope")))
+        return [_result(rec, tool, lines)]
+    if tool == "legacy_components":
+        from .legacy import DISCLAIMER as LDISCLAIMER, assess as _lg_assess
+        lg = rec.get("legacy") or _lg_assess(rec.get("components") or [], rec.get("plans") or [])
+        lines = ["Legacy / EOL assessment (" + LDISCLAIMER + ")"]
+        s = lg.get("summary") or {}
+        lines.append("high=%s medium=%s low=%s unknown=%s, eol=%s, no_upstream_fix=%s" % (s.get("high"), s.get("medium"), s.get("low"), s.get("unknown"), s.get("eol"), s.get("no_upstream_fix")))
+        for row in lg.get("rows") or []:
+            eol = row.get("eol") or {}
+            lines.append("%s %s: risk %s (eol=%s, no_upstream_fix=%s)" % (row.get("component"), row.get("version"), row.get("risk"), eol.get("status"), row.get("no_upstream_fix")))
+        return [_result(rec, tool, lines)]
+    if tool == "migration_plan":
+        from .migration import DISCLAIMER as MDISCLAIMER, plan as _mg_plan
+        mg = rec.get("migration") or _mg_plan(rec, root=None)
+        lines = ["Migration plan (" + MDISCLAIMER + ")"]
+        w = mg.get("waves") or {}
+        lines.append("waves: A=%s B=%s C=%s (source_available=%s)" % (w.get("A"), w.get("B"), w.get("C"), mg.get("source_available")))
+        for item in mg.get("items") or []:
+            cs = item.get("code_sites") or {}
+            lines.append("%s %s -> %s: wave %s (%s jump, sites=%s)" % (item.get("component"), item.get("from"), item.get("to"), item.get("wave"), item.get("jump"), cs.get("sites")))
+        return [_result(rec, tool, lines)]
+    if tool == "propose_code":
+        from .codeprop import list_proposals
+        props: List[Dict[str, Any]] = []
+        record_path = ((rec.get("artifacts") or {}).get("record") or "")
+        if record_path and os.path.isfile(record_path):
+            props = list_proposals(os.path.join(os.path.dirname(record_path), "codeprop"))
+        lines = ["Code proposals are proposed-only: applying happens via the CLI (bts-sbom-app codeprop --apply --token <digest>)"]
+        if props:
+            lines += ["stored: %s" % ", ".join("id %s (digest %s)" % (p["id"], p["digest"]) for p in props)]
+        else:
+            lines.append("no stored proposals for this project - propose from a local source with: bts-sbom-app codeprop <project> --source DIR --component NAME")
+        return [_result(rec, tool, lines)]
     raise ValueError("unknown tool " + tool)
 
 
@@ -613,6 +742,16 @@ def plan_tools(question: str, rec: Optional[Dict[str, Any]], client: ChatClient,
     cat = catalog(writable)
     if rec is None:
         cat = {k: v for k, v in cat.items() if k in NO_PROJECT_TOOLS}
+    if os.environ.get("BTS_SBOM_TOOL_GROUPS") in ("1", "true", "yes", "on"):
+        group = route_group(question)
+        if group:
+            allowed = set(TOOL_GROUPS[group])
+            if rec is None:
+                allowed |= set(NO_PROJECT_TOOLS)
+            cat = {k: v for k, v in cat.items() if k in allowed}
+        else:
+            global GROUP_FALLBACKS
+            GROUP_FALLBACKS += 1                              # no group matched: the planner sees everything, and we count it
     payload = json.dumps({"question": question, "components": [c["name"] for c in ((rec or {}).get("components") or [])[:60]], "tools": cat}, ensure_ascii=False)
     raw = client.complete(PLAN_SYSTEM, payload, max_tokens=2048, json_mode=True)
     obj = ai._parse_json(raw)
@@ -699,6 +838,15 @@ class Chatbot:
             calls.append(("what_changed", {}))
         if re.search(r"커버리지|coverage|미결정|결정 ?안 ?된|처리 ?안 ?된|남은 ?취약|unhandled|worklist|혈통|lineage", low):
             calls.append(("coverage", {}))
+        if re.search(r"소스 공개|소스공개|의무|obligation|배포하면|saas.{0,20}(공개|의무)|source.{0,12}disclosure", low):
+            dist = "saas" if re.search(r"saas|서비스형", low) else ("internal" if re.search(r"사내|내부|internal", low) else ("binary" if re.search(r"바이너리|binary|배포", low) else None))
+            calls.append(("license_obligations", {"distribution": dist} if dist else {}))
+        if re.search(r"지원 종료|eol|레거시|legacy|no.?upstream.?fix|수정.{0,10}없|올릴 수 없", low) and not re.search(r"아키텍처|architecture|런타임", low):
+            calls.append(("legacy_components", {}))
+        if re.search(r"이관|migration|마이그레이션|물결|wave|몇 군데|어디를 고치|고쳐야|내 코드|호출 위치", low):
+            calls.append(("migration_plan", {}))
+        if re.search(r"코드 수정|코드 제안|code.?prop|수정 제안|제안 목록|stored proposal", low):
+            calls.append(("propose_code", {}))
         if self.projects and _FLEET_Q.search(low):
             calls.extend(("affected_projects", a) for a in ([{"id": i} for i in ids] or [{"component": n} for n in names[:1]]))
         acts = self._action_calls(q, rec)
@@ -800,7 +948,7 @@ class Chatbot:
                 tools_used.append(t["tool"])
                 docs[t["source"]] = "\n".join(t["lines"])
                 trust[t["source"]] = t["trust"]
-                claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"]} for ln in t["lines"])
+                claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"], **({"date": t["date"]} if t.get("date") else {})} for ln in t["lines"])
         else:                                                # no single project named: across all of them (which projects use X?) or a source to analyse
             unscoped: Optional[List[Dict[str, Any]]] = None
             if use_llm and self.client is not None and self.actions is not None:
@@ -815,7 +963,7 @@ class Chatbot:
                 tools_used.append(t["tool"])
                 docs[t["source"]] = "\n".join(t["lines"])
                 trust[t["source"]] = t["trust"]
-                claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"]} for ln in t["lines"])
+                claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"], **({"date": t["date"]} if t.get("date") else {})} for ln in t["lines"])
         flt: Optional[Dict[str, Any]] = {"kind": ["knowledge", "evidence"]} if not rec else {"kind": ["knowledge"]}
         res = self.index.search(question, k=k, filters=flt)
         retrieval = {"found": res["found"], "coverage": res["coverage"],

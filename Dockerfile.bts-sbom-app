@@ -1,8 +1,9 @@
 # BTS-SBOM chatbot / API service (stdlib only; the bts_sbom core is part of this repository, so there is nothing else to install).
-# NOT BUILT YET: written locally, `docker build` has never been run on it.
+# NOT BUILT YET: written locally, `docker build` has never been run on it (docker is unavailable in the working environment).
 # Build:  docker build -f Dockerfile.bts-sbom-app -t bts-sbom-app .
 # Run:    docker run --rm -p 127.0.0.1:8800:8800 -e EXAONE_API_KEY=... bts-sbom-app
-# The service binds 0.0.0.0 inside the container; publish the port on localhost only (as above) - it has NO authentication.
+# The service binds 0.0.0.0 inside the container; publish the port on localhost only (as above) - it has NO authentication
+# unless BTS_SBOM_CLOUD=1 plus an auth method is configured (see docs/RUNBOOK.md).
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -12,7 +13,11 @@ COPY bts_sbom_app ./bts_sbom_app
 COPY knowledge ./knowledge
 COPY evals ./evals
 RUN pip install --no-cache-dir --no-deps .
+# a writable evidence folder owned by the unprivileged runtime user (numeric UID: a name need not exist in the image)
+RUN mkdir -p /var/lib/bts-sbom/evidence && chown -R 10001:10001 /var/lib/bts-sbom
 ENV PYTHONUNBUFFERED=1 PYTHONUTF8=1
 EXPOSE 8800
-USER nobody
-CMD ["python", "-m", "bts_sbom_app", "--root", "/app", "serve", "--host", "0.0.0.0", "--port", "8800", "--evidence", "/tmp/evidence"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["python", "-c", "import sys,urllib.request as u; sys.exit(0 if u.urlopen('http://127.0.0.1:8800/readyz', timeout=4).status == 200 else 1)"]
+USER 10001
+CMD ["python", "-m", "bts_sbom_app", "--root", "/app", "serve", "--host", "0.0.0.0", "--port", "8800", "--evidence", "/var/lib/bts-sbom/evidence"]

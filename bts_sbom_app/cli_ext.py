@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import tempfile
 import os
 import sys
 from typing import Any, Dict, Optional, Tuple
@@ -16,7 +17,7 @@ from . import binscan, changes, conformance, coverage, fleet, sbom, selfcheck, s
 from .llm import ChatClient
 from .util import console_text, read_json, write_json
 
-COMMANDS = ("conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck")
+COMMANDS = ("conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck", "trace", "portfolio", "proof", "verify-dev", "obligations", "legacy", "alternatives", "migration", "codeprop", "vnv", "evidence", "reconcile", "handover")
 
 
 def add_commands(sub: Any) -> None:
@@ -93,7 +94,204 @@ def _store(a: argparse.Namespace) -> Dict[str, Any]:
     return d if isinstance(d, dict) else {}
 
 
+def _obligations_md(res: dict, only: Optional[str]) -> str:
+    from .obligations import DISCLAIMER
+    L = ["# Obligations", "", "_%s_" % DISCLAIMER, ""]
+    scen = ("--distribution", ) if False else ([only] if only else ["internal", "binary", "saas"])
+    for s in scen:
+        sc = (res.get("scenarios") or {}).get(s) or {}
+        L += ["## %s — %s" % (s, sc.get("status")), "", "offer=%(source_offer)s review=%(review)s unknown=%(unknown)s none=%(none)s" % (sc.get("counts") or {}), ""]
+        for row in sc.get("components") or []:
+            L.append("- %s %s (%s): **%s** scope=%s — %s" % (row.get("name"), row.get("version"), row.get("license"), row.get("verdict"), row.get("scope"), row.get("why")))
+        L.append("")
+    if only and (res.get("scenarios") or {}).get(only):
+        res = dict(res, scenarios={only: res["scenarios"][only]})
+    return chr(10).join(L) + chr(10)
+
+
+def _legacy_text(res: dict) -> str:
+    from .legacy import DISCLAIMER
+    s = res.get("summary") or {}
+    L = ["# Legacy assessment", "", "_%s_" % DISCLAIMER,
+         "high=%(high)s medium=%(medium)s low=%(low)s unknown=%(unknown)s | eol=%(eol)s no_upstream_fix=%(no_upstream_fix)s" % s, ""]
+    for row in res.get("rows") or []:
+        eol = (row.get("eol") or {}) or {}
+        L.append("- %s %s: risk **%s** (eol=%s/%s, no_upstream_fix=%s, advisories=%s) %s" % (
+            row.get("component"), row.get("version"), row.get("risk"), eol.get("status"), eol.get("source"),
+            row.get("no_upstream_fix"), row.get("advisories"), "; ".join(row.get("reasons") or [])))
+    return chr(10).join(L) + chr(10)
+
+
 def run(a: argparse.Namespace) -> int:
+    if a.cmd == "trace":
+        from . import traceability
+        root = a.root or os.getcwd()
+        matrix = traceability.build(root)
+        if a.out:
+            text = traceability.render_json(matrix) if a.format == "json" else traceability.render_md(matrix)
+            os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
+            with open(a.out, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(text)
+            print("traceability matrix written: %s" % a.out)
+            return 0
+        print(traceability.render_md(matrix))
+        return 0
+    if a.cmd == "portfolio":
+        from . import portfolio
+        manifest = portfolio.export(a.root or os.getcwd(), a.out)
+        print("portfolio manifest: %s (%d packages)" % (os.path.join(a.out, "manifest.json"), len(manifest["packages"])))
+        return 0
+    if a.cmd == "proof":
+        from . import proof
+        record = proof.run(only=a.only, out_dir=a.out)
+        print("proof: %s (%s)" % (record["overall"].upper(), ", ".join("%s=%s" % (r["name"], r["status"]) for r in record["results"])))
+        return 0 if record["overall"] == "pass" else (1 if record["overall"] == "fail" else 2)
+    if a.cmd == "verify-dev":
+        from . import verifydev
+        return verifydev.run(base_url=a.base_url or "", token=a.token or "", out_dir=a.out)
+    if a.cmd == "obligations":
+        from . import obligations
+        evidence = _evidence(a)
+        _folder, rec = _record(a.project, evidence)
+        if rec is None:
+            print("ERROR: unknown project %r in %s" % (a.project, evidence), file=sys.stderr)
+            return 2
+        res = rec.get("obligations") or obligations.assess(rec.get("components") or [],
+                                                           project_license=(rec.get("license") or {}).get("project_license", ""), computed_on_read=True)
+        md = _obligations_md(res, a.distribution)
+        _say(res, a.json, md)
+        return 0
+    if a.cmd == "handover":
+        from . import handover
+        evidence_dir = _evidence(a)
+        _folder, rec = _record(a.project, evidence_dir)
+        if rec is None:
+            print("ERROR: unknown project %r in %s" % (a.project, evidence_dir), file=sys.stderr)
+            return 2
+        base_dir = os.path.join(_folder or ".", "handover")
+        if a.post:
+            frozen = handover.load(base_dir)
+            if frozen is None:
+                print("ERROR: no frozen baseline in %s - run handover --freeze first" % base_dir, file=sys.stderr)
+                return 2
+            res = handover.post_handover(rec, frozen)
+        else:
+            res = handover.freeze(rec, base_dir)
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return 0
+    if a.cmd == "reconcile":
+        from . import reconcile
+        evidence_dir = _evidence(a)
+        _folder, rec = _record(a.project, evidence_dir)
+        if rec is None:
+            print("ERROR: unknown project %r in %s" % (a.project, evidence_dir), file=sys.stderr)
+            return 2
+        if not a.sbom or not os.path.isfile(a.sbom):
+            print("ERROR: give --sbom <path to the provider SBOM json>", file=sys.stderr)
+            return 2
+        doc = json.load(open(a.sbom, encoding="utf-8"))
+        res = reconcile.reconcile(doc, rec)
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return 0
+    if a.cmd == "evidence":
+        from . import evidence
+        evidence_dir = _evidence(a)
+        _folder, rec = _record(a.project, evidence_dir)
+        if rec is None:
+            print("ERROR: unknown project %r in %s" % (a.project, evidence_dir), file=sys.stderr)
+            return 2
+        manifest = evidence.bundle(rec, os.path.join(_folder or ".", "bundle"))
+        print(json.dumps(manifest, ensure_ascii=False, indent=1))
+        return 0
+    if a.cmd == "vnv":
+        from . import vnv
+        evidence = _evidence(a)
+        _folder, rec = _record(a.project, evidence)
+        if rec is None:
+            print("ERROR: unknown project %r in %s" % (a.project, evidence), file=sys.stderr)
+            return 2
+        res = rec.get("vnv") or vnv.report(rec, plan_ref=a.plan_ref, req_ref=a.req_ref)
+        if a.out:
+            with open(a.out, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(vnv.render_md(res))
+            print("vnv report written: %s" % a.out)
+        else:
+            print(vnv.render_md(res))
+        return 0
+    if a.cmd == "codeprop":
+        from . import codeprop
+        if a.apply:
+            if not a.source or not a.token:
+                print("ERROR: --apply needs --source DIR and --token <digest of the diff>", file=sys.stderr)
+                return 2
+            proposal = json.load(open(a.proposal_file, encoding="utf-8")) if getattr(a, "proposal_file", None) else None
+            if proposal is None:
+                print("ERROR: --apply needs --proposal-file <saved proposal json>", file=sys.stderr)
+                return 2
+            res = codeprop.apply(a.source, proposal, a.token, a.work or tempfile.mkdtemp(prefix="bts_sbom_codeprop_"))
+            print(json.dumps(res, ensure_ascii=False, indent=1))
+            return 0 if res.get("applied") else 1
+        source = a.source
+        if not source and a.project:
+            _folder, rec = _record(a.project, _evidence(a))
+            if rec is None:
+                print("ERROR: unknown project %r" % a.project, file=sys.stderr)
+                return 2
+            proposals = codeprop.list_proposals(os.path.join(_folder or "", "codeprop"))
+            print(json.dumps({"proposals": proposals, "note": "read-only; propose from a local source with --source DIR"}, ensure_ascii=False, indent=1))
+            return 0
+        if not source:
+            print("ERROR: give --source DIR (a local folder) to propose edits", file=sys.stderr)
+            return 2
+        client = None
+        if a.llm_config:
+            from .cli import _client
+            client = _client(os.getcwd(), False, a.llm_config)
+        res = codeprop.propose(source, a.component, to_version=a.to or "", client=client)
+        if res.get("status") == "proposed" and a.project:
+            _folder, _rec = _record(a.project, _evidence(a))
+            if _folder:
+                res["diff_path"] = codeprop.save_diff(os.path.join(_folder, "codeprop"), res["id"], res["diff"])
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return 0 if res.get("status") == "proposed" else 1
+    if a.cmd == "migration":
+        from . import migration
+        evidence = _evidence(a)
+        _folder, rec = _record(a.project, evidence)
+        if rec is None:
+            print("ERROR: unknown project %r in %s" % (a.project, evidence), file=sys.stderr)
+            return 2
+        res = rec.get("migration") or migration.plan(rec, root=a.source)
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return 0
+    if a.cmd == "alternatives":
+        from . import alternatives
+        evidence = _evidence(a)
+        _folder, rec = _record(a.project, evidence)
+        if rec is None:
+            print("ERROR: unknown project %r in %s" % (a.project, evidence), file=sys.stderr)
+            return 2
+        if rec.get("alternatives") and not a.online:
+            res = rec["alternatives"]
+        else:
+            client = None
+            if a.llm_config:
+                from .cli import _client
+                client = _client(os.getcwd(), False, a.llm_config)
+            res = alternatives.suggest([], table=alternatives.load_table(), client=client, online=bool(a.online))
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return 0
+    if a.cmd == "legacy":
+        from . import legacy
+        evidence = _evidence(a)
+        _folder, rec = _record(a.project, evidence)
+        if rec is None:
+            print("ERROR: unknown project %r in %s" % (a.project, evidence), file=sys.stderr)
+            return 2
+        res = rec.get("legacy") or legacy.assess(rec.get("components") or [], rec.get("plans") or [], online=bool(a.online))
+        blob = json.dumps(res, ensure_ascii=False, indent=1)
+        print(blob if a.json else _legacy_text(res))
+        return 0
     if a.cmd == "conformance":
         evidence = _evidence(a)
         path = a.source
@@ -221,6 +419,74 @@ def run(a: argparse.Namespace) -> int:
 
 
 # ------------------------------------------------------------------ chat (read-only by default; --actions opens the gated actions)
+def add_commands_ext(sub: Any) -> None:
+    """The traceability/portfolio/proof/verify-dev sub-commands (task 5b/22); earlier commands are untouched."""
+
+    def ev(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--evidence", default=None, help="evidence folder of analysed projects (default: <repo>/evidence/runs)")
+        p.add_argument("--json", action="store_true")
+
+    tr = sub.add_parser("trace", help="traceability matrix (AC <-> pattern <-> section <-> tests)")
+    tr.add_argument("--format", default="md", choices=["md", "json"])
+    tr.add_argument("--out", default=None)
+    tr.add_argument("--root", default=None)
+    po = sub.add_parser("portfolio", help="export the 8 portfolio packages as a manifest (paths + hashes)")
+    po.add_argument("--out", required=True)
+    po.add_argument("--root", default=None)
+    pf = sub.add_parser("proof", help="run the verification commands and classify PASS/FAIL/NOT RUN")
+    pf.add_argument("--out", default=".")
+    pf.add_argument("--only", default=None)
+    vd = sub.add_parser("verify-dev", help="verify a deployment (DEV_BASE_URL); missing deployment = NOT RUN, exit 2")
+    vd.add_argument("--base-url", default=None)
+    vd.add_argument("--token", default=None)
+    vd.add_argument("--out", default=".")
+    ob = sub.add_parser("obligations", help="per-component source-disclosure duties by use scenario (reference rules, not legal advice)")
+    ob.add_argument("project")
+    ob.add_argument("--distribution", default=None, choices=["internal", "binary", "saas"])
+    ev(ob)
+    lg = sub.add_parser("legacy", help="legacy / EOL component assessment (offline by default)")
+    lg.add_argument("project")
+    lg.add_argument("--online", action="store_true")
+    ev(lg)
+    al = sub.add_parser("alternatives", help="replacement candidates (evidence table + verified AI candidates)")
+    al.add_argument("project")
+    al.add_argument("--llm-config", default=None)
+    al.add_argument("--online", action="store_true")
+    ev(al)
+    mg = sub.add_parser("migration", help="migration / upgrade impact plan with waves")
+    mg.add_argument("project")
+    mg.add_argument("--source", default=None)
+    ev(mg)
+    cp = sub.add_parser("codeprop", help="code-edit proposals (propose only; apply needs the diff digest token)")
+    cp.add_argument("project", nargs="?", default=None)
+    cp.add_argument("--source", default=None)
+    cp.add_argument("--component", required=True)
+    cp.add_argument("--to", default=None)
+    cp.add_argument("--llm-config", default=None)
+    vn = sub.add_parser("vnv", help="V&V evidence report in the TR 8477 8.1 shape (pass / pass with restrictions / fail)")
+    vn.add_argument("project")
+    vn.add_argument("--plan-ref", default="")
+    vn.add_argument("--req-ref", default="")
+    vn.add_argument("--out", default=None)
+    ev(vn)
+    eb = sub.add_parser("evidence", help="evidence bundle: SHA-256 manifest of the SBOM/VEX/record/report artifacts")
+    eb.add_argument("project")
+    ev(eb)
+    rc = sub.add_parser("reconcile", help="cross-check a provider SBOM against the scanned artifacts (TR 5.2)")
+    rc.add_argument("project")
+    rc.add_argument("--sbom", required=True, help="provider SBOM json (CycloneDX/SPDX)")
+    ev(rc)
+    ho = sub.add_parser("handover", help="freeze a handover baseline and flag post-handover findings (TR 4.7)")
+    ho.add_argument("project")
+    ho.add_argument("--freeze", action="store_true", default=True)
+    ho.add_argument("--post", action="store_true", help="compare the current analysis against the frozen baseline")
+    ev(ho)
+    cp.add_argument("--apply", action="store_true")
+    cp.add_argument("--token", default=None)
+    cp.add_argument("--proposal-file", default=None)
+    cp.add_argument("--work", default=None)
+
+
 def add_chat_flags(c: argparse.ArgumentParser) -> None:
     c.add_argument("--actions", action="store_true", help="let the chat analyse sources, apply an APPROVED patch (token typed by you) and record VEX decisions "
                                                           "(confirm code typed by you); nothing is pushed and the origin is never written")

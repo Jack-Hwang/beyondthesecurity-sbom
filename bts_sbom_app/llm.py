@@ -40,6 +40,22 @@ class LLMUnavailable(LLMError):
     """no key / budget exhausted / provider says the day limit is reached - callers downgrade honestly."""
 
 
+def scrub_key(text: str, key: str) -> str:
+    """One place for keeping the key value out of messages, evidence and the error log."""
+    if not key:
+        return text
+    return text.replace(key, "***")
+
+
+def _read_key_file(path: str) -> Optional[str]:
+    """Docker-secrets pattern: the key lives in a file, we read it once (trimmed). None = unreadable/missing (no exception)."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return None
+
+
 class ChatClient:
     def __init__(self, api_key: str = "", base_url: str = DEFAULT_BASE, model: str = DEFAULT_MODEL, *,
                  timeout: float = 300.0, daily_budget: Optional[int] = None, ledger: Optional[str] = None,
@@ -54,6 +70,7 @@ class ChatClient:
         self.ledger = ledger
         self.calls = 0
         self.errors: List[str] = []
+        self.reasons: List[str] = []                        # one-line honest reasons (e.g. key_file_unreadable), never paths or values
         self.usage = {"prompt_tokens": 0, "completion_tokens": 0}
 
     # -- configuration
@@ -76,9 +93,39 @@ class ChatClient:
         if path:
             cfg = read_json(path, {}) or {}
         key = os.environ.get("EXAONE_API_KEY") or cfg.get("exaone_api_key") or cfg.get("api_key") or os.environ.get("LLM_API_KEY", "")
+        # Docker-secrets pattern: EXAONE_API_KEY_FILE / LLM_API_KEY_FILE name a file holding the key (env var wins over the file)
+        file_unreadable = False
+        if not key:
+            kf = os.environ.get("EXAONE_API_KEY_FILE") or os.environ.get("LLM_API_KEY_FILE") or ""
+            if kf:
+                read = _read_key_file(kf)
+                if read:
+                    key = read
+                else:
+                    file_unreadable = True                      # honest: no key, no exception, one recorded reason
         base = os.environ.get("EXAONE_BASE_URL") or cfg.get("exaone_base_url") or cfg.get("base_url") or os.environ.get("LLM_BASE_URL") or ""
         model = os.environ.get("EXAONE_MODEL") or cfg.get("exaone_model") or cfg.get("model") or os.environ.get("LLM_MODEL") or ""
-        return cls.from_config(key, base, model, ledger=ledger)
+        if not (key or base) and os.environ.get("AZURE_OPENAI_ENDPOINT"):
+            return cls.from_azure_openai(ledger=ledger)      # the router's fallback provider
+        c = cls.from_config(key, base, model, ledger=ledger)
+        if file_unreadable:
+            c.reasons.append("key_file_unreadable")           # path and contents are never recorded
+        return c
+
+    @classmethod
+    def from_azure_openai(cls, *, ledger: Optional[str] = None, endpoint: str = "", deployment: str = "",
+                          api_version: str = "") -> "ChatClient":
+        """Optional Azure OpenAI provider. Env: AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_DEPLOYMENT / AZURE_OPENAI_API_VERSION /
+        AZURE_OPENAI_API_KEY. The known URL form is {endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...
+        ("확인 필요": verify the exact URL form, api-version values and the managed-identity token endpoint against
+        Azure docs before production; the managed-identity variant is deliberately NOT implemented here)."""
+        endpoint = (endpoint or os.environ.get("AZURE_OPENAI_ENDPOINT") or "").rstrip("/")
+        deployment = deployment or os.environ.get("AZURE_OPENAI_DEPLOYMENT") or ""
+        api_version = api_version or os.environ.get("AZURE_OPENAI_API_VERSION") or ""
+        key = os.environ.get("AZURE_OPENAI_API_KEY") or ""
+        c = cls(key, endpoint or DEFAULT_BASE, deployment or DEFAULT_MODEL, ledger=ledger, provider="azure-openai")
+        c.api_version = api_version
+        return c
 
     @property
     def available(self) -> bool:
@@ -118,9 +165,15 @@ class ChatClient:
         body: Dict[str, Any] = {"model": self.model, "messages": msgs, "max_tokens": max(max_tokens, FLOOR_TOKENS)}
         if self.provider == "exaone":
             body["reasoning_effort"] = "low"
-        headers = {"Authorization": "Bearer " + self.api_key, "Content-Type": "application/json",
-                   "User-Agent": "bts-sbom-app/" + __version__}
-        url = self.base_url + "/chat/completions"
+        if self.provider == "azure-openai":
+            headers = {"api-key": self.api_key, "Content-Type": "application/json",       # never logged, never echoed
+                       "User-Agent": "bts-sbom-app/" + __version__}
+            url = "%s/openai/deployments/%s/chat/completions?api-version=%s" % (
+                self.base_url, self.model, getattr(self, "api_version", ""))
+        else:
+            headers = {"Authorization": "Bearer " + self.api_key, "Content-Type": "application/json",
+                       "User-Agent": "bts-sbom-app/" + __version__}
+            url = self.base_url + "/chat/completions"
         wait = 3.0
         for attempt in range(2):
             self._bump()                  # every network attempt counts against the provider's day limit, failures included
@@ -128,8 +181,8 @@ class ChatClient:
             if status == 429:
                 low = text.lower()
                 if any(w in low for w in ("day", "daily", "quota", "limit exceeded")) or attempt == 1:
-                    self.errors.append("HTTP 429: " + text[:160])
-                    raise LLMUnavailable("provider rate/day limit (HTTP 429): " + text[:200].replace(self.api_key, "***"))
+                    self.errors.append(scrub_key("HTTP 429: " + text[:160], self.api_key))
+                    raise LLMUnavailable(scrub_key("provider rate/day limit (HTTP 429): " + text[:200], self.api_key))
                 time.sleep(wait)
                 continue
             if status >= 500 and attempt == 0:
@@ -138,7 +191,7 @@ class ChatClient:
             break
         if status >= 400:
             self.errors.append("HTTP %s" % status)
-            raise LLMError("HTTP %s: %s" % (status, text[:200].replace(self.api_key, "***")))
+            raise LLMError(scrub_key("HTTP %s: %s" % (status, text[:200]), self.api_key))
         try:
             data = json.loads(text)
             content = str(((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
@@ -166,6 +219,9 @@ class ChatClient:
             raise LLMUnavailable("network error: %s" % type(exc).__name__)
 
     def describe(self) -> Dict[str, Any]:
-        return {"provider": self.provider, "model": self.model, "base_url": self.base_url, "key_configured": self.available,
-                "calls_this_run": self.calls, "calls_today": self.calls_today(), "daily_budget": self.daily_budget,
-                "tokens": dict(self.usage)}
+        d: Dict[str, Any] = {"provider": self.provider, "model": self.model, "base_url": self.base_url, "key_configured": self.available,
+                             "calls_this_run": self.calls, "calls_today": self.calls_today(), "daily_budget": self.daily_budget,
+                             "tokens": dict(self.usage)}
+        if self.reasons:
+            d["reasons"] = list(self.reasons)              # e.g. key_file_unreadable - one line, no path, no value
+        return d

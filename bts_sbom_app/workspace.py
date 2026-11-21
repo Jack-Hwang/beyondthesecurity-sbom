@@ -9,11 +9,13 @@ Honesty + safety contract
 """
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 import shutil
 import stat
 import tempfile
+import urllib.parse
 from typing import Any, Dict, Optional
 
 from .util import run, safe_name
@@ -49,6 +51,65 @@ def normalize_source(src: str) -> Dict[str, str]:
     return {"kind": "local", "path": os.path.abspath(os.path.expanduser(s))}
 
 
+DEFAULT_SOURCE_HOSTS = "github.com,gitlab.com,bitbucket.org"
+
+
+def _first_non_public(host: str, resolver) -> Optional[str]:
+    """The core's SSRF rule (bts_sbom/ossscan.py::_non_public_address) over an injected resolver: the first address that
+    is not global (loopback, link-local/cloud metadata, private, reserved, ...) as a string, else None."""
+    try:
+        infos = resolver(host, None)
+    except (OSError, UnicodeError):
+        return None
+    for info in infos:
+        raw = str(info[4][0]).split("%", 1)[0]
+        try:
+            ip = ipaddress.ip_address(raw)
+        except ValueError:
+            continue
+        mapped = getattr(ip, "ipv4_mapped", None)
+        if mapped is not None:
+            ip = mapped
+        if ip.is_multicast or not ip.is_global:
+            return str(ip)
+    return None
+
+
+def check_source_policy(spec: Dict[str, str], *, cloud: bool, resolver=None) -> Optional[str]:
+    """Cloud-mode source policy: a refusal reason, or None to proceed. Cloud-off returns None for every input
+    (the earlier behaviour). Strict checks, in order: no local paths, https:// only, host allow-list
+    (BTS_SBOM_SOURCE_HOSTS, default github/gitlab/bitbucket), public addresses only (the core's SSRF rule),
+    no embedded credentials. DNS is checked once here and git resolves again later - a TOCTOU window remains
+    (see ADR-0018)."""
+    if not cloud:
+        return None
+    if spec.get("kind") == "local":
+        return "local paths are disabled in cloud mode"
+    url = str(spec.get("url") or "")
+    if not url.startswith("https://"):
+        return "only https:// git URLs are allowed in cloud mode"
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        host = parsed.hostname or ""
+    except ValueError:
+        return "not a usable URL"
+    if not host:
+        return "only https:// git URLs are allowed in cloud mode"
+    if parsed.username or parsed.password:
+        return "URLs carrying credentials are refused in cloud mode"
+    allowed = [h.strip().lower() for h in os.environ.get("BTS_SBOM_SOURCE_HOSTS", DEFAULT_SOURCE_HOSTS).split(",") if h.strip()]
+    if host.lower() not in allowed:
+        return "host %s is not in the source allow-list" % host
+    if resolver is None:
+        from bts_sbom.ossscan import _non_public_address       # core is read-only: reuse its rule, never edit it
+        bad = _non_public_address(host)
+    else:
+        bad = _first_non_public(host, resolver)
+    if bad:
+        return "host %s resolves to a non-public address (%s)" % (host, bad)
+    return None
+
+
 def git(path: str, *args: str, timeout: float = 180.0):
     return run(["git", "-C", path, "-c", "user.email=bts-sbom@local", "-c", "user.name=bts-sbom",
                 "-c", "commit.gpgsign=false", "-c", "core.hooksPath=" + _hooks_dir(), *args],
@@ -81,8 +142,19 @@ def _unique_dest(work_root: str, name: str) -> str:
     return dest
 
 
+def _dir_size(path: str) -> int:
+    total = 0
+    for dp, _dns, fns in os.walk(path):
+        for fn in fns:
+            try:
+                total += os.path.getsize(os.path.join(dp, fn))
+            except OSError:
+                pass
+    return total
+
+
 def prepare(src: str, work_root: str, *, ref: Optional[str] = None, depth: int = 200,
-            name: Optional[str] = None) -> Dict[str, Any]:
+            name: Optional[str] = None, max_copy_mb: int = 0) -> Dict[str, Any]:
     """Return {ok, path, kind, name, lineage} or {ok: False, error}. Always a copy under work_root."""
     try:
         spec = normalize_source(src)
@@ -129,6 +201,9 @@ def prepare(src: str, work_root: str, *, ref: Optional[str] = None, depth: int =
             dirty = rc == 0 and bool(st.strip())
         git(dest, "add", "-A")
         git(dest, "commit", "-q", "--allow-empty", "-m", "bts-sbom: baseline snapshot of work copy")
+    if max_copy_mb and _dir_size(dest) > max_copy_mb * 1024 * 1024:
+        shutil.rmtree(dest, onerror=_force_remove)      # abort and leave 0 bytes of it on disk
+        return {"ok": False, "error": "workcopy_too_large: the work copy exceeds %d MB" % max_copy_mb}
     lin = head(dest)
     lin.update(source=p, uncommitted_changes_included=dirty)
     return {"ok": True, "path": dest, "kind": kind, "name": nm, "lineage": lin}

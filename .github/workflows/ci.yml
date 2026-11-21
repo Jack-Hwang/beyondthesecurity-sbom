@@ -12,6 +12,15 @@
 # identical on every runner.
 name: bts-sbom CI
 
+# Minimal GitHub Actions token permissions: the "package" job below only
+# checks out the repo, lints, runs pytest, and uploads build artifacts as a
+# demo — it never pushes a commit/tag/release, so the default GITHUB_TOKEN
+# scope (which can be broader at the org/repo level) is reduced to
+# read-only here. Add a job-level `id-token: write` override only if a
+# future job needs OIDC login; this workflow does not.
+permissions:
+  contents: read
+
 on:
   push:
     paths:
