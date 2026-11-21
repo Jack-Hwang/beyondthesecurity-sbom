@@ -79,12 +79,14 @@ def result_doc():
 
 
 # ------------------------------------------------------------------- AC: BSA-AC-459
-def test_result_escapes_a_hostile_component_name_and_lists_seven_sections():
+def test_result_escapes_a_hostile_component_name_and_lists_seven_items():
     """AC: BSA-AC-459"""
     html = render("result", result_doc())
     assert "<script>alert(1)</script>" not in html                     # the hostile name never lands raw
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html             # it is shown, escaped
-    assert html.count('data-arc-tab="') == 7
+    assert html.count('data-arc-open="') == 7                          # the model browser lists exactly 7 items
+    assert html.count('<details class="arc-tgroup" open><summary>') == 5   # License, Overview, Diagrams, Components, Code
+    assert 'data-arc-default="diagram_components"' in html             # one view opens by default
 
 
 # ------------------------------------------------------------------- AC: BSA-AC-460
@@ -107,17 +109,33 @@ def test_license_verdict_and_notice_render_the_checklist_and_matrix():
 
 def test_code_section_shows_highlighted_html_and_license_banner():
     doc = result_doc()
-    html = render("code", doc["code"], "GPL-3.0-only")
+    html = render("codeView", doc["code"][0])
     assert '<pre class="arc-code">' in html and '<span class="tok-kw">def</span>' in html
-    assert "GPL-3.0-only" in html                                      # the attribution banner carries the license
+    assert "GPL-3.0-only" in html                                      # the clean-room banner carries the license
 
 
-def test_sequence_and_activity_say_not_computed_when_the_ai_lane_is_absent():
+def test_components_table_says_no_ai_scenario_analysis_when_the_ai_lane_is_absent():
+    absent = render("componentsTable", {"overview": "요약", "components": [], "scenarios": [], "activity": []})
+    assert "No AI scenario analysis" in absent                         # honest when the AI lane produced nothing
+    present = render("componentsTable", result_doc()["analysis"])
+    assert "No AI scenario analysis" not in present                    # scenarios exist → the note stays away
+
+
+# ------------------------------------------------------------------- AC: BSA-AC-478
+def test_result_lists_the_insights_item_with_its_style_and_honesty_note():
+    """AC: BSA-AC-478"""
     doc = result_doc()
-    doc["diagrams"] = {"components": {"mermaid": "flowchart TD", "note": ""}, "sequence": [], "activity": []}
-    assert "Not computed" in render("sequence", doc["diagrams"])
-    assert "Not computed" in render("activity", doc["diagrams"])
-    assert "Not computed" not in render("sequence", result_doc()["diagrams"])
+    doc["insights"] = {"flow_blockers": {"count": 1, "blockers": [{"kind": "cycle", "what": "a → b → a", "why": "순환 의존"}]},
+                       "bounded_context_candidates": {"count": 1, "candidates": [{"name": "svc", "cohesion": 0.7,
+                                                                                  "inbound": 1, "outbound": 2,
+                                                                                  "modules": 2, "files": ["svc/x.py"]}]},
+                       "style_hypothesis": {"style": "modular_monolith", "why": "단일 진입점", "signals": ["entry points: 1"]},
+                       "antipattern_signals": {"count": 0, "signals": []}}
+    html = render("result", doc)
+    assert html.count('data-arc-open="') == 8                          # insights joins the model browser as 1 item
+    assert 'data-arc-open="insights"' in html
+    assert "modular_monolith" in html and "Heuristic readings" in html  # the style pill and the honesty note render
+    assert '<details class="arc-tgroup" open><summary>Insights</summary>' in html
 
 
 def test_history_renders_rows_and_a_verdict_pill():

@@ -20,6 +20,7 @@ passage with ``trust="untrusted-quote"`` - it can be quoted, never obeyed, and t
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -382,6 +383,7 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "what_if_upgrade": {"args": {"component": "component name", "version": "target version"}, "doc": "result of upgrading one component, from the verified plan"},
     "affected_projects": {"args": {"id": "optional: advisory id or alias", "component": "optional: component name", "version": "optional: version constraint such as <2.0 or 2.19.1"},
                           "doc": "which analysed projects use a component or are hit by an advisory (looks across ALL projects; give an id and/or a component)"},
+    "latest_arch": {"args": {}, "doc": "the latest Arch Intel architecture deep-dive recorded in the evidence folder: license verdict, flow blockers, bounded-context candidates, style hypothesis"},
     "sbom_conformance": {"args": {"regime": "optional: " + "|".join(sorted(conformance.REGIMES))},
                          "doc": "SBOM conformance per regime (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2) and the fields to fix once"},
     "what_changed": {"args": {}, "doc": "what changed since the previous analysis of this project: new and resolved findings, alerts"},
@@ -403,7 +405,7 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "confirm_decision": {"args": {"code": "the 12-hex confirm code exactly as the user typed it"}, "doc": "record the previewed VEX decision whose code the user typed"},
 }
 WRITE_TOOLS = ("analyze_project", "apply_patch", "confirm_decision")
-NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision")       # these can run before any project is loaded
+NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision", "latest_arch")       # these can run before any project is loaded
 FLEET_TOOLS = ("affected_projects",)
 MAX_CALLS = 4
 MAX_ARG = {"source": 300, "reason": 400, "components": 300}
@@ -422,8 +424,67 @@ def _plain(tool: str, source: str, lines: List[str], trust: str = "tool") -> Dic
     return {"tool": tool, "source": source, "lines": lines, "trust": trust}
 
 
+def _latest_arch_lines(arch_dir: Optional[str]) -> List[str]:
+    """The latest recorded Arch Intel run, summarised from the evidence folder (nothing is re-analysed, no network).
+    Honest when nothing has been recorded yet."""
+    if not arch_dir:
+        return ["No Arch Intel store is reachable from this session - run an Arch Intel scan first (the Arch Intel tab)."]
+    from .arch_intel import load_result                    # local import: chat must not pull the arch pipeline at load time
+    best: Optional[Tuple[str, Dict[str, Any], str]] = None
+    try:
+        names = sorted(os.listdir(arch_dir))
+    except OSError:
+        names = []
+    for n in names:
+        doc = load_result(os.path.join(arch_dir, n))
+        if not doc:
+            continue
+        fin = str((doc.get("meta") or {}).get("finished") or "")
+        if best is None or fin >= best[0]:
+            best = (fin, doc, n)
+    if best is None:
+        return ["No Arch Intel run has been recorded yet - run a scan on the Arch Intel tab first, then ask again."]
+    doc = best[1]
+    m = doc.get("meta") or {}
+    lic = doc.get("license") or {}
+    ins = doc.get("insights") or {}
+    fb = ins.get("flow_blockers") or {}
+    bcc = ins.get("bounded_context_candidates") or {}
+    sh = ins.get("style_hypothesis") or {}
+    ap = ins.get("antipattern_signals") or {}
+    out = ["Latest Arch Intel run %s of %s (finished %s, AI: %s)." % (
+        best[2], m.get("source") or "?", m.get("finished") or "?", doc.get("ai_source") or "deterministic")]
+    out.append("License verdict: %s (%s); obligations: %s." % (
+        lic.get("project_license") or "unknown", lic.get("category") or "unknown",
+        "; ".join(lic.get("obligations") or []) or "none listed"))
+    blockers = fb.get("blockers") or []
+    if blockers:
+        out.append("Flow blockers (%d): %s." % (len(blockers),
+                   "; ".join("%s: %s" % (b.get("kind"), b.get("what")) for b in blockers[:5])))
+    else:
+        out.append("Flow blockers: none measured.")
+    cands = bcc.get("candidates") or []
+    if cands:
+        out.append("Bounded context candidates (%d): %s." % (len(cands),
+                   ", ".join("%s (cohesion %s)" % (c.get("name"), c.get("cohesion")) for c in cands[:5])))
+    else:
+        out.append("Bounded context candidates: none above the threshold.")
+    if sh.get("style"):
+        out.append("Style hypothesis: %s - %s." % (sh.get("style"), sh.get("why") or ""))
+    else:
+        out.append("Style hypothesis: no signal.")
+    sigs = ap.get("signals") or []
+    if sigs:
+        out.append("Antipattern signals (%d): %s." % (len(sigs), ", ".join(str(s.get("code")) for s in sigs)))
+    else:
+        out.append("Antipattern signals: none.")
+    out.append("These are heuristic readings of measured facts - never a verdict; the judgement stays with the architect.")
+    return out
+
+
 def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], projects: Optional[Dict[str, Dict[str, Any]]] = None,
-             actions: Any = None, triage_store: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+             actions: Any = None, triage_store: Optional[Dict[str, Any]] = None,
+             arch_dir: Optional[str] = None) -> List[Dict[str, Any]]:
     """Execute one validated tool call -> result passages ({tool, source, lines, trust}). ``actions`` None = a read-only session."""
     if tool == "analyze_project":
         src = str(args["source"])
@@ -458,6 +519,8 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
         pool = projects if projects else ({rec["name"]: rec} if rec else {})
         tag = ":".join(str(args[k]).lower() for k in ("id", "component", "version") if args.get(k))
         return [{"tool": tool, "source": "fleet:affected:%s" % tag, "lines": _affected(pool, args), "trust": "tool"}]
+    if tool == "latest_arch":                                        # reads the evidence folder only; no analysed project needed
+        return [_plain(tool, "archintel:latest", _latest_arch_lines(arch_dir))]
     assert rec is not None, "tool %s needs a project" % tool
     if tool == "license_risks":
         return [_result(rec, tool, _license_risks(rec, args.get("distribution")), suffix=":" + (args.get("distribution") or "binary"))]
@@ -647,12 +710,13 @@ def parse_decision(q: str) -> Optional[Dict[str, str]]:
 # ------------------------------------------------------------------ bot
 class Chatbot:
     def __init__(self, index: rag.Index, projects: Optional[Dict[str, Dict[str, Any]]] = None, client: Optional[ChatClient] = None,
-                 actions: Any = None, triage_store: Optional[Dict[str, Any]] = None):
+                 actions: Any = None, triage_store: Optional[Dict[str, Any]] = None, arch_dir: Optional[str] = None):
         self.index = index
         self.projects = projects or {}
         self.client = client
         self.actions = actions                        # None = read-only session (nothing is analysed, patched or recorded)
         self.triage_store = triage_store              # the recorded VEX decisions, for the read-only OpenVEX view
+        self.arch_dir = arch_dir                      # the archintel evidence folder, for the latest_arch tool
 
     def _no_client_note(self, use_llm: bool) -> str:
         """Honesty: when EXAONE was requested but there is no client, say so instead of silently answering extractively."""
@@ -748,7 +812,7 @@ class Chatbot:
     def _run(self, rec: Optional[Dict[str, Any]], calls: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
         for c in calls:
-            for p in run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store):
+            for p in run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store, self.arch_dir):
                 new = p.pop("record", None)
                 if new is not None:                         # an analysis just produced a project: the calls after it talk about that one
                     self.projects[new["name"]] = new
@@ -760,6 +824,8 @@ class Chatbot:
         """Regex route for a question that names no project: one across all of them (which projects use X?), or a request to analyse a source."""
         low = q.lower()
         pre = self._valid(self._action_calls(q, None), None, q)
+        if re.search(r"arch ?intel|아키텍처 인텔", low):                     # the recorded deep-dive needs no analysed project
+            return self._run(None, pre + [{"tool": "latest_arch", "args": {}}])
         if not _FLEET_Q.search(low):
             return self._run(None, pre)
         calls = pre + [{"tool": "affected_projects", "args": {"id": i}} for i in dict.fromkeys(i.upper() for i in _ID.findall(q))]

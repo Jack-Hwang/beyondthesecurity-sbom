@@ -1,28 +1,53 @@
 /*
- * arch_intel.css - the "Arch Intel" pane (license verdict + AI architecture deep-dive).
- * Written for BTS-SBOM; every rule is scoped under #paneArchIntel (same convention as oss_scanner.css).
+ * arch_intel.css - the "Arch Intel" pane, laid out like a modelling tool: model browser (left), canvas with tabs
+ * (center), properties (right). Written for BTS-SBOM; every rule is scoped under #paneArchIntel.
  */
-#paneArchIntel .arc-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0 8px; border-bottom: 1px solid var(--line, #30363d); }
-#paneArchIntel .arc-tab { border: none; background: none; color: var(--ink, #c9d1d9); font: 12px inherit; padding: 5px 10px; cursor: pointer; border-bottom: 2px solid transparent; opacity: .75; }
-#paneArchIntel .arc-tab:hover { opacity: 1; }
-#paneArchIntel .arc-tab.on { border-bottom-color: var(--acc2, #58a6ff); opacity: 1; font-weight: 600; }
-#paneArchIntel .arc-sec { display: none; }
-#paneArchIntel .arc-sec.on { display: block; }
+#paneArchIntel .arc-shell { display: grid; grid-template-columns: 250px minmax(0, 1fr) 280px; gap: 10px; align-items: stretch; margin-top: 8px; }
+@media (max-width: 1100px) { #paneArchIntel .arc-shell { grid-template-columns: 200px minmax(0, 1fr); }
+  #paneArchIntel .arc-props { display: none; } }
 
-#paneArchIntel .arc-dwrap { margin: 6px 0 14px; overflow: auto; max-height: 520px; border: 1px solid var(--line, #30363d); border-radius: 6px; padding: 10px; background: var(--dcard-bg, #161b22); }
+#paneArchIntel .arc-browser, #paneArchIntel .arc-props { border: 1px solid var(--dcard-border, #30363d); border-radius: 6px; background: var(--dcard-bg, #161b22); padding: 6px; overflow: auto; max-height: 720px; font-size: 12px; }
+#paneArchIntel .arc-browser-h { font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; opacity: .65; padding: 4px 6px 8px; }
+
+#paneArchIntel .arc-tree, #paneArchIntel details.arc-tgroup, #paneArchIntel .arc-node { color: var(--dcard-light, #e6edf3); }
+#paneArchIntel details.arc-tgroup { margin: 2px 0; }
+#paneArchIntel details.arc-tgroup > summary { cursor: pointer; font-weight: 600; padding: 4px 6px; border-radius: 4px; list-style: none; }
+#paneArchIntel details.arc-tgroup > summary::before { content: '\25B8 '; opacity: .6; }
+#paneArchIntel details.arc-tgroup[open] > summary::before { content: '\25BE '; }
+#paneArchIntel details.arc-tgroup > summary:hover { background: rgba(255, 255, 255, .06); }
+#paneArchIntel .arc-node { display: block; width: 100%; text-align: left; border: none; background: none; color: inherit;
+  font: inherit; padding: 4px 6px 4px 18px; cursor: pointer; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#paneArchIntel .arc-node:hover { background: rgba(255, 255, 255, .08); }
+#paneArchIntel .arc-node.on { background: rgba(88, 166, 255, .22); color: #fff; }
+
+#paneArchIntel .arc-main { border: 1px solid var(--dcard-border, #30363d); border-radius: 6px; background: var(--dcard-bg, #161b22); min-width: 0; display: flex; flex-direction: column; }
+#paneArchIntel .arc-canvas-tabs { display: flex; gap: 2px; flex-wrap: wrap; padding: 4px 6px 0; border-bottom: 1px solid var(--dcard-border, #30363d); }
+#paneArchIntel .arc-ctab { border: 1px solid var(--dcard-border, #30363d); border-bottom: none; background: rgba(255, 255, 255, .04);
+  color: var(--dcard-light, #e6edf3); font: inherit; font-size: 11.5px; padding: 4px 10px; cursor: pointer;
+  border-radius: 5px 5px 0 0; opacity: .7; }
+#paneArchIntel .arc-ctab.on { background: var(--dcard-bg, #161b22); border-bottom: 1px solid var(--dcard-bg, #161b22); opacity: 1; font-weight: 600; }
+#paneArchIntel .arc-canvas-body { padding: 12px 14px; overflow: auto; max-height: 720px; }
+#paneArchIntel .arc-pane { display: none; }
+#paneArchIntel .arc-pane.on { display: block; }
+
+#paneArchIntel .arc-dwrap { margin: 6px 0 14px; overflow: auto; max-height: 560px; border: 1px solid var(--dcard-border, #30363d); border-radius: 6px; padding: 12px; background: #10151d; }
 #paneArchIntel .arc-diagram svg { max-width: 100%; height: auto; }
-#paneArchIntel .arc-mermaid-src { margin: 0; padding: 8px; font: 11.5px/1.5 ui-monospace, monospace; color: var(--ink, #c9d1d9); white-space: pre; overflow: auto; }
+#paneArchIntel .arc-mermaid-src { margin: 0; padding: 8px; font: 11.5px/1.5 ui-monospace, monospace; color: var(--dcard-light, #c9d1d9); white-space: pre; overflow: auto; }
 #paneArchIntel .arc-mermaid-src::before { content: 'Mermaid source (renderer unavailable - paste into mermaid.live):'; display: block; font: 10px inherit; opacity: .6; margin-bottom: 4px; }
 
-#paneArchIntel details.arc-scenario { margin: 8px 0; border: 1px solid var(--line, #30363d); border-radius: 6px; padding: 8px 10px; background: var(--dcard-bg, #161b22); color: var(--dcard-light, #e6edf3); }
+#paneArchIntel details.arc-scenario { margin: 8px 0; border: 1px solid var(--dcard-border, #30363d); border-radius: 6px; padding: 8px 10px; color: var(--dcard-light, #e6edf3); }
 #paneArchIntel details.arc-scenario summary { cursor: pointer; font-weight: 600; font-size: 12.5px; color: var(--dcard-light, #e6edf3); }
 #paneArchIntel .arc-codemeta { font: 11px/1.6 inherit; color: var(--dcard-muted, #9aa4ae); margin: 6px 0 4px; }
 
-#paneArchIntel pre.arc-code { background: #0d1117; color: #e6edf3; font: 11.5px/1.45 ui-monospace, monospace; max-height: 420px; overflow: auto; white-space: pre; margin: 4px 0; padding: 10px; border-radius: 6px; }
+#paneArchIntel pre.arc-code { background: #0d1117; color: #e6edf3; font: 11.5px/1.45 ui-monospace, monospace; max-height: 460px; overflow: auto; white-space: pre; margin: 4px 0; padding: 10px; border-radius: 6px; }
 #paneArchIntel .arc-code .tok-kw { color: #ff7b72; font-weight: 600; }
 #paneArchIntel .arc-code .tok-str { color: #a5d6ff; }
 #paneArchIntel .arc-code .tok-com { color: #8b949e; font-style: italic; }
 #paneArchIntel .arc-code .tok-num { color: #79c0ff; }
+
+#paneArchIntel .arc-props-body { padding: 4px 6px; }
+#paneArchIntel .arc-props-body .bts-kv { font-size: 11.5px; }
+#paneArchIntel .arc-props-body .bts-kv dt { opacity: .65; }
 
 #paneArchIntel .arc-histbox { margin-top: 14px; }
 #paneArchIntel .arc-histbox summary { cursor: pointer; color: var(--ink, #c9d1d9); font-size: 12.5px; }

@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from bts_sbom._internal import license_categories, oss_common
 
-from . import arch, licenses, workspace
+from . import arch, arch_flow, licenses, workspace
 from . import __version__
 from .ai import _parse_json as parse_json
 from .llm import ChatClient, LLMError, LLMUnavailable
@@ -262,7 +262,9 @@ def structure(root: str) -> Dict[str, Any]:
     total_loc = int((a.get("stack") or {}).get("loc") or 0)
     return {"stack": a.get("stack") or {}, "graph": a.get("graph") or {}, "clusters": (a.get("clusters") or [])[:8],
             "hotspots": hot, "runtime_eol": a.get("runtime_eol") or [], "notes": (a.get("notes") or [])[:6],
-            "files": files, "files_count": len(files), "total_loc": total_loc,
+            "coupling": a.get("coupling") or {"pairs": [], "hidden_dependencies": 0, "pairs_total": 0},
+            "files": files, "files_all": files, "files_count": len(files), "total_loc": total_loc,
+            "manifests": _manifests(root),
             "entry_points": entries, "key_files": kf, "modules": modules, "edges": edge_rank}
 
 
@@ -274,6 +276,25 @@ def _loc_map(root: str, paths: List[str], *, cap: int = 60, bytes_cap: int = 200
                 out[p] = sum(1 for _ in fh)
         except OSError:
             continue
+    return out
+
+
+def _manifests(root: str) -> Dict[str, Any]:
+    """Which deployment/entry manifests exist, plus a rough compose service count (heuristic input only)."""
+    out: Dict[str, Any] = {}
+    for m in ("docker-compose.yml", "compose.yml", "docker-compose.yaml", "Dockerfile", "dockerfile",
+              "Makefile", "package.json", "pyproject.toml", "go.mod", "pom.xml"):
+        out[m] = os.path.isfile(os.path.join(root, m))
+    for m in ("docker-compose.yml", "compose.yml", "docker-compose.yaml"):
+        p = os.path.join(root, m)
+        if os.path.isfile(p):
+            try:
+                with open(p, "r", encoding="utf-8", errors="replace") as fh:
+                    body = fh.read(200_000)
+                out["compose_services"] = len(re.findall(r"^ {2}[A-Za-z0-9_.-]+:\s*$", body, re.M))
+            except OSError:
+                pass
+            break
     return out
 
 
@@ -347,8 +368,12 @@ def license_verdict(root: str, distribution: str = "binary") -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- the AI lane
-def prompt_evidence(name: str, lic: Dict[str, Any], struct: Dict[str, Any]) -> Dict[str, Any]:
+def prompt_evidence(name: str, lic: Dict[str, Any], struct: Dict[str, Any],
+                    insights: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """The evidence the model sees. METADATA ONLY - paths, counts, edges. A test asserts no source line ever lands here."""
+    ins = insights or {}
+    fb = ins.get("flow_blockers") or {}
+    bcc = ins.get("bounded_context_candidates") or {}
     return {"project": name, "prompt_version": PROMPT_VERSION,
             "license": {"project_license": lic["project_license"], "category": lic["category"],
                         "obligations": lic["obligations"]},
@@ -360,6 +385,9 @@ def prompt_evidence(name: str, lic: Dict[str, Any], struct: Dict[str, Any]) -> D
             "cycles": (struct["graph"].get("cycles") or [])[:5],
             "hotspots": [h["file"] for h in struct["hotspots"][:8]],
             "clusters": [{"domain": c["domain"], "modules": c["modules"]} for c in struct["clusters"][:8]],
+            "insights": {"flow_blockers": fb.get("count"),
+                         "bounded_context_candidates": [c["name"] for c in (bcc.get("candidates") or [])[:5]],
+                         "style_hypothesis": (ins.get("style_hypothesis") or {}).get("style") or ""},
             "notes": struct["notes"]}
 
 
@@ -792,6 +820,28 @@ def report_md(res: Dict[str, Any]) -> str:
             name = (item or {}).get("name") or kind
             if src:
                 lines += ["### %s" % name, "", "```mermaid", src, "```", ""]
+    ins = res.get("insights") or {}
+    if ins:
+        lines += ["## Insights (measured, heuristic)", ""]
+        fb = (ins.get("flow_blockers") or {})
+        if fb.get("blockers"):
+            lines += ["| flow blocker | where | why |", "|---|---|---|"]
+            lines += ["| %s | %s | %s |" % (b.get("kind"), clip(str(b.get("what")), 120), b.get("why"))
+                      for b in fb["blockers"]]
+            lines.append("")
+        bcc = (ins.get("bounded_context_candidates") or {})
+        if bcc.get("candidates"):
+            lines += ["Bounded context candidates: %s" % ", ".join("`%s`" % c["name"] for c in bcc["candidates"]), ""]
+        sh = (ins.get("style_hypothesis") or {})
+        if sh.get("style"):
+            lines += ["Style hypothesis: **%s** — %s" % (sh["style"], sh.get("why")), ""]
+        ap = (ins.get("antipattern_signals") or {})
+        if ap.get("signals"):
+            lines += ["Antipattern signals: %s" % "; ".join(s.get("code") for s in ap["signals"]), ""]
+        mod = (ins.get("modularity") or {})
+        if mod:
+            lines += ["Modularity: avg cohesion %s, acyclic %s%%, tangle %s." %
+                      (mod.get("avg_cohesion"), mod.get("acyclic_percent"), mod.get("tangle_ratio")), ""]
     code = res.get("code") or []
     if code:
         lines += ["## Key files (excerpts)", ""]
@@ -856,8 +906,12 @@ def run(src: str, *, work_root: str, out_dir: str, jid: str = "manual", client: 
         st = structure(root)
         stage_done("structure", t0)
 
+        t0 = stage("insights")
+        insights = arch_flow.build_insights(st, st.get("manifests"))
+        stage_done("insights", t0)
+
         t0 = stage("ai")
-        ev = prompt_evidence(prep.get("name") or "project", lic, st)
+        ev = prompt_evidence(prep.get("name") or "project", lic, st, insights)
         use = use_llm and client is not None and getattr(client, "available", False)
         ai_res = propose_arch(ev, client=client if use else None, cache_dir=cache_dir, use_llm=use, lang=lang,
                               files=set(st["files"]), entry_paths={e["path"] for e in st["entry_points"]})
@@ -878,6 +932,7 @@ def run(src: str, *, work_root: str, out_dir: str, jid: str = "manual", client: 
             "license": lic, "structure": structure_pub,
             "ai_source": ai_res["source"], "ai_model": ai_res["model"], "ai_note": ai_res["llm_note"],
             "ai_dropped": ai_res["dropped"], "analysis": ai_res["analysis"],
+            "insights": insights,
             "diagrams": diagrams, "code": snippets,
             "honesty": {"executed": False, "dynamic_view": "static inference (the tree is never executed)",
                         "prompt_contains_source": False}})

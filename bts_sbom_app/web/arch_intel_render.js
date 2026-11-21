@@ -1,15 +1,18 @@
 /*!
- * arch_intel_render.js - pure renderers for the "Arch Intel" pane (license verdict + AI architecture deep-dive).
- * Written for BTS-SBOM (not one of the six copied platform files, see NOTICE.md).
+ * arch_intel_render.js - pure renderers for the "Arch Intel" pane, laid out like a modelling tool
+ * (Enterprise-Advisor style): a model browser tree on the left, an openable canvas in the middle and a
+ * properties panel on the right. Written for BTS-SBOM (not one of the six copied platform files, see NOTICE.md).
  *
  * Everything here is a pure function of the JSON the service returned (no DOM, no network), so it runs unchanged
- * under Node for the tests; arch_intel.js fetches the data, puts the markup on the page and renders the Mermaid
- * diagrams. Rules, as everywhere on this screen:
+ * under Node for the tests; arch_intel.js fetches the data, mounts the shell and moves a view into the canvas when
+ * its tree node is clicked. Rules, as everywhere on this screen:
  *  - every value from analysed data goes through BtsUi.esc() (cell()/kv()/table() do it for table cells);
- *  - the ONLY unescaped HTML is the server-side highlighted code (arch_intel.highlight escapes every character
- *    before wrapping tokens) and the diagram placeholders built here from escaped parts;
- *  - absent data is an em dash (BtsUi.val), never a default 0; each diagram keeps its Mermaid source in a hidden
- *    <pre class="arc-mermaid-src"> so the pane still shows something when the renderer cannot load;
+ *  - the ONLY unescaped HTML is the server-side highlighted code (arch_intel.highlight escapes every character)
+ *    and markup built here from escaped parts;
+ *  - the model browser lists EVERY modelled item - the live code excerpts are their own section in the tree, not a
+ *    stack below the diagrams;
+ *  - each diagram keeps its Mermaid source in a hidden pre.arc-mermaid-src inside its view, so a view still shows
+ *    the diagram source when the vendored renderer cannot load;
  *  - the license card says this is evidence, not a legal assessment.
  */
 (function (root, factory) {
@@ -33,15 +36,7 @@
   };
   var COMPAT_PILL = { compatible: 'ok', conditional: 'warn', incompatible: 'bad', unknown: 'muted' };
   var DIST_PILL = { ok: 'ok', review: 'warn', deny: 'bad' };
-  var TABS = [
-    ['verdict', 'License verdict'],
-    ['overview', 'Overview'],
-    ['components', 'Components'],
-    ['sequence', 'Sequence'],
-    ['activity', 'Activity'],
-    ['code', 'Live code'],
-    ['notice', 'Notice']
-  ];
+  var BLOCK_PILL = { cycle: 'bad', unstable_hub: 'bad', hidden_change_coupling: 'warn', hotspot_concentration: 'warn', high_tangle: 'bad' };
 
   function obj(v) { return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
   function list(v) { return Array.isArray(v) ? v : []; }
@@ -52,13 +47,6 @@
     if (!src) { return note(esc(emptyNote || 'No diagram for this item.'), 'warn'); }
     return '<div class="arc-dwrap"><div class="arc-diagram" data-arc-diagram></div>' +
       '<pre class="arc-mermaid-src" hidden>' + esc(src) + '</pre></div>';
-  }
-
-  /* ---------- tabs ---------- */
-  function nav(active) {
-    return '<div class="arc-tabs">' + TABS.map(function (t) {
-      return '<button type="button" class="arc-tab' + (t[0] === active ? ' on' : '') + '" data-arc-tab="' + t[0] + '">' + esc(t[1]) + '</button>';
-    }).join('') + '</div>';
   }
 
   /* ---------- license verdict ---------- */
@@ -101,7 +89,7 @@
     return out;
   }
 
-  /* ---------- notice checklist (GPL/AGPL clauses + clean-room guidance) ---------- */
+  /* ---------- notice checklist ---------- */
   function notice(license) {
     var d = obj(license);
     var nv = obj(d.notice);
@@ -116,25 +104,17 @@
       out += note('<b>AGPL §13 is live.</b> If this code (or a modified derivative) runs behind a network service, ' +
         'every network user can demand the corresponding source — distributing nothing is not enough.', 'bad');
     }
-    var verdicts = list(nv.verdicts);
-    if (verdicts.length) {
-      out += heading('Distribution verdicts', 'per usage mode');
-      out += table(['Mode', 'Verdict', 'Why'], verdicts.map(function (v) {
-        return [v.distribution, pill(String(v.verdict || 'review'), DIST_PILL[v.verdict] || 'muted'), v.why || '—'];
-      }), 'No distribution verdicts.');
-    }
     out += heading('Clean-room guidance', 'if you plan to reimplement, not to reuse');
     out += note('<b>Architecture facts on this screen are ideas — ideas are not copyrighted.</b> The code excerpts are ' +
       'expressions of the original work under ' + esc(d.project_license || 'the detected license') + ': keep them inside this tool. ' +
       'A reimplementation should be written from a specification (behaviour, interfaces, formats) — never from the ' +
-      'excerpts or from decompiler output — and the process documented. Redistributing this screen\'s report or the ' +
-      'excerpts triggers the license\'s obligations.', 'warn');
+      'excerpts or from decompiler output — and the process documented.', 'warn');
     if (nv.note) { out += note(esc(nv.note)); }
     return out;
   }
 
   /* ---------- overview (static view) ---------- */
-  function overview(structure, meta) {
+  function overview(structure, aiNote) {
     var st = obj(structure);
     var stack = obj(st.stack);
     var languages = obj(stack.languages);
@@ -182,121 +162,247 @@
     if (list(st.notes).length) {
       out += note('<b>Measurement notes:</b> ' + list(st.notes).map(function (n) { return esc(n); }).join(' · '), 'warn');
     }
-    if (meta && meta.ai_note) {
-      out += note('<b>AI lane:</b> ' + esc(meta.ai_note));
-    }
+    if (aiNote) { out += note('<b>AI lane:</b> ' + esc(aiNote)); }
     return out;
   }
 
-  /* ---------- components (AI) ---------- */
-  function components(analysis, diagrams) {
+  /* ---------- insights (book-grounded heuristics) ---------- */
+  function insights(ins) {
+    var d = obj(ins);
+    var fb = obj(d.flow_blockers);
+    var bcc = obj(d.bounded_context_candidates);
+    var sh = obj(d.style_hypothesis);
+    var ap = obj(d.antipattern_signals);
+    var mod = obj(d.modularity);
+    var out = heading('Insights', 'measured facts + architecture heuristics — never a verdict');
+    var blockers = list(fb.blockers);
+    if (blockers.length) {
+      out += heading('Flow blockers', 'what slows a change down (fix the biggest first)');
+      out += table(['Signal', 'Where', 'Why it blocks'], blockers.map(function (b) {
+        return [pill(String(b.kind || '?'), BLOCK_PILL[b.kind] || 'warn'), esc(b.what || '—'), esc(b.why || '—')];
+      }), 'No flow blockers measured.');
+    } else {
+      out += note('No flow blockers measured (no cycles, no unstable hubs, no hidden change coupling).');
+    }
+    var cands = list(bcc.candidates);
+    out += heading('Bounded context candidates', 'cohesive, weakly-inbound modules — seams worth considering');
+    if (cands.length) {
+      out += table(['Candidate', 'Cohesion', 'In/out', 'Modules', 'Files'], cands.map(function (c) {
+        return [pill(String(c.name || '?'), 'pass'), esc(val(c.cohesion)), esc(val(c.inbound)) + ' / ' + esc(val(c.outbound)),
+          esc(val(c.modules)), esc(list(c.files).join(', ') || '—')];
+      }), 'No candidates.');
+    } else {
+      out += note('No bounded context candidates above the threshold (cohesion ≥ 0.6 with low inbound).');
+    }
+    if (sh.style) {
+      out += heading('Style hypothesis', 'signals, not a verdict');
+      out += '<div class="bts-cards"><div class="bts-card"><div class="v">' + pill(String(sh.style), 'pass').html +
+        '</div><div class="l">' + esc(sh.why || '') + '</div></div></div>';
+      if (list(sh.signals).length) { out += note(list(sh.signals).map(function (s) { return esc(s); }).join(' · ')); }
+    }
+    var signals = list(ap.signals);
+    if (signals.length) {
+      out += heading('Antipattern signals', 'risk signals, not a verdict');
+      out += table(['Signal', 'Why', 'Measured'], signals.map(function (s) {
+        return [pill(String(s.code || '?'), 'bad'), esc(s.why || '—'), esc(JSON.stringify(s.measured || {}))];
+      }), 'No antipattern signals.');
+    }
+    if (mod && mod.avg_cohesion !== undefined && mod.avg_cohesion !== null) {
+      out += heading('Modularity', 'fitness numbers over the measured clusters');
+      out += kv([['avg cohesion', esc(val(mod.avg_cohesion))], ['acyclic', esc(val(mod.acyclic_percent)) + '%'],
+        ['tangle ratio', esc(val(mod.tangle_ratio))]]);
+      if (list(mod.clusters).length) {
+        out += table(['Domain', 'Modules', 'Cohesion', 'In', 'Out', 'BC candidate'], list(mod.clusters).map(function (r) {
+          return [r.domain, esc(val(r.modules)), esc(val(r.cohesion)), esc(val(r.inbound)), esc(val(r.outbound)),
+            r.bounded_context_candidate ? pill('yes', 'pass') : '—'];
+        }), 'No clusters.');
+      }
+    }
+    out += note('<b>Heuristic readings of measured facts.</b> An insight names its signals and never claims certainty — ' +
+      'the build/buy and team-boundary judgement stays with the architect.', 'warn');
+    return out;
+  }
+
+  /* ---------- component views ---------- */
+  function componentView(c) {
+    var d = obj(c);
+    var out = heading('Component — ' + esc(d.name), esc(val(d.role)));
+    out += kv([['role', esc(val(d.role))], ['verified files', esc(list(d.files).join(', ') || '—')]]);
+    out += note('Every file above was verified to exist in the analysed tree (grounding).');
+    return out;
+  }
+
+  function componentProps(c) {
+    var d = obj(c);
+    return kv([['name', esc(d.name || '—')], ['role', esc(val(d.role))],
+      ['verified files', esc(list(d.files).length)], ['kind', esc('component')]]);
+  }
+
+  function componentsTable(analysis) {
     var an = obj(analysis);
-    var dg = obj(diagrams);
-    var comp = obj(dg.components);
     var items = list(an.components);
-    var out = heading('Component diagram', an.overview ? undefined : 'no AI analysis available');
+    var out = '';
     if (an.overview) { out += note(esc(an.overview)); }
-    out += diagramBlock(comp.mermaid, comp.note || 'No component diagram (the analysis found no components).');
     if (items.length) {
       out += table(['Component', 'Role', 'Files (verified in tree)'], items.map(function (c) {
         return [c.name, val(c.role), list(c.files).join(', ') || '—'];
       }), 'No components.');
     }
     if (list(an.scenarios).length === 0 && list(an.activity).length === 0) {
-      out += note('<b>No AI scenario analysis.</b> ' + esc('Connect an EXAONE key (top bar) and re-run for scenario-level sequence and activity flows. The deterministic view above is measured, not invented.'), 'warn');
+      out += note('<b>No AI scenario analysis.</b> ' + esc('Connect an EXAONE key (top bar) and re-run for scenario-level sequence and activity flows. The deterministic view is measured, not invented.'), 'warn');
     }
     return out;
   }
 
-  /* ---------- sequence diagrams (dynamic view, static inference) ---------- */
-  function sequence(diagrams) {
-    var items = list(obj(diagrams).sequence);
-    var out = heading('Sequence diagrams', 'dynamic view — static inference, the tree was never executed');
-    if (!items.length) {
-      out += note('<b>Not computed.</b> Scenario-level sequence flows need the AI lane (an EXAONE key). ' +
-        'Nothing is invented rather than shown.', 'warn');
-      return out;
-    }
-    out += items.map(function (s, i) {
-      var d = obj(s);
-      var steps = list(d.steps);
-      var inner = diagramBlock(d.mermaid, 'No diagram for this scenario.') +
-        table(['#', 'Actor', 'Action', 'Target'], steps.map(function (st, j) {
-          return [String(j + 1), st.actor, st.action, st.target];
-        }), 'No steps.');
-      return '<details class="arc-scenario"' + (i === 0 ? ' open' : '') + '><summary>' + esc(d.name || 'Scenario') +
-        (d.inferred ? ' <span class="bts-pill muted">static inference</span>' : '') + '</summary>' + inner + '</details>';
-    }).join('');
+  /* ---------- sequence / activity views ---------- */
+  function sequenceView(s) {
+    var d = obj(s);
+    var steps = list(d.steps);
+    var out = heading('Sequence — ' + esc(d.name || 'Scenario'),
+      d.inferred ? 'static inference — the tree was never executed' : undefined);
+    out += diagramBlock(d.mermaid, 'No diagram for this scenario.');
+    out += table(['#', 'Actor', 'Action', 'Target'], steps.map(function (st, j) {
+      return [String(j + 1), st.actor, st.action, st.target];
+    }), 'No steps.');
     return out;
   }
 
-  /* ---------- activity flows ---------- */
-  function activity(diagrams) {
-    var items = list(obj(diagrams).activity);
-    var out = heading('Activity diagrams', 'control flow — static inference, the tree was never executed');
-    if (!items.length) {
-      out += note('<b>Not computed.</b> Activity flows need the AI lane (an EXAONE key). Nothing is invented rather than shown.', 'warn');
-      return out;
-    }
-    out += items.map(function (f, i) {
-      var d = obj(f);
-      var steps = list(d.steps);
-      var inner = diagramBlock(d.mermaid, d.note || 'No diagram for this flow.') +
-        (steps.length ? note(steps.map(function (s, j) { return (j + 1) + '. ' + esc(s); }).join('<br>')) : '');
-      return '<details class="arc-scenario"' + (i === 0 ? ' open' : '') + '><summary>' + esc(d.name || 'Activity flow') +
-        '</summary>' + inner + '</details>';
-    }).join('');
+  function sequenceProps(s) {
+    var d = obj(s);
+    return kv([['name', esc(d.name || '—')], ['steps', esc(list(d.steps).length)],
+      ['inferred', esc(d.inferred ? 'yes (static)' : 'no')], ['kind', esc('sequence diagram')]]);
+  }
+
+  function activityView(f) {
+    var d = obj(f);
+    var steps = list(d.steps);
+    var out = heading('Activity — ' + esc(d.name || 'Flow'), 'control flow — static inference');
+    out += diagramBlock(d.mermaid, d.note || 'No diagram for this flow.');
+    if (steps.length) { out += note(steps.map(function (s, j) { return (j + 1) + '. ' + esc(s); }).join('<br>')); }
     return out;
   }
 
-  /* ---------- live code (excerpts) ---------- */
-  function code(codeItems, projectLicense) {
-    var items = list(codeItems);
-    var out = heading('Live code', 'the architecture elements above, as they actually read');
-    out += note('<b>These excerpts are the original work</b> (license: ' + esc(projectLicense || 'unknown') + '). ' +
-      'They stay inside this analysis; copying them out or redistributing the report triggers the license\'s obligations. ' +
-      'A reimplementation must be written from a specification, not from these excerpts (clean-room).', 'warn');
-    if (!items.length) {
-      out += note('No key files were selected (empty tree or unreadable files).');
-      return out;
-    }
-    out += items.map(function (c) {
-      var d = obj(c);
-      var meta = esc(d.path) + ' · ' + esc(d.role || '') + ' · lines ' + esc(val(d.start_line)) + '–' + esc(val(d.end_line)) +
-        ' of ' + esc(val(d.total_lines));
-      return '<details class="arc-scenario"><summary>' + esc(d.path) + '</summary>' +
-        '<div class="arc-codemeta">' + meta + '</div>' +
-        '<pre class="arc-code">' + H(String(d.html || '')).html + '</pre>' +
-        (d.truncated ? '<div class="bts-small">excerpt — open the file for the full text</div>' : '') +
-        '</details>';
-    }).join('');
-    return out;
+  function activityProps(f) {
+    var d = obj(f);
+    return kv([['name', esc(d.name || '—')], ['steps', esc(list(d.steps).length)], ['kind', esc('activity diagram')]]);
   }
 
-  /* ---------- the whole result ---------- */
-  function result(doc) {
+  /* ---------- code view (live code excerpts) ---------- */
+  function codeView(c) {
+    var d = obj(c);
+    var meta = esc(d.path) + ' · ' + esc(d.role || '') + ' · lines ' + esc(val(d.start_line)) + '–' + esc(val(d.end_line)) +
+      ' of ' + esc(val(d.total_lines));
+    return heading('Code — ' + esc(d.path), esc(d.role || '')) +
+      note('<b>This excerpt is the original work</b> (license: ' + esc(d.license || 'unknown') + '). Keep it inside this ' +
+        'analysis; a reimplementation must be written from a specification, not from these excerpts (clean-room).', 'warn') +
+      '<div class="arc-codemeta">' + meta + '</div>' +
+      '<pre class="arc-code">' + H(String(d.html || '')).html + '</pre>' +
+      (d.truncated ? '<div class="bts-small">excerpt — open the file for the full text</div>' : '');
+  }
+
+  function codeProps(c) {
+    var d = obj(c);
+    return kv([['path', esc(d.path || '—')], ['role', esc(val(d.role))], ['language', esc(val(d.lang))],
+      ['lines shown', esc(val(d.start_line)) + '–' + esc(val(d.end_line)) + ' of ' + esc(val(d.total_lines))],
+      ['license', esc(val(d.license))], ['kind', esc('source excerpt')]]);
+  }
+
+  /* ---------- the model ---------- */
+  function model(doc) {
+    /* Every modelled item as {id, section, label, title, html, props}. The tree mirrors this. */
     var d = obj(doc);
     var meta = obj(d.meta);
     var lic = obj(d.license);
     var an = obj(d.analysis);
-    var secs = {
-      verdict: licenseVerdict(lic),
-      overview: overview(d.structure, { ai_note: d.ai_note }),
-      components: components(an, d.diagrams),
-      sequence: sequence(d.diagrams),
-      activity: activity(d.diagrams),
-      code: code(d.code, lic.project_license),
-      notice: notice(lic)
-    };
-    var src = (meta.source ? String(meta.source) : '') + (meta.distribution ? ' · distribution: ' + meta.distribution : '') +
-      (meta.lang ? ' · AI language: ' + meta.lang : '') + (d.ai_source ? ' · AI: ' + d.ai_source : '');
-    var head = heading('Arch Intel result', src ? esc(src) : undefined);
-    if (an.license_note) {
-      head += note(esc(an.license_note));
+    var dg = obj(d.diagrams);
+    var items = [];
+    var licCat = cat(lic.category);
+    items.push({ id: 'license', section: 'License', label: 'License verdict', title: 'License verdict',
+      html: licenseVerdict(lic), props: kv([['license', esc(lic.project_license || '—')], ['category', esc(lic.category || '—')],
+        ['source', esc(val(lic.project_license_source))], ['kind', esc('license verdict')]]) });
+    items.push({ id: 'notice', section: 'License', label: 'Notice & clean-room', title: 'Notice checklist',
+      html: notice(lic), props: kv([['checklist items', esc(list(obj(lic.notice).checklist).length)],
+        ['network clause', esc(obj(lic.notice).network_clause ? 'yes (AGPL §13)' : 'no')], ['kind', esc('notice')]]) });
+    items.push({ id: 'overview', section: 'Overview', label: 'Overview (static view)', title: 'Overview',
+      html: overview(d.structure, d.ai_note), props: kv([['files', esc(val(obj(d.structure).files_count))],
+        ['loc', esc(val(obj(d.structure).total_loc))], ['kind', esc('overview')]]) });
+    if (d.insights) {
+      var fb = obj(obj(d.insights).flow_blockers);
+      items.push({ id: 'insights', section: 'Insights', label: 'Insights (' + esc(list(fb.blockers).length) + ' blockers)',
+        title: 'Insights', html: insights(d.insights),
+        props: kv([['flow blockers', esc(list(fb.blockers).length)],
+          ['bounded context candidates', esc(list(obj(obj(d.insights).bounded_context_candidates).candidates).length)],
+          ['style hypothesis', esc(obj(obj(d.insights).style_hypothesis).style || '—')],
+          ['antipattern signals', esc(list(obj(obj(d.insights).antipattern_signals).signals).length)],
+          ['kind', esc('insights')]]) });
     }
-    return head + nav('verdict') + TABS.map(function (t, i) {
-      return '<div class="arc-sec' + (i === 0 ? ' on' : '') + '" data-arc-sec="' + t[0] + '">' + (secs[t[0]] || '') + '</div>';
-    }).join('');
+    var comp = obj(dg.components);
+    if (comp.mermaid || list(an.components).length) {
+      items.push({ id: 'diagram_components', section: 'Diagrams', label: 'Component diagram', title: 'Component diagram',
+        html: heading('Component diagram', 'components and their measured edges') +
+          diagramBlock(comp.mermaid, comp.note || 'No component diagram (the analysis found no components).') +
+          componentsTable(an),
+        props: kv([['components', esc(list(an.components).length)], ['kind', esc('diagram')]]) });
+    }
+    list(dg.sequence).forEach(function (s, i) {
+      items.push({ id: 'seq_' + i, section: 'Diagrams', label: 'Sequence — ' + String(obj(s).name || ('#' + (i + 1))),
+        title: 'Sequence — ' + String(obj(s).name || (i + 1)), html: sequenceView(s), props: sequenceProps(s) });
+    });
+    list(dg.activity).forEach(function (f, i) {
+      items.push({ id: 'act_' + i, section: 'Diagrams', label: 'Activity — ' + String(obj(f).name || ('#' + (i + 1))),
+        title: 'Activity — ' + String(obj(f).name || (i + 1)), html: activityView(f), props: activityProps(f) });
+    });
+    list(an.components).forEach(function (c, i) {
+      items.push({ id: 'comp_' + i, section: 'Components', label: String(obj(c).name || ('#' + (i + 1))),
+        title: 'Component — ' + String(obj(c).name || i), html: componentView(c), props: componentProps(c) });
+    });
+    list(d.code).forEach(function (c, i) {
+      items.push({ id: 'code_' + i, section: 'Code', label: String(obj(c).path || ('file #' + (i + 1))),
+        title: 'Code — ' + String(obj(c).path || i), html: codeView(c), props: codeProps(c) });
+    });
+    return { items: items, meta: meta, licCat: licCat, license: lic, analysis: an };
+  }
+
+  var SECTION_ORDER = ['License', 'Overview', 'Insights', 'Diagrams', 'Components', 'Code'];
+
+  /* ---------- the shell ---------- */
+  function result(doc) {
+    var m = model(doc);
+    var meta = m.meta;
+    var src = (meta.source ? String(meta.source) : '') + (meta.distribution ? ' · distribution: ' + meta.distribution : '') +
+      (meta.lang ? ' · AI: ' + meta.lang : '') + (doc.ai_source ? ' · AI: ' + doc.ai_source : '');
+    var head = heading('Arch Intel model', src ? esc(src) : undefined);
+    if (obj(m.analysis).license_note) { head += note(esc(obj(m.analysis).license_note)); }
+    var defaultId = 'diagram_components';
+    var hasDefault = m.items.some(function (it) { return it.id === defaultId; });
+    if (!hasDefault && m.items.length) { defaultId = m.items[0].id; }
+    /* model browser: section groups in fixed order, tree nodes under each */
+    var tree = '<div class="arc-tree">';
+    SECTION_ORDER.forEach(function (sec) {
+      var inSec = m.items.filter(function (it) { return it.section === sec; });
+      if (!inSec.length) { return; }
+      tree += '<details class="arc-tgroup" open><summary>' + esc(sec) + '</summary>';
+      inSec.forEach(function (it) {
+        tree += '<button type="button" class="arc-node' + (it.id === defaultId ? ' on' : '') + '" data-arc-open="' +
+          esc(it.id) + '">' + esc(it.label) + '</button>';
+      });
+      tree += '</details>';
+    });
+    tree += '</div>';
+    /* hidden store: one view pane + one props pane per item */
+    var store = '<div class="arc-store" hidden>';
+    m.items.forEach(function (it) {
+      store += '<div class="arc-viewpane" data-arc-view="' + esc(it.id) + '" data-arc-title="' + esc(it.title || it.label) + '">' + it.html + '</div>';
+      store += '<div class="arc-viewprops" data-arc-props="' + esc(it.id) + '" hidden>' + (it.props || '') + '</div>';
+    });
+    store += '</div>';
+    var shell = '<div class="arc-shell">' +
+      '<div class="arc-browser"><div class="arc-browser-h">Model browser</div>' + tree + '</div>' +
+      '<div class="arc-main"><div class="arc-canvas-tabs"></div><div class="arc-canvas-body"></div></div>' +
+      '<div class="arc-props"><div class="arc-browser-h">Properties</div><div class="arc-props-body"></div></div>' +
+      '</div>';
+    return head + shell + store + '<div data-arc-default="' + esc(defaultId) + '" hidden></div>' +
+      '<div data-arc-verdict="' + esc(m.license.project_license || '') + '" hidden></div>';
   }
 
   function failure(msg) {
@@ -314,7 +420,8 @@
     }), 'No runs.');
   }
 
-  return { CATEGORY: CATEGORY, TABS: TABS, result: result, licenseVerdict: licenseVerdict, notice: notice,
-           overview: overview, components: components, sequence: sequence, activity: activity, code: code,
-           history: history, failure: failure, diagramBlock: diagramBlock, nav: nav };
+  return { CATEGORY: CATEGORY, SECTION_ORDER: SECTION_ORDER, result: result, model: model, licenseVerdict: licenseVerdict,
+           notice: notice, overview: overview, insights: insights, componentsTable: componentsTable,
+           sequenceView: sequenceView, activityView: activityView, codeView: codeView,
+           history: history, failure: failure, diagramBlock: diagramBlock };
 });

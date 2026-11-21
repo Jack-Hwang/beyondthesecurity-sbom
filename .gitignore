@@ -31,3 +31,4 @@ evidence/batch/runs/*/*/*.json
 
 # optional pinned snapshot of the core used for a reproducible loop pass (git archive of a tag, see docs/WORKFLOW.md)
 .deps/
+.zcode/

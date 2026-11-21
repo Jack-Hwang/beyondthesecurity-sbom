@@ -154,7 +154,8 @@ class State:
         projs = load_projects(self.evidence)
         client = self.client if self.client.available else None
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
-        return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs)), projs, client, acts, self.triage())
+        return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs)), projs, client, acts, self.triage(),
+                               arch_dir=os.path.join(self.evidence, "archintel"))
 
     def triage(self) -> Dict[str, Any]:
         with self.lock:

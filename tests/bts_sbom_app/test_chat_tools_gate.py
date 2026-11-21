@@ -181,8 +181,10 @@ def test_plan_validation_drops_invented_tools_arguments_and_identifiers():
     assert chat.validate_calls([many[0], many[0]], rec)[1]["duplicate"] == 1
     assert chat.run_tool(rec, "overview", {})[0]["tool"] == "overview"
     assert set(chat.TOOL_CATALOG) == {"overview", "top_vulns", "vuln_lookup", "component_lookup", "license", "patch", "architecture", "sector", "what_if_upgrade",
-                                      "affected_projects", "sbom_conformance", "what_changed", "coverage", "license_risks", "proposals", "plan_patch", "export_vex",
-                                      "record_decision", "analyze_project", "apply_patch", "confirm_decision"}
+                                      "affected_projects", "latest_arch", "sbom_conformance", "what_changed", "coverage", "license_risks", "proposals", "plan_patch",
+                                      "export_vex", "record_decision", "analyze_project", "apply_patch", "confirm_decision"}
+    latest = chat.run_tool(None, "latest_arch", {}, arch_dir=None)          # honest when no run is recorded / reachable
+    assert "No Arch Intel" in latest[0]["lines"][0] and latest[0]["trust"] == "tool"
 
 
 def test_unavailable_or_invalid_plan_falls_back_to_regex_and_says_so(world):

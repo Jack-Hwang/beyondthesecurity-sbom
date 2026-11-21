@@ -2,6 +2,19 @@
 
 All notable changes to bts-sbom are documented here.
 
+## 0.3.0 - 2026-11-21: Arch Intel - license verdict + AI architecture deep-dive, deterministic insights
+
+* **New: the Arch Intel screen** (`/api/arch/*`, pipeline `bts_sbom_app/arch_intel.py`, pure renderer
+  `web/arch_intel_render.js`). An open-source tree (local folder or GitHub repo) is measured - never executed -
+  and reported as a license verdict (distribution-mode checklist, compatibility matrix, notice obligations),
+  a deterministic structure view (stack, import graph, clusters, hotspots, entry points) and an EXAONE AI lane
+  that sees metadata only. Mermaid diagrams render from vendored mermaid@11.12.2 with the raw source kept in a
+  hidden pre as the fallback. Clean-room guardrails are testable invariants (ADR-0014).
+* **New: deterministic architecture insights** (`bts_sbom_app/arch_flow.py`) - flow blockers, bounded-context
+  candidates, a style hypothesis, antipattern signals and a modularity summary, each derived only from the
+  measured structure and each carrying an honesty note: a heuristic, never a verdict.
+* **New: the chat `latest_arch` tool** - the latest recorded Arch Intel run summarised from the evidence folder.
+
 ## 0.2.0 - 2026-11-17: console-encoding fix, version-metadata consistency, green CI
 
 * **Fix: `bts-sbom --help` (and every sub-command help) crashed with

@@ -1,11 +1,12 @@
 /*!
- * arch_intel.js - the "Arch Intel" pane of the BTS-SBOM screen: license verdict + AI architecture deep-dive
- * (components, sequence, activity, live code excerpts, notice checklist) of one open-source source tree.
- * Written for BTS-SBOM. Rules (same as bts_console.js): every dynamic value is put into the page with
- * textContent / setAttribute or through ArchIntelRender/BtsUi (which escape); no inline event handlers (strict
- * Content-Security-Policy); a view says "not available" instead of showing a made-up value. The Mermaid renderer
- * is vendored under /static/vendor/mermaid.min.js (see NOTICE.md) and loaded lazily on first use; if it cannot
- * load, every diagram falls back to its Mermaid source text.
+ * arch_intel.js - the "Arch Intel" pane of the BTS-SBOM screen, laid out like a modelling tool: a model browser
+ * tree on the left, an openable canvas (with tabs) in the middle and a properties panel on the right. Clicking a
+ * tree node opens that item as a canvas view; the live code excerpts live in their own "Code" section of the tree,
+ * never stacked below the diagrams. Written for BTS-SBOM. Rules (same as bts_console.js): every dynamic value is
+ * put into the page with textContent / setAttribute or through ArchIntelRender/BtsUi (which escape); no inline
+ * event handlers (strict Content-Security-Policy). The Mermaid renderer is vendored under
+ * /static/vendor/mermaid.min.js (see NOTICE.md), loaded lazily, and every diagram falls back to its Mermaid source
+ * text when the renderer cannot load.
  */
 (function () {
   'use strict';
@@ -13,10 +14,10 @@
   if (!root) { return; }
   var R = window.ArchIntelRender;
 
-  var S = { job: null, timer: null, running: false };
+  var S = { job: null, timer: null, open: {} };                     // open: viewId -> {tab, pane, rendered}
 
-  var STAGES = [['prepare', 'Prepare'], ['license', 'License'], ['structure', 'Structure'], ['ai', 'AI analysis'],
-                ['anchors', 'Code anchors'], ['persist', 'Persist']];
+  var STAGES = [['prepare', 'Prepare'], ['license', 'License'], ['structure', 'Structure'], ['insights', 'Insights'],
+                ['ai', 'AI analysis'], ['anchors', 'Code anchors'], ['persist', 'Persist']];
 
   function el(tag, attrs, kids) {
     var e = document.createElement(tag);
@@ -39,25 +40,19 @@
   var ref = el('input', { id: 'arcRef', placeholder: 'branch / tag (git)', spellcheck: 'false', style: 'width:150px' });
   var dist = el('select', { id: 'arcDist', title: 'How you intend to use this code - drives the license verdict' });
   [['binary', 'redistribute (binary)'], ['saas', 'serve as SaaS'], ['internal', 'internal use only']].forEach(function (d) {
-    var o = el('option', { value: d[0], text: d[1] });
-    dist.appendChild(o);
+    dist.appendChild(el('option', { value: d[0], text: d[1] }));
   });
   var lang = el('select', { id: 'arcLang', title: 'Language of the AI narrative' });
-  [['ko', 'AI: Korean'], ['en', 'AI: English']].forEach(function (d) {
-    lang.appendChild(el('option', { value: d[0], text: d[1] }));
-  });
+  [['ko', 'AI: Korean'], ['en', 'AI: English']].forEach(function (d) { lang.appendChild(el('option', { value: d[0], text: d[1] })); });
   var useLlm = el('input', { type: 'checkbox', checked: 'checked' });
-  var useLlmLabel = el('label', { 'class': 'oss-chk', title: 'Ask LG EXAONE for the architecture analysis (needs a configured key; without one the deterministic view is used)' }, [useLlm, ' EXAONE']);
   var runBtn = el('button', { 'class': 'run', type: 'button', text: '\u25B6 Analyze' });
   var cancelBtn = el('button', { 'class': 'run', type: 'button', text: 'Cancel', style: 'background:#333;display:none' });
-
-  form.appendChild(el('label', { text: 'Deep-dive one open-source tree: license verdict + AI architecture (components, sequence, activity) + live code anchors' }));
-  var row1 = el('div', { 'class': 'oss-row' }, [source, ref, runBtn, cancelBtn]);
-  var row2 = el('div', { 'class': 'oss-row' }, [el('span', { 'class': 'sub', text: 'Usage:' }), dist,
-    el('span', { 'class': 'sub', text: 'Narrative:' }), lang, useLlmLabel]);
-  form.appendChild(row1);
-  form.appendChild(row2);
-  form.appendChild(el('div', { 'class': 'ex', text: 'The tree is read in an isolated copy (git clone with hooks disabled) and never executed. The AI prompt carries metadata only - file paths, sizes, import edges - never source code. Excerpts shown under "Live code" are the original work: keep them inside this tool.' }));
+  form.appendChild(el('label', { text: 'Deep-dive one open-source tree: license verdict + AI architecture + live code anchors (model browser layout)' }));
+  form.appendChild(el('div', { 'class': 'oss-row' }, [source, ref, runBtn, cancelBtn]));
+  form.appendChild(el('div', { 'class': 'oss-row' }, [el('span', { 'class': 'sub', text: 'Usage:' }), dist,
+    el('span', { 'class': 'sub', text: 'Narrative:' }), lang,
+    el('label', { 'class': 'oss-chk', title: 'Ask LG EXAONE for the architecture analysis (needs a configured key; without one the deterministic view is used)' }, [useLlm, ' EXAONE'])]));
+  form.appendChild(el('div', { 'class': 'ex', text: 'The tree is read in an isolated copy (git clone with hooks disabled) and never executed. The AI prompt carries metadata only - file paths, sizes, import edges - never source code. Excerpts under "Code" are the original work: keep them inside this tool.' }));
 
   var banner = el('div', {});
   var progress = el('div', { 'class': 'oss-steps' });
@@ -67,18 +62,16 @@
   root.appendChild(banner);
   root.appendChild(progress);
   root.appendChild(result);
-  root.appendChild(el('details', { 'class': 'arc-histbox' }, [
-    el('summary', { text: 'Past runs' }), historyBox]));
+  root.appendChild(el('details', { 'class': 'arc-histbox' }, [el('summary', { text: 'Past runs' }), historyBox]));
 
   /* ---------- progress ---------- */
   function chips(stage) {
     progress.textContent = '';
-    if (!stage) { return; }
+    if (!stage || stage === 'queued' || stage === 'done') { return; }
     STAGES.forEach(function (s) {
-      var cls = 'oss-step';
       var idx = STAGES.map(function (x) { return x[0]; }).indexOf(stage);
       var mine = STAGES.map(function (x) { return x[0]; }).indexOf(s[0]);
-      if (mine < idx) { cls += ' done'; } else if (mine === idx) { cls += ' on'; }
+      var cls = 'oss-step' + (mine < idx ? ' done' : mine === idx ? ' on' : '');
       progress.appendChild(el('span', { 'class': cls, text: s[1] }));
     });
   }
@@ -109,11 +102,11 @@
     Array.prototype.forEach.call(wraps, function (wrap, i) {
       var holder = wrap.querySelector('.arc-diagram');
       var src = wrap.querySelector('.arc-mermaid-src');
-      if (!holder || !src) { return; }
+      if (!holder || !src || holder.childElementCount) { return; }   // already rendered
       var text = src.textContent || '';
       if (!text.trim()) { return; }
       ensureMermaid().then(function (m) {
-        return m.render('arc-d-' + i + '-' + Date.now(), text);
+        return m.render('arc-d-' + Date.now() + '-' + i, text);
       }).then(function (out) {
         holder.innerHTML = out.svg;                       // mermaid strict mode, source sanitized server-side
         src.hidden = true;
@@ -123,24 +116,59 @@
     });
   }
 
-  /* ---------- result tabs ---------- */
-  function wireTabs() {
+  /* ---------- the model browser / canvas / properties ---------- */
+  function canvas() { return result.querySelector('.arc-canvas-body'); }
+
+  function activate(id) {
+    var state = S.open[id];
+    if (!state) { return; }
+    Object.keys(S.open).forEach(function (k) {
+      S.open[k].pane.className = 'arc-pane' + (k === id ? ' on' : '');
+      S.open[k].tab.className = 'arc-ctab' + (k === id ? ' on' : '');
+    });
+    fillProps(id);
+    if (!state.rendered) {
+      renderDiagrams(state.pane);
+      state.rendered = true;
+    }
+  }
+
+  function fillProps(id) {
+    var body = result.querySelector('.arc-props-body');
+    if (!body) { return; }
+    var props = result.querySelector('.arc-store [data-arc-props="' + id + '"]');
+    body.innerHTML = props ? props.innerHTML : '';
+  }
+
+  function openView(id) {
+    var body = canvas();
+    if (!body) { return; }
+    if (!S.open[id]) {
+      var pane = result.querySelector('.arc-store [data-arc-view="' + id + '"]');
+      if (!pane) { return; }
+      var clone = el('div', { 'class': 'arc-pane' });
+      clone.innerHTML = pane.innerHTML;
+      var tab = el('button', { type: 'button', 'class': 'arc-ctab', text: pane.getAttribute('data-arc-title') || id });
+      tab.setAttribute('data-arc-tab-open', id);
+      body.appendChild(clone);
+      result.querySelector('.arc-canvas-tabs').appendChild(tab);
+      S.open[id] = { pane: clone, tab: tab, rendered: false };
+    }
+    activate(id);
+  }
+
+  function wireShell() {
     result.addEventListener('click', function (ev) {
-      var t = ev.target && ev.target.closest ? ev.target.closest('[data-arc-tab]') : null;
+      var t = ev.target && ev.target.closest ? ev.target.closest('[data-arc-open],[data-arc-tab-open]') : null;
       if (!t) { return; }
-      var name = t.getAttribute('data-arc-tab');
-      Array.prototype.forEach.call(result.querySelectorAll('[data-arc-tab]'), function (b) {
-        b.className = 'arc-tab' + (b === t ? ' on' : '');
-      });
-      Array.prototype.forEach.call(result.querySelectorAll('[data-arc-sec]'), function (sec) {
-        sec.className = 'arc-sec' + (sec.getAttribute('data-arc-sec') === name ? ' on' : '');
-      });
-      renderDiagrams(result);
+      var id = t.getAttribute('data-arc-open') || t.getAttribute('data-arc-tab-open');
+      if (id) { openView(id); }
     });
   }
 
   function showResult(doc) {
     result.textContent = '';
+    S.open = {};
     if (!R) {
       result.appendChild(el('div', { 'class': 'bts-note bad', text: 'renderer module missing' }));
       return;
@@ -148,8 +176,10 @@
     var div = el('div', {});
     div.innerHTML = R.result(doc || {});
     result.appendChild(div);
-    wireTabs();
-    renderDiagrams(result);
+    wireShell();
+    var def = div.querySelector('[data-arc-default]');
+    openView(def ? def.getAttribute('data-arc-default') : 'diagram_components');
+    loadHistory();
   }
 
   function note_(text, cls) {
@@ -159,7 +189,6 @@
 
   /* ---------- job lifecycle ---------- */
   function setRunning(on) {
-    S.running = on;
     runBtn.disabled = on;
     cancelBtn.style.display = on ? '' : 'none';
   }
@@ -172,7 +201,7 @@
         note_('job state unavailable: ' + ((r.data && r.data.error) || ('HTTP ' + r.status)), 'bad');
         return;
       }
-      chips(r.data.stage === 'queued' ? 'queued' : r.data.stage === 'done' ? null : r.data.stage);
+      chips(r.data.stage);
       if (r.data.state === 'running') { S.timer = setTimeout(poll, 800); return; }
       setRunning(false);
       chips(null);
@@ -182,7 +211,6 @@
         if (!r2.ok) { note_('result unavailable: ' + ((r2.data && r2.data.error) || ('HTTP ' + r2.status)), 'bad'); return; }
         banner.textContent = '';
         showResult(r2.data);
-        loadHistory();
       });
     });
   }
@@ -193,6 +221,7 @@
     setRunning(true);
     note_('Queued\u2026', '');
     result.textContent = '';
+    S.open = {};
     chips('queued');
     api('/api/arch/scan', { source: src, ref: ref.value.trim(), use_llm: useLlm.checked,
                             lang: lang.value, distribution: dist.value }).then(function (r) {
