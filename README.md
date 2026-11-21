@@ -17,6 +17,35 @@ $ python -m bts_sbom selfsbom
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
 
+## Screenshots
+
+The web screen of `bts-sbom-app` (the Open-Source Security screen, started with `python -I -X utf8 run_bts_sbom_app.py serve --evidence <runs folder>`,
+see [the workflow section](#end-to-end-workflow-analyse-patch-architecture-chatbot-bts_sbom_app-command-bts-sbom-app)). It runs on the Python standard
+library only, binds to localhost and shows what BTS-SBOM did not compute as absent instead of filling in a value.
+
+**Scan result** - findings, dependencies, licenses and tools of an analysed project in the BTS console.
+
+![Scan result: 23 issues in 5 dependencies, with severity cards and distribution](docs/images/ui-scan-result.png)
+
+**What changed** - the same project analysed again after an upgrade: new and resolved findings, Hub-style threshold alerts, version changes. With only one analysis the pane says there is nothing to compare.
+
+![What changed: 11 new, 6 resolved, 5 alerts, version changes](docs/images/ui-what-changed.png)
+
+**SBOM conformance** - one SBOM against NTIA 2021, the CISA 2025 draft, EU CRA, BSI TR-03183-2 and a VEX-readiness baseline. Draft regimes are flagged, a missing field is a gap and never a pass, and the pane states that it is not a legal assessment.
+
+![SBOM conformance: verdict per regime, DRAFT flag, per-element coverage](docs/images/ui-sbom-conformance.png)
+
+**VEX decisions** - record why a finding is not a problem for the product: one of the five OpenVEX justifications, a reason of at least 10 characters, an end date and an owner. The form shows the effect on the OpenVEX statement before anything is saved; without justification and reason the finding stays `affected` (fail-closed).
+
+![VEX decisions: decision form with its live effect, and the OpenVEX statements with decisions applied](docs/images/ui-vex-decisions.png)
+
+**Fleet and affected** - which analysed projects are hit by an advisory or use a component, with the age of each analysis, and the portfolio roll-up.
+
+![Fleet and affected: three projects hit by one advisory, portfolio roll-up](docs/images/ui-fleet-affected.png)
+
+_The screenshots show a demo workspace of three small projects pinned to old dependency versions (captured 2026-11-21). The advisories are real
+[OSV.dev](https://osv.dev) results for those versions at that time; the project names and the decisions in the VEX screenshot are illustrative._
+
 ## Quickstart
 
 ```console
