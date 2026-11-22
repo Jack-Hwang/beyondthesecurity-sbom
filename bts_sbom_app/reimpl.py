@@ -117,11 +117,9 @@ def extract_examples(source_root: str, *, cap: int = 12) -> List[str]:
         for cat, rows in d.items():
             if not isinstance(rows, list):
                 continue
-            for row in rows[:4]:
-                out.append("%s: %s" % (cat, json.dumps(row, ensure_ascii=False)[:200]))
-            if len(out) >= cap:
-                return out[:cap]
-    return out[:cap]
+            for row in rows[:4]:                               # measured optimum: 12 bounded lines beat the
+                out.append("%s: %s" % (cat, json.dumps(row, ensure_ascii=False)[:200]))  # full 29-row table (29/29
+    return out[:cap]                                           # failures when the whole table was injected)
 
 
 # ------------------------------------------------------------------ the measured gate: copy detection
@@ -321,13 +319,13 @@ def run_adopted_tests(work: str, adopted: Dict[str, List[str]]) -> Dict[str, Any
     for src in adopted.get("tests", []):
         p = subprocess.run([sys.executable, "-X", "utf8", "-c", LEGACY_SHIM, os.path.basename(src)],
                            capture_output=True, text=True, encoding="utf-8", timeout=TEST_TIMEOUT, cwd=work)
-        tail = ((p.stdout or "") + (p.stderr or "")).strip()[-300:]
+        tail = ((p.stdout or "") + (p.stderr or "")).strip()[-3000:]   # the FULL failure list rides to the retry
         tails.append("%s -> %s" % (os.path.basename(src), "OK" if p.returncode == 0 else "FAILED"))
         tails.append(tail)
         if p.returncode != 0:
             all_ok = False
     return {"ran": True, "ok": all_ok, "files": [os.path.basename(x) for x in adopted.get("tests", [])],
-            "tail": "\n".join(tails)[-500:]}
+            "tail": "\n".join(tails)[-3500:]}
 
 
 def _run_py(test_file: str, work: str) -> Dict[str, Any]:
@@ -486,8 +484,10 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
                 res.update(verdict="compatibility_failed",
                            reason="the upstream legacy test suite failed - the reimplementation is not behaviour-compatible yet")
                 break
-            prior_fail = atr["tail"][-800:]                        # loop engineering: the failures ride along
-            prior_fail = "legacy suite: %d failure(s). %s" % (failed_total, atr["tail"][-500:])
+            # loop engineering: the structured failures ride along (assertion per case, full list)
+            assert_lines = _re.findall(r"AssertionError: [^\n]*", atr["tail"])
+            prior_fail = "legacy suite: %d failure(s). %s" % (
+                failed_total, " | ".join(a[:160] for a in assert_lines[:7]) or atr["tail"][-400:])
             _emit(progress, "regenerating", failed=failed_total)
             continue
         verdict = "ok"
