@@ -51,3 +51,4 @@ evidence/serve_*.log
 
 # consolidated one-off scripts and session scratch (kept on disk, never shipped)
 _attic/
+evidence/arch_intel/dgml_validation_out.json
