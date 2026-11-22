@@ -120,6 +120,15 @@ def build_parser() -> argparse.ArgumentParser:
     bk.add_argument("--json", action="store_true")
     mc = sub.add_parser("mcp", help="serve the Model Context Protocol over stdio (JSON-RPC 2.0: tools/list, tools/call)")
     mc.add_argument("--evidence", default=None)
+    rj = sub.add_parser("reimpl", help="clean-room reimplementation workbench: interface spec -> NEW code -> tests -> publish (brief 6)")
+    rj.add_argument("source"); rj.add_argument("--component", required=True, help="module file inside the source, e.g. pkg/legacy.py")
+    rj.add_argument("--out", default=None, help="artifact folder (default: <root>/evidence/reimpl/<component>)")
+    rj.add_argument("--llm", action="store_true", help="use the LLM lane for implementation bodies (else deterministic scaffold)")
+    rj.add_argument("--llm-config", default=None)
+    rj.add_argument("--publish-dest", default=None, help="copy the result to this folder when everything passes")
+    rj.add_argument("--allow-inplace", action="store_true", help="allow publish_dest to equal the analysed source")
+    rj.add_argument("--why", default="compliance-risky license (clean-room reimplementation)")
+    rj.add_argument("--json", action="store_true")
     c = sub.add_parser("chat", help="ask a grounded question (with --actions: analyse, patch with an approval token, record VEX decisions)")
     c.add_argument("question", nargs="?", default=None); c.add_argument("--evidence", default=None); c.add_argument("--project", default=None)
     c.add_argument("--llm", action="store_true"); c.add_argument("--llm-config", default=None); c.add_argument("--json", action="store_true")
@@ -283,6 +292,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("bts-sbom MCP server: protocol %s, tools: %s" % (mcp_server.PROTOCOL_VERSION,
                                                                ", ".join(t["name"] for t in mcp_server.TOOL_DEFS)), file=sys.stderr)
         return mcp_server.serve_stdio(mcp_server.Session(a.root, a.evidence), sys.stdin, sys.stdout)
+    if a.cmd == "reimpl":
+        from . import reimpl as reimpl_mod
+        client = _client(a.root, not a.llm, a.llm_config) if a.llm else None
+        out = a.out or os.path.join(a.root, "evidence", "reimpl", os.path.splitext(os.path.basename(a.component))[0])
+
+        def on_progress(ev: Dict[str, Any]) -> None:
+            fields = " ".join("%s=%s" % (k, str(v)[:60]) for k, v in ev.items() if k not in ("event", "ts"))
+            print("  [%s] %s" % (ev["event"], fields), flush=True)
+
+        res = reimpl_mod.reimpl(a.source, a.component, out, client=client if (client is not None and client.available) else None,
+                                license_ok=True, why=a.why, publish_dest=a.publish_dest,
+                                allow_inplace=a.allow_inplace, progress=on_progress)
+        _print(res, a.json, "reimpl %s: %s (%s)" % (a.component, res["verdict"], res.get("reason", "all stages passed")))
+        return 0 if res["verdict"] == "ok" else 1
     if a.cmd == "evalrag":
         r = evals.rag_eval(a.root, a.golden)
         c = evals.chat_eval(a.root)

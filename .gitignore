@@ -37,3 +37,4 @@ evidence/batch/runs/*/*/*.json
 .zcode/
 evidence/.llm_config.json
 evidence/supply_chain/
+evidence/reimpl/

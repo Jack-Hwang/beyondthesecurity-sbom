@@ -605,16 +605,22 @@ ADR-0007 유지), PDF는 외부 `pdftotext`로 텍스트를 뽑고, 책별 `sect
 - BSA-AC-531 [Event] When an ingest is requested the system shall refuse a non-existing folder with 400, refuse a second concurrent ingest with 429, and report job state on /api/jobs/<id> with the same event bus wire as scan jobs, refusing cross-origin POSTs with 403 (3 of 3 refusals, 1 of 1 done job).
 - BSA-AC-532 [Event] When book_search returns passages every line shall attribute the book title, format and section heading so the reader can locate the passage in their own copy, and the closing line shall state the copyright stays with the authors (1 of 1 synthetic book, 3 of 3 attributed lines).
 
-### 스캔 진입점 통합 — Analyze 한 번에 OSS 성과물까지 (UX 정리)
+### 스캔 진입점 통합 — Scan 랜딩 한 폼, Analyze 한 번에 OSS 성과물까지 (2026-11-22 화면 통합, ADR-0024)
 
-메인 Scan(🌐)과 OSS Scanner(📜)는 엔진이 다르다(파이프라인 vs oss_api) — 그래서 진입점이 두 개였다는
-것이 UX 불편이므로, 메인 Analyze가 끝나면 체크박스(#scaOss "OSS 성과물")가 켜져 있을 때 같은 대상을
-OSS Scanner 엔진(source+dependency+binary)으로 이어 스캔한다. 결과는 #scaBanner에 기록된다: 성공 시
-job id와 OSS Scanner 탭 이동 버튼(addEventListener 방식 — CSP상 인라인 핸들러 금지), 실패 시 실패
-이유와 "메인 분석 결과는 정상"임을 명시하는 정직한 노트. OSS 탭은 고급 옵션(exclude·브랜치·보정·내보내기
-서식)용으로 유지된다. DOM 규칙은 콘솔과 동일: note()는 HTML 문자열이고 동적 값은 esc()로 감싼다.
+메인 파이프라인(🌐)과 OSS 스캔 엔진(📜)은 엔진이 다르지만(파이프라인 vs oss_api), 진입점이 둘이어서 UX
+불편이었다. 2026-11-22 사용자 지시("이 화면은 scan 부분에 싹다 통합")로 통합 폼이 🌐 Scan 랜딩 하나로
+모인다: 대상 입력(git URL·로컬 폴더·아카이브) 한 줄에 branch/tag·offline·EXAONE(메인 파이프라인 옵션),
+OSS 분석 유형(source/dependency/binary + sbom-info.yaml 보정), exclude 칩이 같은 상자에 있고 그 아래
+Previous scans(OSS 이력, Open/Compare)가 붙는다(AC-565). 최상위 "📜 OSS Scanner" 사이드바 그룹은
+흡수되어 Scan 섹션의 "📜 OSS 결과" 서브탭이 되고(진행 단계·결과 테이블·공개문·내보내기), 랜딩의
+Open·배너 버튼은 bts:activate 커스텀 이벤트로 그 탭으로 점프한다. ▶ Analyze 한 번은 두 엔진을 모두
+실행한다 — 메인 파이프라인이 대상을 읽지 못해도(아카이브 등) OSS 단계는 계속 실행되며, OSS 단계는
+어떤 경우에도 조용히 건너뛰어지지 않는다(엔진 스크립트 미로드·분석 유형 미선택은 배너에 정직히 기록).
+결과 배너는 성공 시 job id와 OSS 결과 탭 이동 버튼(addEventListener 방식 — CSP상 인라인 핸들러 금지),
+실패 시 사유와 메인 결과의 상태를 명시한다. DOM 규칙은 콘솔과 동일: note()는 HTML 문자열이고 동적
+값은 esc()로 감싼다.
 
-- BSA-AC-533 [Event] When the main Analyze finishes and the OSS-deliverables checkbox is checked the console shall chain the same target into POST /api/oss/scan with all three modes, poll GET /api/oss/jobs/<id> until it leaves running, and then render in the scan banner either the success note with the job id and a real button that activates the OSS tab, or an honest failure note naming the reason and stating the main result is untouched - never a silent skip of the OSS stage (1 of 1 chains, 2 of 2 banner outcomes).
+- BSA-AC-533 [Event] When ▶ Analyze runs on the unified Scan landing the console shall read the OSS form values (modes, excludes, branch, sbom-info correction) through BtsOss.readForm, chain the same target into POST /api/oss/scan through BtsOss.start regardless of the main pipeline's outcome - including when the pipeline cannot read the target at all, so an archive target still gets its OSS scan - poll GET /api/oss/jobs/<id> until it leaves running, and never skip the OSS stage silently: a missing engine script or an empty mode selection renders an honest banner note naming the skip, and the scan banner then shows either the success note with the job id and a real button that activates the OSS 결과 tab, or a failure note naming the reason and stating what happened to the main result (1 of 1 chains, 2 of 2 honest skip paths, 2 of 2 banner outcomes).
 
 ### 책 라이브러리 기법 통합 — MCP 서버·Agent Card·컨텍스트 순서 (ai책모음 15권)
 
@@ -644,7 +650,7 @@ handoff 스키마와 MCP 표면을 함께 공개한다. (3) lost-in-the-middle �
 사이드바 버튼은 기존 상단 탭 바와 동일한 `.rtab[data-sv]` 계약을 유지해 activate()/subnav()/GROUPS 로직을 무변경
 으로 둔다. ScaApp 마운트는 #reportOut 하나뿐이며 탭 진입마다 재렌더한다(sca_app.js는 mount 스코프+1회 바인딩 가드).
 
-- BSA-AC-538 [Event] When the console page loads it shall build the section navigation as a desktop-style sidebar from GROUPS/LABELS with the same .rtab[data-sv] contract as the old top bar, containing 12 groups including the single-member report and chat groups whose sub-chip row stays hidden (12 of 12 groups, 1 of 1 built-at-init call).
+- BSA-AC-538 [Event] When the console page loads it shall build the section navigation as a desktop-style sidebar from GROUPS/LABELS with the same .rtab[data-sv] contract as the old top bar, containing the Scan group that carries the OSS Scanner as a member since ADR-0024 plus the single-member report group whose sub-chip row stays hidden (1 of 1 Scan membership, 1 of 1 built-at-init call).
 - BSA-AC-539 [Event] When the Report tab is opened the system shall render the selected project's header (name, source, analysed time, 5 severity chips, 4 document download buttons), the copied ScaApp report body into the single #reportOut mount, and re-render the whole screen on every entry of the tab (1 of 1 mount, 4 of 4 downloads, 5 of 5 chips, 1 of 1 entry hook).
 - BSA-AC-540 [Event] When an analysis finishes with state done the system shall switch to the Report tab automatically and render the two honest data-status warnings (empty project, incomplete vulnerability data) in the report banner while the scan-time status stays on the Scan tab (2 of 2 warning cases, 1 of 1 auto-switch).
 - BSA-AC-541 [Event] When the Report tab renders its governance cards it shall show the fix-plan summary from /api/view and fetch decision coverage and SBOM conformance once per project, rendering a loading line before the fetch, the measured numbers after it, and a not-loaded line carrying the error when the fetch fails (3 of 3 cards, 2 of 2 lazy fetches, 2 of 2 error lines).
@@ -724,3 +730,48 @@ CSV로 내보내는 /api/code-metrics(Understand metrics export 아날로그) �
 
 - BSA-AC-563 [Event] When to_dgml renders a code map it shall cluster nodes into directory Group nodes wired with Category="Contains" containment links (IsContainment true), mark hotspot nodes with the Hotspot category styled on the map's own background, categorise cycle edges as Cycle with red dashed stroke, set the Sugiyama layout flowing top-to-bottom, and drop self-loops - all four categories defined in the document's Categories block per the DGML reference (4 of 4 group members, 3 of 3 categories).
 - BSA-AC-564 [Event] When to_layer_dgml renders the layer validation it shall create one Group node per declared layer (plus an unknown group only when unmapped nodes exist), contain each node in its layer, categorise every cross-node link as Legal, Illegal or Bypassed exactly as layer_validate judged it, style Illegal red and Bypassed amber dashed through the document's Categories block, and declare the verdict as a Property - so the validation opens as a visual map in Visual Studio or any DGML viewer (1 of 1 containment rule, 3 of 3 link categories).
+
+### Scan 랜딩 통합 — OSS Scanner 화면 흡수 (사용자 지시 "이 화면은 scan 부분에 싹다 통합", 2026-11-22, ADR-0024)
+
+스크린샷으로 지시된 OSS Scanner 화면(폴더/아카이브/git 통합 분석 폼 + Previous scans)을 🌐 Scan 섹션
+안으로 통합한다. 랜딩 한 상자에 메인 파이프라인 입력(git/폴더/아카이브 + branch + offline·EXAONE)과 OSS
+폼 조각(분석 유형 체크박스·sbom-info.yaml 보정·exclude 칩 — oss_scanner.js가 #scaOssModes/#scaOssExcludes
+컨테이너에 채움)이 함께 있고, 그 아래 Previous scans(#ossHistoryLanding, Open/Compare)가 붙는다. 최상위
+"📜 OSS Scanner" 그룹은 제거되어 최상위 그룹이 하나 줄어들고, OSS 스캔의 진행·결과(라이선스 리스크·소스·의존성·
+바이너리·공개문·내보내기)는 Scan 섹션의 "📜 OSS 결과" 서브탭(#paneOss)이 담는다. 서브탭 전환은 pane
+스크립트가 bts:activate 커스텀 이벤트를 발행하면 콘솔이 activate로 이어받는 방식(CSP상 인라인 핸들러 없음).
+
+- BSA-AC-565 [Event] When the Scan landing renders it shall present one analyze box carrying the git/local/archive target input with its branch/tag field, the offline and EXAONE checkboxes, the OSS mode checkboxes with the sbom-info correction and the exclude chips, and the Previous scans list with Open and Compare buttons directly beneath - while the former top-level OSS Scanner group is absorbed into the Scan section as the OSS 결과 sub-tab that holds the progress stages and the results (license risk, source, dependency, binary, notice, export), and a history row's Open or the success banner's button lands on that sub-tab through the bts:activate event (1 of 1 unified forms, 3 of 3 landing containers, 1 of 1 Scan-section membership, 2 of 2 cross-tab jumps).
+
+### 클린룸 재구현 워크벤치 (docs/GLM_IMPLEMENTATION_BRIEF_6.md, 시나리오 5번)
+
+컴플라이언스 리스크(AGPL/GPLv3)로 소스 복제가 불가능한 컴포넌트를, 아키텍처·엔진 분석에 기반해 AI가
+신규로 재구현하는 레인(reimpl.py, 브리프 6). 법적 핵심은 **클린룸 2중 장벽 + 측정 게이트**: (벽 1)
+리더가 `ast`로 public 인터페이스(시그니처·docstring 계약)만 추출하고 구현 본문은 절대 내보내지 않는다,
+(벽 2) 생성기는 명세 텍스트만 입력받는다 — 원본 소스는 이 함수의 매개변수가 아니므로 프롬프트 유출이
+구조적으로 불가능, (게이트) 생성물과 원본의 행 shingle 대조 — docstring은 명세에서 온 것이므로 양쪽에서
+제거한 뒤 구현 복제만 측정하고 임계(0.05) 초과 시 기각. 라이선스 게이트가 거부하면 생성 전에 중단.
+테스트는 생성 코드가 비신뢰이므로 격리 서브프로세스(타임아웃·별도 work 폴더)로 실행되고, publish 기본은
+folder이며 inplace는 명시 플래그 없으면 거부된다. 모든 단계는 이벤트로 스트리밍: CLI 실시간 출력,
+POST /api/reimpl은 job+EventBus로 /api/jobs/<id>/events 스트림에 step_end/final을 흘린다. LLM 부재 시
+결정론 스캐폴드(시그니처+생성 테스트)까지 가며, 본문 생성엔 LLM 필요함을 결과에 명시한다.
+
+- BSA-AC-566 [Event] When extract_interface reads a component it shall export exactly the public functions and classes with their signatures and first-line docstring contracts plus the external import roots, and the exported structure shall contain no implementation body text - the reader never leaks bodies into the spec (2 of 2 surface kinds, 1 of 1 no-body rule).
+- BSA-AC-567 [Event] When the lane runs it shall write the spec document and the dependency DGML (arch_map) to the artifact folder and emit spec_ready and diagram_ready events before any generation (2 of 2 artifacts, 2 of 2 events).
+- BSA-AC-568 [Event] When the generator runs behind wall 2 its prompt shall be built from the spec text only, with the original source structurally absent from the generation function; with an LLM client it shall produce the new implementation, and without one it shall produce the deterministic scaffold marked "SCAFFOLD ONLY" so the missing bodies are stated, never implied (1 of 1 barrier, 2 of 2 generation modes).
+- BSA-AC-569 [Event] When the copy gate compares the generated code against the original it shall strip docstrings from both sides (contracts come from the spec), measure line-shingle overlap, reject above the threshold and refuse when license strings appear - and a genuine independent implementation shall pass (1 of 1 measurement, 2 of 2 refusal causes).
+- BSA-AC-570 [Event] When the generated contract tests run they shall execute in an isolated work folder under a subprocess timeout (generated code is untrusted), and the lane shall report tests_passed or tests_failed with the tail - partial results with reasons, never a silent outcome (1 of 1 isolation rule, 2 of 2 outcomes).
+- BSA-AC-571 [Event] When every gate passes the lane shall publish by copying code and tests to the destination folder, refuse an inplace destination without the explicit flag, and stream published; the license gate shall refuse the whole lane before generation when it says no (2 of 2 publish rules, 1 of 1 license refusal).
+
+### Book KB = 서비스 고도화 추론 소스 — 책 DB가 아니라 책→우리 서비스 적용의 화면 (사용자 지정 2026-11-22, ADR-0025)
+
+사용자 지정: "book db는 kw db를 만들라는 게 아니라 우리 서비스를 고도화하는데 추론하라는 걸로 쓰이는 것" —
+Book KB 화면의 주인공을 라이브러리(수집·검색·목록)에서 추론 산출물로 바꾼다. 새 두 읽기 API가 추론 층을
+노출한다: GET /api/books/notes는 knowledge_books/ 정제 노트를 노트별 원저작 형태(제목·출처 책·핵심 원칙·
+"이 프로젝트 적용" 불릿)로, GET /api/books/map은 docs/BOOK_IMPROVEMENT_MAP.md를 영역별 표(기법·상태·근거,
+** 제거, 구분행 제외)로 돌려준다. 파서는 루트가 없을 때 절대 CWD로 폴백하지 않고 정직한 빈 값+힌트를
+돌려준다(테스트 더블·잘못된 배치에서 실제 저장소를 몰래 읽는 일 금지). bts_books.js는 화면 상단을
+"🧠 우리 서비스 고도화 추론" 상자(개선 지도 → 정제 노트 순)로 열고, 인제스트·검색은 "노트와 지도가 추론된
+원문 소스"/"추론의 근거를 본문에서 확인"으로 재프레밍되어 그 아래에 둔다.
+
+- BSA-AC-572 [Event] When the Book KB screen loads it shall render the service-upgrade inference output first - the improvement map (docs/BOOK_IMPROVEMENT_MAP.md parsed per area with each technique's adoption status and evidence) and then the distilled notes (knowledge_books/ parsed per note into title, source book, 핵심 원칙 and 이 프로젝트 적용 bullets) through GET /api/books/map and GET /api/books/notes - while ingest, full-text search and the library registry stay below them as the inference's source infrastructure, and a missing notes folder, a missing map doc or a state without a root returns the honest empty value with its hint instead of ever falling back to the process working directory (2 of 2 parsers, 2 of 2 api reads, 1 of 1 inference-first order, 3 of 3 honest empties).

@@ -520,6 +520,56 @@ def make_handler(st: State):
             if path.startswith("/api/jobs/"):
                 j = st.jobs.get(path.rsplit("/", 1)[-1])
                 return self._send(200 if j else 404, j or {"error": "unknown job"})
+            if path.startswith("/api/code-metrics/"):
+                hit = st.project(urllib.parse.unquote(path[len("/api/code-metrics/"):]))
+                if hit is None:
+                    return self._send(404, {"error": "unknown project"})
+                folder, rec = hit
+                fns = ((rec.get("arch") or {}).get("code") or {}).get("functions") or []
+                if not fns:
+                    return self._send(404, {"error": "this project has no function-level analysis (Python-only lane)"})
+                head = "name,file,line,complexity,nesting,loc,sloc,fan_in,fan_out"
+                rows = "\n".join(",".join(str(f.get(k)) for k in
+                                          ("name", "file", "line", "complexity", "nesting", "loc", "sloc", "fan_in", "fan_out"))
+                                 for f in fns)
+                return self._send(200, head + "\n" + rows, "text/csv",
+                                  {"Content-Disposition": 'attachment; filename="%s-code-metrics.csv"' % rec.get("name", "project")})
+            if path.startswith("/api/code-butterfly/"):
+                hit = st.project(urllib.parse.unquote(path[len("/api/code-butterfly/"):]))
+                if hit is None:
+                    return self._send(404, {"error": "unknown project"})
+                folder, rec = hit
+                code = (rec.get("arch") or {}).get("code") or {}
+                fname = (q.get("function") or [""])[0].strip()
+                if not fname:
+                    return self._send(400, {"error": "function required (?function=<name>)"})
+                try:
+                    from . import code_intel as _ci
+                    bf = _ci.butterfly(code, fname)
+                except ImportError:
+                    bf = None
+                if bf is None:
+                    return self._send(404, {"error": "unknown function %r in this project's code intel" % fname})
+                return self._send(200, bf)
+            if path == "/api/diagrams":                              # the EA-17.2 catalog (ADR-0024): no project needed
+                from . import diagrams as _dg
+                return self._send(200, {"catalog": _dg.catalog_doc()})
+            if path.startswith("/api/diagrams/"):
+                from . import diagrams as _dg
+                kind = urllib.parse.unquote(path[len("/api/diagrams/"):]).strip().lower()
+                if kind not in _dg.CATALOG:
+                    return self._send(404, {"error": "unknown diagram kind %r (GET /api/diagrams lists the catalog)" % kind})
+                rec = None
+                pname = (q.get("project") or [""])[0]
+                if pname:
+                    hit = st.project(urllib.parse.unquote(pname))
+                    if hit is None:
+                        return self._send(404, {"error": "unknown project"})
+                    rec = hit[1]
+                arch_dir = os.path.join(st.evidence, "archintel")
+                doc = _dg.latest_arch_doc(arch_dir) if _dg.CATALOG[kind].get("arch_doc") else None
+                d = _dg.build(kind, rec, doc, target=(q.get("target") or [""])[0], spec=(q.get("spec") or [""])[0][:400])
+                return self._send(200, d)
             for prefix in ("/api/view/", "/api/sbom/", "/api/doc/"):
                 if path.startswith(prefix):
                     name = urllib.parse.unquote(path[len(prefix):])
@@ -657,6 +707,53 @@ def make_handler(st: State):
                 except Exception:                          # noqa: BLE001 - the bot already emitted its fatal error envelope
                     pass
                 return
+            if path == "/api/reimpl":
+                # the clean-room lane (brief 6): source -> interface spec + diagram -> NEW code -> copy gate ->
+                # generated tests. Artifacts land under evidence/reimpl/<job>; publish is CLI-only (an HTTP
+                # caller must not choose filesystem destinations). Live via the job's SSE stream.
+                src = str(b.get("source") or "")
+                bad = _safe_source(src)
+                if bad:
+                    return self._send(400, {"error": bad})
+                comp = str(b.get("component") or "").strip()
+                if not comp or comp.startswith("/") or ".." in comp:
+                    return self._send(400, {"error": "component required (a module path inside the source, no traversal)"})
+                jid = uuid.uuid4().hex[:10]
+                st.jobs[jid] = {"state": "running", "kind": "reimpl", "source": src, "component": comp}
+                bus = events.EventBus(jid)
+                _prune_buses(st.buses, MAX_BUSES - 1)
+                st.buses[jid] = bus
+
+                def work() -> None:
+                    from . import reimpl as reimpl_mod
+                    out = os.path.join(st.evidence, "reimpl", jid)
+                    final: Dict[str, Any]
+
+                    def on_progress(ev: Dict[str, Any]) -> None:
+                        try:
+                            ok = not ev["event"].endswith("_failed") and ev["event"] not in ("refused", "copy_gate_failed", "publish_refused")
+                            bus.publish("step_end", name=ev["event"], ok=ok, seconds=0.0)
+                        except Exception:                      # noqa: BLE001 - telemetry never kills the lane
+                            pass
+
+                    try:
+                        client = st.client if (st.client.available and bool(b.get("use_llm"))) else None
+                        final = reimpl_mod.reimpl(src, comp, out, client=client,
+                                                  license_ok=bool(b.get("license_ok", True)),
+                                                  why=str(b.get("why") or "compliance-risky license (clean-room reimplementation)"),
+                                                  progress=on_progress)
+                    except Exception as exc:                   # noqa: BLE001 - the job reports, it never vanishes
+                        final = {"verdict": "error", "reason": str(exc)[:200]}
+                    try:
+                        bus.publish("final", state=final.get("verdict", "error"))
+                    except Exception:                          # noqa: BLE001
+                        pass
+                    st.jobs[jid] = dict(final, state=("done" if final.get("verdict") == "ok" else "error"),
+                                        kind="reimpl", source=src, component=comp)
+                    bus.close()
+
+                threading.Thread(target=work, daemon=True).start()
+                return self._send(202, {"job": jid})
             if path == "/api/llm":
                 key = str(b.get("api_key") or "").strip()
                 base = str(b.get("base_url") or "").strip()
