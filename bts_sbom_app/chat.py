@@ -59,6 +59,12 @@ def order_passages_for_prompt(question: str, docs: Sequence[Tuple[str, str]], ca
     return [(sid, txt) for _, sid, txt in scored[:cap]]
 
 
+def passage_trim_note(total: int, cap: int = 6) -> str:
+    """Honest trim accounting (harness engineering: a quiet loss is a lie): "" when nothing was trimmed."""
+    trimmed = max(0, int(total) - cap)
+    return "%d of %d trusted passages handed to the model (%d trimmed by relevance, cap %d)" % (cap, total, trimmed, cap) if trimmed else ""
+
+
 def verify_claims(claims: Sequence[Dict[str, Any]], docs: Dict[str, str]) -> Dict[str, Any]:
     ok = [c for c in claims if c.get("source") in docs and c.get("quote") and _norm(c["quote"]) in _norm(docs[c["source"]])]
     return {"claims": len(claims), "verified": len(ok), "accuracy": round(len(ok) / len(claims), 3) if claims else 1.0, "kept": ok}
@@ -790,7 +796,7 @@ class Chatbot:
             calls.append(("patch", {}))
         if re.search(r"아키텍처|레거시|순환|핫스팟|architecture|legacy|cycle|hotspot|현대화|런타임|eol", low):
             calls.append(("architecture", {}))
-        if re.search(r"책|서적|도서|\bbooks?\b", low):                    # the ingested book library (no project needed)
+        if re.search(r"(?<!해결)(?<!대책)(?<!방책)책|서적|도서|\bbooks?\b", low):   # the ingested book library (no project needed)
             calls.append(("book_search", {"q": q[:300]}))
         ind = next((k for k, ws in _INDUSTRY.items() if any(w in low for w in ws)), None)
         if ind or re.search(r"규제|sector|산업|compliance|준수", low):
@@ -842,7 +848,7 @@ class Chatbot:
         if re.search(r"의무|obligation|saas|배포|distribution|copyleft|gpl|충돌|conflict|판정|리스크|위험", low) and re.search(r"라이선스|license|copyleft|gpl", low):
             dist = "saas" if re.search(r"saas|서비스형|클라우드 서비스", low) else ("internal" if re.search(r"internal|사내|내부", low) else None)
             calls.append(("license_risks", {"distribution": dist} if dist else {}))
-        if re.search(r"proposals?|제안(?!서)|(수정|패치|업그레이드|취약|보안|fix).{0,10}(추천|recommend)|(추천|recommend).{0,10}(수정|패치|업그레이드|fix)", low):
+        if re.search(r"proposals?\b|제안(?!서)|(?:수정|패치|업그레이드|취약|보안|fix).{0,10}(추천|recommend)|(추천|recommend).{0,10}(수정|패치|업그레이드|fix)", low):
             calls.append(("proposals", {}))
         if re.search(r"\bvex\b|openvex|내보내|export", low):
             calls.append(("export_vex", {}))
@@ -865,7 +871,7 @@ class Chatbot:
         pre = self._valid(self._action_calls(q, None), None, q)
         if re.search(r"arch ?intel|아키텍처 인텔", low):                     # the recorded deep-dive needs no analysed project
             return self._run(None, pre + [{"tool": "latest_arch", "args": {}}])
-        if re.search(r"책|서적|도서|\bbooks?\b", low):                      # the book library likewise
+        if re.search(r"(?<!해결)(?<!대책)(?<!방책)책|서적|도서|\bbooks?\b", low):   # the book library likewise (해결책 is not a book)
             return self._run(None, pre + [{"tool": "book_search", "args": {"q": q[:300]}}])
         if not _FLEET_Q.search(low):
             return self._run(None, pre)
@@ -876,6 +882,32 @@ class Chatbot:
         for n in names[:2]:
             calls.append({"tool": "affected_projects", "args": dict({"component": n}, **({"version": ver.group(1)} if ver and len(names) == 1 else {}))})
         return self._run(None, calls[:MAX_CALLS])
+
+    def _llm_answer(self, question: str, trusted_docs: Sequence[Tuple[str, str]], docs: Dict[str, str], trust: Dict[str, str],
+                    prior_fail: Optional[str] = None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """One LLM answer attempt over the ordered trusted passages -> (parsed object, verification).
+
+        ``prior_fail`` is the concrete failure of the previous attempt (loop engineering, nl2sql precedent):
+        it rides along in the system prompt so the retry fixes THAT, not a paraphrase of it."""
+        passages = "\n\n".join("[%s]\n%s" % (sid, txt[:1400]) for sid, txt in trusted_docs[:6])
+        system = ("Answer the question using ONLY the passages. Return JSON {\"answer\": string, \"claims\": [{\"text\", \"quote\", \"source\"}]}; "
+                  "each quote must be copied verbatim from the cited passage IN ITS ORIGINAL LANGUAGE (never translate a quote) and source "
+                  "must be that passage's id exactly as written inside the brackets, without the brackets. Only the answer text follows the "
+                  "question's language. "
+                  "If the passages do not contain the answer say so.")
+        if prior_fail:
+            system += " IMPORTANT: your previous answer was rejected - %s. Fix exactly that." % prior_fail
+        raw = self.client.complete(system, "QUESTION: %s\n\nPASSAGES:\n%s" % (question, passages), max_tokens=4096, json_mode=True)
+        obj = ai._parse_json(raw)
+        lc = [c for c in obj.get("claims", []) if isinstance(c, dict)]
+        for c in lc:                                   # normalise the pointer: "[id]" -> "id"; if the id is still unknown but the
+            s = str(c.get("source", "")).strip().strip("[]").strip()     # quote sits verbatim in exactly ONE of this question's
+            if s not in docs:                                             # documents, point at that document
+                hit = [sid for sid, d in docs.items() if c.get("quote") and _norm(str(c["quote"])) in _norm(d)]
+                s = hit[0] if len(hit) == 1 else s
+            c["source"] = s
+            c["trust"] = trust.get(s, "unknown")
+        return obj, verify_claims(lc, docs)
 
     def ask(self, question: str, *, project: Optional[str] = None, use_llm: bool = False, k: int = 4) -> Dict[str, Any]:
         if project and project not in self.projects:
@@ -957,30 +989,26 @@ class Chatbot:
         elif use_llm and self.client is not None:
             try:                                        # the model only ever sees trusted passages: untrusted text is appended verbatim afterwards
                 trusted_docs = order_passages_for_prompt(question, trusted_docs)
-                passages = "\n\n".join("[%s]\n%s" % (sid, txt[:1400]) for sid, txt in trusted_docs[:6])
-                raw = self.client.complete(
-                    "Answer the question using ONLY the passages. Return JSON {\"answer\": string, \"claims\": [{\"text\", \"quote\", \"source\"}]}; "
-                    "each quote must be copied verbatim from the cited passage IN ITS ORIGINAL LANGUAGE (never translate a quote) and source "
-                    "must be that passage's id exactly as written inside the brackets, without the brackets. Only the answer text follows the "
-                    "question's language. "
-                    "If the passages do not contain the answer say so.",
-                    "QUESTION: %s\n\nPASSAGES:\n%s" % (question, passages), max_tokens=4096, json_mode=True)
-                obj = ai._parse_json(raw)
-                lc = [c for c in obj.get("claims", []) if isinstance(c, dict)]
-                for c in lc:                                   # normalise the pointer: "[id]" -> "id"; if the id is still unknown but the
-                    s = str(c.get("source", "")).strip().strip("[]").strip()     # quote sits verbatim in exactly ONE of this question's
-                    if s not in docs:                                             # documents, point at that document
-                        hit = [sid for sid, d in docs.items() if c.get("quote") and _norm(str(c["quote"])) in _norm(d)]
-                        s = hit[0] if len(hit) == 1 else s
-                    c["source"] = s
-                    c["trust"] = trust.get(s, "unknown")
-                v2 = verify_claims(lc, docs)
-                if v2["kept"] and isinstance(obj.get("answer"), str) and v2["accuracy"] >= 0.8:
-                    answer = obj["answer"] + "".join("\n- [untrusted quote] " + c["text"] for c in untrusted_claims)
-                    ver, src = dict(v2, kept=v2["kept"] + untrusted_claims), "exaone"
-                else:
-                    llm_note = "EXAONE answer rejected (citation accuracy %s) -> extractive answer" % v2["accuracy"]
-            except (LLMUnavailable, LLMError, ValueError, TypeError, AttributeError) as exc:
+                trim = passage_trim_note(len(trusted_docs))
+                fail = None
+                for attempt in (1, 2):                  # loop engineering: one self-correction round with the concrete failure attached
+                    try:
+                        obj, v2 = self._llm_answer(question, trusted_docs, docs, trust, prior_fail=fail)
+                    except (ValueError, TypeError, AttributeError) as exc:
+                        fail = "unparseable or malformed JSON (%s)" % str(exc)[:90]
+                        llm_note = "EXAONE answer %s (%s)" % ("unparseable twice" if attempt == 2 else "unparseable -> one retry with the failure attached", str(exc)[:80])
+                        if attempt == 2:
+                            llm_note += " -> extractive answer"
+                        continue
+                    if v2["kept"] and isinstance(obj.get("answer"), str) and v2["accuracy"] >= 0.8:
+                        answer = obj["answer"] + "".join("\n- [untrusted quote] " + c["text"] for c in untrusted_claims)
+                        ver, src = dict(v2, kept=v2["kept"] + untrusted_claims), "exaone"
+                        llm_note = trim
+                        break
+                    fail = "citation accuracy %s below the 0.8 gate or no verified claims" % v2["accuracy"]
+                    llm_note = "EXAONE answer rejected (%s) -> extractive answer" % fail if attempt == 2 \
+                        else "EXAONE answer rejected (citation accuracy %s) -> one retry with the failure attached" % v2["accuracy"]
+            except (LLMUnavailable, LLMError) as exc:
                 llm_note = "EXAONE unavailable -> extractive answer: " + str(exc)[:160]
         if conf:                                        # reader-facing annotation, appended AFTER every answer source (extractive or LLM)
             answer += "".join("\n- [conflict] %s: %s (%s) vs %s (%s) - the sources disagree; the judgement stays with you." % (

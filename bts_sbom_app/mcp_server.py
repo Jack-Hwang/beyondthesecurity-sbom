@@ -47,6 +47,38 @@ TOOL_DEFS: List[Dict[str, Any]] = [
 ]
 
 
+RESOURCES: List[Dict[str, Any]] = [
+    {"uri": "bts://tools/catalog", "name": "Tool catalog", "mimeType": "application/json",
+     "description": "Every chat tool with its argument contract (chat.TOOL_CATALOG) - the dictionary an orchestrator reads before calling."},
+    {"uri": "bts://agent/card", "name": "Agent card", "mimeType": "application/json",
+     "description": "The A2A-style skill/gate declaration (same JSON as GET /api/agent-card)."},
+    {"uri": "bts://books/notes-index", "name": "Distilled book notes index", "mimeType": "application/json",
+     "description": "The knowledge_books/ distilled notes (our own synthesis) - titles only; read notes via the book_search tool or the files themselves."},
+]
+
+
+def _resource_text(s: Session, uri: str) -> str:
+    if uri == "bts://tools/catalog":
+        return json.dumps(chatmod.TOOL_CATALOG, ensure_ascii=False, indent=1, default=str)
+    if uri == "bts://agent/card":
+        from .server import agent_card                     # lazy: keep mcp_server importable without the HTTP stack
+        return json.dumps(agent_card(None), ensure_ascii=False, indent=1, default=str)
+    if uri == "bts://books/notes-index":
+        d = os.path.join(s.root, booksmod.NOTES_DIR)
+        rows = []
+        for fn in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+            if fn.endswith(".md"):
+                head = ""
+                try:
+                    with open(os.path.join(d, fn), "r", encoding="utf-8") as fh:
+                        head = fh.readline().lstrip("# ").strip()[:120]
+                except OSError:
+                    head = ""
+                rows.append({"file": "knowledge_books/" + fn, "title": head})
+        return json.dumps({"count": len(rows), "notes": rows}, ensure_ascii=False, indent=1)
+    raise KeyError(uri)
+
+
 class Session:
     """Lazy per-process state: nothing is loaded until a tool actually needs it (an MCP client may only ever call one)."""
 
@@ -152,6 +184,19 @@ def handle(s: Session, msg: Any) -> Optional[Dict[str, Any]]:
         return None
     if method == "tools/list":
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": TOOL_DEFS}}
+    if method == "resources/list":
+        return {"jsonrpc": "2.0", "id": mid, "result": {"resources": RESOURCES}}
+    if method == "resources/read":
+        uri = str(params.get("uri") or "")
+        try:
+            text = _resource_text(s, uri)
+        except KeyError:
+            return {"jsonrpc": "2.0", "id": mid,
+                    "result": {"contents": [], "isError": True,
+                               "content": [{"type": "text", "text": "unknown resource %r (known: %s)" % (uri, ", ".join(r["uri"] for r in RESOURCES))}]}}
+        return {"jsonrpc": "2.0", "id": mid,
+                "result": {"contents": [{"uri": uri, "mimeType": next((r["mimeType"] for r in RESOURCES if r["uri"] == uri), "text/plain"),
+                                         "text": text}]}}
     if method == "tools/call":
         name = str(params.get("name") or "")
         args = params.get("arguments") or {}

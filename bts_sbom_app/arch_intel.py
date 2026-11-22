@@ -919,6 +919,16 @@ def run(src: str, *, work_root: str, out_dir: str, jid: str = "manual", client: 
 
         t0 = stage("anchors")
         snippets = code_snippets(root, st["key_files"], project_license=lic["project_license"])
+        if not ai_res["analysis"].get("scenarios"):
+            # the validator dropped every LLM scenario (unverifiable component references): fall back to the
+            # deterministic static-inference scenario so the Sequence view never silently disappears
+            # (user test 2026-11-22: django.nV lost all sequences this way). Labeled inferred, as usual.
+            fb = deterministic_analysis(ev, lang=lang)
+            ai_res["analysis"]["scenarios"] = fb["scenarios"]
+            if fb["scenarios"]:
+                ai_res["llm_note"] = (ai_res["llm_note"] + " | " if ai_res.get("llm_note") else "") + \
+                    ("모든 LLM 시나리오가 검증에서 드롭되어 결정론적 기동 흐름으로 대체했습니다"
+                     if lang != "en" else "all LLM scenarios were dropped by validation; replaced by the deterministic startup flow")
         diagrams = build_diagrams(ai_res["analysis"], st["edges"])
         stage_done("anchors", t0)
 

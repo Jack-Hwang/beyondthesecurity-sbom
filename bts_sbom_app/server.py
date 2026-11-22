@@ -102,9 +102,12 @@ class State:
         self.startup_client = self.client                    # a disconnect falls back to what the process was started with
         if not self.client.available:                        # the key entered in the web console survives a restart (evidence/.llm_config.json);
             saved = self.saved_llm_config()                  # an explicit startup configuration (env / --llm-config) still wins over the saved file
-            if saved.get("api_key"):
-                self.client = ChatClient.from_config(str(saved.get("api_key")), str(saved.get("base_url") or ""),
-                                                     str(saved.get("model") or ""), ledger=os.path.join(root, "evidence", ".llm_ledger.json"))
+            key = str(saved.get("api_key") or saved.get("azure_api_key") or "")   # the file may hold the Azure shape the
+            if key:                                                               # console/earlier versions wrote (user-test 2026-11-22)
+                base = str(saved.get("base_url") or saved.get("azure_base_url") or "")
+                model = str(saved.get("model") or saved.get("azure_deployment") or saved.get("azure_model") or "")
+                self.client = ChatClient.from_config(key, base, model, ledger=os.path.join(root, "evidence", ".llm_ledger.json"),
+                                                     api_version=str(saved.get("azure_api_version") or "") or None)
         self.triage_path = os.path.join(evidence, ".triage.json")
         self._books_cache: Optional[Tuple[Optional[Tuple[int, int]], Any]] = None   # ((mtime_ns, size) of registry.json, rag.Index)
 
@@ -136,7 +139,11 @@ class State:
             self._books_cache = None
 
     def _llm_config_path(self) -> str:
-        return os.path.join(self.evidence, ".llm_config.json")
+        """The saved console key is stable state, not a run artifact: it lives at <root>/evidence/.llm_config.json
+        (the same root-based location as the LLM ledger), so a server started with the default --evidence runs
+        folder still finds the key the user chose to keep. Bug found in the user test 2026-11-22: the lookup used
+        the --evidence runs folder and silently disconnected every restart that did not pass --evidence evidence."""
+        return os.path.join(self.root, "evidence", ".llm_config.json")
 
     def saved_llm_config(self) -> Dict[str, Any]:
         """The key the user entered in the web console and chose to keep (evidence/.llm_config.json, plain text - the evidence folder is local)."""
@@ -153,7 +160,7 @@ class State:
         with self.lock:
             self.client = c
             if remember:
-                os.makedirs(self.evidence, exist_ok=True)
+                os.makedirs(os.path.dirname(self._llm_config_path()), exist_ok=True)
                 write_json(self._llm_config_path(), {"api_key": key, **({"base_url": base} if base else {}), **({"model": model} if model else {})})
         return self.llm_status()
 

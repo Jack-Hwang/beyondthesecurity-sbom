@@ -649,3 +649,16 @@ handoff 스키마와 MCP 표면을 함께 공개한다. (3) lost-in-the-middle �
 - BSA-AC-540 [Event] When an analysis finishes with state done the system shall switch to the Report tab automatically and render the two honest data-status warnings (empty project, incomplete vulnerability data) in the report banner while the scan-time status stays on the Scan tab (2 of 2 warning cases, 1 of 1 auto-switch).
 - BSA-AC-541 [Event] When the Report tab renders its governance cards it shall show the fix-plan summary from /api/view and fetch decision coverage and SBOM conformance once per project, rendering a loading line before the fetch, the measured numbers after it, and a not-loaded line carrying the error when the fetch fails (3 of 3 cards, 2 of 2 lazy fetches, 2 of 2 error lines).
 - BSA-AC-542 [State] The copied platform renderer sca_app.js and the platform stylesheets shall stay byte-identical to their pinned hashes while the desktop shell, the Report tab and the Chat tab are added around them (6 of 6 pinned files unchanged, 1 of 1 ScaApp mount in the page).
+
+### 책 재추론 개선 2차 — 답변 자기교정·절삭 보고·MCP 리소스 (BOOK_IMPROVEMENT_MAP)
+
+docs/BOOK_IMPROVEMENT_MAP.md의 전수 갭 분석(15권, 구현/신규/부분/기각 4상태)에서 나온 미구현 고가치 3건.
+(1) 답변 레인 자기교정: LLM 첫 답변이 인용 정확도 게이트 미달이거나 JSON 파싱 실패면, 거절 사유를 시스템
+프롬프트에 그대로 첨부해 1회만 재시도한다(nl2sql 루프의 채팅 확장) — 재거절 시 기존과 동일한 추출 폴백+
+정직 노트. (2) 절삭 보고: 신뢰 문서가 상한 6을 넘으면 "N of M passages (K trimmed)"를 llm_note로 보고한다
+(조용한 손실 금지). (3) MCP resources: resources/list(3건: tools/catalog, agent/card, books/notes-index)와
+resources/read 본문 반환, 미지 URI는 isError+known 목록 — "툴=행동, 리소스=카탈로그"(G2 잔여분).
+
+- BSA-AC-543 [Event] When the LLM answer lane's first attempt is rejected for citation accuracy below the 0.8 gate or for unparseable JSON, ask shall retry exactly once with the concrete failure text embedded in the system prompt, accept a passing retry as the cited answer, and fall back to the extractive answer with the rejected note after a second failure - never more than one retry (2 of 2 failure kinds, 1 of 1 retry budget).
+- BSA-AC-544 [Event] When more trusted passages exist than the prompt cap of 6 the LLM answer's llm_note shall report exactly "N of M trusted passages handed to the model (K trimmed by relevance, cap 6)" and report nothing when nothing was trimmed (1 of 1 notes, 1 of 1 quiet-loss prohibition).
+- BSA-AC-545 [Event] When an MCP client lists resources it shall receive exactly the tool catalog, agent card and book-notes-index entries, and resources/read shall return each uri's typed text body - the catalog containing the chat tool contracts, the card matching /api/agent-card with 7 skills, the notes index enumerating the knowledge_books files - while an unknown uri returns isError with the known list (3 of 3 resources, 1 of 1 unknown-uri refusal).

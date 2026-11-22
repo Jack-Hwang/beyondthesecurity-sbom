@@ -141,7 +141,7 @@
       if (job.state !== 'done') { setStep(3, job.error || 'The analysis failed.', true); return null; }
       var m = job.metrics || {};
       setStep(4, 'Done: ' + (m.components || 0) + ' components, ' + (m.vulns || 0) + ' findings in ' + (m.elapsed_s || '?') + ' s.');
-      return loadHistory().then(function () { return selectProject(job.name, true); });
+      return loadHistory().then(function () { return selectProject(job.name, true).then(function () { return job; }); });
     });
   }
   function analyse(src) {

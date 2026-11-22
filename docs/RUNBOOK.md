@@ -42,6 +42,23 @@ What exists today and what was actually checked, in this worktree, as of this ch
   the notes are both excluded from `evals.build_index` (테스트 강제, `books_eval_baseline.json` == post-ingestion
   측정). The chat answers from the library via the `book_search` tool and the Book KB tab serves registry, outline,
   search and re-ingest.
+- **2026-11-22: real user test of the full 5-step scenario (구글링 → 신규 폴더 clone → 스캔·리포트 → AI 재구현 →
+  시퀀스 다이어그램) found and fixed 4 real defects**, then a 100-round HTTP loop (`scripts/usertest_loop.py`,
+  artifacts `evidence/usertest/findings.json`) passed **100/100** (5 heavy = the full scenario incl. patch plan +
+  sequence, 15 medium = report/governance/chat surface, 80 light = always-on endpoints) in 39 s. The defects,
+  each reproduced through the real UI or API before the fix:
+  1. the analysis never auto-switched to the new Report tab - `runJob`'s promise chain returned the
+     `selectProject` result (undefined) instead of the job, so the `job.state` check never fired (bts_console.js);
+  2./3. the saved console key was invisible: `State._llm_config_path` looked under the --evidence runs folder
+     (and only understood the generic key shape, not the Azure shape the console had written) - both now
+     root-based like the ledger (server.py); with the fix the saved gpt-5-mini key auto-connects on restart;
+  4. a project whose every LLM scenario fails validation lost the Sequence view entirely (django.nV: 5 dropped,
+     sequence count 0) - the deterministic static-inference startup flow now fills in, honestly labelled
+     (arch_intel.py, ai_note states the replacement).
+  One incident to own: while fixing 2/3, the pre-existing LLM tests pointed `State.root` at the REAL repository
+  and overwrote the user's saved `evidence/.llm_config.json` with a test key - the Azure key the user had kept
+  there is **lost and must be re-entered** (Connect in the top bar with save checked); the test fixture now uses
+  a tmp root so it cannot happen again (test_server_cli.py).
 - **2026-11-22: `bts-sbom-app ragloop` pass 5 is RED — and the books layer is not the cause.** The gate compares
   against pass 4 (brief1-era baseline: dev recall 1.000, dev mrr 0.869, dev ood 1.000) and fails on drift that was
   introduced by the earlier round-1/brief-5 work (now commit `ec58c1b`): the `knowledge/lecture/*.md` corpus
