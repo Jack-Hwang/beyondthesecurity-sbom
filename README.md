@@ -17,7 +17,7 @@ $ python -m bts_sbom selfsbom
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
 
-## What's new in 0.5.0 — clean-room reimplementation + REA-integrated architecture tools
+## What's new in 0.5.0 — clean-room reimplementation + architecture tools
 
 The headline of this release: the toolkit no longer only *scans* — it can now **re-implement** a
 compliance-risky legacy component from its measured architecture, prove the result, and publish it:
@@ -31,10 +31,9 @@ compliance-risky legacy component from its measured architecture, prove the resu
   `published`, ...). Batch-verified on 64 real legacy PyPI packages (dataset: 146 rows, 32 packages
   through the lane, 31/32 behaviour-compatible in the latest run; full analysis in
   `evidence/reimpl_batch/ANALYSIS.md`).
-- **REA-integrated architecture tools** (adopted from a REA of the shipped Visual Studio 2026 modeling
-  assemblies — provenance in `docs/VS2026_REA_FINDINGS.md`): DGML export of the measured import graph
+- **Architecture tools**: DGML export of the measured import graph
   (`arch --dgml`, opens in VS Code Maps) with directory groups, hotspot/cycle categories and a
-  layer-validation map (`arch --dgml-layers`); layer validation with the REAL Visual Studio semantics —
+  layer-validation map (`arch --dgml-layers`); layer validation with declarative deny-list semantics —
   ForbiddenNamespace deny-lists, obsolete layers, unique names, moniker ambiguity, participation
   opt-out — and VS's own error message wording.
 - **Book knowledge base**: two-tier extraction of local PDF/EPUB libraries (stdlib EPUB spine parsing,

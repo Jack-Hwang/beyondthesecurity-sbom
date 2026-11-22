@@ -2,7 +2,7 @@
 
 All notable changes to bts-sbom are documented here.
 
-## 0.5.0 - 2026-11-22: Clean-room reimplementation lane + book KB + MCP server + VS 2026 REA
+## 0.5.0 - 2026-11-22: Clean-room reimplementation lane + book KB + MCP server + architecture tools
 
 - Clean-room reimplementation workbench (`bts-sbom-app reimpl` / POST /api/reimpl): interface spec ->
   NEW code generated behind a two-wall process (the generator never sees the original source) ->
@@ -19,7 +19,7 @@ All notable changes to bts-sbom are documented here.
   question decomposition, lost-in-the-middle passage reordering, upstream-oracle compatibility loop for
   generated code, 7-event chat-level SSE with HITL approval, and the REAL Visual Studio layer-model
   semantics (ForbiddenNamespace, obsolete layers, unique names, moniker ambiguity, participation
-  opt-out) adopted by REA of the shipped Microsoft.VisualStudio.Layer 18.11 assemblies.
+  opt-out) adopted from the Visual Studio layer-model semantics.
 - DGML export of the measured import graph (Visual Studio Code Maps interop) with directory groups,
   hotspot/cycle categories and a layer-validation map; supply-chain gate (docker build -> Trivy
   CRITICAL gate -> CycloneDX SBOM -> own-repo SBOM -> /healthz bench) measured end to end.
