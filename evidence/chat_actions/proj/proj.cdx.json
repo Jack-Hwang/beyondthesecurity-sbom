@@ -1,0 +1,426 @@
+{
+ "bomFormat": "CycloneDX",
+ "specVersion": "1.5",
+ "version": 1,
+ "serialNumber": "urn:uuid:968d03d7-0884-50e5-ae9f-b10005ef91c2",
+ "metadata": {
+  "timestamp": "2026-11-22T23:21:28+00:00",
+  "tools": {
+   "components": [
+    {
+     "type": "application",
+     "name": "bts_sbom_app",
+     "version": "0.5.0"
+    }
+   ]
+  },
+  "component": {
+   "type": "application",
+   "bom-ref": "app:proj",
+   "name": "proj"
+  },
+  "properties": [
+   {
+    "name": "bts-sbom:lineage:commit",
+    "value": "2439768a17d04f9dedd5591fd4d2753220ce600a"
+   },
+   {
+    "name": "bts-sbom:lineage:branch",
+    "value": "main"
+   },
+   {
+    "name": "bts-sbom:lineage:source",
+    "value": "C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_actions_run_bvt79how\\proj"
+   },
+   {
+    "name": "bts-sbom:lineage:uncommitted_changes_included",
+    "value": "False"
+   }
+  ],
+  "lifecycles": [
+   {
+    "phase": "pre-build"
+   }
+  ]
+ },
+ "components": [
+  {
+   "type": "library",
+   "bom-ref": "pkg:pypi/pyyaml@5.3",
+   "name": "pyyaml",
+   "version": "5.3",
+   "purl": "pkg:pypi/pyyaml@5.3",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "properties": [
+    {
+     "name": "bts-sbom:relationship",
+     "value": "direct"
+    },
+    {
+     "name": "bts-sbom:license-source",
+     "value": "deps.dev"
+    },
+    {
+     "name": "bts-sbom:manifest",
+     "value": "requirements.txt"
+    }
+   ]
+  },
+  {
+   "type": "library",
+   "bom-ref": "pkg:pypi/requests@2.19.1",
+   "name": "requests",
+   "version": "2.19.1",
+   "purl": "pkg:pypi/requests@2.19.1",
+   "licenses": [
+    {
+     "license": {
+      "id": "Apache-2.0"
+     }
+    }
+   ],
+   "properties": [
+    {
+     "name": "bts-sbom:relationship",
+     "value": "direct"
+    },
+    {
+     "name": "bts-sbom:license-source",
+     "value": "deps.dev"
+    },
+    {
+     "name": "bts-sbom:manifest",
+     "value": "requirements.txt"
+    }
+   ]
+  }
+ ],
+ "dependencies": [
+  {
+   "ref": "app:proj",
+   "dependsOn": [
+    "pkg:pypi/pyyaml@5.3",
+    "pkg:pypi/requests@2.19.1"
+   ]
+  },
+  {
+   "ref": "pkg:pypi/pyyaml@5.3",
+   "dependsOn": []
+  },
+  {
+   "ref": "pkg:pypi/requests@2.19.1",
+   "dependsOn": []
+  }
+ ],
+ "vulnerabilities": [
+  {
+   "id": "CVE-2024-47081",
+   "source": {
+    "name": "OSV",
+    "url": "https://osv.dev/vulnerability/GHSA-9hjg-9r4m-mvj7"
+   },
+   "ratings": [
+    {
+     "source": {
+      "name": "OSV"
+     },
+     "severity": "medium",
+     "score": 5.3,
+     "method": "CVSSv31"
+    }
+   ],
+   "description": "Requests vulnerable to .netrc credentials leak via malicious URLs",
+   "recommendation": "Upgrade requests to 2.32.4 or later",
+   "advisories": [
+    {
+     "url": "https://github.com/psf/requests/security/advisories/GHSA-9hjg-9r4m-mvj7"
+    },
+    {
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-47081"
+    },
+    {
+     "url": "https://github.com/psf/requests/pull/6965"
+    }
+   ],
+   "affects": [
+    {
+     "ref": "pkg:pypi/requests@2.19.1"
+    }
+   ],
+   "properties": [
+    {
+     "name": "bts-sbom:aliases",
+     "value": "GHSA-9hjg-9r4m-mvj7,PYSEC-2026-1872"
+    }
+   ]
+  },
+  {
+   "id": "CVE-2024-35195",
+   "source": {
+    "name": "OSV",
+    "url": "https://osv.dev/vulnerability/GHSA-9wx4-h78v-vm56"
+   },
+   "ratings": [
+    {
+     "source": {
+      "name": "OSV"
+     },
+     "severity": "medium",
+     "score": 5.6,
+     "method": "CVSSv31"
+    }
+   ],
+   "description": "Requests `Session` object does not verify requests after making first request with verify=False",
+   "recommendation": "Upgrade requests to 2.32.0 or later",
+   "advisories": [
+    {
+     "url": "https://github.com/psf/requests/security/advisories/GHSA-9wx4-h78v-vm56"
+    },
+    {
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-35195"
+    },
+    {
+     "url": "https://github.com/psf/requests/pull/6655"
+    }
+   ],
+   "affects": [
+    {
+     "ref": "pkg:pypi/requests@2.19.1"
+    }
+   ],
+   "properties": [
+    {
+     "name": "bts-sbom:aliases",
+     "value": "GHSA-9wx4-h78v-vm56,PYSEC-2026-1873"
+    }
+   ]
+  },
+  {
+   "id": "CVE-2026-25645",
+   "source": {
+    "name": "OSV",
+    "url": "https://osv.dev/vulnerability/GHSA-gc5v-m9x4-r6x2"
+   },
+   "ratings": [
+    {
+     "source": {
+      "name": "OSV"
+     },
+     "severity": "medium",
+     "score": 5.5,
+     "method": "CVSSv31"
+    }
+   ],
+   "description": "Requests is a HTTP library. Prior to version 2.33.0, the `requests.utils.extract_zipped_paths()` utility function uses a predictable filename when extracting files from zip archives into the system temporary directory. If the target file...",
+   "recommendation": "Upgrade requests to 2.33.0 or later",
+   "advisories": [
+    {
+     "url": "https://github.com/psf/requests/releases/tag/v2.33.0"
+    },
+    {
+     "url": "https://github.com/psf/requests/security/advisories/GHSA-gc5v-m9x4-r6x2"
+    },
+    {
+     "url": "https://github.com/psf/requests/commit/66d21cb07bd6255b1280291c4fafb71803cdb3b7"
+    }
+   ],
+   "affects": [
+    {
+     "ref": "pkg:pypi/requests@2.19.1"
+    }
+   ],
+   "properties": [
+    {
+     "name": "bts-sbom:aliases",
+     "value": "GHSA-gc5v-m9x4-r6x2,PYSEC-2026-2275"
+    }
+   ]
+  },
+  {
+   "id": "CVE-2023-32681",
+   "source": {
+    "name": "OSV",
+    "url": "https://osv.dev/vulnerability/GHSA-j8r2-6x86-q33q"
+   },
+   "ratings": [
+    {
+     "source": {
+      "name": "OSV"
+     },
+     "severity": "medium",
+     "score": 6.1,
+     "method": "CVSSv31"
+    }
+   ],
+   "description": "Unintended leak of Proxy-Authorization header in requests",
+   "recommendation": "Upgrade requests to 2.31.0 or later",
+   "advisories": [
+    {
+     "url": "https://github.com/psf/requests/security/advisories/GHSA-j8r2-6x86-q33q"
+    },
+    {
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2023-32681"
+    },
+    {
+     "url": "https://github.com/psf/requests/commit/74ea7cf7a6a27a4eeb2ae24e162bcc942a6706d5"
+    }
+   ],
+   "affects": [
+    {
+     "ref": "pkg:pypi/requests@2.19.1"
+    }
+   ],
+   "properties": [
+    {
+     "name": "bts-sbom:aliases",
+     "value": "GHSA-j8r2-6x86-q33q,PYSEC-2023-74"
+    }
+   ]
+  },
+  {
+   "id": "CVE-2018-18074",
+   "source": {
+    "name": "OSV",
+    "url": "https://osv.dev/vulnerability/GHSA-x84v-xcm2-53pg"
+   },
+   "ratings": [
+    {
+     "source": {
+      "name": "OSV"
+     },
+     "severity": "high",
+     "score": 7.5,
+     "method": "CVSSv31"
+    }
+   ],
+   "description": "Insufficiently Protected Credentials in Requests",
+   "recommendation": "Upgrade requests to 2.20.0 or later",
+   "advisories": [
+    {
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2018-18074"
+    },
+    {
+     "url": "https://github.com/requests/requests/issues/4716"
+    },
+    {
+     "url": "https://github.com/requests/requests/pull/4718"
+    }
+   ],
+   "affects": [
+    {
+     "ref": "pkg:pypi/requests@2.19.1"
+    }
+   ],
+   "properties": [
+    {
+     "name": "bts-sbom:aliases",
+     "value": "GHSA-x84v-xcm2-53pg,PYSEC-2018-28"
+    }
+   ]
+  },
+  {
+   "id": "CVE-2020-1747",
+   "source": {
+    "name": "OSV",
+    "url": "https://osv.dev/vulnerability/GHSA-6757-jp84-gxfx"
+   },
+   "ratings": [
+    {
+     "source": {
+      "name": "OSV"
+     },
+     "severity": "critical",
+     "score": 9.8,
+     "method": "CVSSv31"
+    },
+    {
+     "source": {
+      "name": "OSV"
+     },
+     "severity": "critical",
+     "score": 9.3,
+     "method": "CVSSv4"
+    }
+   ],
+   "description": "Improper Input Validation in PyYAML",
+   "recommendation": "Upgrade pyyaml to 5.3.1 or later",
+   "advisories": [
+    {
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2020-1747"
+    },
+    {
+     "url": "https://github.com/github/advisory-database/pull/4942"
+    },
+    {
+     "url": "https://github.com/yaml/pyyaml/pull/386"
+    }
+   ],
+   "affects": [
+    {
+     "ref": "pkg:pypi/pyyaml@5.3"
+    }
+   ],
+   "properties": [
+    {
+     "name": "bts-sbom:aliases",
+     "value": "GHSA-6757-jp84-gxfx,PYSEC-2020-96"
+    }
+   ]
+  },
+  {
+   "id": "CVE-2020-14343",
+   "source": {
+    "name": "OSV",
+    "url": "https://osv.dev/vulnerability/GHSA-8q59-q68h-6hv4"
+   },
+   "ratings": [
+    {
+     "source": {
+      "name": "OSV"
+     },
+     "severity": "critical",
+     "score": 9.8,
+     "method": "CVSSv31"
+    },
+    {
+     "source": {
+      "name": "OSV"
+     },
+     "severity": "critical",
+     "score": 9.3,
+     "method": "CVSSv4"
+    }
+   ],
+   "description": "Improper Input Validation in PyYAML",
+   "recommendation": "Upgrade pyyaml to 5.4 or later",
+   "advisories": [
+    {
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2020-14343"
+    },
+    {
+     "url": "https://github.com/SeldonIO/seldon-core/issues/2252"
+    },
+    {
+     "url": "https://github.com/yaml/pyyaml/issues/420"
+    }
+   ],
+   "affects": [
+    {
+     "ref": "pkg:pypi/pyyaml@5.3"
+    }
+   ],
+   "properties": [
+    {
+     "name": "bts-sbom:aliases",
+     "value": "GHSA-8q59-q68h-6hv4,PYSEC-2021-142"
+    }
+   ]
+  }
+ ]
+}

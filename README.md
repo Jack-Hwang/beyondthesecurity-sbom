@@ -17,6 +17,25 @@ $ python -m bts_sbom selfsbom
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
 
+## What's new since 0.5.0 (unreleased) — chat quality gates + the approval loop + supply-chain pane
+
+- **Chat 품질 TOP-10 스코어카드** (`python -m bts_sbom_app.evals_top10`, `evals/top10_report.md`): grounding F
+  (claim support × source coverage), completeness of procedure answers, tool-call accuracy from the live suite
+  log, forged-write blocking, and the over-refusal rate - each with its gate and a per-metric loop.gate delta
+  (>= -0.02). No LLM judge: grounding is quote-in-document computation.
+- **HITL approval chain as replayable evidence** (`scripts/chat_actions_run.py`,
+  `evidence/chat_actions/report.json`): analyse -> plan + 16-hex token -> approve -> applied in an isolated work
+  copy -> record -> VEX decision preview -> 12-hex confirm code -> .triage.json, plus the flag-off server
+  refusing read-only. 7 of 7 steps over real HTTP.
+- **Supply-chain substitution risks wired in**: the core analyzer (typosquatting, npm namespace confusion,
+  dependency confusion) now runs in the pipeline, answers the `supply_chain` chat tool, and renders in the
+  ⛓ Supply Chain pane.
+- **NL2SQL chat lane + DB query pane** (AC-602..604): natural-language questions over the local OSV database
+  (`POST /api/db/query`, `GET /api/db/schema`, 🗄 DB 질의 pane, dock chip), seeded from scan evidence
+  (`scripts/seed_osv_local_db.py`).
+- **Console UI states**: fresh-conversation hint and thinking skeletons in the chat dock, a retry button after a
+  failed stream, skeleton loaders on the governance cards, and an honest empty state for the report tab.
+
 ## What's new in 0.5.0 — clean-room reimplementation + architecture tools
 
 The headline of this release: the toolkit no longer only *scans* — it can now **re-implement** a

@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from . import ai, arch as archmod, changes as changesmod, conformance, deliver as delivermod, engine, impact as impactmod, licenses, patch as patchmod, remediate, review as reviewmod, sbom, sectors, workspace
 from .llm import ChatClient
+from bts_sbom.supply_chain import SupplyChainAnalyzer
 from .util import safe_name, tree_hash, write_json
 
 PROJECT_SCHEMA = "bts-sbom.project.v1"
@@ -137,6 +138,8 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
         rec["conformance"] = conformance.compact(conf) if conf else {}
 
     S.run("sbom", build_sboms)
+
+    rec["supply_chain"] = S.run("supply_chain", lambda: SupplyChainAnalyzer().analyze(rec["components"]), [])
 
     if run_arch:
         rec["arch"] = S.run("arch", lambda: archmod.analyze(path, online=arch_online), {})

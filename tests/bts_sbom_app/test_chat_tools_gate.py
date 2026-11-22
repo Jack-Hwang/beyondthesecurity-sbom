@@ -184,7 +184,7 @@ def test_plan_validation_drops_invented_tools_arguments_and_identifiers():
     assert set(chat.TOOL_CATALOG) == {"overview", "top_vulns", "vuln_lookup", "component_lookup", "license", "patch", "architecture", "sector", "what_if_upgrade",
                                       "affected_projects", "latest_arch", "book_search", "sbom_conformance", "what_changed", "coverage", "license_risks", "proposals", "plan_patch",
                                       "export_vex", "record_decision", "analyze_project", "apply_patch", "confirm_decision",
-                                      "draw_diagram", "decide", "nl2sql"}
+                                      "draw_diagram", "decide", "nl2sql", "supply_chain"}
     latest = chat.run_tool(None, "latest_arch", {}, arch_dir=None)          # honest when no run is recorded / reachable
     assert "No Arch Intel" in latest[0]["lines"][0] and latest[0]["trust"] == "tool"
 

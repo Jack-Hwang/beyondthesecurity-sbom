@@ -98,7 +98,7 @@ def test_governance_cards_builder():
     for sv in ("fix-plan", "vex", "conformance"):
         assert 'data-sv="%s"' % sv in cards
     (loading,) = js({"mod": "rep", "fn": "renderGovCards", "args": [{"view": view, "coverage": None, "conformance": None}]})
-    assert "loading" in loading
+    assert "bts-skel" in loading                       # loading is a skeleton now, not the word (AC: BSA-AC-610)
     (failed,) = js({"mod": "rep", "fn": "renderGovCards", "args": [{"view": view, "coverage": {"error": "HTTP 404"}, "conformance": {"error": "HTTP 500"}}]})
     assert "Not loaded: HTTP 404" in failed and "Not loaded: HTTP 500" in failed
     (escd,) = js({"mod": "rep", "fn": "renderGovCards", "args": [{"view": {"project": "<x>", "plan_summary": {}}, "coverage": {"error": "<script>"}, "conformance": None}]})

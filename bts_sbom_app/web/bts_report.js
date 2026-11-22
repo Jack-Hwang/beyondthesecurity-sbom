@@ -84,7 +84,7 @@
     if (c && c.error) {
       covBody = '<div class="bts-gc-line">Not loaded: ' + esc(c.error) + '</div>';
     } else if (!c) {
-      covBody = '<div class="bts-gc-line">loading\u2026</div>';
+      covBody = '<div class="bts-skel" style="width:60%"></div><div class="bts-skel" style="width:42%"></div>';
     } else {
       var wl = (c.worklist || []).length;
       covBody = '<div class="bts-gc-big">' + pct(c.handled_pct) + '<span class="bts-gc-unit">handled by decisions + plans</span></div>' +
@@ -97,7 +97,7 @@
     if (f && f.error) {
       confBody = '<div class="bts-gc-line">Not loaded: ' + esc(f.error) + '</div>';
     } else if (!f) {
-      confBody = '<div class="bts-gc-line">loading\u2026</div>';
+      confBody = '<div class="bts-skel" style="width:60%"></div><div class="bts-skel" style="width:42%"></div>';
     } else {
       var regimes = Object.keys(f.regimes || {});
       var failed = regimes.filter(function (k) { return (f.regimes[k] || {}).status === 'FAIL'; }).length;

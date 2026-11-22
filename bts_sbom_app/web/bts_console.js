@@ -367,7 +367,11 @@
     banner.innerHTML = '';
     if (!window.BtsReport) { head.innerHTML = ''; }
     else { head.innerHTML = BtsReport.renderHead(S.view); }
-    if (!S.view) { mount.innerHTML = ''; $('#govCards').innerHTML = ''; return; }
+    if (!S.view) {
+      mount.innerHTML = note('아직 연 프로젝트가 없다 — 왼쪽 레일에서 세션을 고르거나 <b>+ 새 분석</b>으로 스캔하면 이 리포트가 채워진다. (스캔 전까지 이 화면은 비어 있는 게 아니라 "알 수 없음"이다.)', 'warn');
+      $('#govCards').innerHTML = '';
+      return;
+    }
     var rep = S.view.report, b = rep.bts || {};
     if (b.empty_project) {
       banner.innerHTML = note('<b>No supported manifest or lockfile was found in this source.</b> The result is <b>unknown</b>, not "no vulnerabilities".', 'warn');
@@ -697,14 +701,32 @@
       'The history shows only the latest analysis per project, not a time series.');
     $('#paneHistory').innerHTML = out;
   }
+  /* Supply-chain substitution risks (bts_sbom/supply_chain.py, measured into the record by the pipeline):
+     typosquatting, npm namespace confusion and dependency confusion. */
+  function supplyChain(v) {
+    var fs = v.supply_chain || [];
+    var out = heading('Supply chain', 'substitution risks measured on the components - typosquatting, namespace confusion, dependency confusion');
+    if (!fs.length) {
+      return out + note('No substitution risk was measured on the ' + ((v.metrics || {}).components || (v.report || {}).components || 0) +
+        ' components: every name passed the typosquatting, namespace-confusion and dependency-confusion checks. ' +
+        'The checks compare each component name against a popular-package list (edit distance 1) and internal-name declarations.');
+    }
+    out += table(['Component', 'Ecosystem', 'Kind', 'Resembles', 'CWE', 'Confidence'], fs.map(function (f) {
+      return [f.package, f.ecosystem || '—', esc(f.kind), f.resembles || '—', f.cwe || '—', esc(f.confidence || '—')];
+    }));
+    out += fs.slice(0, 6).map(function (f) {
+      return '<div class="bts-note"><b>' + esc(f.kind) + ' — ' + esc(f.package) + '</b><br>' + esc(f.description || '') +
+        (f.recommendation ? '<br><b>권고:</b> ' + esc(f.recommendation) : '') + '</div>';
+    }).join('');
+    return out + note('Findings are name-based risk signals, not proof of compromise: verify the publisher and the intended package before acting.');
+  }
   function renderPanes() {
     var v = S.view;
     $('#paneContainer').innerHTML = '<b>Container image scanning is not supported by BTS-SBOM.</b> Analyse the repository or lockfile the image is built from instead.';
     $('#paneSsvc').innerHTML = unavailable('SSVC', 'CISA SSVC decisions need exploitation, automatable and mission-impact inputs that this workflow does not collect.');
     $('#paneEpss').innerHTML = unavailable('EPSS', 'No EPSS feed is wired into this workflow, so a finding has no score (it is absent, not zero).');
     $('#paneExploit').innerHTML = unavailable('Exploit maturity', 'It needs exploit-database and CISA KEV matching, which this workflow does not do.');
-    $('#paneSupply').innerHTML = unavailable('Supply chain', 'Typosquatting and dependency-confusion detection exists in the core (bts_sbom.supply_chain) but is not wired into this workflow yet.');
-    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneCode: codeIntel, paneDb: dbIntel, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
+    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneCode: codeIntel, paneDb: dbIntel, paneSupply: supplyChain, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
     Object.keys(map).forEach(function (id) { $('#' + id).innerHTML = v ? map[id](v) : needProject(); });
     renderHistory();
     renderGovernance();

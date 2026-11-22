@@ -261,6 +261,48 @@ def test_the_service_offers_actions_only_when_started_with_them(env, world):
         on.shutdown()
 
 
+def test_the_full_approval_chain_runs_over_http_and_the_readonly_server_refuses(env, monkeypatch):
+    """AC: BSA-AC-609. The positive half of the approval chain over real HTTP - plan (token) -> approval sentence ->
+    applied -> record updated - plus the read-only refusal of the same sentence. This is the 2026-11-22 live run
+    (AC-593) made replayable; until now only its negative side ran over HTTP."""
+    b, rec = _analysed(env)
+    tok = _token(rec)
+    real = actionsmod.ChatActions
+
+    def offline_actions(root, evidence, client=None):        # the State builds real ChatActions; the test needs no network
+        return real(root, evidence, client=None, scanner=FakeScanner(), offline=True, use_llm=False,
+                    work_root=str(env["tmp"] / "work"), cache_dir=str(env["tmp"] / "cache"), today=TODAY)
+    monkeypatch.setattr(server.actionsmod, "ChatActions", offline_actions)
+
+    def serve(flag):
+        st = server.State(evals.repo_root(), str(env["ev"]), None, flag)
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(st))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        return httpd, "http://127.0.0.1:%d" % httpd.server_address[1]
+
+    def ask(base, q):
+        req = urllib.request.Request(base + "/api/chat", data=json.dumps({"question": q, "project": "proj"}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            return json.loads(r.read())
+
+    off, base_off = serve(False)
+    on, base_on = serve(True)
+    try:
+        plan = ask(base_on, "패치 해줘")                      # turn 1: the plan shows exactly its own token
+        assert plan["found"] and "Approval token %s" % tok in plan["answer"], plan["answer"][:200]
+        assert "read-only" not in plan["answer"]
+        r = ask(base_on, "패치 승인 %s" % tok)                # turn 2: the approval sentence applies the plan
+        assert "Patch applied in an isolated work copy" in r["answer"], r["answer"][:300]
+        assert "apply_patch" in r["tools"]
+        folder, saved = next(iter(cli.project_records(str(env["ev"])).values()))
+        assert saved["patch"]["status"] == "applied" and saved["patch"]["work_copy"]         # the record the console reads
+        assert "read-only" in ask(base_off, "패치 승인 %s" % tok)["answer"]                  # the flag-off server refuses the same sentence
+    finally:
+        off.shutdown()
+        on.shutdown()
+
+
 def test_cli_chat_needs_a_question_or_interactive_mode_and_keeps_reading_in_a_session(env, monkeypatch, capsys):
     """AC: BSA-AC-208"""
     b, rec = _analysed(env)

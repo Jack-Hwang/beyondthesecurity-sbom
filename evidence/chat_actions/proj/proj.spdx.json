@@ -1,0 +1,56 @@
+{
+ "spdxVersion": "SPDX-2.3",
+ "dataLicense": "CC0-1.0",
+ "SPDXID": "SPDXRef-DOCUMENT",
+ "name": "proj",
+ "documentNamespace": "https://bts-sbom.local/spdx/1cc1f4da-c5b8-56d5-9876-5e0de93772c0",
+ "creationInfo": {
+  "created": "2026-11-22T23:21:28Z",
+  "creators": [
+   "Tool: bts-sbom-0.5.0"
+  ]
+ },
+ "packages": [
+  {
+   "name": "pyyaml",
+   "SPDXID": "SPDXRef-Package-pyyaml-000",
+   "downloadLocation": "NOASSERTION",
+   "filesAnalyzed": false,
+   "licenseConcluded": "MIT",
+   "licenseDeclared": "MIT",
+   "copyrightText": "NOASSERTION",
+   "versionInfo": "5.3",
+   "supplier": "NOASSERTION",
+   "comment": "license source: deps.dev"
+  },
+  {
+   "name": "requests",
+   "SPDXID": "SPDXRef-Package-requests-001",
+   "downloadLocation": "NOASSERTION",
+   "filesAnalyzed": false,
+   "licenseConcluded": "Apache-2.0",
+   "licenseDeclared": "Apache-2.0",
+   "copyrightText": "NOASSERTION",
+   "versionInfo": "2.19.1",
+   "supplier": "NOASSERTION",
+   "comment": "license source: deps.dev"
+  }
+ ],
+ "relationships": [
+  {
+   "spdxElementId": "SPDXRef-DOCUMENT",
+   "relationshipType": "DESCRIBES",
+   "relatedSpdxElement": "SPDXRef-Package-pyyaml-000"
+  },
+  {
+   "spdxElementId": "SPDXRef-DOCUMENT",
+   "relationshipType": "DESCRIBES",
+   "relatedSpdxElement": "SPDXRef-Package-requests-001"
+  }
+ ],
+ "documentDescribes": [
+  "SPDXRef-Package-pyyaml-000",
+  "SPDXRef-Package-requests-001"
+ ],
+ "comment": "Generated offline by bts-sbom from verified scan evidence; provenance fields not asserted; DROPPED unmatched relationships: proj -> pyyaml, proj -> requests"
+}

@@ -1,0 +1,8 @@
+{
+ "completeness": 1.0,
+ "grounding_f": 1.0,
+ "over_refusal_rate": 0.0,
+ "relevance_cos": 0.334,
+ "tool_accuracy_read": 1.0,
+ "tool_accuracy_write": 1.0
+}

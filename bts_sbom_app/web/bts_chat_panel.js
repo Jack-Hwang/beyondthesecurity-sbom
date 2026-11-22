@@ -180,11 +180,16 @@
       localStorage.setItem(shownKey, JSON.stringify(out));
     } catch (e) { /* storage unavailable: the conversation simply does not persist */ }
   }
+  function emptyHint() {                                   // a fresh conversation explains itself instead of showing blank space
+    var d = el('div', { 'class': 'bts-cd-empty' });
+    d.innerHTML = '이 프로젝트의 첫 대화다. 아래 칩(프로젝트 요약 · 취약점 top · DB 질의 …)을 누르거나 질문을 입력하라 — <b>/help</b>로 명령 목록.';
+    return d;
+  }
   function loadShown() {
     try {
       var raw = localStorage.getItem(shownKey);
       msgs.textContent = '';
-      if (!raw) { return; }
+      if (!raw) { msgs.appendChild(emptyHint()); return; }
       JSON.parse(raw).forEach(function (row) {
         if (row.t === 'u') { msgs.appendChild(el('div', { 'class': 'bts-cd-turn-user', text: row.text })); }
         else if (row.t === 'a') {
@@ -195,7 +200,7 @@
           msgs.appendChild(turn);
         }
       });
-    } catch (e) { msgs.textContent = ''; }
+    } catch (e) { msgs.textContent = ''; msgs.appendChild(emptyHint()); }
     scrollEnd();
   }
   function followProject(name) {
@@ -215,6 +220,7 @@
   clearBtn.addEventListener('click', function () {
     try { localStorage.removeItem(shownKey); } catch (e) { /* same as save */ }
     msgs.textContent = '';
+    msgs.appendChild(emptyHint());
   });
   document.addEventListener('bts:project', function (e) { followProject(e && e.detail); });
 
@@ -329,9 +335,11 @@
     var actBox = el('div', { 'class': 'bts-cd-card-body' });
     card.appendChild(actBox);
     var answerBox = el('div', { 'class': 'bts-cd-answer' });
-    answerBox.innerHTML = note('생각하고 도구를 돌리는 중…', 'warn');
+    answerBox.innerHTML = '<div class="bts-skel" style="width:86%"></div><div class="bts-skel" style="width:70%"></div><div class="bts-skel" style="width:55%"></div>' + note('생각하고 도구를 돌리는 중…', 'warn');
     turn.appendChild(answerBox);
     turn.appendChild(card);
+    var hint = msgs.querySelector('.bts-cd-empty');          // the first real turn replaces the empty-state hint
+    if (hint) { hint.parentNode.removeChild(hint); }
     msgs.appendChild(turn);
     scrollEnd();
 
@@ -396,7 +404,10 @@
       }
       return pump();
     }).catch(function (e) {
-      answerBox.innerHTML = note('스트림 실패: ' + esc(String(e)) + ' - 대화 상태는 유지된다, 다시 시도 가능.', 'bad');
+      answerBox.innerHTML = note('스트림 실패: ' + esc(String(e)) + ' - 대화 상태는 유지된다.', 'bad');
+      var retry = el('button', { type: 'button', 'class': 'bts-cd-next-b', text: '↻ 다시 시도' });
+      retry.addEventListener('click', function () { send(q); });   // resend the exact same question
+      answerBox.appendChild(retry);
       finish();
     });
     function handle(ev, d) {

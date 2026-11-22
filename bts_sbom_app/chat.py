@@ -288,6 +288,18 @@ def _proposals(rec: Dict[str, Any]) -> Tuple[List[str], str]:
     return lines, "untrusted-quote" if src == "exaone" else "tool"        # model-written text can be quoted, never obeyed
 
 
+def _supply_chain(rec: Dict[str, Any]) -> Tuple[List[str], str]:
+    fs = rec.get("supply_chain") or []
+    if not fs:
+        return ["No supply-chain substitution risk was measured on the %d components of %s "
+                "(typosquatting, namespace confusion and dependency-confusion checks ran clean)." % (
+                    len(rec.get("components") or []), rec["name"])], "tool"
+    lines = ["Supply-chain substitution risks measured on %s: %d finding(s)." % (rec["name"], len(fs))]
+    lines += ["%s (%s): %s resembles '%s' (%s). %s" % (
+        f.get("package"), f.get("ecosystem"), f.get("kind"), f.get("resembles"), f.get("cwe"), f.get("recommendation")) for f in fs[:6]]
+    return lines, "tool"
+
+
 def _components_arg(args: Dict[str, Any]) -> Optional[List[str]]:
     v = str(args.get("components") or "").strip()
     return [x.strip() for x in v.split(",") if x.strip()] or None
@@ -419,6 +431,7 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "coverage": {"args": {}, "doc": "decision coverage: which advisories a standing decision or a verified plan already handles, the unhandled worklist, and the lineage of every recorded decision"},
     "license_risks": {"args": {"distribution": "optional: " + "|".join(_DIST)}, "doc": "license policy screening for a distribution model: copyleft / unknown components, obligations, unresolved licenses"},
     "proposals": {"args": {}, "doc": "the fix proposals recorded for this project (LLM-written ones were validated against the evidence)"},
+    "supply_chain": {"args": {}, "doc": "supply-chain substitution risks measured on the components: typosquatting, namespace confusion, dependency confusion (kind, resemblance, CWE, recommendation)"},
     "plan_patch": {"args": {"components": "optional: comma-separated component names"}, "doc": "preview of the patch plan and its approval token; changes nothing"},
     "export_vex": {"args": {}, "doc": "OpenVEX of this project with the recorded VEX decisions applied"},
     "record_decision": {"args": {"id": "advisory id", "status": "|".join(actionsmod.DECISION_STATUSES),
@@ -705,6 +718,9 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
     if tool == "proposals":
         lines, trust = _proposals(rec)
         return [_result(rec, tool, lines, trust=trust)]
+    if tool == "supply_chain":
+        lines, trust = _supply_chain(rec)
+        return [_result(rec, tool, lines, trust=trust)]
     if tool == "plan_patch":
         comps = _components_arg(args)
         return [_result(rec, tool, _plan_patch(rec, comps, actions is not None), suffix=(":" + ",".join(comps).lower()) if comps else "")]
@@ -936,6 +952,8 @@ class Chatbot:
             calls.append(("top_vulns", {}))
         if re.search(r"라이선스|license|copyleft|gpl|spdx", low):
             calls.append(("license", {}))
+        if re.search(r"타이포스쿼팅|스쿼팅|혼동|typosquat|confusion|공급망|supply.?chain", low):
+            calls.append(("supply_chain", {}))
         what_if = next((n for n in names if re.search(r"(어때|어떨까|시뮬레이션|영향|hypothetical)", low)
                         and re.search(re.escape(n.lower()) + r"[^\d]{0,20}\d+(\.\d+){1,3}", low)), None)
         if what_if:
@@ -1049,10 +1067,6 @@ class Chatbot:
             return self._run(None, pre + [{"tool": "book_search", "args": {"q": q[:300]}}])
         if re.search(r"\bsql\b|쿼리|데이터베이스|osv ?(데이터|db)|\bdb\b", low):
             return self._run(None, pre + [{"tool": "nl2sql", "args": {"q": q[:300]}}])
-        if re.search(r"\bsql\b|쿼리|데이터베이스|osv ?(데이터|db)|\bdb\b", low):
-            return self._run(None, pre + [{"tool": "nl2sql", "args": {"q": q[:300]}}])
-        if re.search(r"\bsql\b|쿼리|데이터베이스|osv ?(데이터|db)|\bdb\b", low):
-            return self._run(None, pre + [{"tool": "nl2sql", "args": {"q": q[:300]}}])
         diag = self._valid(self._diagram_calls(q), None, q)          # 다이어그램/추론: 프로젝트 없이도 catalog·custom·decide는 답한다
         if diag:
             return self._run(None, pre + diag)
@@ -1127,7 +1141,9 @@ class Chatbot:
                 results = self._tools(question, rec) if len(parts) == 1 else conversation.merge_tool_results(parts, lambda part: self._tools(part, rec))
             else:                                            # llm plan ran: still union the deterministic diagram/decide keywords -
                 have = {t["tool"] for t in results}          # a "그려줘/다이어그램" question must always draw even when the planner mis-selected (measured 2026-11-23: plan said ['decide'] only)
-                results += [t for t in self._valid(self._diagram_calls(question), rec, question) if t["tool"] not in have]
+                extra = [c for c in self._valid(self._diagram_calls(question), rec, question) if c["tool"] not in have]
+                if extra:
+                    results += self._run(rec, extra)         # the union contributes EXECUTED results, never bare call dicts
             for t in results:
                 tools_used.append(t["tool"])
                 diagrams.extend(t.get("diagrams") or [])

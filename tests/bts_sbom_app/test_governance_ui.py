@@ -141,7 +141,27 @@ def test_page_loads_the_governance_scripts_in_order_and_every_id_the_scripts_rea
         assert 'class="rpane" data-sv="%s"' % sv in page
     src = open(os.path.join(WEB, "bts_console.js"), encoding="utf-8").read()
     read = {x for x in re.findall(r"""['"]#([A-Za-z][\w-]*)['"]""", src) if not re.fullmatch(r"[0-9a-fA-F]{3,8}", x)}      # '#e6edf3' is a colour
-    assert read - ids - {"scaWorkflow", "ackPlan", "sxSbomFmt", "railSessions", "chatDockBar", "chatDockQ", "paneDb", "dbQ", "dbQBtn", "dbSchemaBtn", "paneDbOut"} == set()   # every '#id' the glue reads exists (11 are built at run time: step bar, patch checkbox, sca_app.js select, rail session list, the chat dock's bar/input, the db pane and its input/buttons/out)
+    assert read - ids - {"scaWorkflow", "ackPlan", "sxSbomFmt", "railSessions", "chatDockBar", "chatDockQ", "dbQ", "dbQBtn", "dbSchemaBtn", "paneDbOut"} == set()   # every '#id' the glue reads exists (10 are built at run time: step bar, patch checkbox, sca_app.js select, rail session list, the chat dock's bar/input, the db pane's input/buttons/out)
+    for api in ("/api/conformance/", "/api/changes/", "/api/vex/", "/api/fleet", "/api/affected", "/api/triage"):
+        assert api in src or api in open(os.path.join(WEB, "bts_governance.js"), encoding="utf-8").read()
+    assert "not yet written into the OpenVEX" not in src                                   # decisions now reach the document; the old claim must be gone
+
+
+def test_every_rail_pane_has_its_rpane_div_and_every_pane_renderer_its_target():
+    """AC: BSA-AC-605. A rail chip whose pane div is missing blanks the whole content column: the db pane shipped with
+    renderer, binding and label but no rpane div in index.html, so clicking 🗄 DB 질의 hid every pane (measured 2026-11-23).
+    GROUPS, the renderPanes map and the page must therefore agree, statically."""
+    src = open(os.path.join(WEB, "bts_console.js"), encoding="utf-8").read()
+    page = open(os.path.join(WEB, "index.html"), encoding="utf-8").read()
+    groups_block = re.search(r"var GROUPS = \{(.*?)\};", src, re.S).group(1)
+    pane_ids = [pid.strip().strip("'\"") for pair in re.findall(r"'[^']+':\s*\[([^\]]*)\]", groups_block) for pid in pair.split(",")]
+    assert len(pane_ids) >= 26
+    missing = [p for p in pane_ids if 'data-sv="%s"' % p not in page]
+    assert missing == [], "rail panes without an rpane div in index.html: %s" % missing
+    render_map = re.search(r"var map = \{([^}]*)\};", src).group(1)
+    targets = re.findall(r"(pane[A-Z]\w*):", render_map)
+    assert targets and all('id="%s"' % t in page for t in targets), "renderPanes targets missing from the page: %s" % \
+        [t for t in targets if 'id="%s"' % t not in page]
     for api in ("/api/conformance/", "/api/changes/", "/api/vex/", "/api/fleet", "/api/affected", "/api/triage"):
         assert api in src or api in open(os.path.join(WEB, "bts_governance.js"), encoding="utf-8").read()
     assert "not yet written into the OpenVEX" not in src                                   # decisions now reach the document; the old claim must be gone

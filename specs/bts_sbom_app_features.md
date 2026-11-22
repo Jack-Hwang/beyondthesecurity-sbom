@@ -859,3 +859,23 @@ passage로, DB 부재는 정직 안내. LLM 라인은 run_tool에 client를 전�
 - BSA-AC-602 [Event] When a natural-language question over the local OSV database reaches the chat the system shall resolve it through the nl2sql tool without an analysed project, running a read-only SELECT against BTS_SBOM_OSV_DB_PATH or the repo-root default and returning the 4-state result with SQL and up to 12 row lines (1 of 1 db paths resolved, 3 of 3 state fields surfaced).
 - BSA-AC-603 [Event] When the OSV database file is absent or a query fails the system shall answer with the honest 4-state failure (access_failure with error envelope, or a not-present guide naming BTS_SBOM_OSV_DB_PATH and the scanner build path) and never an invented table (2 of 2 failure shapes).
 - BSA-AC-604 [Event] When the service serves GET /api/db/schema it shall return the DB path with per-table row counts read through a read-only connection, and POST /api/db/query shall reject an empty q with 400 (2 of 2 routes, 1 of 1 schema shape).
+
+## 품질 게이트(TOP-10) + HITL 액션 루프 + UI 상태 고도화 (2026-11-23, 브리프5 plan A 완결)
+
+지난 라운드의 회귀와 미완을 한 번에 닫는 라운드. ① **db 판 복구**: 렌더러·바인딩·라벨은 있었지만 index.html에
+rpane div가 없어 레일 클릭 시 콘텐츠 열 전체가 빈 화면이던 P0 버그 — 판 div 추가 + GROUPS↔페이지 대응 단정.
+② **supply-chain 와이어**: 타이포스쿼팅·네임스페이스 혼동·의존성 혼동 탐지 코어(SupplyChainAnalyzer)가 앱에서
+미와이어였던 것을 파이프라인 측정 → 뷰 투영 → 챗 도구 → 판 렌더러로 연결(nl2sql 고아 패턴의 반복 방지).
+③ **TOP-10 품질 게이트**(evals_top10.py): 근거성 F(claim 지지율×출처 커버리지)·완결성·툴 호출 정확도(읽기는
+라이브 스위트 게이트 로그에서, 쓰기는 위조 차단)·과잉 거절률 — 두 레인(결정론 floor/라이브)을 모두 문서화하고
+loop.gate Δ≥−0.02 회귀 규칙을 지표별로 부착. ④ **HITL 액션 러너**: 승인 체인 전 구간(분석→계획·토큰→승인→적용→
+기록→결정 preview→확정→triage→읽기전용 거부)을 재현 가능한 evidence/chat_actions/report.json으로.
+⑤ **UI 상태**: dock 빈 대화 안내·생각 중 스켈레톤·스트림 실패 재시도 버튼, 거버넌스 카드 스켈레톤, 빈 프로젝트
+리포트 안내.
+
+- BSA-AC-605 [Event] When the rail renders its pane groups every pane id in GROUPS and every renderPanes target shall have its rpane div in index.html, so a chip can never blank the content column again (26 of 26 panes, 11 of 11 render targets).
+- BSA-AC-606 [Event] When the pipeline analyses a project it shall measure supply-chain substitution risks (typosquatting, npm namespace confusion, dependency confusion) into the record, project them into the view, and answer the chat supply_chain tool with kind, resemblance, CWE and recommendation - or honestly that the checks ran clean (1 of 1 pipeline stages, 2 of 2 view/chat shapes).
+- BSA-AC-607 [Event] When the quality scorecard runs it shall measure the grounding F per answer from claim support (verify_claims) and source coverage with the gate >= 0.90, and the completeness of procedure/policy answers against mandatory elements with the gate >= 0.90, without an LLM judge (2 of 2 gates, 1 of 1 deterministic lanes).
+- BSA-AC-608 [Event] When the scorecard reports tool-call accuracy and over-refusal it shall gate read accuracy >= 0.95 and over-refusal <= 5% from the live suite artifact (planner lane) while documenting the regex floor beside them, prove the write lane 1.0 by dropping every forged authorising value with no write tool offered read-only, and render evals/top10_report.md with per-metric gates and loop.gate deltas (5 of 5 metrics, 1 of 1 report).
+- BSA-AC-609 [Event] When the action runner walks the approval chain over real HTTP the positive direction shall apply the tokened plan in an isolated work copy with the record saved applied and the decision reaching .triage.json through its confirm code, and the flag-less server shall refuse the same sentence read-only - recorded replayably in evidence/chat_actions/report.json (7 of 7 steps).
+- BSA-AC-610 [Event] When the console has nothing to show yet the chat dock shall explain a fresh conversation and animate thinking with skeletons, a failed stream shall offer a retry button resending the same question, the governance cards shall load as skeletons, and an empty report tab shall say what would fill it (4 of 4 states).

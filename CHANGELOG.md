@@ -2,6 +2,23 @@
 
 All notable changes to bts-sbom are documented here.
 
+## Unreleased - 2026-11-23: Chat quality gates (TOP-10) + the approval loop as evidence + supply-chain pane + nl2sql lane
+
+- Chat quality TOP-10 scorecard (`python -m bts_sbom_app.evals_top10` -> evals/top10_report.md): grounding F
+  >= 0.90, completeness >= 0.90, read tool-call accuracy >= 0.95 (gated from the live suite log, regex floor
+  documented beside it), write lane = 1.0 (every forged token/code/source/reason dropped, write tools never
+  offered read-only), over-refusal <= 5% - each metric with its gate and a loop.gate delta (>= -0.02).
+- HITL action runner (`scripts/chat_actions_run.py` -> evidence/chat_actions/report.json): the approval chain
+  replayed end to end over real HTTP - analyse, plan + token, approve, applied in an isolated work copy, record,
+  decision preview, confirm code, .triage.json, and the flag-less server refusing read-only (7/7 steps).
+- Supply-chain substitution risks wired in: pipeline stage (typosquatting / namespace confusion / dependency
+  confusion), `supply_chain` chat tool, and the Supply Chain pane renderer (was: honest placeholder).
+- NL2SQL chat lane + DB query pane: nl2sql chat tool (read-only SELECT, 4-state honest results),
+  POST /api/db/query + GET /api/db/schema, the DB pane, and scan-evidence seeding (scripts/seed_osv_local_db.py).
+- Console UI states: dock fresh-conversation hint, thinking skeletons, stream-failure retry button, governance
+  card skeletons, honest empty report tab; the db pane recovered its missing rpane div (+ the static
+  GROUPS<->page pin that keeps it that way).
+
 ## 0.5.0 - 2026-11-22: Clean-room reimplementation lane + book KB + MCP server + architecture tools
 
 - Clean-room reimplementation workbench (`bts-sbom-app reimpl` / POST /api/reimpl): interface spec ->

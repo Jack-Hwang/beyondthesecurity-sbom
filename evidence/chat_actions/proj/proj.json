@@ -1,0 +1,1455 @@
+{
+ "schema": "bts-sbom.project.v1",
+ "name": "proj",
+ "source": "C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_actions_run_bvt79how\\proj",
+ "ref": "",
+ "components": [
+  {
+   "name": "pyyaml",
+   "version": "5.3",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/pyyaml@5.3",
+   "scope": null,
+   "relationship": "direct",
+   "depth": 0,
+   "files": [
+    "requirements.txt"
+   ],
+   "query_status": "queried_online",
+   "vulns": 2,
+   "license": "MIT",
+   "license_source": "deps.dev",
+   "license_raw": "MIT",
+   "license_category": "permissive"
+  },
+  {
+   "name": "requests",
+   "version": "2.19.1",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/requests@2.19.1",
+   "scope": null,
+   "relationship": "direct",
+   "depth": 0,
+   "files": [
+    "requirements.txt"
+   ],
+   "query_status": "queried_online",
+   "vulns": 5,
+   "license": "Apache-2.0",
+   "license_source": "deps.dev",
+   "license_raw": "Apache-2.0",
+   "license_category": "permissive"
+  }
+ ],
+ "vulns": [
+  {
+   "id": "CVE-2024-47081",
+   "aliases": [
+    "GHSA-9hjg-9r4m-mvj7",
+    "PYSEC-2026-1872"
+   ],
+   "osv_ids": [
+    "GHSA-9hjg-9r4m-mvj7",
+    "PYSEC-2026-1872"
+   ],
+   "package": "requests",
+   "version": "2.19.1",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/requests@2.19.1",
+   "severity": "MEDIUM",
+   "cvss": 5.3,
+   "score_source": "cvss_v3_vector",
+   "malicious": false,
+   "fixed_version": "2.32.4",
+   "fixed_candidates": [
+    "2.32.4"
+   ],
+   "affects_confirmed": true,
+   "summary": "Requests vulnerable to .netrc credentials leak via malicious URLs",
+   "published": "2025-06-09T19:06:08Z",
+   "files": [
+    "requirements.txt"
+   ],
+   "references": [
+    "https://github.com/psf/requests/security/advisories/GHSA-9hjg-9r4m-mvj7",
+    "https://nvd.nist.gov/vuln/detail/CVE-2024-47081",
+    "https://github.com/psf/requests/pull/6965"
+   ],
+   "cvss_v3": 5.3
+  },
+  {
+   "id": "CVE-2024-35195",
+   "aliases": [
+    "GHSA-9wx4-h78v-vm56",
+    "PYSEC-2026-1873"
+   ],
+   "osv_ids": [
+    "GHSA-9wx4-h78v-vm56",
+    "PYSEC-2026-1873"
+   ],
+   "package": "requests",
+   "version": "2.19.1",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/requests@2.19.1",
+   "severity": "MEDIUM",
+   "cvss": 5.6,
+   "score_source": "cvss_v3_vector",
+   "malicious": false,
+   "fixed_version": "2.32.0",
+   "fixed_candidates": [
+    "2.32.0"
+   ],
+   "affects_confirmed": true,
+   "summary": "Requests `Session` object does not verify requests after making first request with verify=False",
+   "published": "2024-05-20T20:15:00Z",
+   "files": [
+    "requirements.txt"
+   ],
+   "references": [
+    "https://github.com/psf/requests/security/advisories/GHSA-9wx4-h78v-vm56",
+    "https://nvd.nist.gov/vuln/detail/CVE-2024-35195",
+    "https://github.com/psf/requests/pull/6655"
+   ],
+   "cvss_v3": 5.6
+  },
+  {
+   "id": "CVE-2026-25645",
+   "aliases": [
+    "GHSA-gc5v-m9x4-r6x2",
+    "PYSEC-2026-2275"
+   ],
+   "osv_ids": [
+    "GHSA-gc5v-m9x4-r6x2",
+    "PYSEC-2026-2275"
+   ],
+   "package": "requests",
+   "version": "2.19.1",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/requests@2.19.1",
+   "severity": "MEDIUM",
+   "cvss": 5.5,
+   "score_source": "cvss_v3_vector",
+   "malicious": false,
+   "fixed_version": "2.33.0",
+   "fixed_candidates": [
+    "2.33.0"
+   ],
+   "affects_confirmed": true,
+   "summary": "Requests is a HTTP library. Prior to version 2.33.0, the `requests.utils.extract_zipped_paths()` utility function uses a predictable filename when extracting files from zip archives into the system temporary directory. If the target file...",
+   "published": "2026-03-25T17:16:52.970Z",
+   "files": [
+    "requirements.txt"
+   ],
+   "references": [
+    "https://github.com/psf/requests/releases/tag/v2.33.0",
+    "https://github.com/psf/requests/security/advisories/GHSA-gc5v-m9x4-r6x2",
+    "https://github.com/psf/requests/commit/66d21cb07bd6255b1280291c4fafb71803cdb3b7"
+   ],
+   "cvss_v3": 5.5
+  },
+  {
+   "id": "CVE-2023-32681",
+   "aliases": [
+    "GHSA-j8r2-6x86-q33q",
+    "PYSEC-2023-74"
+   ],
+   "osv_ids": [
+    "GHSA-j8r2-6x86-q33q",
+    "PYSEC-2023-74"
+   ],
+   "package": "requests",
+   "version": "2.19.1",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/requests@2.19.1",
+   "severity": "MEDIUM",
+   "cvss": 6.1,
+   "score_source": "cvss_v3_vector",
+   "malicious": false,
+   "fixed_version": "2.31.0",
+   "fixed_candidates": [
+    "2.31.0"
+   ],
+   "affects_confirmed": true,
+   "summary": "Unintended leak of Proxy-Authorization header in requests",
+   "published": "2023-05-22T20:36:32Z",
+   "files": [
+    "requirements.txt"
+   ],
+   "references": [
+    "https://github.com/psf/requests/security/advisories/GHSA-j8r2-6x86-q33q",
+    "https://nvd.nist.gov/vuln/detail/CVE-2023-32681",
+    "https://github.com/psf/requests/commit/74ea7cf7a6a27a4eeb2ae24e162bcc942a6706d5"
+   ],
+   "cvss_v3": 6.1
+  },
+  {
+   "id": "CVE-2018-18074",
+   "aliases": [
+    "GHSA-x84v-xcm2-53pg",
+    "PYSEC-2018-28"
+   ],
+   "osv_ids": [
+    "GHSA-x84v-xcm2-53pg",
+    "PYSEC-2018-28"
+   ],
+   "package": "requests",
+   "version": "2.19.1",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/requests@2.19.1",
+   "severity": "HIGH",
+   "cvss": 7.5,
+   "score_source": "cvss_v3_vector",
+   "malicious": false,
+   "fixed_version": "2.20.0",
+   "fixed_candidates": [
+    "2.20.0"
+   ],
+   "affects_confirmed": true,
+   "summary": "Insufficiently Protected Credentials in Requests",
+   "published": "2018-10-29T19:06:46Z",
+   "files": [
+    "requirements.txt"
+   ],
+   "references": [
+    "https://nvd.nist.gov/vuln/detail/CVE-2018-18074",
+    "https://github.com/requests/requests/issues/4716",
+    "https://github.com/requests/requests/pull/4718"
+   ],
+   "cvss_v3": 7.5
+  },
+  {
+   "id": "CVE-2020-1747",
+   "aliases": [
+    "GHSA-6757-jp84-gxfx",
+    "PYSEC-2020-96"
+   ],
+   "osv_ids": [
+    "GHSA-6757-jp84-gxfx",
+    "PYSEC-2020-96"
+   ],
+   "package": "pyyaml",
+   "version": "5.3",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/pyyaml@5.3",
+   "severity": "CRITICAL",
+   "cvss": 9.8,
+   "score_source": "cvss_v3_vector",
+   "malicious": false,
+   "fixed_version": "5.3.1",
+   "fixed_candidates": [
+    "5.3.1"
+   ],
+   "affects_confirmed": true,
+   "summary": "Improper Input Validation in PyYAML",
+   "published": "2021-04-20T16:14:24Z",
+   "files": [
+    "requirements.txt"
+   ],
+   "references": [
+    "https://nvd.nist.gov/vuln/detail/CVE-2020-1747",
+    "https://github.com/github/advisory-database/pull/4942",
+    "https://github.com/yaml/pyyaml/pull/386"
+   ],
+   "cvss_v3": 9.8,
+   "cvss_v4": 9.3
+  },
+  {
+   "id": "CVE-2020-14343",
+   "aliases": [
+    "GHSA-8q59-q68h-6hv4",
+    "PYSEC-2021-142"
+   ],
+   "osv_ids": [
+    "GHSA-8q59-q68h-6hv4",
+    "PYSEC-2021-142"
+   ],
+   "package": "pyyaml",
+   "version": "5.3",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/pyyaml@5.3",
+   "severity": "CRITICAL",
+   "cvss": 9.8,
+   "score_source": "cvss_v3_vector",
+   "malicious": false,
+   "fixed_version": "5.4",
+   "fixed_candidates": [
+    "5.4"
+   ],
+   "affects_confirmed": true,
+   "summary": "Improper Input Validation in PyYAML",
+   "published": "2021-03-25T21:26:26Z",
+   "files": [
+    "requirements.txt"
+   ],
+   "references": [
+    "https://nvd.nist.gov/vuln/detail/CVE-2020-14343",
+    "https://github.com/SeldonIO/seldon-core/issues/2252",
+    "https://github.com/yaml/pyyaml/issues/420"
+   ],
+   "cvss_v3": 9.8,
+   "cvss_v4": 9.3
+  }
+ ],
+ "plans": [
+  {
+   "component": "pyyaml",
+   "ecosystem": "PyPI",
+   "current_version": "5.3",
+   "safe_version": "5.4",
+   "status": "upgrade",
+   "clears": [
+    "CVE-2020-14343",
+    "CVE-2020-1747"
+   ],
+   "uncleared": [],
+   "cve_count": 2,
+   "major_bump": false,
+   "breaking_risk": "low",
+   "relationship": "direct",
+   "files": [
+    "requirements.txt"
+   ],
+   "max_severity": "CRITICAL",
+   "max_cvss": 9.8,
+   "verification": {
+    "clean": true,
+    "method": "osv_recheck",
+    "rounds": 1,
+    "residual": [],
+    "bumped_from": null
+   }
+  },
+  {
+   "component": "requests",
+   "ecosystem": "PyPI",
+   "current_version": "2.19.1",
+   "safe_version": "2.33.0",
+   "status": "upgrade",
+   "clears": [
+    "CVE-2018-18074",
+    "CVE-2023-32681",
+    "CVE-2024-35195",
+    "CVE-2024-47081",
+    "CVE-2026-25645"
+   ],
+   "uncleared": [],
+   "cve_count": 5,
+   "major_bump": false,
+   "breaking_risk": "low",
+   "relationship": "direct",
+   "files": [
+    "requirements.txt"
+   ],
+   "max_severity": "HIGH",
+   "max_cvss": 7.5,
+   "verification": {
+    "clean": true,
+    "method": "osv_recheck",
+    "rounds": 1,
+    "residual": [],
+    "bumped_from": null
+   }
+  }
+ ],
+ "license": {
+  "stats": {
+   "by_source": {
+    "deps.dev": 2
+   },
+   "resolved": 2,
+   "total": 2,
+   "unmapped_raw": {},
+   "remote_lookups": 0,
+   "cache_hits": 2,
+   "offline": false,
+   "extra_registries": true,
+   "resolved_rate": 1.0,
+   "net": {
+    "requests": 0,
+    "failures": 0
+   }
+  },
+  "project_license": "",
+  "project_license_source": "",
+  "tree": {
+   "project_license": "",
+   "project_license_source": "",
+   "license_files": [],
+   "vendored": [],
+   "spdx_header_counts": {},
+   "source_files_scanned": 0
+  },
+  "policy": []
+ },
+ "arch": {},
+ "sectors": {
+  "defense": {
+   "schema": "bts-sector-report-1",
+   "sector": "dod",
+   "sector_title": "EO 14028 · CISA attestation · DoD Software Pathway",
+   "requirements": [
+    {
+     "id": "DOD-01",
+     "title": "SBOM automation evidenced (generator/creator tool declared)",
+     "basis": "EO 14028 (2021-05-12) · CISA self-attestation common form · DoD Software Pathway — SBOM automation",
+     "verdict": "pass",
+     "detail": "SBOM generator tool declared in metadata.tools (1 tool(s))",
+     "evidence": {
+      "creators": [],
+      "metadata_tools": 1
+     }
+    },
+    {
+     "id": "DOD-02",
+     "title": "VEX triage evidence (statements present)",
+     "basis": "EO 14028 (2021-05-12) · CISA self-attestation common form · DoD Software Pathway · CISA VEX companion guidance",
+     "verdict": "pass",
+     "detail": "VEX document present with 7 statement(s)",
+     "evidence": {
+      "vex_present": true,
+      "statements": 7,
+      "vulnerabilities": 0,
+      "total": 7
+     }
+    },
+    {
+     "id": "DOD-03",
+     "title": "Supplier fields declared per component",
+     "basis": "EO 14028 (2021-05-12) · CISA self-attestation common form · DoD Software Pathway · NTIA Minimum Elements for an SBOM (2021)",
+     "verdict": "gap",
+     "detail": "supplier coverage 0.0% is below the 80% threshold (0 of 2 components)",
+     "evidence": {
+      "supplier_pct": 0.0,
+      "with_supplier": 0,
+      "components": 2,
+      "threshold_pct": 80.0,
+      "basis": "0 of 2 components"
+     }
+    },
+    {
+     "id": "DOD-04",
+     "title": "NTIA minimum elements (CISA attestation form basis)",
+     "basis": "EO 14028 (2021-05-12) · CISA self-attestation common form · DoD Software Pathway · NTIA Minimum Elements for an SBOM (2021)",
+     "verdict": "gap",
+     "detail": "NTIA minimum elements incomplete: 1 element(s) below 60% (score 85.0, grade B)",
+     "evidence": {
+      "ntia_status": "OK",
+      "format": "CycloneDX",
+      "component_count": 2,
+      "total_score": 85.0,
+      "grade": "B",
+      "pass_count": 6,
+      "warn_count": 0,
+      "fail_count": 1
+     }
+    }
+   ],
+   "verdict": "gaps",
+   "summary": {
+    "pass": 2,
+    "gap": 2,
+    "not_evidence": 0
+   },
+   "honesty": "Every verdict is computed only from the supplied SBOM/VEX/EOL documents; a requirement whose evidence is absent is not_evidence — never an inferred or fabricated pass. Measured percentages and counts are in each row's evidence so a reviewer can apply a stricter bar.",
+   "industry": "defense"
+  },
+  "automotive": {
+   "schema": "bts-sector-report-1",
+   "sector": "r155",
+   "sector_title": "UNECE R155 CSMS / R156 SUMS",
+   "requirements": [
+    {
+     "id": "R155-01",
+     "title": "RXSWIN identification present in SBOM metadata",
+     "basis": "UNECE R155 (CSMS) / R156 (SUMS) — full new-type coverage 2027 — RXSWIN software identification",
+     "verdict": "gap",
+     "detail": "no rxswin marker found in document-level metadata/properties/annotations/comment",
+     "evidence": {
+      "locations_scanned": [
+       "comment",
+       "metadata.properties"
+      ],
+      "rxswin_found_in": []
+     }
+    },
+    {
+     "id": "R155-02",
+     "title": "Component inventory (NTIA minimum elements)",
+     "basis": "UNECE R155 (CSMS) / R156 (SUMS) — full new-type coverage 2027 · NTIA Minimum Elements for an SBOM (2021)",
+     "verdict": "gap",
+     "detail": "NTIA minimum elements incomplete: 1 element(s) below 60% (score 85.0, grade B)",
+     "evidence": {
+      "ntia_status": "OK",
+      "format": "CycloneDX",
+      "component_count": 2,
+      "total_score": 85.0,
+      "grade": "B",
+      "pass_count": 6,
+      "warn_count": 0,
+      "fail_count": 1
+     }
+    },
+    {
+     "id": "R155-03",
+     "title": "Vulnerability monitoring evidence (VEX statements)",
+     "basis": "UNECE R155 (CSMS) / R156 (SUMS) — full new-type coverage 2027 — CSMS supply-chain vulnerability monitoring",
+     "verdict": "pass",
+     "detail": "VEX document present with 7 statement(s)",
+     "evidence": {
+      "vex_present": true,
+      "statements": 7,
+      "vulnerabilities": 0,
+      "total": 7
+     }
+    },
+    {
+     "id": "R155-04",
+     "title": "Update impact-analysis evidence (dependency graph)",
+     "basis": "UNECE R155 (CSMS) / R156 (SUMS) — full new-type coverage 2027 — SUMS update impact analysis",
+     "verdict": "pass",
+     "detail": "dependency graph present (0 SPDX relationships / 3 CycloneDX dependency entries)",
+     "evidence": {
+      "relationships": 0,
+      "dependencies": 3,
+      "format": "CycloneDX"
+     }
+    }
+   ],
+   "verdict": "gaps",
+   "summary": {
+    "pass": 2,
+    "gap": 2,
+    "not_evidence": 0
+   },
+   "honesty": "Every verdict is computed only from the supplied SBOM/VEX/EOL documents; a requirement whose evidence is absent is not_evidence — never an inferred or fabricated pass. Measured percentages and counts are in each row's evidence so a reviewer can apply a stricter bar.",
+   "industry": "automotive"
+  },
+  "medical": {
+   "schema": "bts-sector-report-1",
+   "sector": "fda",
+   "sector_title": "FDA FD&C §524B + 2025-06 final guidance (cyber devices)",
+   "requirements": [
+    {
+     "id": "FDA-01",
+     "title": "Machine-readable SBOM (NTIA-cited SPDX/CycloneDX)",
+     "basis": "FD&C Act §524B (2023-03) — premarket cyber-device submission",
+     "verdict": "pass",
+     "detail": "CycloneDX document declared (1.5)",
+     "evidence": {
+      "format": "CycloneDX",
+      "declared": "1.5"
+     }
+    },
+    {
+     "id": "FDA-02",
+     "title": "NTIA minimum elements satisfied",
+     "basis": "FD&C Act §524B (2023-03) — premarket cyber-device submission · NTIA Minimum Elements for an SBOM (2021)",
+     "verdict": "gap",
+     "detail": "NTIA minimum elements incomplete: 1 element(s) below 60% (score 85.0, grade B)",
+     "evidence": {
+      "ntia_status": "OK",
+      "format": "CycloneDX",
+      "component_count": 2,
+      "total_score": 85.0,
+      "grade": "B",
+      "pass_count": 6,
+      "warn_count": 0,
+      "fail_count": 1
+     }
+    },
+    {
+     "id": "FDA-03",
+     "title": "Supplier declared per component",
+     "basis": "FD&C Act §524B (2023-03) — premarket cyber-device submission · NTIA Minimum Elements for an SBOM (2021)",
+     "verdict": "gap",
+     "detail": "supplier coverage 0.0% is below the 80% threshold (0 of 2 components)",
+     "evidence": {
+      "supplier_pct": 0.0,
+      "with_supplier": 0,
+      "components": 2,
+      "threshold_pct": 80.0,
+      "basis": "0 of 2 components"
+     }
+    },
+    {
+     "id": "FDA-04",
+     "title": "Support status + end-of-support date per component (2025-06 NEW)",
+     "basis": "FDA final guidance 'Cybersecurity in Medical Devices' (2025-06) — support status + end-of-support date per component",
+     "verdict": "not_evidence",
+     "detail": "no end-of-support input: no eol dict and no eol/eos properties or annotations in the SBOM",
+     "evidence": {
+      "components": 2,
+      "eol_source": null,
+      "covered": 0
+     }
+    },
+    {
+     "id": "FDA-05",
+     "title": "Known vulnerabilities documented (VEX statements)",
+     "basis": "FD&C Act §524B (2023-03) — premarket cyber-device submission",
+     "verdict": "pass",
+     "detail": "VEX document present with 7 statement(s)",
+     "evidence": {
+      "vex_present": true,
+      "statements": 7,
+      "vulnerabilities": 0,
+      "total": 7
+     }
+    }
+   ],
+   "verdict": "gaps",
+   "summary": {
+    "pass": 2,
+    "gap": 2,
+    "not_evidence": 1
+   },
+   "honesty": "Every verdict is computed only from the supplied SBOM/VEX/EOL documents; a requirement whose evidence is absent is not_evidence — never an inferred or fabricated pass. Measured percentages and counts are in each row's evidence so a reviewer can apply a stricter bar.",
+   "industry": "medical"
+  },
+  "finance": {
+   "schema": "bts-sector-report-1",
+   "sector": "finance",
+   "sector_title": "금융보안원 OSS 안내서 · KISA SW 공급망 가이드라인",
+   "requirements": [
+    {
+     "id": "FIN-01",
+     "title": "License inventory completeness (0 NOASSERTION)",
+     "basis": "금융보안원 「금융분야 OSS 활용·관리 안내서」 · KISA SW 공급망 보안 가이드라인 — OSS 라이선스 고지·관리",
+     "verdict": "pass",
+     "detail": "all 2 components carry a known license expression (0 NOASSERTION)",
+     "evidence": {
+      "components": 2,
+      "unknown_licenses": 0,
+      "noassertion_ratio": 0.0,
+      "unknown_components": []
+     }
+    },
+    {
+     "id": "FIN-02",
+     "title": "CVE matching coverage (VEX document present)",
+     "basis": "금융보안원 「금융분야 OSS 활용·관리 안내서」 · KISA SW 공급망 보안 가이드라인 — 취약점 관리",
+     "verdict": "pass",
+     "detail": "VEX document present with 7 statement(s)",
+     "evidence": {
+      "vex_present": true,
+      "statements": 7,
+      "vulnerabilities": 0,
+      "total": 7
+     }
+    },
+    {
+     "id": "FIN-03",
+     "title": "SBOM maintenance evidence (document timestamp)",
+     "basis": "금융보안원 「금융분야 OSS 활용·관리 안내서」 · KISA SW 공급망 보안 가이드라인 — SBOM 관리·갱신",
+     "verdict": "pass",
+     "detail": "document timestamp present (metadata.timestamp)",
+     "evidence": {
+      "creationInfo.created": null,
+      "metadata.timestamp": "2026-11-22T23:21:28+00:00"
+     }
+    },
+    {
+     "id": "FIN-04",
+     "title": "Supplier + version fields declared (NTIA)",
+     "basis": "금융보안원 「금융분야 OSS 활용·관리 안내서」 · KISA SW 공급망 보안 가이드라인 · NTIA Minimum Elements for an SBOM (2021)",
+     "verdict": "gap",
+     "detail": "supplier coverage 0.0% is below the 80% threshold (0 of 2 components)",
+     "evidence": {
+      "supplier_pct": 0.0,
+      "with_supplier": 0,
+      "components": 2,
+      "threshold_pct": 80.0,
+      "basis": "0 of 2 components",
+      "version_pct": 100.0
+     }
+    }
+   ],
+   "verdict": "gaps",
+   "summary": {
+    "pass": 3,
+    "gap": 1,
+    "not_evidence": 0
+   },
+   "honesty": "Every verdict is computed only from the supplied SBOM/VEX/EOL documents; a requirement whose evidence is absent is not_evidence — never an inferred or fabricated pass. Measured percentages and counts are in each row's evidence so a reviewer can apply a stricter bar.",
+   "industry": "finance"
+  },
+  "maritime": {
+   "schema": "bts_sbom_app-sector-report-1",
+   "sector": "maritime",
+   "sector_title": "IACS UR E26/E27 SBOM evidence (DRAFT)",
+   "draft": true,
+   "requirements": [
+    {
+     "id": "MAR-01",
+     "title": "Machine-readable software inventory declared (SPDX/CycloneDX)",
+     "basis": "IACS UR E26 (ship cyber resilience) / UR E27 (onboard systems and equipment), applicable to new-builds contracted on or after 2024-07-01; IMO MSC.428(98); IEC 62443-4-1/4-2 references - DRAFT checklist pending maritime-expert review",
+     "verdict": "pass",
+     "detail": "CycloneDX document declared",
+     "evidence": {
+      "format": "CycloneDX"
+     }
+    },
+    {
+     "id": "MAR-02",
+     "title": "Name + version recorded for every software component",
+     "basis": "IACS UR E26 (ship cyber resilience) / UR E27 (onboard systems and equipment), applicable to new-builds contracted on or after 2024-07-01; IMO MSC.428(98); IEC 62443-4-1/4-2 references - DRAFT checklist pending maritime-expert review",
+     "verdict": "pass",
+     "detail": "2 of 2 components carry name and version",
+     "evidence": {
+      "components": 2,
+      "with_name_version": 2
+     }
+    },
+    {
+     "id": "MAR-03",
+     "title": "Supplier identified per component (>=80%)",
+     "basis": "IACS UR E26 (ship cyber resilience) / UR E27 (onboard systems and equipment), applicable to new-builds contracted on or after 2024-07-01; IMO MSC.428(98); IEC 62443-4-1/4-2 references - DRAFT checklist pending maritime-expert review",
+     "verdict": "gap",
+     "detail": "0 of 2 components (0.0%) name a supplier",
+     "evidence": {
+      "components": 2,
+      "with_supplier": 0,
+      "pct": 0.0
+     }
+    },
+    {
+     "id": "MAR-04",
+     "title": "Vulnerability-management evidence (VEX statements)",
+     "basis": "IACS UR E26 (ship cyber resilience) / UR E27 (onboard systems and equipment), applicable to new-builds contracted on or after 2024-07-01; IMO MSC.428(98); IEC 62443-4-1/4-2 references - DRAFT checklist pending maritime-expert review",
+     "verdict": "pass",
+     "detail": "VEX document with 7 statement(s)",
+     "evidence": {
+      "vex_present": true,
+      "statements": 7
+     }
+    },
+    {
+     "id": "MAR-05",
+     "title": "No unaddressed critical/high vulnerabilities",
+     "basis": "IACS UR E26 (ship cyber resilience) / UR E27 (onboard systems and equipment), applicable to new-builds contracted on or after 2024-07-01; IMO MSC.428(98); IEC 62443-4-1/4-2 references - DRAFT checklist pending maritime-expert review",
+     "verdict": "gap",
+     "detail": "3 critical/high finding(s) without a fixed/not_affected statement",
+     "evidence": {
+      "open_critical_high": 3,
+      "ids": [
+       "CVE-2018-18074",
+       "CVE-2020-14343",
+       "CVE-2020-1747"
+      ]
+     }
+    },
+    {
+     "id": "MAR-06",
+     "title": "Support status / end-of-support per component",
+     "basis": "IACS UR E26 (ship cyber resilience) / UR E27 (onboard systems and equipment), applicable to new-builds contracted on or after 2024-07-01; IMO MSC.428(98); IEC 62443-4-1/4-2 references - DRAFT checklist pending maritime-expert review",
+     "verdict": "not_evidence",
+     "detail": "no end-of-support input provided",
+     "evidence": {
+      "eol_present": false
+     }
+    },
+    {
+     "id": "MAR-07",
+     "title": "License inventory complete",
+     "basis": "IACS UR E26 (ship cyber resilience) / UR E27 (onboard systems and equipment), applicable to new-builds contracted on or after 2024-07-01; IMO MSC.428(98); IEC 62443-4-1/4-2 references - DRAFT checklist pending maritime-expert review",
+     "verdict": "pass",
+     "detail": "0 of 2 components have no known license",
+     "evidence": {
+      "components": 2,
+      "unknown": 0,
+      "sample": []
+     }
+    }
+   ],
+   "summary": {
+    "pass": 4,
+    "gap": 2,
+    "not_evidence": 1
+   },
+   "verdict": "gaps",
+   "honesty": "Every verdict is computed only from the supplied SBOM/VEX/EOL documents; a requirement whose evidence is absent is not_evidence - never an inferred or fabricated pass."
+  },
+  "cra": {
+   "schema": "bts-sector-report-1",
+   "sector": "cra",
+   "sector_title": "EU Cyber Resilience Act (Regulation (EU) 2024/2847)",
+   "requirements": [
+    {
+     "id": "CRA-01",
+     "title": "Machine-readable SBOM format declared (SPDX/CycloneDX)",
+     "basis": "EU Cyber Resilience Act (Regulation (EU) 2024/2847), Annex I — full application 2027-12-11",
+     "verdict": "pass",
+     "detail": "CycloneDX document declared (1.5)",
+     "evidence": {
+      "format": "CycloneDX",
+      "declared": "1.5"
+     }
+    },
+    {
+     "id": "CRA-02",
+     "title": "Component inventory complete (NTIA minimum elements)",
+     "basis": "EU Cyber Resilience Act (Regulation (EU) 2024/2847), Annex I — full application 2027-12-11 · NTIA Minimum Elements for an SBOM (2021)",
+     "verdict": "gap",
+     "detail": "NTIA minimum elements incomplete: 1 element(s) below 60% (score 85.0, grade B)",
+     "evidence": {
+      "ntia_status": "OK",
+      "format": "CycloneDX",
+      "component_count": 2,
+      "total_score": 85.0,
+      "grade": "B",
+      "pass_count": 6,
+      "warn_count": 0,
+      "fail_count": 1
+     }
+    },
+    {
+     "id": "CRA-03",
+     "title": "Supplier coverage per component (>=80%)",
+     "basis": "EU Cyber Resilience Act (Regulation (EU) 2024/2847), Annex I — full application 2027-12-11 · NTIA Minimum Elements for an SBOM (2021)",
+     "verdict": "gap",
+     "detail": "supplier coverage 0.0% is below the 80% threshold (0 of 2 components)",
+     "evidence": {
+      "supplier_pct": 0.0,
+      "with_supplier": 0,
+      "components": 2,
+      "threshold_pct": 80.0,
+      "basis": "0 of 2 components"
+     }
+    },
+    {
+     "id": "CRA-04",
+     "title": "Vulnerability-handling evidence (VEX statements)",
+     "basis": "EU Cyber Resilience Act (Regulation (EU) 2024/2847), Annex I — full application 2027-12-11 — Art. 13-14 vulnerability handling; reporting from 2026-09-11",
+     "verdict": "pass",
+     "detail": "VEX document present with 7 statement(s)",
+     "evidence": {
+      "vex_present": true,
+      "statements": 7,
+      "vulnerabilities": 0,
+      "total": 7
+     }
+    },
+    {
+     "id": "CRA-05",
+     "title": "End-of-support dates declared per component",
+     "basis": "EU Cyber Resilience Act (Regulation (EU) 2024/2847), Annex I — full application 2027-12-11 — support-period disclosure for the product and its components",
+     "verdict": "not_evidence",
+     "detail": "no end-of-support input: no eol dict and no eol/eos properties or annotations in the SBOM",
+     "evidence": {
+      "components": 2,
+      "eol_source": null,
+      "covered": 0
+     }
+    }
+   ],
+   "verdict": "gaps",
+   "summary": {
+    "pass": 2,
+    "gap": 2,
+    "not_evidence": 1
+   },
+   "honesty": "Every verdict is computed only from the supplied SBOM/VEX/EOL documents; a requirement whose evidence is absent is not_evidence — never an inferred or fabricated pass. Measured percentages and counts are in each row's evidence so a reviewer can apply a stricter bar.",
+   "industry": "cra"
+  },
+  "robot": {
+   "schema": "bts-sector-report-1",
+   "sector": "robot",
+   "sector_title": "KISA 로봇 보안모델 · ISO 10218-1:2025 · CRA overlap",
+   "requirements": [
+    {
+     "id": "ROB-01",
+     "title": "Component vulnerability check (VEX statements)",
+     "basis": "KISA 로봇 보안모델·체크리스트 · ISO 10218-1:2025 · EU CRA overlap — 구성요소 취약점 점검",
+     "verdict": "pass",
+     "detail": "VEX document present with 7 statement(s)",
+     "evidence": {
+      "vex_present": true,
+      "statements": 7,
+      "vulnerabilities": 0,
+      "total": 7
+     }
+    },
+    {
+     "id": "ROB-02",
+     "title": "Component inventory (NTIA minimum elements)",
+     "basis": "KISA 로봇 보안모델·체크리스트 · ISO 10218-1:2025 · EU CRA overlap · NTIA Minimum Elements for an SBOM (2021)",
+     "verdict": "gap",
+     "detail": "NTIA minimum elements incomplete: 1 element(s) below 60% (score 85.0, grade B)",
+     "evidence": {
+      "ntia_status": "OK",
+      "format": "CycloneDX",
+      "component_count": 2,
+      "total_score": 85.0,
+      "grade": "B",
+      "pass_count": 6,
+      "warn_count": 0,
+      "fail_count": 1
+     }
+    },
+    {
+     "id": "ROB-03",
+     "title": "CRA-overlap readiness (format + end-of-support coverage)",
+     "basis": "KISA 로봇 보안모델·체크리스트 · ISO 10218-1:2025 · EU CRA overlap — ISO 10218-1:2025 security-evaluation mapping onto CRA Annex I",
+     "verdict": "not_evidence",
+     "detail": "end-of-support input absent — CRA overlap readiness cannot be measured (format check: pass)",
+     "evidence": {
+      "format": "CycloneDX",
+      "eol_source": null
+     }
+    },
+    {
+     "id": "ROB-04",
+     "title": "Machine-readable SBOM format declared",
+     "basis": "KISA 로봇 보안모델·체크리스트 · ISO 10218-1:2025 · EU CRA overlap — machine-readable component documentation",
+     "verdict": "pass",
+     "detail": "CycloneDX document declared (1.5)",
+     "evidence": {
+      "format": "CycloneDX",
+      "declared": "1.5"
+     }
+    }
+   ],
+   "verdict": "gaps",
+   "summary": {
+    "pass": 2,
+    "gap": 1,
+    "not_evidence": 1
+   },
+   "honesty": "Every verdict is computed only from the supplied SBOM/VEX/EOL documents; a requirement whose evidence is absent is not_evidence — never an inferred or fabricated pass. Measured percentages and counts are in each row's evidence so a reviewer can apply a stricter bar.",
+   "industry": "robot"
+  }
+ },
+ "patch": {
+  "approved": true,
+  "rounds": [
+   {
+    "round": 1,
+    "status": "applied",
+    "applied": 2,
+    "blocked": 0,
+    "manual": 0,
+    "results": [
+     {
+      "component": "pyyaml",
+      "ecosystem": "PyPI",
+      "from": "5.3",
+      "to": "5.4",
+      "status": "applied",
+      "file": "requirements.txt",
+      "detail": "1 line(s) updated"
+     },
+     {
+      "component": "requests",
+      "ecosystem": "PyPI",
+      "from": "2.19.1",
+      "to": "2.33.0",
+      "status": "applied",
+      "file": "requirements.txt",
+      "detail": "1 line(s) updated"
+     }
+    ],
+    "regenerate": [],
+    "vulns_before": 7,
+    "vulns_after": 0,
+    "fixed": [
+     "CVE-2018-18074",
+     "CVE-2020-14343",
+     "CVE-2020-1747",
+     "CVE-2023-32681",
+     "CVE-2024-35195",
+     "CVE-2024-47081",
+     "CVE-2026-25645"
+    ],
+    "introduced": [],
+    "edited_files": [
+     "requirements.txt"
+    ],
+    "scoped_before": 7,
+    "scoped_after": 0
+   }
+  ],
+  "status": "applied",
+  "before": {
+   "vulns": 7
+  },
+  "rescan_fixed_total": 7,
+  "applied_components": 2,
+  "base_commit": "e409d6802c608673d371392297ef6c4938b1ddbf",
+  "last": {
+   "approved": true,
+   "digest": "64a2aba63040b0e7",
+   "results": [
+    {
+     "component": "pyyaml",
+     "ecosystem": "PyPI",
+     "from": "5.3",
+     "to": "5.4",
+     "status": "applied",
+     "file": "requirements.txt",
+     "detail": "1 line(s) updated"
+    },
+    {
+     "component": "requests",
+     "ecosystem": "PyPI",
+     "from": "2.19.1",
+     "to": "2.33.0",
+     "status": "applied",
+     "file": "requirements.txt",
+     "detail": "1 line(s) updated"
+    }
+   ],
+   "changed_files": [
+    "requirements.txt"
+   ],
+   "branch": "bts-sbom/auto-fix",
+   "commit": "ff64c1ad721f4565facffc692f49b48bb690ef1c",
+   "dry_run": false,
+   "regenerate": [],
+   "status": "applied",
+   "base_commit": "e409d6802c608673d371392297ef6c4938b1ddbf"
+  },
+  "branch": "bts-sbom/auto-fix",
+  "commit": "ff64c1ad721f4565facffc692f49b48bb690ef1c",
+  "regenerate": [],
+  "estimated_fixed_by_plan": 7,
+  "after": {
+   "vulns_rescan": 0,
+   "vulns_estimated": 0
+  },
+  "diff": {
+   "stat": " requirements.txt | 4 ++--\n 1 file changed, 2 insertions(+), 2 deletions(-)\n",
+   "patch": "diff --git a/requirements.txt b/requirements.txt\nindex c754384..415481a 100644\n--- a/requirements.txt\n+++ b/requirements.txt\n@@ -1,2 +1,2 @@\n-requests==2.19.1\n-pyyaml==5.3\n+requests==2.33.0\n+pyyaml==5.4\n"
+  },
+  "impact": {
+   "direct": {
+    "status": "ok",
+    "checked": true,
+    "counts": {
+     "resolved": 7,
+     "remaining": 0,
+     "introduced": 0
+    },
+    "evidence": [
+     "resolved: CVE-2018-18074, CVE-2020-14343, CVE-2020-1747, CVE-2023-32681, CVE-2024-35195, CVE-2024-47081, CVE-2026-25645"
+    ]
+   },
+   "upstream": {
+    "status": "n/a",
+    "checked": true,
+    "counts": {
+     "other_components": 0,
+     "new_findings": 0,
+     "blocked": 0
+    },
+    "evidence": []
+   },
+   "downstream": {
+    "status": "ok",
+    "checked": true,
+    "counts": {
+     "new_transitive_findings": 0,
+     "regenerate_pending": 0
+    },
+    "evidence": []
+   },
+   "shared": {
+    "status": "unverified",
+    "checked": false,
+    "counts": {
+     "other_manifests_unfixed": 0,
+     "fleet_projects_affected": null
+    },
+    "evidence": [
+     "no fleet registry given: other projects using the same component/version cannot be checked"
+    ]
+   },
+   "summary": "verdict incomplete (direct ok, upstream n/a, downstream ok, shared unverified)",
+   "verdict": "incomplete"
+  },
+  "review": {
+   "verdict": "changes_requested",
+   "findings": [
+    {
+     "rule": "RV-IMPACT-INCOMPLETE",
+     "severity": "medium",
+     "detail": "impact analysis is incomplete (at least one quadrant unverified): verdict incomplete (direct ok, upstream n/a, downstream ok, shared unverified)"
+    }
+   ],
+   "reviewer": "deterministic-v1",
+   "independent": true
+  },
+  "at": "2026-11-23T08:21:31",
+  "work_copy": "C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_sbom_fix_vy906wyv\\proj_fix"
+ },
+ "proposals": {
+  "source": "deterministic",
+  "model": "",
+  "items": [
+   {
+    "title": "pyyaml 5.3 -> 5.4",
+    "action": "upgrade",
+    "refs": [
+     "pyyaml"
+    ],
+    "target_version": "5.4",
+    "rationale": "OSV 재조회 결과 후보 버전 깨끗함: 2개 취약점 해소",
+    "risk": "low"
+   },
+   {
+    "title": "requests 2.19.1 -> 2.33.0",
+    "action": "upgrade",
+    "refs": [
+     "requests"
+    ],
+    "target_version": "2.33.0",
+    "rationale": "OSV 재조회 결과 후보 버전 깨끗함: 5개 취약점 해소",
+    "risk": "low"
+   }
+  ],
+  "summary": "",
+  "dropped": {},
+  "llm_note": "EXAONE unavailable -> deterministic proposals: local daily budget reached (80 calls) - protecting the provider's day limit",
+  "cached": false,
+  "cache_key": "6850d626f91f2a8ee7d5",
+  "prompt_version": "ai-v2"
+ },
+ "sbom_check": {
+  "cyclonedx_errors": [],
+  "cyclonedx_valid": true,
+  "ref_integrity": {
+   "affects": 7,
+   "resolved": 7,
+   "rate": 1.0
+  },
+  "spdx_errors": [],
+  "spdx_valid": true,
+  "components": 2,
+  "vulnerabilities": 7
+ },
+ "engine": {
+  "core": "0.5.0",
+  "sources": [
+   {
+    "file": "requirements.txt",
+    "type": "lockfile",
+    "components": 2
+   }
+  ],
+  "unsupported": [],
+  "status": {
+   "sources": 1,
+   "packages": 2,
+   "queried_online": 2,
+   "mode": "online",
+   "unqueried": 0,
+   "version_unresolved": 0,
+   "network_fallback_offline": 0
+  },
+  "adjustments": {
+   "duplicate_findings_merged": 0,
+   "ruby_platform_variants_merged": 0,
+   "go_sum_only_dropped": 0
+  },
+  "data_status": "complete",
+  "vulnerability_presence": "found",
+  "notes": []
+ },
+ "error": null,
+ "timings": {
+  "prepare": 0.44,
+  "analyze": 1.37,
+  "core_version": 0.0,
+  "licenses": 0.0,
+  "license_tree": 0.0,
+  "plan": 0.0,
+  "verify": 0.5,
+  "spdx": 0.0,
+  "spdx_validate": 0.0,
+  "sectors": 0.0,
+  "conformance": 0.0,
+  "sbom": 0.0,
+  "supply_chain": 0.0,
+  "proposals": 0.0,
+  "changes": 0.0,
+  "changes_diff": 0.0
+ },
+ "stage_errors": {},
+ "path": "C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_sbom_chat_p3jeaq_a\\proj",
+ "kind": "local-copy",
+ "lineage": {
+  "commit": "2439768a17d04f9dedd5591fd4d2753220ce600a",
+  "remote": "",
+  "branch": "main",
+  "source": "C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_actions_run_bvt79how\\proj",
+  "uncommitted_changes_included": false
+ },
+ "plan_summary": {
+  "plans": 2,
+  "upgrade": 2,
+  "no_fix": 0,
+  "verified_clean": 2,
+  "verified_dirty": 0,
+  "unverified": 0,
+  "major_bumps": 0
+ },
+ "conformance": {
+  "schema": "bts-sbom.conformance.v1",
+  "status": "OK",
+  "format": "CycloneDX",
+  "components": 2,
+  "table": {
+   "reviewed": "2026-11",
+   "age_months": 0,
+   "stale": false,
+   "note": "regime table last reviewed 2026-11"
+  },
+  "regimes": {
+   "ntia-2021": {
+    "title": "NTIA Minimum Elements for an SBOM (2021)",
+    "verdict": "gaps",
+    "pass": 6,
+    "partial": 0,
+    "gap": 1,
+    "total": 7,
+    "draft": false,
+    "as_of": "2021-07"
+   },
+   "cisa-2025-draft": {
+    "title": "CISA Minimum Elements for an SBOM (2025 draft)",
+    "verdict": "gaps",
+    "pass": 8,
+    "partial": 0,
+    "gap": 3,
+    "total": 11,
+    "draft": true,
+    "as_of": "2025-08"
+   },
+   "eu-cra-annex-i": {
+    "title": "EU Cyber Resilience Act, Annex I Part II(1)",
+    "verdict": "conformant",
+    "pass": 4,
+    "partial": 0,
+    "gap": 0,
+    "total": 4,
+    "draft": false,
+    "as_of": "2026-11"
+   },
+   "bsi-tr-03183-2": {
+    "title": "BSI TR-03183 Part 2 (SBOM requirements for CRA)",
+    "verdict": "gaps",
+    "pass": 7,
+    "partial": 0,
+    "gap": 4,
+    "total": 11,
+    "draft": false,
+    "as_of": "2026-11"
+   },
+   "vuln-ready": {
+    "title": "Vulnerability / VEX readiness (BTS-SBOM)",
+    "verdict": "conformant",
+    "pass": 4,
+    "partial": 0,
+    "gap": 0,
+    "total": 4,
+    "draft": false,
+    "as_of": "2026-11"
+   }
+  },
+  "elements": {
+   "machine_readable": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "top_level_deps": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "sbom_author": {
+    "status": "gap",
+    "pct": 0.0,
+    "missing": 1
+   },
+   "sbom_author_or_tool": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "sbom_contact": {
+    "status": "gap",
+    "pct": 0.0,
+    "missing": 1
+   },
+   "tool_name": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "timestamp": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "generation_context": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "component_name": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "version": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "unique_id": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "purl": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "supplier": {
+    "status": "gap",
+    "pct": 0.0,
+    "missing": 2
+   },
+   "hash": {
+    "status": "gap",
+    "pct": 0.0,
+    "missing": 2
+   },
+   "license": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   },
+   "dependency": {
+    "status": "pass",
+    "pct": 100.0,
+    "missing": 0
+   }
+  },
+  "fix_once": [
+   {
+    "element": "supplier",
+    "status": "gap",
+    "pct": 0.0,
+    "missing": 2,
+    "regimes": [
+     "ntia-2021",
+     "cisa-2025-draft",
+     "bsi-tr-03183-2"
+    ]
+   },
+   {
+    "element": "hash",
+    "status": "gap",
+    "pct": 0.0,
+    "missing": 2,
+    "regimes": [
+     "cisa-2025-draft",
+     "bsi-tr-03183-2"
+    ]
+   },
+   {
+    "element": "sbom_author",
+    "status": "gap",
+    "pct": 0.0,
+    "missing": 1,
+    "regimes": [
+     "cisa-2025-draft",
+     "bsi-tr-03183-2"
+    ]
+   },
+   {
+    "element": "sbom_contact",
+    "status": "gap",
+    "pct": 0.0,
+    "missing": 1,
+    "regimes": [
+     "bsi-tr-03183-2"
+    ]
+   }
+  ]
+ },
+ "supply_chain": [],
+ "origin_unchanged": true,
+ "elapsed_s": 2.3,
+ "metrics": {
+  "components": 2,
+  "vulns": 7,
+  "severity": {
+   "MEDIUM": 4,
+   "HIGH": 1,
+   "CRITICAL": 2
+  },
+  "license_resolved": 2,
+  "license_total": 2,
+  "license_resolved_rate": 1.0,
+  "license_sources": {
+   "deps.dev": 2
+  },
+  "plans": 2,
+  "plans_upgrade": 2,
+  "plans_verified_clean": 2,
+  "plans_unverified": 0,
+  "sbom_ref_rate": 1.0,
+  "cyclonedx_valid": true,
+  "spdx_valid": true,
+  "patch_status": "applied",
+  "patch_applied_components": 2,
+  "patch_rescan_fixed": 7,
+  "patch_estimated_fixed": 7,
+  "arch_edges": 0,
+  "arch_cycles": 0,
+  "proposal_source": "deterministic",
+  "stage_errors": 0,
+  "elapsed_s": 2.3
+ },
+ "changes": {
+  "schema": "bts-sbom.changes.v1",
+  "threshold": 7.0,
+  "verdict": "same",
+  "summary": {
+   "components_added": 0,
+   "components_removed": 0,
+   "components_changed": 0,
+   "vulns_new": 0,
+   "vulns_resolved": 0,
+   "vulns_rescored": 0,
+   "alerts": 0,
+   "alerts_critical": 0
+  },
+  "before": {
+   "name": "proj",
+   "kind": "record",
+   "components": 2,
+   "vulns": 7
+  },
+  "compared_at": "2026-11-22T23:21:28+00:00",
+  "alerts": [],
+  "new": [],
+  "resolved": [],
+  "rescored": [],
+  "components": {
+   "added": [],
+   "removed": [],
+   "changed": [],
+   "license_changed": [],
+   "copyleft_introduced": []
+  }
+ },
+ "artifacts": {
+  "cdx": "C:\\firebaseprojects\\beyondthesecurity-sbom\\evidence\\chat_actions\\proj\\proj.cdx.json",
+  "spdx": "C:\\firebaseprojects\\beyondthesecurity-sbom\\evidence\\chat_actions\\proj\\proj.spdx.json",
+  "vex": "C:\\firebaseprojects\\beyondthesecurity-sbom\\evidence\\chat_actions\\proj\\proj.vex.json"
+ }
+}

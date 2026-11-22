@@ -187,3 +187,23 @@ def test_records_written_before_the_identifier_rename_still_load(ui, tmp_path):
         d.mkdir(parents=True)
         (d / (name + ".json")).write_text(json.dumps(dict(rec, name=name, schema=schema)), encoding="utf-8")
     assert sorted(cli.load_projects(str(ev))) == ["current", "earlier"]    # the unknown id stays out
+
+
+def test_supply_chain_substitution_risks_are_measured_and_reach_view_and_chat(tmp_path, make_repo):
+    """AC: BSA-AC-606. The core SupplyChainAnalyzer (typosquatting, npm namespace confusion, dependency confusion) was
+    orphaned - the scanner never ran it - so the pipeline now measures it into the record, the view projects it, and the
+    chat tool answers with kind, resemblance, CWE and the recommendation. A clean run answers honestly that it ran clean."""
+    from bts_sbom_app.chat import run_tool
+    origin = make_repo({"requirements.txt": "requests==2.19.1\nreqests==1.0\n"})   # one edit away from the popular name
+    rec = pipeline.run_project(origin, work_root=str(tmp_path / "w"), out_dir=str(tmp_path / "ev"), use_llm=False,
+                               scanner=FakeScanner(), run_arch=False, cache_dir=str(tmp_path / "cache"))
+    assert rec["error"] is None, rec
+    fs = rec["supply_chain"]
+    assert fs and fs[0]["package"] == "reqests" and fs[0]["resembles"] == "requests" and fs[0]["cwe"] == "CWE-506"
+    view = console.build_view(rec)
+    assert view["supply_chain"][0]["kind"] == fs[0]["kind"] and view["supply_chain"][0]["recommendation"]
+    out = run_tool(rec, "supply_chain", {})[0]
+    body = "\n".join(out["lines"])
+    assert out["tool"] == "supply_chain" and "typosquat" in body and "CWE-506" in body
+    clean = run_tool({"name": "p", "components": [], "vulns": []}, "supply_chain", {})[0]
+    assert "ran clean" in "\n".join(clean["lines"])
