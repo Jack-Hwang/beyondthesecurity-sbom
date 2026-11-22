@@ -89,6 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("source"); a.add_argument("--ref"); a.add_argument("--depth", type=int, default=200)
     a.add_argument("--dgml", default=None, help="write the import graph as a Visual Studio Code Map (.dgml)")
     a.add_argument("--dgml-layers", default=None, help="write the layer validation map (.dgml): violations red, bypassed amber")
+    a.add_argument("--validate-dgml", default=None, help="read an existing .dgml code map and validate it against --layers rules")
     a.add_argument("--layers", default=None, help="layer rules JSON: deny-by-default may_depend_on allow-lists (see arch_map.rules_example)")
     _common(a)
     b = sub.add_parser("batch", help="analyse many sources")
@@ -241,6 +242,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             res["layer_validation"] = vr
             txt.append("layer validation: %s - illegal %d, bypassed %d, unknown-layer edges %d (checked %d)" % (
                 vr["verdict"], len(vr["violations"]), len(vr["bypassed"]), vr["unknown_layer_edges"], vr["checked"]))
+        if a.validate_dgml:
+            cmap = arch_map.read_dgml(a.validate_dgml)
+            rules = json.load(io.open(a.layers, encoding="utf-8")) if a.layers else {}
+            vr = arch_map.layer_validate(cmap["edges"], rules)
+            vr["map_source"] = a.validate_dgml
+            vr["groups"] = cmap.get("groups", [])
+            res["layer_validation"] = vr
+            txt.append("dgml validation: %s - %d edges across %d nodes, groups %s" % (
+                vr["verdict"], vr["checked"], len(cmap["nodes"]), ",".join(cmap["groups"]) or "-"))
         if a.dgml_layers:
             if not a.layers:
                 print("ERROR: --dgml-layers needs --layers rules.json", file=sys.stderr)

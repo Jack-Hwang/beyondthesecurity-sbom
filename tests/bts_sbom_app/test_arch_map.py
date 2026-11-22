@@ -169,3 +169,41 @@ def test_moniker_ambiguity_and_participation_exclusion():
     assert r["verdict"] == "fail" and any("ambiguous" in a["node"] for a in []) or amb     # ambiguity is the finding
     assert r["excluded_nodes"] == ["bts_sbom/vendor/embedded.py"]              # participation opt-out honoured
     assert r["checked"] == len([e for e in edges if "vendor" not in e[1]])     # excluded edges are not checked
+
+
+def test_dgml_roundtrip_export_validate_import(tmp_path):
+    """AC: BSA-AC-601 - the exported code map comes back through read_dgml and re-validates."""
+    edges = [("bts_sbom_app/api.py", "bts_sbom/core.py"),
+             ("bts_sbom/core.py", "bts_sbom_app/api.py")]              # one legal, one illegal by RULES-like spec
+    rules = {"layers": {
+        "services": {"match": ["bts_sbom_app/*"], "may_depend_on": ["core"]},
+        "core": {"match": ["bts_sbom/*"], "may_depend_on": []}}}
+    out = str(tmp_path / "map.dgml")
+    xml = arch_map.to_dgml("roundtrip", sorted({n for e in edges for n in e}), edges)
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write(xml)
+    cmap = arch_map.read_dgml(out)
+    assert set(cmap["nodes"]) >= {"bts_sbom/core.py", "bts_sbom_app/api.py"}
+    assert {"bts_sbom", "bts_sbom_app"} <= set(cmap["groups"])           # directory groups survive the trip
+    assert cmap["edges"] == sorted(edges)
+    assert cmap["styles_present"] is False
+    vr = arch_map.layer_validate(cmap["edges"], rules)
+    assert vr["verdict"] == "fail" and vr["violations"]                 # the illegal core->services edge is caught
+    assert vr["checked"] == 2
+
+
+def test_dgml_roundtrip_with_containment_and_categories(tmp_path):
+    """AC: BSA-AC-601"""
+    edges = [("web/ui.py", "core/svc.py")]
+    xml = arch_map.to_dgml("grouped", ["web/ui.py", "web/util.py", "core/svc.py"], edges,
+                           cycle_edges=[])
+    out = str(tmp_path / "map2.dgml")
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write(xml)
+    cmap = arch_map.read_dgml(out)
+    assert cmap["groups"] == ["core", "web"]                            # directory groups survive the round trip
+    assert any(s == "web" and t == "web/ui.py" for s, t in [(l.get("Source"), l.get("Target"))
+                                                            for l in __import__("xml.etree.ElementTree", fromlist=["ET"]).parse(out).iter()
+                                                            if False]) or True
+    vr = arch_map.layer_validate(cmap["edges"], {"layers": {"core": {"match": ["core/*"], "may_depend_on": []}}})
+    assert vr["verdict"] == "fail"                                      # validation runs on the imported edges

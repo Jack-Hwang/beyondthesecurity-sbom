@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import xml.sax.saxutils as saxutils
 from typing import Any, Dict, Iterable, List, Set, Tuple
 
@@ -254,6 +255,38 @@ def layer_validate(edges: Iterable[Tuple[str, str]], rules: Dict[str, Any]) -> D
                              "source": "Microsoft.VisualStudio.Layer 18.11.12306.13 "
                                        "(REA: extracted from the VS 2026 LTSC 18.11 channel manifest)"},
             "verdict": verdict}
+
+
+def read_dgml(path: str) -> Dict[str, Any]:
+    """Read a Visual Studio Code Map (.dgml) — the round-trip half of the DGML export: nodes, links and
+    containment groups come back as plain structures that layer_validate can consume directly. Categories,
+    styles and properties are noted in the result but not interpreted (we validate structure, not art)."""
+    import xml.etree.ElementTree as ET
+    ns = "{%s}" % DGML_NS
+    root = ET.parse(path).getroot()
+    nodes: List[str] = []
+    edges: List[Tuple[str, str]] = []
+    contains: List[Tuple[str, str]] = []
+    for n in root.iter(ns + "Node"):
+        nid = n.get("Id")
+        if nid:
+            nodes.append(nid)
+    for l in root.iter(ns + "Link"):
+        s, t = l.get("Source"), l.get("Target")
+        if not s or not t:
+            continue
+        if l.get("Category") == "Contains":
+            contains.append((s, t))
+        else:
+            edges.append((s, t))
+    groups = sorted({c[0] for c in contains})
+    members: Dict[str, List[str]] = {}
+    for parent, child in contains:
+        members.setdefault(parent, []).append(child)
+    return {"schema": SCHEMA + ".dgml-read", "source": os.path.basename(path),
+            "nodes": sorted(set(nodes)), "edges": sorted(set(edges)), "groups": groups,
+            "members": members, "styles_present": root.find(ns + "Styles") is not None,
+            "categories_declared": [c.get("Id") for c in root.iter(ns + "Category") if c.get("Id")]}
 
 
 def rules_example() -> str:
