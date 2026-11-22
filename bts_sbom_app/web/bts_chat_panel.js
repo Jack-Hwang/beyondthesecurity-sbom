@@ -43,6 +43,70 @@
     ['책 검색', '책에서 fitness function 찾아줘']
   ];
 
+  /* ---------- IF-A04 slash commands + IF-B04 다음 단계 (CCD 명세, ADR-0028) ---------- */
+  /* app commands typed in the box: they drive the client and NEVER reach the model - one LLM budget per turn stays reserved for real questions */
+  var SLASH = [
+    ['scan', '스캔 판 열기 (/scan <대상>은 입력까지 채워 ▶ Analyze까지 실행)'],
+    ['oss', '📜 OSS 결과 판'], ['report', '📊 리포트 판'], ['risk', '📊 Findings 판'], ['prioritize', '🎯 SSVC 판'],
+    ['arch', '🏛 Arch Intel 판'], ['code', '🔎 Code Intel 판'], ['diagrams', '🗺 Diagrams 판'], ['books', '📚 Book KB 판'],
+    ['compliance', '✅ SBOM checks 판'], ['vex', '📋 VEX·결정 판'], ['fix', '🔧 Fix Plan 판'], ['history', '⚙️ CI/CD·이력 판'], ['fleet', '🗂 Fleet 판']
+  ];
+  var SLASH_GO = { scan: 'git', oss: 'oss', report: 'report', risk: 'risk', findings: 'risk', prioritize: 'ssvc',
+                   arch: 'archintel', code: 'code', diagrams: 'diagrams', books: 'books', compliance: 'ntia',
+                   vex: 'vex', fix: 'fix-plan', history: 'more', fleet: 'fleet' };
+  function openPanel(sv, noteText) {
+    document.dispatchEvent(new CustomEvent('bts:activate', { detail: sv }));
+    if (noteText) {
+      msgs.appendChild(el('div', { 'class': 'bts-cd-turn', text: '📦 ' + noteText }));
+      scrollEnd();
+    }
+  }
+  function runSlash(q) {
+    var m = /^\/([a-z]+)\b\s*(.*)$/i.exec(q);
+    if (!m) { return false; }
+    var cmd = m[1].toLowerCase(), arg = (m[2] || '').trim();
+    userLine(q);
+    if (cmd === 'help') {
+      var help = el('div', { 'class': 'bts-cd-turn' });
+      help.appendChild(el('div', { 'class': 'sub', text: '앱 명령 - 모델 호출 없이 이 클라이언트를 구동한다 (IF-A04):' }));
+      SLASH.forEach(function (s) { help.appendChild(el('div', { text: '/' + s[0] + ' - ' + s[1] })); });
+      msgs.appendChild(help);
+      scrollEnd();
+      return true;
+    }
+    if (cmd === 'scan' && arg) {
+      var run = document.getElementById('runScaReport'), inp = document.getElementById('scaGitUrl');
+      if (!run || !inp) {
+        msgs.appendChild(el('div', { 'class': 'bts-cd-turn', text: '스캔 폼을 찾지 못했다 - 🌐 Scan 판에서 직접 실행하라.' }));
+        scrollEnd();
+        return true;
+      }
+      openPanel('git');
+      inp.value = arg;
+      run.click();                                     // the unified Analyze: main pipeline + OSS scan (ADR-0026)
+      msgs.appendChild(el('div', { 'class': 'bts-cd-turn', text: '▶ Analyze 실행: ' + arg + ' - 진행은 스캔 판의 단계 바, 결과는 📊 Report와 📜 OSS 결과에.' }));
+      scrollEnd();
+      return true;
+    }
+    var go = SLASH_GO[cmd];
+    if (!go) {
+      msgs.appendChild(el('div', { 'class': 'bts-cd-turn', text: "모르는 명령 '/" + cmd + "' - /help 로 목록을 볼 수 있다." }));
+      scrollEnd();
+      return true;
+    }
+    openPanel(go, go + ' 판을 열었다.');
+    return true;
+  }
+  /* the zone-5 "다음 단계 상자": a finished turn offers the panel that matches the tools it actually used */
+  var NEXT = {
+    top_vulns: ['risk', '📊 Findings 판 보기'], vuln_lookup: ['risk', '📊 Findings 판 보기'],
+    proposals: ['fix-plan', '🔧 Fix Plan 판 보기'], plan_patch: ['fix-pr', '🔧 Patch 판 보기'],
+    latest_arch: ['archintel', '🏛 Arch Intel 판 보기'], book_search: ['books', '📚 Book KB 판 보기'],
+    sbom_conformance: ['conformance', '📐 SBOM conformance 판 보기'], what_changed: ['changes', '🔔 What changed 판 보기'],
+    coverage: ['ntia', '✅ SBOM checks 판 보기'], license_risks: ['license-risk', '⚖ License Risk 판 보기'],
+    draw_diagram: ['diagrams', '🗺 Diagrams 판 보기'], overview: ['report', '📊 Report 판 보기']
+  };
+
   /* ---------- DOM ---------- */
   var bar = el('button', { type: 'button', 'class': 'bts-cd-bar', id: 'chatDockBar' });
   var body = el('div', { 'class': 'bts-cd-body', id: 'chatDockBody' });
@@ -57,7 +121,8 @@
   var llmChk = el('input', { type: 'checkbox', id: 'chatDockLlm', title: 'EXAONE/Azure LLM 사용 (미연결 시 규칙 기반으로 정직하게 강등)' });
   var llmLab = el('label', { 'class': 'bts-cd-llm', title: llmChk.title }, [llmChk, document.createTextNode(' LLM')]);
   var sendBtn = el('button', { type: 'button', 'class': 'run', id: 'chatDockSend', text: '\u27A4 보내기' });
-  var inputRow = el('div', { 'class': 'bts-cd-input' }, [input, llmLab, sendBtn]);
+  var clearBtn = el('button', { type: 'button', 'class': 'bts-cd-clear', id: 'chatDockClear', title: '이 프로젝트의 대화를 지운다', text: '\u232B' });
+  var inputRow = el('div', { 'class': 'bts-cd-input' }, [input, clearBtn, llmLab, sendBtn]);
   body.appendChild(msgs);
   body.appendChild(chipsRow);
   body.appendChild(inputRow);
@@ -79,6 +144,67 @@
   setBar();
 
   function scrollEnd() { msgs.scrollTop = msgs.scrollHeight; }
+
+  /* ---------- conversation memory (CCD CL-12 Local Data Store 아날로그): per-project, this browser only.
+     The select is also moved PROGRAMMATICALLY (selectProject from the rail sessions and the history
+     auto-pick - a value change fires no event), so the single sync point is the bts:project event that
+     selectProject dispatches; the dock follows it instead of second-guessing the select. ---------- */
+  var shownKey = null;                                       // the store key whose conversation msgs currently shows
+  function keyFor(p) { return 'bts-chat-' + (p || '(no project)'); }
+  function saveShown() {
+    try {
+      var out = [];
+      Array.prototype.forEach.call(msgs.children, function (node) {
+        if (node.classList.contains('bts-cd-turn-user')) { out.push({ t: 'u', text: node.textContent }); }
+        else if (node.classList.contains('bts-cd-turn')) {
+          var ans = node.querySelector('.bts-cd-answer');
+          if (ans) {
+            var clone = ans.cloneNode(true);                 // dead controls never persist
+            Array.prototype.forEach.call(clone.querySelectorAll('.bts-cd-approve, .bts-cd-next'), function (x) { x.parentNode.removeChild(x); });
+            out.push({ t: 'a', html: clone.innerHTML });     // our own escaped rendering, same origin only
+          }
+        }
+      });
+      localStorage.setItem(shownKey, JSON.stringify(out));
+    } catch (e) { /* storage unavailable: the conversation simply does not persist */ }
+  }
+  function loadShown() {
+    try {
+      var raw = localStorage.getItem(shownKey);
+      msgs.textContent = '';
+      if (!raw) { return; }
+      JSON.parse(raw).forEach(function (row) {
+        if (row.t === 'u') { msgs.appendChild(el('div', { 'class': 'bts-cd-turn-user', text: row.text })); }
+        else if (row.t === 'a') {
+          var turn = el('div', { 'class': 'bts-cd-turn' });
+          var box = el('div', { 'class': 'bts-cd-answer' });
+          box.innerHTML = row.html;                          // saved from our own rendering; approve/next rows were stripped
+          turn.appendChild(box);
+          msgs.appendChild(turn);
+        }
+      });
+    } catch (e) { msgs.textContent = ''; }
+    scrollEnd();
+  }
+  function followProject(name) {
+    var key = keyFor(name);
+    if (shownKey === null) {                                 // first sync: keep any pre-project turns under their own key
+      shownKey = keyFor('(no project)');
+      if (msgs.childElementCount) { saveShown(); }
+      shownKey = key;
+      loadShown();
+      return;
+    }
+    if (key === shownKey) { return; }
+    saveShown();
+    shownKey = key;
+    loadShown();
+  }
+  clearBtn.addEventListener('click', function () {
+    try { localStorage.removeItem(shownKey); } catch (e) { /* same as save */ }
+    msgs.textContent = '';
+  });
+  document.addEventListener('bts:project', function (e) { followProject(e && e.detail); });
 
   /* ---------- rendering ---------- */
   function userLine(text) {
@@ -178,9 +304,11 @@
     var q = (text !== undefined ? text : input.value).trim();
     if (!q || busy) { return; }
     input.value = '';
+    if (runSlash(q)) { saveShown(); return; }         // app commands never reach the model (IF-A04)
     busy = true;
     setBar();
     userLine(q);
+    var turnTools = [];                                      // the tools this turn actually ran -> 다음 단계 suggestions
     var projSel = document.getElementById('projSel');
     var project = projSel && projSel.value ? projSel.value : undefined;
     var turn = el('div', { 'class': 'bts-cd-turn' });
@@ -208,9 +336,23 @@
         var summ = el('summary', { text: '활동 보기 (' + actBox.querySelectorAll('.bts-cd-act').length + ')' });
         var old = card.querySelector('summary');
         if (old) { card.replaceChild(summ, old); }
+        var seen = {}, next = el('div', { 'class': 'bts-cd-next' });
+        turnTools.forEach(function (t) {                // zone-5 다음 단계 상자: only panels the turn actually touched
+          var n = NEXT[t];
+          if (!n || seen[n[0]]) { return; }
+          seen[n[0]] = 1;
+          var b = el('button', { type: 'button', 'class': 'bts-cd-next-b', text: n[1] });
+          b.addEventListener('click', function () { openPanel(n[0]); });
+          next.appendChild(b);
+        });
+        if (next.childElementCount) {
+          next.insertBefore(el('span', { 'class': 'sub', text: '다음 단계: ' }), next.firstChild);
+          answerBox.appendChild(next);
+        }
       } else if (!answerBox.querySelector('.bts-note.bad')) {
         answerBox.innerHTML = note('스트림이 응답 없이 끝났다 - 다시 질문 가능.', 'warn');
       }
+      saveShown();                                      // the turn (or its honest partial) persists for this project
       scrollEnd();
     }
 
@@ -245,7 +387,10 @@
     });
     function handle(ev, d) {
       if (ev === 'step_start') { actBox.appendChild(activityRow(ev, d.seq, '"' + (d.question || '') + '"')); }
-      else if (ev === 'tool_call') { actBox.appendChild(activityRow(ev, d.seq, d.tool + ' ' + JSON.stringify(d.args || {}))); }
+      else if (ev === 'tool_call') {
+        if (turnTools.indexOf(d.tool) < 0) { turnTools.push(d.tool); }
+        actBox.appendChild(activityRow(ev, d.seq, d.tool + ' ' + JSON.stringify(d.args || {})));
+      }
       else if (ev === 'tool_result') { actBox.appendChild(activityRow(ev, d.seq, d.tool + ' — ' + d.lines + '줄')); }
       else if (ev === 'handoff') {
         var h = d.handoff || {};

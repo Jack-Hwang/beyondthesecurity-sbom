@@ -813,3 +813,17 @@ Claude 클라이언트의 사이드바는 기능 메뉴가 아니라 **세션 �
 - BSA-AC-583 [Event] When the console loads it shall build the rail as a Claude-client session list - a ＋ 새 분석 button that opens the Scan landing, an analysis-session list of the analysed projects (up to 12, click selects the project and opens its Report panel, the selected one highlighted) and five collapsed feature sections that keep all 26 panels reachable under their .rtab[data-sv] headers - with a 💬 어시스턴트 toggle that opens and focuses the conversation surface, while the conversation dock ships OPEN as the main window (its initial state decided by the markup class, message area enlarged to at least 50vh) (1 of 1 session lists, 5 of 5 sections, 26 of 26 panels preserved, 1 of 1 open-by-default surfaces).
 
 - BSA-AC-591 [Event] When the layer validator reports findings it shall use the REAL Visual Studio message formats extracted verbatim from LayerDesigner.Dsl by REA - an empty layer reported as "Layer {name} has no artifacts or child layers." and an ambiguous moniker reported as "Ambiguous moniker '{node}' encountered. It is used for both '{layer1}' and '{layer2}'." - so users see the same wording Visual Studio shows (2 of 2 message formats, 1 of 1 verbatim rule).
+
+### 대화가 앱을 부른다 — 슬래시 명령·다음 단계 상자·대화 영속화 (CCD IF-A04·IF-B04·CL-12, 사용자 지시 "계속", 2026-11-22, ADR-0028)
+
+Claude 클라이언트 셸(AC-583)의 2차: 대화면이 앱의 실제 구동 계가 된다. ① **슬래시 명령(IF-A04)**: 대화 입력의
+`/help·/scan·/oss·/report·/risk·/prioritize·/arch·/code·/diagrams·/books·/compliance·/vex·/fix·/history·/fleet`
+은 모델 호출 없이 이 클라이언트를 구동한다 — 판 전환은 bts:activate 이벤트, `/scan <대상>`은 Scan 랜딩 입력을
+채우고 ▶ Analyze(메인+OSS 통합, ADR-0026)까지 실행하며, 알 수 없는 명령은 조용히 모델로 넘어가지 않고 정직한
+안내를 돌려준다. ② **다음 단계 상자(CCD zone 5)**: 턴이 실제로 실행한 도구만 근거로, 대응 판 보기 버튼
+(예: top_vulns→📊 Findings, plan_patch→🔧 Patch, book_search→📚 Book KB)을 응답 아래에 제안한다 — 안 돌린
+도구의 판은 제안하지 않는다. ③ **대화 영속화(CL-12 아날로그)**: 프로젝트별로 이 브라우저에만 대화를 저장하고
+세션 전환 시 함께 교체된다. 저장 시 승인 버튼·다음 단계 버튼 같은 죽은 컨트롤은 잘라내고, 저장 실패(스토리지
+불가)는 조용한 기능 상실이 아니라 "영속되지 않음"으로만 끝난다. 프로젝트별 지우기 버튼이 있다.
+
+- BSA-AC-592 [Event] When a chat turn is sent the conversation surface shall first resolve app slash commands locally - the fifteen panel commands open their panel through the bts:activate event and /scan <target> additionally fills the Scan landing input and runs the unified Analyze - without any model call, reporting an unknown command with an honest hint instead of forwarding it; when a turn finishes the surface shall offer a next-steps row built only from the tools that turn actually executed, each button opening the matching panel; and the conversation shall persist per project in this browser only, stripped of approval and next-step controls on save, swapped on project change, clearable per project, with a failed storage write ending as a non-persistent conversation rather than an error (15 of 15 panel commands, 1 of 1 scan-with-target flow, 12 of 12 tool-to-panel suggestions, 1 of 1 per-project persistence).

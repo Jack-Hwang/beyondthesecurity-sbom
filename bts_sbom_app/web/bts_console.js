@@ -274,9 +274,12 @@
     });
   }
   function selectProject(name, keepStep) {
-    if (!name) { S.project = ''; S.view = null; resetGovernance(); renderAll(); return Promise.resolve(); }
+    if (!name) { S.project = ''; S.view = null; resetGovernance(); renderAll();
+      document.dispatchEvent(new CustomEvent('bts:project', { detail: '' }));   // the dock swaps its conversation
+      return Promise.resolve(); }
     S.project = name;
     $('#projSel').value = name;
+    document.dispatchEvent(new CustomEvent('bts:project', { detail: name }));   // the dock swaps its conversation
     return Promise.all([api('/api/view/' + encodeURIComponent(name)), api('/api/triage')]).then(function (rs) {
       if (!rs[0].ok) {
         S.view = null;

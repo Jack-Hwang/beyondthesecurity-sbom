@@ -61,3 +61,30 @@ def test_rail_styles_and_session_rows_are_csp_clean():
     css = _read("bts_console.css")
     for cls in (".bts-rail-new", ".bts-rail-session", ".bts-rail-grp", ".bts-rail-chip", ".bts-rail-assist"):
         assert cls in css
+
+
+def test_the_conversation_drives_the_app_slash_next_steps_and_memory():
+    """AC: BSA-AC-592"""
+    panel = _read("bts_chat_panel.js")
+    # IF-A04: slash commands drive the client and never reach the model
+    assert "var SLASH = [" in panel and "function runSlash" in panel
+    slash_body = panel.split("function runSlash")[1].split("var NEXT")[0]        # the runSlash body only
+    assert "/api/chat/stream" not in slash_body and "fetch(" not in slash_body   # app commands never reach the model
+    send_body = panel[panel.index("function send(text)"):]
+    assert "if (runSlash(q)) { saveShown(); return; }" in send_body       # the slash branch returns BEFORE the fetch
+    assert "document.getElementById('scaGitUrl')" in panel and "run.click()" in panel   # /scan <target> runs the unified Analyze
+    assert "모르는 명령" in panel                                                # an unknown command is reported, not guessed
+    # IF-B04: the finished turn offers the panels its tools actually touched
+    nxt = re.search(r"var NEXT = \{(.*?)\};", panel, re.S)
+    assert nxt and nxt.group(1).count("[") >= 12
+    assert "var turnTools = [];" in panel and "bts-cd-next-b" in panel
+    assert "openPanel(n[0]);" in panel                                           # suggestions dispatch the same panel jump
+    # CL-12: the conversation persists per project in this browser; dead controls never persist
+    for token in ("keyFor", "saveShown", "loadShown", "followProject", "'bts-chat-'"):
+        assert token in panel
+    assert "bts-cd-approve, .bts-cd-next" in panel                               # approve/next rows are stripped on save
+    assert "addEventListener('bts:project'" in panel and "function followProject" in panel   # selectProject drives the swap (programmatic moves fire no change event)
+    assert "chatDockClear" in panel                                              # a per-project clear exists
+    css = _read("bts_console.css")
+    for cls in (".bts-cd-next", ".bts-cd-next-b", ".bts-cd-clear"):
+        assert cls in css
