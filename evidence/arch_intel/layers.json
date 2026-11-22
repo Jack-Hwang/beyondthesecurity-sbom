@@ -1,0 +1,1 @@
+{"layers":{"app":{"match":["bts_sbom_app/*"],"may_depend_on":["core","tools"]},"core":{"match":["bts_sbom/*","scripts/*","knowledge/*"],"may_depend_on":["core"]},"tools":{"match":["scripts/*"],"may_depend_on":["core"]},"web":{"match":["evals/*","docs/*"],"may_depend_on":["app"]}}}

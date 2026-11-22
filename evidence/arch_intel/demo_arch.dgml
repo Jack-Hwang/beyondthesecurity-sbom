@@ -1,948 +1,1151 @@
 <?xml version="1.0" encoding="utf-8"?>
-<DirectedGraph xmlns="http://schemas.microsoft.com/vs/2009/dgml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Title="Architecture of ." Kind="bts-sbom.arch-map.v1">
-  <Node Id="bts_sbom/__init__.py" Label="bts_sbom/__init__.py" />
-  <Node Id="bts_sbom/__main__.py" Label="bts_sbom/__main__.py" />
-  <Node Id="bts_sbom/_internal/__init__.py" Label="bts_sbom/_internal/__init__.py" />
-  <Node Id="bts_sbom/_internal/callgraph.py" Label="bts_sbom/_internal/callgraph.py" />
-  <Node Id="bts_sbom/_internal/depsdev.py" Label="bts_sbom/_internal/depsdev.py" />
-  <Node Id="bts_sbom/_internal/epss_kev.py" Label="bts_sbom/_internal/epss_kev.py" />
-  <Node Id="bts_sbom/_internal/epss_offline.py" Label="bts_sbom/_internal/epss_offline.py" />
-  <Node Id="bts_sbom/_internal/fix_planner.py" Label="bts_sbom/_internal/fix_planner.py" />
-  <Node Id="bts_sbom/_internal/license_categories.py" Label="bts_sbom/_internal/license_categories.py" />
-  <Node Id="bts_sbom/_internal/license_norm.py" Label="bts_sbom/_internal/license_norm.py" />
-  <Node Id="bts_sbom/_internal/license_scan.py" Label="bts_sbom/_internal/license_scan.py" />
-  <Node Id="bts_sbom/_internal/license_spdx.py" Label="bts_sbom/_internal/license_spdx.py" />
-  <Node Id="bts_sbom/_internal/license_utils.py" Label="bts_sbom/_internal/license_utils.py" />
-  <Node Id="bts_sbom/_internal/lockfile_facts.py" Label="bts_sbom/_internal/lockfile_facts.py" />
-  <Node Id="bts_sbom/_internal/manifests/__init__.py" Label="bts_sbom/_internal/manifests/__init__.py" />
-  <Node Id="bts_sbom/_internal/manifests/cargo.py" Label="bts_sbom/_internal/manifests/cargo.py" />
-  <Node Id="bts_sbom/_internal/manifests/dpkg.py" Label="bts_sbom/_internal/manifests/dpkg.py" />
-  <Node Id="bts_sbom/_internal/manifests/extra.py" Label="bts_sbom/_internal/manifests/extra.py" />
-  <Node Id="bts_sbom/_internal/manifests/gomod.py" Label="bts_sbom/_internal/manifests/gomod.py" />
-  <Node Id="bts_sbom/_internal/manifests/npm.py" Label="bts_sbom/_internal/manifests/npm.py" />
-  <Node Id="bts_sbom/_internal/manifests/pip.py" Label="bts_sbom/_internal/manifests/pip.py" />
-  <Node Id="bts_sbom/_internal/manifests/rpm.py" Label="bts_sbom/_internal/manifests/rpm.py" />
-  <Node Id="bts_sbom/_internal/miniyaml.py" Label="bts_sbom/_internal/miniyaml.py" />
-  <Node Id="bts_sbom/_internal/models.py" Label="bts_sbom/_internal/models.py" />
-  <Node Id="bts_sbom/_internal/ntia_check.py" Label="bts_sbom/_internal/ntia_check.py" />
-  <Node Id="bts_sbom/_internal/oss_android.py" Label="bts_sbom/_internal/oss_android.py" />
-  <Node Id="bts_sbom/_internal/oss_binary.py" Label="bts_sbom/_internal/oss_binary.py" />
-  <Node Id="bts_sbom/_internal/oss_common.py" Label="bts_sbom/_internal/oss_common.py" />
-  <Node Id="bts_sbom/_internal/oss_dependency.py" Label="bts_sbom/_internal/oss_dependency.py" />
-  <Node Id="bts_sbom/_internal/oss_manifests_extra.py" Label="bts_sbom/_internal/oss_manifests_extra.py" />
-  <Node Id="bts_sbom/_internal/oss_precheck.py" Label="bts_sbom/_internal/oss_precheck.py" />
-  <Node Id="bts_sbom/_internal/oss_source.py" Label="bts_sbom/_internal/oss_source.py" />
-  <Node Id="bts_sbom/_internal/oss_yocto.py" Label="bts_sbom/_internal/oss_yocto.py" />
-  <Node Id="bts_sbom/_internal/osv_client.py" Label="bts_sbom/_internal/osv_client.py" />
-  <Node Id="bts_sbom/_internal/osv_local_db.py" Label="bts_sbom/_internal/osv_local_db.py" />
-  <Node Id="bts_sbom/_internal/pathutil.py" Label="bts_sbom/_internal/pathutil.py" />
-  <Node Id="bts_sbom/_internal/points_to.py" Label="bts_sbom/_internal/points_to.py" />
-  <Node Id="bts_sbom/_internal/policy.py" Label="bts_sbom/_internal/policy.py" />
-  <Node Id="bts_sbom/_internal/registry_meta.py" Label="bts_sbom/_internal/registry_meta.py" />
-  <Node Id="bts_sbom/_internal/remediation.py" Label="bts_sbom/_internal/remediation.py" />
-  <Node Id="bts_sbom/_internal/safe_xml.py" Label="bts_sbom/_internal/safe_xml.py" />
-  <Node Id="bts_sbom/_internal/sarif.py" Label="bts_sbom/_internal/sarif.py" />
-  <Node Id="bts_sbom/_internal/sbom.py" Label="bts_sbom/_internal/sbom.py" />
-  <Node Id="bts_sbom/_internal/spdx_sbom.py" Label="bts_sbom/_internal/spdx_sbom.py" />
-  <Node Id="bts_sbom/_internal/supplier_resolve.py" Label="bts_sbom/_internal/supplier_resolve.py" />
-  <Node Id="bts_sbom/_internal/timeutil.py" Label="bts_sbom/_internal/timeutil.py" />
-  <Node Id="bts_sbom/_internal/version_cmp.py" Label="bts_sbom/_internal/version_cmp.py" />
-  <Node Id="bts_sbom/_internal/version_match.py" Label="bts_sbom/_internal/version_match.py" />
-  <Node Id="bts_sbom/_internal/version_ranges.py" Label="bts_sbom/_internal/version_ranges.py" />
-  <Node Id="bts_sbom/_internal/xlsx_min.py" Label="bts_sbom/_internal/xlsx_min.py" />
-  <Node Id="bts_sbom/_version.py" Label="bts_sbom/_version.py" />
-  <Node Id="bts_sbom/cli.py" Label="bts_sbom/cli.py" />
-  <Node Id="bts_sbom/notice.py" Label="bts_sbom/notice.py" />
-  <Node Id="bts_sbom/oss_cli.py" Label="bts_sbom/oss_cli.py" />
-  <Node Id="bts_sbom/ossreport.py" Label="bts_sbom/ossreport.py" />
-  <Node Id="bts_sbom/ossscan.py" Label="bts_sbom/ossscan.py" />
-  <Node Id="bts_sbom/osvscanner.py" Label="bts_sbom/osvscanner.py" />
-  <Node Id="bts_sbom/reachability.py" Label="bts_sbom/reachability.py" />
-  <Node Id="bts_sbom/sbom.py" Label="bts_sbom/sbom.py" />
-  <Node Id="bts_sbom/sca_report.py" Label="bts_sbom/sca_report.py" />
-  <Node Id="bts_sbom/sectors.py" Label="bts_sbom/sectors.py" />
-  <Node Id="bts_sbom/supply_chain.py" Label="bts_sbom/supply_chain.py" />
-  <Node Id="bts_sbom/vex.py" Label="bts_sbom/vex.py" />
-  <Node Id="bts_sbom_app/__init__.py" Label="bts_sbom_app/__init__.py" />
-  <Node Id="bts_sbom_app/__main__.py" Label="bts_sbom_app/__main__.py" />
-  <Node Id="bts_sbom_app/actions.py" Label="bts_sbom_app/actions.py" />
-  <Node Id="bts_sbom_app/ai.py" Label="bts_sbom_app/ai.py" />
-  <Node Id="bts_sbom_app/arch.py" Label="bts_sbom_app/arch.py" />
-  <Node Id="bts_sbom_app/arch_api.py" Label="bts_sbom_app/arch_api.py" />
-  <Node Id="bts_sbom_app/arch_flow.py" Label="bts_sbom_app/arch_flow.py" />
-  <Node Id="bts_sbom_app/arch_intel.py" Label="bts_sbom_app/arch_intel.py" />
-  <Node Id="bts_sbom_app/arch_map.py" Label="bts_sbom_app/arch_map.py" />
-  <Node Id="bts_sbom_app/batch.py" Label="bts_sbom_app/batch.py" />
-  <Node Id="bts_sbom_app/binscan.py" Label="bts_sbom_app/binscan.py" />
-  <Node Id="bts_sbom_app/books.py" Label="bts_sbom_app/books.py" />
-  <Node Id="bts_sbom_app/books_api.py" Label="bts_sbom_app/books_api.py" />
-  <Node Id="bts_sbom_app/changes.py" Label="bts_sbom_app/changes.py" />
-  <Node Id="bts_sbom_app/chat.py" Label="bts_sbom_app/chat.py" />
-  <Node Id="bts_sbom_app/chat_stream.py" Label="bts_sbom_app/chat_stream.py" />
-  <Node Id="bts_sbom_app/cli.py" Label="bts_sbom_app/cli.py" />
-  <Node Id="bts_sbom_app/cli_ext.py" Label="bts_sbom_app/cli_ext.py" />
-  <Node Id="bts_sbom_app/code_intel.py" Label="bts_sbom_app/code_intel.py" />
-  <Node Id="bts_sbom_app/conformance.py" Label="bts_sbom_app/conformance.py" />
-  <Node Id="bts_sbom_app/console.py" Label="bts_sbom_app/console.py" />
-  <Node Id="bts_sbom_app/contextpack.py" Label="bts_sbom_app/contextpack.py" />
-  <Node Id="bts_sbom_app/conversation.py" Label="bts_sbom_app/conversation.py" />
-  <Node Id="bts_sbom_app/council.py" Label="bts_sbom_app/council.py" />
-  <Node Id="bts_sbom_app/coverage.py" Label="bts_sbom_app/coverage.py" />
-  <Node Id="bts_sbom_app/cvss.py" Label="bts_sbom_app/cvss.py" />
-  <Node Id="bts_sbom_app/cvss4.py" Label="bts_sbom_app/cvss4.py" />
-  <Node Id="bts_sbom_app/cvss4_data.py" Label="bts_sbom_app/cvss4_data.py" />
-  <Node Id="bts_sbom_app/deliver.py" Label="bts_sbom_app/deliver.py" />
-  <Node Id="bts_sbom_app/doclint.py" Label="bts_sbom_app/doclint.py" />
-  <Node Id="bts_sbom_app/engine.py" Label="bts_sbom_app/engine.py" />
-  <Node Id="bts_sbom_app/evals.py" Label="bts_sbom_app/evals.py" />
-  <Node Id="bts_sbom_app/evals_chat.py" Label="bts_sbom_app/evals_chat.py" />
-  <Node Id="bts_sbom_app/events.py" Label="bts_sbom_app/events.py" />
-  <Node Id="bts_sbom_app/fleet.py" Label="bts_sbom_app/fleet.py" />
-  <Node Id="bts_sbom_app/handoff.py" Label="bts_sbom_app/handoff.py" />
-  <Node Id="bts_sbom_app/impact.py" Label="bts_sbom_app/impact.py" />
-  <Node Id="bts_sbom_app/licenses.py" Label="bts_sbom_app/licenses.py" />
-  <Node Id="bts_sbom_app/llm.py" Label="bts_sbom_app/llm.py" />
-  <Node Id="bts_sbom_app/loop.py" Label="bts_sbom_app/loop.py" />
-  <Node Id="bts_sbom_app/looplog.py" Label="bts_sbom_app/looplog.py" />
-  <Node Id="bts_sbom_app/mcp_server.py" Label="bts_sbom_app/mcp_server.py" />
-  <Node Id="bts_sbom_app/net.py" Label="bts_sbom_app/net.py" />
-  <Node Id="bts_sbom_app/nl2sql.py" Label="bts_sbom_app/nl2sql.py" />
-  <Node Id="bts_sbom_app/oss_api.py" Label="bts_sbom_app/oss_api.py" />
-  <Node Id="bts_sbom_app/osv.py" Label="bts_sbom_app/osv.py" />
-  <Node Id="bts_sbom_app/patch.py" Label="bts_sbom_app/patch.py" />
-  <Node Id="bts_sbom_app/pipeline.py" Label="bts_sbom_app/pipeline.py" />
-  <Node Id="bts_sbom_app/portfolio.py" Label="bts_sbom_app/portfolio.py" />
-  <Node Id="bts_sbom_app/quality.py" Label="bts_sbom_app/quality.py" />
-  <Node Id="bts_sbom_app/rag.py" Label="bts_sbom_app/rag.py" />
-  <Node Id="bts_sbom_app/remediate.py" Label="bts_sbom_app/remediate.py" />
-  <Node Id="bts_sbom_app/report.py" Label="bts_sbom_app/report.py" />
-  <Node Id="bts_sbom_app/resilience.py" Label="bts_sbom_app/resilience.py" />
-  <Node Id="bts_sbom_app/review.py" Label="bts_sbom_app/review.py" />
-  <Node Id="bts_sbom_app/sbom.py" Label="bts_sbom_app/sbom.py" />
-  <Node Id="bts_sbom_app/sectors.py" Label="bts_sbom_app/sectors.py" />
-  <Node Id="bts_sbom_app/selfcheck.py" Label="bts_sbom_app/selfcheck.py" />
-  <Node Id="bts_sbom_app/server.py" Label="bts_sbom_app/server.py" />
-  <Node Id="bts_sbom_app/speclint.py" Label="bts_sbom_app/speclint.py" />
-  <Node Id="bts_sbom_app/srcscan.py" Label="bts_sbom_app/srcscan.py" />
-  <Node Id="bts_sbom_app/traceability.py" Label="bts_sbom_app/traceability.py" />
-  <Node Id="bts_sbom_app/triage.py" Label="bts_sbom_app/triage.py" />
-  <Node Id="bts_sbom_app/util.py" Label="bts_sbom_app/util.py" />
-  <Node Id="bts_sbom_app/versions.py" Label="bts_sbom_app/versions.py" />
-  <Node Id="bts_sbom_app/web/arch_intel_render.js" Label="bts_sbom_app/web/arch_intel_render.js" />
-  <Node Id="bts_sbom_app/web/bts_governance.js" Label="bts_sbom_app/web/bts_governance.js" />
-  <Node Id="bts_sbom_app/web/bts_ui.js" Label="bts_sbom_app/web/bts_ui.js" />
-  <Node Id="bts_sbom_app/workspace.py" Label="bts_sbom_app/workspace.py" />
-  <Node Id="run_bts_sbom_app.py" Label="run_bts_sbom_app.py" />
-  <Node Id="tests/bts_sbom_app/conftest.py" Label="tests/bts_sbom_app/conftest.py" />
-  <Node Id="tests/bts_sbom_app/test_agent_card_and_position.py" Label="tests/bts_sbom_app/test_agent_card_and_position.py" />
-  <Node Id="tests/bts_sbom_app/test_ai_rag_loop.py" Label="tests/bts_sbom_app/test_ai_rag_loop.py" />
-  <Node Id="tests/bts_sbom_app/test_arch_api.py" Label="tests/bts_sbom_app/test_arch_api.py" />
-  <Node Id="tests/bts_sbom_app/test_arch_flow.py" Label="tests/bts_sbom_app/test_arch_flow.py" />
-  <Node Id="tests/bts_sbom_app/test_arch_intel.py" Label="tests/bts_sbom_app/test_arch_intel.py" />
-  <Node Id="tests/bts_sbom_app/test_arch_intel_ui.py" Label="tests/bts_sbom_app/test_arch_intel_ui.py" />
-  <Node Id="tests/bts_sbom_app/test_arch_map.py" Label="tests/bts_sbom_app/test_arch_map.py" />
-  <Node Id="tests/bts_sbom_app/test_book_round2_improvements.py" Label="tests/bts_sbom_app/test_book_round2_improvements.py" />
-  <Node Id="tests/bts_sbom_app/test_books.py" Label="tests/bts_sbom_app/test_books.py" />
-  <Node Id="tests/bts_sbom_app/test_changes_triage.py" Label="tests/bts_sbom_app/test_changes_triage.py" />
-  <Node Id="tests/bts_sbom_app/test_chat_actions.py" Label="tests/bts_sbom_app/test_chat_actions.py" />
-  <Node Id="tests/bts_sbom_app/test_chat_agent_upgrades.py" Label="tests/bts_sbom_app/test_chat_agent_upgrades.py" />
-  <Node Id="tests/bts_sbom_app/test_chat_tools_gate.py" Label="tests/bts_sbom_app/test_chat_tools_gate.py" />
-  <Node Id="tests/bts_sbom_app/test_code_intel.py" Label="tests/bts_sbom_app/test_code_intel.py" />
-  <Node Id="tests/bts_sbom_app/test_console_ui.py" Label="tests/bts_sbom_app/test_console_ui.py" />
-  <Node Id="tests/bts_sbom_app/test_contextpack.py" Label="tests/bts_sbom_app/test_contextpack.py" />
-  <Node Id="tests/bts_sbom_app/test_council.py" Label="tests/bts_sbom_app/test_council.py" />
-  <Node Id="tests/bts_sbom_app/test_coverage.py" Label="tests/bts_sbom_app/test_coverage.py" />
-  <Node Id="tests/bts_sbom_app/test_cvss4.py" Label="tests/bts_sbom_app/test_cvss4.py" />
-  <Node Id="tests/bts_sbom_app/test_doclint.py" Label="tests/bts_sbom_app/test_doclint.py" />
-  <Node Id="tests/bts_sbom_app/test_engine_adjustments.py" Label="tests/bts_sbom_app/test_engine_adjustments.py" />
-  <Node Id="tests/bts_sbom_app/test_engine_licenses.py" Label="tests/bts_sbom_app/test_engine_licenses.py" />
-  <Node Id="tests/bts_sbom_app/test_events_sse.py" Label="tests/bts_sbom_app/test_events_sse.py" />
-  <Node Id="tests/bts_sbom_app/test_fleet_chat.py" Label="tests/bts_sbom_app/test_fleet_chat.py" />
-  <Node Id="tests/bts_sbom_app/test_fosslight_scan.py" Label="tests/bts_sbom_app/test_fosslight_scan.py" />
-  <Node Id="tests/bts_sbom_app/test_governance_ui.py" Label="tests/bts_sbom_app/test_governance_ui.py" />
-  <Node Id="tests/bts_sbom_app/test_handoff_stream.py" Label="tests/bts_sbom_app/test_handoff_stream.py" />
-  <Node Id="tests/bts_sbom_app/test_impact_review.py" Label="tests/bts_sbom_app/test_impact_review.py" />
-  <Node Id="tests/bts_sbom_app/test_lecture_round1.py" Label="tests/bts_sbom_app/test_lecture_round1.py" />
-  <Node Id="tests/bts_sbom_app/test_mcp_server.py" Label="tests/bts_sbom_app/test_mcp_server.py" />
-  <Node Id="tests/bts_sbom_app/test_nl2sql.py" Label="tests/bts_sbom_app/test_nl2sql.py" />
-  <Node Id="tests/bts_sbom_app/test_ops_probes.py" Label="tests/bts_sbom_app/test_ops_probes.py" />
-  <Node Id="tests/bts_sbom_app/test_oss_api.py" Label="tests/bts_sbom_app/test_oss_api.py" />
-  <Node Id="tests/bts_sbom_app/test_patch_delivery.py" Label="tests/bts_sbom_app/test_patch_delivery.py" />
-  <Node Id="tests/bts_sbom_app/test_portfolio.py" Label="tests/bts_sbom_app/test_portfolio.py" />
-  <Node Id="tests/bts_sbom_app/test_quality_top10.py" Label="tests/bts_sbom_app/test_quality_top10.py" />
-  <Node Id="tests/bts_sbom_app/test_release_fixes.py" Label="tests/bts_sbom_app/test_release_fixes.py" />
-  <Node Id="tests/bts_sbom_app/test_resilience.py" Label="tests/bts_sbom_app/test_resilience.py" />
-  <Node Id="tests/bts_sbom_app/test_review_fixes.py" Label="tests/bts_sbom_app/test_review_fixes.py" />
-  <Node Id="tests/bts_sbom_app/test_sbom_conformance.py" Label="tests/bts_sbom_app/test_sbom_conformance.py" />
-  <Node Id="tests/bts_sbom_app/test_sbom_sectors_arch.py" Label="tests/bts_sbom_app/test_sbom_sectors_arch.py" />
-  <Node Id="tests/bts_sbom_app/test_server_cli.py" Label="tests/bts_sbom_app/test_server_cli.py" />
-  <Node Id="tests/bts_sbom_app/test_specs.py" Label="tests/bts_sbom_app/test_specs.py" />
-  <Node Id="tests/bts_sbom_app/test_traceability.py" Label="tests/bts_sbom_app/test_traceability.py" />
-  <Node Id="tests/test_bts_sbom_pkg.py" Label="tests/test_bts_sbom_pkg.py" />
-  <Node Id="tests/test_oss_binary.py" Label="tests/test_oss_binary.py" />
-  <Node Id="tests/test_oss_dependency.py" Label="tests/test_oss_dependency.py" />
-  <Node Id="tests/test_oss_precheck.py" Label="tests/test_oss_precheck.py" />
-  <Node Id="tests/test_oss_source.py" Label="tests/test_oss_source.py" />
-  <Node Id="tests/test_oss_yocto_android.py" Label="tests/test_oss_yocto_android.py" />
-  <Node Id="tests/test_ossreport_notice.py" Label="tests/test_ossreport_notice.py" />
-  <Node Id="tests/test_ossscan.py" Label="tests/test_ossscan.py" />
-  <Node Id="tests/test_safe_xml.py" Label="tests/test_safe_xml.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/contextpack.py" />
-  <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/batch.py" />
-  <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom/_internal/manifests/gomod.py" Target="bts_sbom/_internal/models.py" />
-  <Link Source="bts_sbom_app/srcscan.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/_internal/oss_manifests_extra.py" />
-  <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/loop.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom_app/arch_api.py" Target="bts_sbom_app/oss_api.py" />
-  <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/selfcheck.py" />
-  <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/ai.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/review.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/ai.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/patch.py" />
-  <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/patch.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/actions.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/osv_client.py" />
-  <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom/_internal/oss_android.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/sectors.py" />
-  <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/impact.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/changes.py" />
-  <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/net.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom/sectors.py" Target="bts_sbom/_internal/ntia_check.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/manifests/__init__.py" />
-  <Link Source="bts_sbom/_internal/osv_local_db.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/_internal/remediation.py" Target="bts_sbom/_internal/version_match.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/lockfile_facts.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/_internal/license_norm.py" Target="bts_sbom/_internal/license_spdx.py" />
-  <Link Source="bts_sbom/ossscan.py" Target="bts_sbom/_internal/license_utils.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/epss_kev.py" />
-  <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/binscan.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/srcscan.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/arch.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/pathutil.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/actions.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/ai.py" />
-  <Link Source="tests/test_oss_dependency.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="bts_sbom/_internal/oss_android.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/arch.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/notice.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/impact.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/conversation.py" />
-  <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/triage.py" />
-  <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/policy.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/council.py" />
-  <Link Source="bts_sbom_app/fleet.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/test_oss_binary.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="bts_sbom/_internal/manifests/rpm.py" Target="bts_sbom/_internal/models.py" />
-  <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/arch.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/fleet.py" />
-  <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/conformance.py" />
-  <Link Source="bts_sbom/__init__.py" Target="bts_sbom/sca_report.py" />
-  <Link Source="bts_sbom/notice.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/license_spdx.py" />
-  <Link Source="bts_sbom_app/code_intel.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/net.py" />
-  <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/rag.py" />
-  <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/console.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/sarif.py" />
-  <Link Source="tests/bts_sbom_app/test_ops_probes.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/_internal/oss_android.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/chat_stream.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom_app/cvss.py" Target="bts_sbom_app/cvss4.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="bts_sbom_app/events.py" />
-  <Link Source="tests/bts_sbom_app/test_contextpack.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/_internal/xlsx_min.py" Target="bts_sbom/_internal/safe_xml.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/evals_chat.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/_internal/license_spdx.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom_app/engine.py" Target="bts_sbom/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/conformance.py" />
-  <Link Source="bts_sbom_app/arch_api.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/oss_yocto.py" />
-  <Link Source="tests/test_oss_binary.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/actions.py" />
-  <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/changes.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="bts_sbom/_internal/callgraph.py" Target="bts_sbom/_internal/points_to.py" />
-  <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/depsdev.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="bts_sbom_app/arch_map.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_intel.py" Target="bts_sbom_app/arch_intel.py" />
-  <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/portfolio.py" />
-  <Link Source="tests/test_safe_xml.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/impact.py" Target="bts_sbom_app/fleet.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/console.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/patch.py" />
-  <Link Source="bts_sbom/_internal/manifests/pip.py" Target="bts_sbom/_internal/models.py" />
-  <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/osv.py" />
-  <Link Source="bts_sbom_app/licenses.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/mcp_server.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/code_intel.py" />
-  <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/net.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_adjustments.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/console.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/books_api.py" />
-  <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/books.py" />
-  <Link Source="bts_sbom_app/osv.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/actions.py" />
-  <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/supplier_resolve.py" />
-  <Link Source="bts_sbom/__init__.py" Target="bts_sbom/vex.py" />
-  <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/rag.py" />
-  <Link Source="bts_sbom_app/cvss4.py" Target="bts_sbom_app/cvss4_data.py" />
-  <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_version.py" />
-  <Link Source="bts_sbom_app/chat_stream.py" Target="bts_sbom_app/handoff.py" />
-  <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/lockfile_facts.py" />
-  <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/evals_chat.py" />
-  <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/dpkg.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/policy.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/report.py" />
-  <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/conformance.py" />
-  <Link Source="bts_sbom_app/patch.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/net.py" />
-  <Link Source="bts_sbom_app/triage.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom/_internal/oss_android.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/net.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/ai.py" />
-  <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/portfolio.py" />
-  <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/_internal/xlsx_min.py" />
-  <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/report.py" />
-  <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_internal/supplier_resolve.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/books_api.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/arch_api.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_version.py" />
-  <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_internal/lockfile_facts.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/changes.py" />
-  <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/cvss.py" />
-  <Link Source="tests/bts_sbom_app/test_traceability.py" Target="bts_sbom_app/traceability.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/arch_api.py" />
-  <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/_internal/miniyaml.py" />
-  <Link Source="bts_sbom_app/sectors.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/osvscanner.py" />
-  <Link Source="tests/bts_sbom_app/test_traceability.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/test_oss_dependency.py" Target="bts_sbom/_internal/oss_manifests_extra.py" />
-  <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/vex.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/arch_map.py" />
-  <Link Source="bts_sbom_app/llm.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/web/arch_intel_render.js" Target="bts_sbom_app/web/bts_ui.js" />
-  <Link Source="bts_sbom_app/doclint.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/binscan.py" Target="bts_sbom_app/srcscan.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/srcscan.py" />
-  <Link Source="tests/bts_sbom_app/test_contextpack.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom_app/coverage.py" Target="bts_sbom_app/triage.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/selfcheck.py" />
-  <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/events.py" />
-  <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/triage.py" />
-  <Link Source="bts_sbom_app/portfolio.py" Target="bts_sbom_app/speclint.py" />
-  <Link Source="bts_sbom/_internal/manifests/extra.py" Target="bts_sbom/_internal/manifests/cargo.py" />
-  <Link Source="bts_sbom_app/binscan.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/report.py" />
-  <Link Source="bts_sbom/__main__.py" Target="bts_sbom/cli.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/license_norm.py" />
-  <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/ossscan.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/_internal/license_scan.py" Target="bts_sbom/_internal/license_utils.py" />
-  <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/sbom.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/sectors.py" />
-  <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/__init__.py" Target="bts_sbom/reachability.py" />
-  <Link Source="bts_sbom_app/engine.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/cvss4_data.py" />
-  <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/books.py" />
-  <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/server.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/conformance.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_adjustments.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/test_oss_source.py" Target="bts_sbom/_internal/oss_source.py" />
-  <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/report.py" />
-  <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/books.py" />
-  <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/handoff.py" />
-  <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/oss_precheck.py" />
-  <Link Source="tests/test_oss_dependency.py" Target="bts_sbom/_internal/oss_dependency.py" />
-  <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/server.py" />
-  <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/versions.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/deliver.py" />
-  <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/manifests/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom_app/report.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_resilience.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom/_internal/license_categories.py" />
-  <Link Source="bts_sbom/_internal/osv_client.py" Target="bts_sbom/_version.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/council.py" />
-  <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/oss_api.py" />
-  <Link Source="bts_sbom_app/net.py" Target="bts_sbom_app/resilience.py" />
-  <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/triage.py" />
-  <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/sbom.py" />
-  <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/code_intel.py" Target="bts_sbom_app/arch.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="bts_sbom_app/traceability.py" Target="bts_sbom_app/speclint.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/_internal/oss_precheck.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/books.py" />
-  <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/changes.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_intel_ui.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/osvscanner.py" />
-  <Link Source="bts_sbom/_internal/manifests/extra.py" Target="bts_sbom/_internal/manifests/__init__.py" />
-  <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom_app/server.py" />
-  <Link Source="bts_sbom/_internal/policy.py" Target="bts_sbom/osvscanner.py" />
-  <Link Source="tests/test_ossscan.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom/notice.py" Target="bts_sbom/_internal/license_spdx.py" />
-  <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/license_scan.py" />
-  <Link Source="bts_sbom/_internal/manifests/dpkg.py" Target="bts_sbom/_internal/models.py" />
-  <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="tests/bts_sbom_app/test_ops_probes.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/loop.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/_internal/miniyaml.py" />
-  <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/bts_sbom_app/test_nl2sql.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/doclint.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="run_bts_sbom_app.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom/_internal/sbom.py" Target="bts_sbom/_internal/supplier_resolve.py" />
-  <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_nl2sql.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/notice.py" Target="bts_sbom/_internal/license_utils.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/evals_chat.py" />
-  <Link Source="tests/bts_sbom_app/test_quality_top10.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/_internal/sbom.py" Target="bts_sbom/_version.py" />
-  <Link Source="bts_sbom/_internal/sbom.py" Target="bts_sbom/_internal/lockfile_facts.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_flow.py" Target="bts_sbom_app/arch_intel.py" />
-  <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_flow.py" Target="bts_sbom_app/arch_flow.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/ai.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/test_oss_precheck.py" Target="bts_sbom/_internal/oss_precheck.py" />
-  <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom/_internal/depsdev.py" Target="bts_sbom/_version.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom_app/console.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/notice.py" />
-  <Link Source="tests/bts_sbom_app/test_traceability.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/spdx_sbom.py" />
-  <Link Source="tests/test_oss_binary.py" Target="bts_sbom/_internal/oss_binary.py" />
-  <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="tests/bts_sbom_app/test_arch_intel.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/console.py" />
-  <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/__main__.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/timeutil.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/arch_flow.py" />
-  <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_intel.py" Target="bts_sbom_app/arch.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/selfcheck.py" />
-  <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="tests/bts_sbom_app/test_resilience.py" Target="bts_sbom_app/resilience.py" />
-  <Link Source="bts_sbom/sectors.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_portfolio.py" Target="bts_sbom_app/portfolio.py" />
-  <Link Source="bts_sbom/_internal/fix_planner.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/_internal/oss_android.py" />
-  <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/resilience.py" />
-  <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/review.py" />
-  <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/conversation.py" />
-  <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/patch.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/loop.py" />
-  <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom_app/chat_stream.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/license_scan.py" />
-  <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/manifests/__init__.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/sbom.py" />
-  <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/cvss4.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom/_internal/xlsx_min.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom/vex.py" Target="bts_sbom/_internal/timeutil.py" />
-  <Link Source="bts_sbom/_internal/osv_client.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_quality_top10.py" Target="bts_sbom_app/quality.py" />
-  <Link Source="bts_sbom_app/licenses.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/patch.py" Target="bts_sbom_app/versions.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/ai.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/loop.py" />
-  <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/chat_stream.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_intel.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/portfolio.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom/__init__.py" Target="bts_sbom/sectors.py" />
-  <Link Source="tests/test_ossscan.py" Target="bts_sbom/__init__.py" />
-  <Link Source="tests/test_safe_xml.py" Target="bts_sbom/_internal/xlsx_min.py" />
-  <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/safe_xml.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/ai.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="bts_sbom_app/portfolio.py" Target="bts_sbom_app/traceability.py" />
-  <Link Source="tests/test_oss_source.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/ossscan.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/arch_intel.py" />
-  <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/cli_ext.py" />
-  <Link Source="bts_sbom/ossscan.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/events.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/cli.py" />
-  <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/coverage.py" />
-  <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/notice.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/arch.py" />
-  <Link Source="bts_sbom/_internal/version_ranges.py" Target="bts_sbom/_internal/version_cmp.py" />
-  <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/council.py" />
-  <Link Source="bts_sbom_app/sectors.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/code_intel.py" />
-  <Link Source="bts_sbom/_internal/osv_local_db.py" Target="bts_sbom/_internal/version_ranges.py" />
-  <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/license_utils.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/version_match.py" />
-  <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_internal/license_norm.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom/__init__.py" Target="bts_sbom/sbom.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="bts_sbom/_internal/sbom.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/books.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/fix_planner.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/vex.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom_app/coverage.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/books.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/rag.py" />
-  <Link Source="bts_sbom_app/llm.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_portfolio.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/impact.py" />
-  <Link Source="bts_sbom/__init__.py" Target="bts_sbom/osvscanner.py" />
-  <Link Source="bts_sbom_app/arch_api.py" Target="bts_sbom_app/events.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/license_scan.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/manifests/__init__.py" />
-  <Link Source="bts_sbom_app/cvss.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/traceability.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/conformance.py" />
-  <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/epss_offline.py" />
-  <Link Source="bts_sbom_app/osv.py" Target="bts_sbom_app/net.py" />
-  <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/_internal/miniyaml.py" />
-  <Link Source="tests/test_safe_xml.py" Target="bts_sbom/_internal/oss_manifests_extra.py" />
-  <Link Source="bts_sbom_app/engine.py" Target="bts_sbom_app/cvss.py" />
-  <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/web/bts_governance.js" Target="bts_sbom_app/web/bts_ui.js" />
-  <Link Source="tests/test_ossscan.py" Target="bts_sbom/ossscan.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_version.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/supply_chain.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/cvss.py" />
-  <Link Source="bts_sbom/__init__.py" Target="bts_sbom/supply_chain.py" />
-  <Link Source="bts_sbom/reachability.py" Target="bts_sbom/_internal/callgraph.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/coverage.py" />
-  <Link Source="bts_sbom_app/engine.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/test_ossscan.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom/ossscan.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="bts_sbom_app/ai.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/ossscan.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/registry_meta.py" />
-  <Link Source="bts_sbom_app/fleet.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/gomod.py" />
-  <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/mcp_server.py" />
-  <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/server.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/license_utils.py" />
-  <Link Source="bts_sbom_app/impact.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/_internal/manifests/__init__.py" />
-  <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/_internal/oss_yocto.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/models.py" />
-  <Link Source="bts_sbom_app/workspace.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_traceability.py" Target="bts_sbom_app/speclint.py" />
-  <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom_app/engine.py" Target="bts_sbom_app/versions.py" />
-  <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_adjustments.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_ops_probes.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/coverage.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/ntia_check.py" />
-  <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="tests/test_oss_source.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/remediate.py" />
-  <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom/_internal/manifests/extra.py" Target="bts_sbom/_internal/models.py" />
-  <Link Source="tests/bts_sbom_app/test_ops_probes.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/versions.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/conformance.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_traceability.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/events.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom/_internal/manifests/npm.py" Target="bts_sbom/_internal/models.py" />
-  <Link Source="bts_sbom/_internal/registry_meta.py" Target="bts_sbom/_version.py" />
-  <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/console.py" />
-  <Link Source="bts_sbom_app/books.py" Target="bts_sbom_app/rag.py" />
-  <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/osv.py" />
-  <Link Source="bts_sbom_app/srcscan.py" Target="bts_sbom_app/contextpack.py" />
-  <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/rag.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/looplog.py" />
-  <Link Source="bts_sbom_app/fleet.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/chat_stream.py" />
-  <Link Source="tests/bts_sbom_app/test_specs.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/server.py" />
-  <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/patch.py" />
-  <Link Source="tests/bts_sbom_app/test_portfolio.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom_app/looplog.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/fleet.py" />
-  <Link Source="tests/test_oss_precheck.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_flow.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="tests/test_ossscan.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="bts_sbom/ossscan.py" Target="bts_sbom/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/triage.py" />
-  <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/arch_intel.py" />
-  <Link Source="bts_sbom_app/fleet.py" Target="bts_sbom_app/versions.py" />
-  <Link Source="bts_sbom/_internal/oss_common.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/triage.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/remediation.py" />
-  <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/license_spdx.py" />
-  <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/miniyaml.py" />
-  <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/extra.py" />
-  <Link Source="tests/bts_sbom_app/test_resilience.py" Target="bts_sbom_app/net.py" />
-  <Link Source="bts_sbom_app/arch_api.py" Target="bts_sbom_app/arch_intel.py" />
-  <Link Source="bts_sbom/_internal/version_match.py" Target="bts_sbom/_internal/version_cmp.py" />
-  <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="bts_sbom_app/server.py" />
-  <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/_internal/xlsx_min.py" />
-  <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/net.py" />
-  <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/books.py" />
-  <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/conformance.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/test_oss_precheck.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_intel_ui.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/test_safe_xml.py" Target="bts_sbom/_internal/safe_xml.py" />
-  <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/srcscan.py" />
-  <Link Source="tests/bts_sbom_app/test_contextpack.py" Target="bts_sbom_app/contextpack.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/spdx_sbom.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_flow.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom/_internal/license_norm.py" Target="bts_sbom/_internal/license_categories.py" />
-  <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/test_oss_dependency.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/sectors.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/server.py" />
-  <Link Source="bts_sbom/_internal/oss_manifests_extra.py" Target="bts_sbom/_internal/miniyaml.py" />
-  <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/deliver.py" />
-  <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/events.py" />
-  <Link Source="tests/test_oss_source.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom_app/oss_api.py" />
-  <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/speclint.py" />
-  <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/coverage.py" />
-  <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/pip.py" />
-  <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_specs.py" Target="bts_sbom_app/speclint.py" />
-  <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/timeutil.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/version_match.py" />
-  <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/rag.py" />
-  <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="tests/bts_sbom_app/conftest.py" />
-  <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/sbom.py" />
-  <Link Source="bts_sbom/_internal/version_match.py" Target="bts_sbom/_internal/version_ranges.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/events.py" />
-  <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/console.py" />
-  <Link Source="bts_sbom_app/triage.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/vex.py" />
-  <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="bts_sbom_app/patch.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="tests/bts_sbom_app/test_doclint.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom_app/portfolio.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/remediate.py" />
-  <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/cvss.py" />
-  <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/remediate.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/oss_cli.py" />
-  <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom/_internal/osv_local_db.py" Target="bts_sbom/_version.py" />
-  <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/_internal/license_spdx.py" />
-  <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/npm.py" />
-  <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/remediation.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/arch.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom/_internal/osv_client.py" Target="bts_sbom/_internal/version_match.py" />
-  <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_nl2sql.py" Target="bts_sbom_app/nl2sql.py" />
-  <Link Source="bts_sbom_app/contextpack.py" Target="bts_sbom_app/licenses.py" />
-  <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="bts_sbom/sectors.py" Target="bts_sbom/_internal/license_spdx.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/rag.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/_internal/oss_manifests_extra.py" Target="bts_sbom/_internal/safe_xml.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/changes.py" />
-  <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/sbom.py" />
-  <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/code_intel.py" />
-  <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/binscan.py" />
-  <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/batch.py" />
-  <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/osv_local_db.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/osvscanner.py" />
-  <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/server.py" />
-  <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/server.py" />
-  <Link Source="bts_sbom/notice.py" Target="bts_sbom/ossreport.py" />
-  <Link Source="tests/bts_sbom_app/test_doclint.py" Target="bts_sbom_app/doclint.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/conversation.py" />
-  <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/miniyaml.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/fleet.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/loop.py" />
-  <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/rag.py" />
-  <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/fleet.py" />
-  <Link Source="bts_sbom_app/books.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/triage.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/batch.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/versions.py" />
-  <Link Source="bts_sbom/_internal/fix_planner.py" Target="bts_sbom/_internal/version_cmp.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/pathutil.py" />
-  <Link Source="bts_sbom_app/licenses.py" Target="bts_sbom_app/net.py" />
-  <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/__init__.py" />
-  <Link Source="tests/test_oss_precheck.py" Target="bts_sbom/__init__.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/mcp_server.py" />
-  <Link Source="bts_sbom_app/binscan.py" Target="bts_sbom_app/contextpack.py" />
-  <Link Source="bts_sbom_app/traceability.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/llm.py" />
-  <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/oss_api.py" />
-  <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/pipeline.py" />
-  <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/cli.py" />
-  <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/oss_android.py" />
-  <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/supplier_resolve.py" />
-  <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/chat.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/util.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom/_internal/oss_manifests_extra.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom_app/chat_stream.py" Target="bts_sbom_app/events.py" />
-  <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/oss_common.py" />
-  <Link Source="bts_sbom/notice.py" Target="bts_sbom/_internal/__init__.py" />
-  <Link Source="bts_sbom_app/contextpack.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/ai.py" />
-  <Link Source="bts_sbom_app/console.py" Target="bts_sbom_app/code_intel.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/triage.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/traceability.py" />
-  <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/remediate.py" />
-  <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom_app/__init__.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/util.py" />
-  <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/evals.py" />
-  <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/workspace.py" />
-  <Link Source="bts_sbom/__init__.py" Target="bts_sbom/_version.py" />
-  <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/engine.py" />
-  <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/safe_xml.py" />
-  <Link Source="bts_sbom/cli.py" Target="bts_sbom/vex.py" />
-  <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/conformance.py" />
-  <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/ai.py" />
-  <Link Source="bts_sbom/_internal/policy.py" Target="bts_sbom/vex.py" />
+<DirectedGraph xmlns="http://schemas.microsoft.com/vs/2009/dgml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Title="Architecture of ." Kind="bts-sbom.arch-map.v1" Layout="Sugiyama" GraphDirection="TopToBottom">
+  <Nodes>
+    <Node Id="(root)" Label="(root)" Group="Expanded" />
+    <Node Id="bts_sbom" Label="bts_sbom" Group="Expanded" />
+    <Node Id="bts_sbom_app" Label="bts_sbom_app" Group="Expanded" />
+    <Node Id="tests" Label="tests" Group="Expanded" />
+    <Node Id="bts_sbom/__init__.py" Label="bts_sbom/__init__.py" />
+    <Node Id="bts_sbom/__main__.py" Label="bts_sbom/__main__.py" />
+    <Node Id="bts_sbom/_internal/__init__.py" Label="bts_sbom/_internal/__init__.py" />
+    <Node Id="bts_sbom/_internal/callgraph.py" Label="bts_sbom/_internal/callgraph.py" />
+    <Node Id="bts_sbom/_internal/depsdev.py" Label="bts_sbom/_internal/depsdev.py" />
+    <Node Id="bts_sbom/_internal/epss_kev.py" Label="bts_sbom/_internal/epss_kev.py" />
+    <Node Id="bts_sbom/_internal/epss_offline.py" Label="bts_sbom/_internal/epss_offline.py" />
+    <Node Id="bts_sbom/_internal/fix_planner.py" Label="bts_sbom/_internal/fix_planner.py" />
+    <Node Id="bts_sbom/_internal/license_categories.py" Label="bts_sbom/_internal/license_categories.py" />
+    <Node Id="bts_sbom/_internal/license_norm.py" Label="bts_sbom/_internal/license_norm.py" />
+    <Node Id="bts_sbom/_internal/license_scan.py" Label="bts_sbom/_internal/license_scan.py" />
+    <Node Id="bts_sbom/_internal/license_spdx.py" Label="bts_sbom/_internal/license_spdx.py" />
+    <Node Id="bts_sbom/_internal/license_utils.py" Label="bts_sbom/_internal/license_utils.py" />
+    <Node Id="bts_sbom/_internal/lockfile_facts.py" Label="bts_sbom/_internal/lockfile_facts.py" Category="Hotspot" />
+    <Node Id="bts_sbom/_internal/manifests/__init__.py" Label="bts_sbom/_internal/manifests/__init__.py" />
+    <Node Id="bts_sbom/_internal/manifests/cargo.py" Label="bts_sbom/_internal/manifests/cargo.py" />
+    <Node Id="bts_sbom/_internal/manifests/dpkg.py" Label="bts_sbom/_internal/manifests/dpkg.py" />
+    <Node Id="bts_sbom/_internal/manifests/extra.py" Label="bts_sbom/_internal/manifests/extra.py" />
+    <Node Id="bts_sbom/_internal/manifests/gomod.py" Label="bts_sbom/_internal/manifests/gomod.py" />
+    <Node Id="bts_sbom/_internal/manifests/npm.py" Label="bts_sbom/_internal/manifests/npm.py" />
+    <Node Id="bts_sbom/_internal/manifests/pip.py" Label="bts_sbom/_internal/manifests/pip.py" />
+    <Node Id="bts_sbom/_internal/manifests/rpm.py" Label="bts_sbom/_internal/manifests/rpm.py" />
+    <Node Id="bts_sbom/_internal/miniyaml.py" Label="bts_sbom/_internal/miniyaml.py" />
+    <Node Id="bts_sbom/_internal/models.py" Label="bts_sbom/_internal/models.py" />
+    <Node Id="bts_sbom/_internal/ntia_check.py" Label="bts_sbom/_internal/ntia_check.py" />
+    <Node Id="bts_sbom/_internal/oss_android.py" Label="bts_sbom/_internal/oss_android.py" />
+    <Node Id="bts_sbom/_internal/oss_binary.py" Label="bts_sbom/_internal/oss_binary.py" />
+    <Node Id="bts_sbom/_internal/oss_common.py" Label="bts_sbom/_internal/oss_common.py" />
+    <Node Id="bts_sbom/_internal/oss_dependency.py" Label="bts_sbom/_internal/oss_dependency.py" />
+    <Node Id="bts_sbom/_internal/oss_manifests_extra.py" Label="bts_sbom/_internal/oss_manifests_extra.py" />
+    <Node Id="bts_sbom/_internal/oss_precheck.py" Label="bts_sbom/_internal/oss_precheck.py" />
+    <Node Id="bts_sbom/_internal/oss_source.py" Label="bts_sbom/_internal/oss_source.py" />
+    <Node Id="bts_sbom/_internal/oss_yocto.py" Label="bts_sbom/_internal/oss_yocto.py" />
+    <Node Id="bts_sbom/_internal/osv_client.py" Label="bts_sbom/_internal/osv_client.py" />
+    <Node Id="bts_sbom/_internal/osv_local_db.py" Label="bts_sbom/_internal/osv_local_db.py" />
+    <Node Id="bts_sbom/_internal/pathutil.py" Label="bts_sbom/_internal/pathutil.py" />
+    <Node Id="bts_sbom/_internal/points_to.py" Label="bts_sbom/_internal/points_to.py" />
+    <Node Id="bts_sbom/_internal/policy.py" Label="bts_sbom/_internal/policy.py" />
+    <Node Id="bts_sbom/_internal/registry_meta.py" Label="bts_sbom/_internal/registry_meta.py" />
+    <Node Id="bts_sbom/_internal/remediation.py" Label="bts_sbom/_internal/remediation.py" />
+    <Node Id="bts_sbom/_internal/safe_xml.py" Label="bts_sbom/_internal/safe_xml.py" />
+    <Node Id="bts_sbom/_internal/sarif.py" Label="bts_sbom/_internal/sarif.py" />
+    <Node Id="bts_sbom/_internal/sbom.py" Label="bts_sbom/_internal/sbom.py" />
+    <Node Id="bts_sbom/_internal/spdx_sbom.py" Label="bts_sbom/_internal/spdx_sbom.py" />
+    <Node Id="bts_sbom/_internal/supplier_resolve.py" Label="bts_sbom/_internal/supplier_resolve.py" />
+    <Node Id="bts_sbom/_internal/timeutil.py" Label="bts_sbom/_internal/timeutil.py" />
+    <Node Id="bts_sbom/_internal/version_cmp.py" Label="bts_sbom/_internal/version_cmp.py" />
+    <Node Id="bts_sbom/_internal/version_match.py" Label="bts_sbom/_internal/version_match.py" />
+    <Node Id="bts_sbom/_internal/version_ranges.py" Label="bts_sbom/_internal/version_ranges.py" />
+    <Node Id="bts_sbom/_internal/xlsx_min.py" Label="bts_sbom/_internal/xlsx_min.py" />
+    <Node Id="bts_sbom/_version.py" Label="bts_sbom/_version.py" />
+    <Node Id="bts_sbom/cli.py" Label="bts_sbom/cli.py" />
+    <Node Id="bts_sbom/notice.py" Label="bts_sbom/notice.py" />
+    <Node Id="bts_sbom/oss_cli.py" Label="bts_sbom/oss_cli.py" />
+    <Node Id="bts_sbom/ossreport.py" Label="bts_sbom/ossreport.py" />
+    <Node Id="bts_sbom/ossscan.py" Label="bts_sbom/ossscan.py" />
+    <Node Id="bts_sbom/osvscanner.py" Label="bts_sbom/osvscanner.py" Category="Hotspot" />
+    <Node Id="bts_sbom/reachability.py" Label="bts_sbom/reachability.py" />
+    <Node Id="bts_sbom/sbom.py" Label="bts_sbom/sbom.py" />
+    <Node Id="bts_sbom/sca_report.py" Label="bts_sbom/sca_report.py" />
+    <Node Id="bts_sbom/sectors.py" Label="bts_sbom/sectors.py" />
+    <Node Id="bts_sbom/supply_chain.py" Label="bts_sbom/supply_chain.py" />
+    <Node Id="bts_sbom/vex.py" Label="bts_sbom/vex.py" />
+    <Node Id="bts_sbom_app/__init__.py" Label="bts_sbom_app/__init__.py" />
+    <Node Id="bts_sbom_app/__main__.py" Label="bts_sbom_app/__main__.py" />
+    <Node Id="bts_sbom_app/actions.py" Label="bts_sbom_app/actions.py" />
+    <Node Id="bts_sbom_app/ai.py" Label="bts_sbom_app/ai.py" />
+    <Node Id="bts_sbom_app/arch.py" Label="bts_sbom_app/arch.py" />
+    <Node Id="bts_sbom_app/arch_api.py" Label="bts_sbom_app/arch_api.py" />
+    <Node Id="bts_sbom_app/arch_flow.py" Label="bts_sbom_app/arch_flow.py" />
+    <Node Id="bts_sbom_app/arch_intel.py" Label="bts_sbom_app/arch_intel.py" Category="Hotspot" />
+    <Node Id="bts_sbom_app/arch_map.py" Label="bts_sbom_app/arch_map.py" />
+    <Node Id="bts_sbom_app/batch.py" Label="bts_sbom_app/batch.py" />
+    <Node Id="bts_sbom_app/binscan.py" Label="bts_sbom_app/binscan.py" />
+    <Node Id="bts_sbom_app/books.py" Label="bts_sbom_app/books.py" />
+    <Node Id="bts_sbom_app/books_api.py" Label="bts_sbom_app/books_api.py" />
+    <Node Id="bts_sbom_app/changes.py" Label="bts_sbom_app/changes.py" />
+    <Node Id="bts_sbom_app/chat.py" Label="bts_sbom_app/chat.py" Category="Hotspot" />
+    <Node Id="bts_sbom_app/chat_stream.py" Label="bts_sbom_app/chat_stream.py" />
+    <Node Id="bts_sbom_app/cli.py" Label="bts_sbom_app/cli.py" />
+    <Node Id="bts_sbom_app/cli_ext.py" Label="bts_sbom_app/cli_ext.py" />
+    <Node Id="bts_sbom_app/code_intel.py" Label="bts_sbom_app/code_intel.py" />
+    <Node Id="bts_sbom_app/conformance.py" Label="bts_sbom_app/conformance.py" />
+    <Node Id="bts_sbom_app/console.py" Label="bts_sbom_app/console.py" />
+    <Node Id="bts_sbom_app/contextpack.py" Label="bts_sbom_app/contextpack.py" />
+    <Node Id="bts_sbom_app/conversation.py" Label="bts_sbom_app/conversation.py" />
+    <Node Id="bts_sbom_app/council.py" Label="bts_sbom_app/council.py" />
+    <Node Id="bts_sbom_app/coverage.py" Label="bts_sbom_app/coverage.py" />
+    <Node Id="bts_sbom_app/cvss.py" Label="bts_sbom_app/cvss.py" />
+    <Node Id="bts_sbom_app/cvss4.py" Label="bts_sbom_app/cvss4.py" />
+    <Node Id="bts_sbom_app/cvss4_data.py" Label="bts_sbom_app/cvss4_data.py" />
+    <Node Id="bts_sbom_app/deliver.py" Label="bts_sbom_app/deliver.py" />
+    <Node Id="bts_sbom_app/doclint.py" Label="bts_sbom_app/doclint.py" />
+    <Node Id="bts_sbom_app/engine.py" Label="bts_sbom_app/engine.py" />
+    <Node Id="bts_sbom_app/evals.py" Label="bts_sbom_app/evals.py" />
+    <Node Id="bts_sbom_app/evals_chat.py" Label="bts_sbom_app/evals_chat.py" />
+    <Node Id="bts_sbom_app/events.py" Label="bts_sbom_app/events.py" />
+    <Node Id="bts_sbom_app/fleet.py" Label="bts_sbom_app/fleet.py" />
+    <Node Id="bts_sbom_app/handoff.py" Label="bts_sbom_app/handoff.py" />
+    <Node Id="bts_sbom_app/impact.py" Label="bts_sbom_app/impact.py" />
+    <Node Id="bts_sbom_app/licenses.py" Label="bts_sbom_app/licenses.py" />
+    <Node Id="bts_sbom_app/llm.py" Label="bts_sbom_app/llm.py" />
+    <Node Id="bts_sbom_app/loop.py" Label="bts_sbom_app/loop.py" />
+    <Node Id="bts_sbom_app/looplog.py" Label="bts_sbom_app/looplog.py" />
+    <Node Id="bts_sbom_app/mcp_server.py" Label="bts_sbom_app/mcp_server.py" />
+    <Node Id="bts_sbom_app/net.py" Label="bts_sbom_app/net.py" />
+    <Node Id="bts_sbom_app/nl2sql.py" Label="bts_sbom_app/nl2sql.py" />
+    <Node Id="bts_sbom_app/oss_api.py" Label="bts_sbom_app/oss_api.py" />
+    <Node Id="bts_sbom_app/osv.py" Label="bts_sbom_app/osv.py" />
+    <Node Id="bts_sbom_app/patch.py" Label="bts_sbom_app/patch.py" />
+    <Node Id="bts_sbom_app/pipeline.py" Label="bts_sbom_app/pipeline.py" />
+    <Node Id="bts_sbom_app/portfolio.py" Label="bts_sbom_app/portfolio.py" />
+    <Node Id="bts_sbom_app/quality.py" Label="bts_sbom_app/quality.py" />
+    <Node Id="bts_sbom_app/rag.py" Label="bts_sbom_app/rag.py" />
+    <Node Id="bts_sbom_app/remediate.py" Label="bts_sbom_app/remediate.py" />
+    <Node Id="bts_sbom_app/report.py" Label="bts_sbom_app/report.py" />
+    <Node Id="bts_sbom_app/resilience.py" Label="bts_sbom_app/resilience.py" />
+    <Node Id="bts_sbom_app/review.py" Label="bts_sbom_app/review.py" />
+    <Node Id="bts_sbom_app/sbom.py" Label="bts_sbom_app/sbom.py" />
+    <Node Id="bts_sbom_app/sectors.py" Label="bts_sbom_app/sectors.py" />
+    <Node Id="bts_sbom_app/selfcheck.py" Label="bts_sbom_app/selfcheck.py" />
+    <Node Id="bts_sbom_app/server.py" Label="bts_sbom_app/server.py" Category="Hotspot" />
+    <Node Id="bts_sbom_app/speclint.py" Label="bts_sbom_app/speclint.py" />
+    <Node Id="bts_sbom_app/srcscan.py" Label="bts_sbom_app/srcscan.py" />
+    <Node Id="bts_sbom_app/traceability.py" Label="bts_sbom_app/traceability.py" />
+    <Node Id="bts_sbom_app/triage.py" Label="bts_sbom_app/triage.py" />
+    <Node Id="bts_sbom_app/util.py" Label="bts_sbom_app/util.py" />
+    <Node Id="bts_sbom_app/versions.py" Label="bts_sbom_app/versions.py" />
+    <Node Id="bts_sbom_app/web/arch_intel_render.js" Label="bts_sbom_app/web/arch_intel_render.js" Category="Hotspot" />
+    <Node Id="bts_sbom_app/web/bts_governance.js" Label="bts_sbom_app/web/bts_governance.js" />
+    <Node Id="bts_sbom_app/web/bts_ui.js" Label="bts_sbom_app/web/bts_ui.js" />
+    <Node Id="bts_sbom_app/workspace.py" Label="bts_sbom_app/workspace.py" />
+    <Node Id="run_bts_sbom_app.py" Label="run_bts_sbom_app.py" />
+    <Node Id="tests/bts_sbom_app/conftest.py" Label="tests/bts_sbom_app/conftest.py" />
+    <Node Id="tests/bts_sbom_app/test_agent_card_and_position.py" Label="tests/bts_sbom_app/test_agent_card_and_position.py" />
+    <Node Id="tests/bts_sbom_app/test_ai_rag_loop.py" Label="tests/bts_sbom_app/test_ai_rag_loop.py" />
+    <Node Id="tests/bts_sbom_app/test_arch_api.py" Label="tests/bts_sbom_app/test_arch_api.py" />
+    <Node Id="tests/bts_sbom_app/test_arch_flow.py" Label="tests/bts_sbom_app/test_arch_flow.py" />
+    <Node Id="tests/bts_sbom_app/test_arch_intel.py" Label="tests/bts_sbom_app/test_arch_intel.py" />
+    <Node Id="tests/bts_sbom_app/test_arch_intel_ui.py" Label="tests/bts_sbom_app/test_arch_intel_ui.py" />
+    <Node Id="tests/bts_sbom_app/test_arch_map.py" Label="tests/bts_sbom_app/test_arch_map.py" />
+    <Node Id="tests/bts_sbom_app/test_book_round2_improvements.py" Label="tests/bts_sbom_app/test_book_round2_improvements.py" />
+    <Node Id="tests/bts_sbom_app/test_books.py" Label="tests/bts_sbom_app/test_books.py" />
+    <Node Id="tests/bts_sbom_app/test_changes_triage.py" Label="tests/bts_sbom_app/test_changes_triage.py" />
+    <Node Id="tests/bts_sbom_app/test_chat_actions.py" Label="tests/bts_sbom_app/test_chat_actions.py" />
+    <Node Id="tests/bts_sbom_app/test_chat_agent_upgrades.py" Label="tests/bts_sbom_app/test_chat_agent_upgrades.py" />
+    <Node Id="tests/bts_sbom_app/test_chat_tools_gate.py" Label="tests/bts_sbom_app/test_chat_tools_gate.py" />
+    <Node Id="tests/bts_sbom_app/test_code_intel.py" Label="tests/bts_sbom_app/test_code_intel.py" />
+    <Node Id="tests/bts_sbom_app/test_console_ui.py" Label="tests/bts_sbom_app/test_console_ui.py" />
+    <Node Id="tests/bts_sbom_app/test_contextpack.py" Label="tests/bts_sbom_app/test_contextpack.py" />
+    <Node Id="tests/bts_sbom_app/test_council.py" Label="tests/bts_sbom_app/test_council.py" />
+    <Node Id="tests/bts_sbom_app/test_coverage.py" Label="tests/bts_sbom_app/test_coverage.py" />
+    <Node Id="tests/bts_sbom_app/test_cvss4.py" Label="tests/bts_sbom_app/test_cvss4.py" />
+    <Node Id="tests/bts_sbom_app/test_doclint.py" Label="tests/bts_sbom_app/test_doclint.py" />
+    <Node Id="tests/bts_sbom_app/test_engine_adjustments.py" Label="tests/bts_sbom_app/test_engine_adjustments.py" />
+    <Node Id="tests/bts_sbom_app/test_engine_licenses.py" Label="tests/bts_sbom_app/test_engine_licenses.py" />
+    <Node Id="tests/bts_sbom_app/test_events_sse.py" Label="tests/bts_sbom_app/test_events_sse.py" />
+    <Node Id="tests/bts_sbom_app/test_fleet_chat.py" Label="tests/bts_sbom_app/test_fleet_chat.py" />
+    <Node Id="tests/bts_sbom_app/test_fosslight_scan.py" Label="tests/bts_sbom_app/test_fosslight_scan.py" />
+    <Node Id="tests/bts_sbom_app/test_governance_ui.py" Label="tests/bts_sbom_app/test_governance_ui.py" />
+    <Node Id="tests/bts_sbom_app/test_handoff_stream.py" Label="tests/bts_sbom_app/test_handoff_stream.py" />
+    <Node Id="tests/bts_sbom_app/test_impact_review.py" Label="tests/bts_sbom_app/test_impact_review.py" />
+    <Node Id="tests/bts_sbom_app/test_lecture_round1.py" Label="tests/bts_sbom_app/test_lecture_round1.py" />
+    <Node Id="tests/bts_sbom_app/test_mcp_server.py" Label="tests/bts_sbom_app/test_mcp_server.py" />
+    <Node Id="tests/bts_sbom_app/test_nl2sql.py" Label="tests/bts_sbom_app/test_nl2sql.py" />
+    <Node Id="tests/bts_sbom_app/test_ops_probes.py" Label="tests/bts_sbom_app/test_ops_probes.py" />
+    <Node Id="tests/bts_sbom_app/test_oss_api.py" Label="tests/bts_sbom_app/test_oss_api.py" />
+    <Node Id="tests/bts_sbom_app/test_patch_delivery.py" Label="tests/bts_sbom_app/test_patch_delivery.py" />
+    <Node Id="tests/bts_sbom_app/test_portfolio.py" Label="tests/bts_sbom_app/test_portfolio.py" />
+    <Node Id="tests/bts_sbom_app/test_quality_top10.py" Label="tests/bts_sbom_app/test_quality_top10.py" />
+    <Node Id="tests/bts_sbom_app/test_release_fixes.py" Label="tests/bts_sbom_app/test_release_fixes.py" />
+    <Node Id="tests/bts_sbom_app/test_resilience.py" Label="tests/bts_sbom_app/test_resilience.py" />
+    <Node Id="tests/bts_sbom_app/test_review_fixes.py" Label="tests/bts_sbom_app/test_review_fixes.py" />
+    <Node Id="tests/bts_sbom_app/test_sbom_conformance.py" Label="tests/bts_sbom_app/test_sbom_conformance.py" />
+    <Node Id="tests/bts_sbom_app/test_sbom_sectors_arch.py" Label="tests/bts_sbom_app/test_sbom_sectors_arch.py" />
+    <Node Id="tests/bts_sbom_app/test_server_cli.py" Label="tests/bts_sbom_app/test_server_cli.py" />
+    <Node Id="tests/bts_sbom_app/test_specs.py" Label="tests/bts_sbom_app/test_specs.py" />
+    <Node Id="tests/bts_sbom_app/test_traceability.py" Label="tests/bts_sbom_app/test_traceability.py" />
+    <Node Id="tests/test_bts_sbom_pkg.py" Label="tests/test_bts_sbom_pkg.py" />
+    <Node Id="tests/test_oss_binary.py" Label="tests/test_oss_binary.py" />
+    <Node Id="tests/test_oss_dependency.py" Label="tests/test_oss_dependency.py" />
+    <Node Id="tests/test_oss_precheck.py" Label="tests/test_oss_precheck.py" />
+    <Node Id="tests/test_oss_source.py" Label="tests/test_oss_source.py" />
+    <Node Id="tests/test_oss_yocto_android.py" Label="tests/test_oss_yocto_android.py" />
+    <Node Id="tests/test_ossreport_notice.py" Label="tests/test_ossreport_notice.py" />
+    <Node Id="tests/test_ossscan.py" Label="tests/test_ossscan.py" />
+    <Node Id="tests/test_safe_xml.py" Label="tests/test_safe_xml.py" />
+  </Nodes>
+  <Links>
+    <Link Source="bts_sbom" Target="bts_sbom/__init__.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/__main__.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/__init__.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/callgraph.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/depsdev.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/epss_kev.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/epss_offline.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/fix_planner.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/license_categories.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/license_norm.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/license_scan.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/license_spdx.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/license_utils.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/lockfile_facts.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/manifests/__init__.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/manifests/cargo.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/manifests/dpkg.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/manifests/extra.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/manifests/gomod.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/manifests/npm.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/manifests/pip.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/manifests/rpm.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/miniyaml.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/models.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/ntia_check.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/oss_android.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/oss_binary.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/oss_common.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/oss_dependency.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/oss_manifests_extra.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/oss_precheck.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/oss_source.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/oss_yocto.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/osv_client.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/osv_local_db.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/pathutil.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/points_to.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/policy.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/registry_meta.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/remediation.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/safe_xml.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/sarif.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/sbom.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/spdx_sbom.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/supplier_resolve.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/timeutil.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/version_cmp.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/version_match.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/version_ranges.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_internal/xlsx_min.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/_version.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/cli.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/notice.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/oss_cli.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/ossreport.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/ossscan.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/osvscanner.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/reachability.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/sbom.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/sca_report.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/sectors.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/supply_chain.py" Category="Contains" />
+    <Link Source="bts_sbom" Target="bts_sbom/vex.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/__init__.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/__main__.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/actions.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/ai.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/arch.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/arch_api.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/arch_flow.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/arch_intel.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/arch_map.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/batch.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/binscan.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/books.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/books_api.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/changes.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/chat.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/chat_stream.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/cli.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/cli_ext.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/code_intel.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/conformance.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/console.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/contextpack.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/conversation.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/council.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/coverage.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/cvss.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/cvss4.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/cvss4_data.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/deliver.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/doclint.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/engine.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/evals.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/evals_chat.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/events.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/fleet.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/handoff.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/impact.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/licenses.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/llm.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/loop.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/looplog.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/mcp_server.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/net.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/nl2sql.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/oss_api.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/osv.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/patch.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/pipeline.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/portfolio.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/quality.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/rag.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/remediate.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/report.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/resilience.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/review.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/sbom.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/sectors.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/selfcheck.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/server.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/speclint.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/srcscan.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/traceability.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/triage.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/util.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/versions.py" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/web/arch_intel_render.js" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/web/bts_governance.js" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/web/bts_ui.js" Category="Contains" />
+    <Link Source="bts_sbom_app" Target="bts_sbom_app/workspace.py" Category="Contains" />
+    <Link Source="(root)" Target="run_bts_sbom_app.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/conftest.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_agent_card_and_position.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_ai_rag_loop.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_arch_api.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_arch_flow.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_arch_intel.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_arch_intel_ui.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_arch_map.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_book_round2_improvements.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_books.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_changes_triage.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_chat_actions.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_chat_agent_upgrades.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_chat_tools_gate.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_code_intel.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_console_ui.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_contextpack.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_council.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_coverage.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_cvss4.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_doclint.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_engine_adjustments.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_engine_licenses.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_events_sse.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_fleet_chat.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_fosslight_scan.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_governance_ui.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_handoff_stream.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_impact_review.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_lecture_round1.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_mcp_server.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_nl2sql.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_ops_probes.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_oss_api.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_patch_delivery.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_portfolio.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_quality_top10.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_release_fixes.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_resilience.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_review_fixes.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_sbom_conformance.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_sbom_sectors_arch.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_server_cli.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_specs.py" Category="Contains" />
+    <Link Source="tests" Target="tests/bts_sbom_app/test_traceability.py" Category="Contains" />
+    <Link Source="tests" Target="tests/test_bts_sbom_pkg.py" Category="Contains" />
+    <Link Source="tests" Target="tests/test_oss_binary.py" Category="Contains" />
+    <Link Source="tests" Target="tests/test_oss_dependency.py" Category="Contains" />
+    <Link Source="tests" Target="tests/test_oss_precheck.py" Category="Contains" />
+    <Link Source="tests" Target="tests/test_oss_source.py" Category="Contains" />
+    <Link Source="tests" Target="tests/test_oss_yocto_android.py" Category="Contains" />
+    <Link Source="tests" Target="tests/test_ossreport_notice.py" Category="Contains" />
+    <Link Source="tests" Target="tests/test_ossscan.py" Category="Contains" />
+    <Link Source="tests" Target="tests/test_safe_xml.py" Category="Contains" />
+    <Link Source="bts_sbom/__init__.py" Target="bts_sbom/_version.py" />
+    <Link Source="bts_sbom/__init__.py" Target="bts_sbom/osvscanner.py" Category="Cycle" />
+    <Link Source="bts_sbom/__init__.py" Target="bts_sbom/reachability.py" />
+    <Link Source="bts_sbom/__init__.py" Target="bts_sbom/sbom.py" />
+    <Link Source="bts_sbom/__init__.py" Target="bts_sbom/sca_report.py" Category="Cycle" />
+    <Link Source="bts_sbom/__init__.py" Target="bts_sbom/sectors.py" />
+    <Link Source="bts_sbom/__init__.py" Target="bts_sbom/supply_chain.py" />
+    <Link Source="bts_sbom/__init__.py" Target="bts_sbom/vex.py" />
+    <Link Source="bts_sbom/__main__.py" Target="bts_sbom/cli.py" />
+    <Link Source="bts_sbom/_internal/callgraph.py" Target="bts_sbom/_internal/points_to.py" />
+    <Link Source="bts_sbom/_internal/depsdev.py" Target="bts_sbom/_version.py" />
+    <Link Source="bts_sbom/_internal/fix_planner.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/fix_planner.py" Target="bts_sbom/_internal/version_cmp.py" />
+    <Link Source="bts_sbom/_internal/license_norm.py" Target="bts_sbom/_internal/license_categories.py" />
+    <Link Source="bts_sbom/_internal/license_norm.py" Target="bts_sbom/_internal/license_spdx.py" />
+    <Link Source="bts_sbom/_internal/license_scan.py" Target="bts_sbom/_internal/license_utils.py" />
+    <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/dpkg.py" />
+    <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/extra.py" Category="Cycle" />
+    <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/gomod.py" />
+    <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/npm.py" />
+    <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/manifests/pip.py" />
+    <Link Source="bts_sbom/_internal/manifests/__init__.py" Target="bts_sbom/_internal/pathutil.py" />
+    <Link Source="bts_sbom/_internal/manifests/dpkg.py" Target="bts_sbom/_internal/models.py" />
+    <Link Source="bts_sbom/_internal/manifests/extra.py" Target="bts_sbom/_internal/manifests/__init__.py" Category="Cycle" />
+    <Link Source="bts_sbom/_internal/manifests/extra.py" Target="bts_sbom/_internal/manifests/cargo.py" />
+    <Link Source="bts_sbom/_internal/manifests/extra.py" Target="bts_sbom/_internal/models.py" />
+    <Link Source="bts_sbom/_internal/manifests/gomod.py" Target="bts_sbom/_internal/models.py" />
+    <Link Source="bts_sbom/_internal/manifests/npm.py" Target="bts_sbom/_internal/models.py" />
+    <Link Source="bts_sbom/_internal/manifests/pip.py" Target="bts_sbom/_internal/models.py" />
+    <Link Source="bts_sbom/_internal/manifests/rpm.py" Target="bts_sbom/_internal/models.py" />
+    <Link Source="bts_sbom/_internal/oss_android.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_android.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_android.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="bts_sbom/_internal/oss_android.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/license_scan.py" />
+    <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/license_spdx.py" />
+    <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/_internal/safe_xml.py" />
+    <Link Source="bts_sbom/_internal/oss_binary.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/_internal/oss_common.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/_internal/manifests/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/_internal/oss_manifests_extra.py" />
+    <Link Source="bts_sbom/_internal/oss_dependency.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/_internal/oss_manifests_extra.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_manifests_extra.py" Target="bts_sbom/_internal/miniyaml.py" />
+    <Link Source="bts_sbom/_internal/oss_manifests_extra.py" Target="bts_sbom/_internal/safe_xml.py" />
+    <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/_internal/license_spdx.py" />
+    <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="bts_sbom/_internal/oss_precheck.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/license_scan.py" />
+    <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/miniyaml.py" />
+    <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/_internal/safe_xml.py" />
+    <Link Source="bts_sbom/_internal/oss_source.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/_internal/miniyaml.py" />
+    <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="bts_sbom/_internal/oss_yocto.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/_internal/osv_client.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/osv_client.py" Target="bts_sbom/_internal/version_match.py" />
+    <Link Source="bts_sbom/_internal/osv_client.py" Target="bts_sbom/_version.py" />
+    <Link Source="bts_sbom/_internal/osv_local_db.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/osv_local_db.py" Target="bts_sbom/_internal/version_ranges.py" />
+    <Link Source="bts_sbom/_internal/osv_local_db.py" Target="bts_sbom/_version.py" />
+    <Link Source="bts_sbom/_internal/policy.py" Target="bts_sbom/osvscanner.py" />
+    <Link Source="bts_sbom/_internal/policy.py" Target="bts_sbom/vex.py" />
+    <Link Source="bts_sbom/_internal/registry_meta.py" Target="bts_sbom/_version.py" />
+    <Link Source="bts_sbom/_internal/remediation.py" Target="bts_sbom/_internal/version_match.py" />
+    <Link Source="bts_sbom/_internal/sbom.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/sbom.py" Target="bts_sbom/_internal/lockfile_facts.py" />
+    <Link Source="bts_sbom/_internal/sbom.py" Target="bts_sbom/_internal/supplier_resolve.py" />
+    <Link Source="bts_sbom/_internal/sbom.py" Target="bts_sbom/_version.py" />
+    <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_internal/license_norm.py" />
+    <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_internal/lockfile_facts.py" />
+    <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_internal/supplier_resolve.py" />
+    <Link Source="bts_sbom/_internal/spdx_sbom.py" Target="bts_sbom/_version.py" />
+    <Link Source="bts_sbom/_internal/version_match.py" Target="bts_sbom/_internal/version_cmp.py" />
+    <Link Source="bts_sbom/_internal/version_match.py" Target="bts_sbom/_internal/version_ranges.py" />
+    <Link Source="bts_sbom/_internal/version_ranges.py" Target="bts_sbom/_internal/version_cmp.py" />
+    <Link Source="bts_sbom/_internal/xlsx_min.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/_internal/xlsx_min.py" Target="bts_sbom/_internal/safe_xml.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/manifests/__init__.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/policy.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/remediation.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/_internal/timeutil.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/oss_cli.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/osvscanner.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/sbom.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/sectors.py" />
+    <Link Source="bts_sbom/cli.py" Target="bts_sbom/vex.py" />
+    <Link Source="bts_sbom/notice.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/notice.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/notice.py" Target="bts_sbom/_internal/license_spdx.py" />
+    <Link Source="bts_sbom/notice.py" Target="bts_sbom/_internal/license_utils.py" />
+    <Link Source="bts_sbom/notice.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/miniyaml.py" />
+    <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/oss_android.py" />
+    <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/oss_precheck.py" />
+    <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/_internal/oss_yocto.py" />
+    <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/notice.py" />
+    <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/oss_cli.py" Target="bts_sbom/ossscan.py" />
+    <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/_internal/license_spdx.py" />
+    <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/_internal/miniyaml.py" />
+    <Link Source="bts_sbom/ossreport.py" Target="bts_sbom/_internal/xlsx_min.py" />
+    <Link Source="bts_sbom/ossscan.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom/ossscan.py" Target="bts_sbom/_internal/license_utils.py" />
+    <Link Source="bts_sbom/ossscan.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="bts_sbom/ossscan.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/__init__.py" Category="Cycle" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/fix_planner.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/license_utils.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/lockfile_facts.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/manifests/__init__.py" Category="Cycle" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/models.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/osv_client.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/osv_local_db.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/sarif.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/timeutil.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/_internal/version_match.py" />
+    <Link Source="bts_sbom/osvscanner.py" Target="bts_sbom/vex.py" />
+    <Link Source="bts_sbom/reachability.py" Target="bts_sbom/_internal/callgraph.py" />
+    <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/license_spdx.py" />
+    <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/lockfile_facts.py" />
+    <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/manifests/__init__.py" />
+    <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_internal/supplier_resolve.py" />
+    <Link Source="bts_sbom/sbom.py" Target="bts_sbom/_version.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/depsdev.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/epss_kev.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/epss_offline.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/license_norm.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/license_scan.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/license_utils.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/ntia_check.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/registry_meta.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/sbom.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/spdx_sbom.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/_internal/supplier_resolve.py" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/osvscanner.py" Category="Cycle" />
+    <Link Source="bts_sbom/sca_report.py" Target="bts_sbom/supply_chain.py" />
+    <Link Source="bts_sbom/sectors.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/sectors.py" Target="bts_sbom/_internal/license_spdx.py" />
+    <Link Source="bts_sbom/sectors.py" Target="bts_sbom/_internal/ntia_check.py" />
+    <Link Source="bts_sbom/vex.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom/vex.py" Target="bts_sbom/_internal/timeutil.py" />
+    <Link Source="bts_sbom_app/__main__.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/cli.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/console.py" />
+    <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/patch.py" />
+    <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/pipeline.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/triage.py" />
+    <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/actions.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="bts_sbom_app/ai.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/ai.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/code_intel.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/net.py" />
+    <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/arch.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="bts_sbom_app/arch_api.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/arch_api.py" Target="bts_sbom_app/arch_intel.py" />
+    <Link Source="bts_sbom_app/arch_api.py" Target="bts_sbom_app/events.py" />
+    <Link Source="bts_sbom_app/arch_api.py" Target="bts_sbom_app/oss_api.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom/_internal/license_categories.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/ai.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/arch.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/arch_flow.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/arch_intel.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/net.py" />
+    <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/report.py" />
+    <Link Source="bts_sbom_app/batch.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/binscan.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/binscan.py" Target="bts_sbom_app/contextpack.py" />
+    <Link Source="bts_sbom_app/binscan.py" Target="bts_sbom_app/srcscan.py" />
+    <Link Source="bts_sbom_app/books.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/books.py" Target="bts_sbom_app/rag.py" />
+    <Link Source="bts_sbom_app/books.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/books.py" />
+    <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/events.py" />
+    <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/oss_api.py" />
+    <Link Source="bts_sbom_app/books_api.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/ai.py" />
+    <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/pipeline.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/changes.py" Target="bts_sbom_app/versions.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/actions.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/ai.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/arch_intel.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/conformance.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/conversation.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/coverage.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/fleet.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/rag.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/triage.py" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="bts_sbom_app/chat_stream.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/chat_stream.py" Target="bts_sbom_app/chat.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/chat_stream.py" Target="bts_sbom_app/events.py" />
+    <Link Source="bts_sbom_app/chat_stream.py" Target="bts_sbom_app/handoff.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/arch.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/arch_map.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/batch.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/books.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/chat.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/cli_ext.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/contextpack.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/council.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/evals.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/evals_chat.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/loop.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/looplog.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/mcp_server.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/pipeline.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/rag.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/report.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/server.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/actions.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/binscan.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/changes.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/chat.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/cli.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/conformance.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/coverage.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/evals.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/fleet.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/portfolio.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/selfcheck.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/srcscan.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/traceability.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/triage.py" />
+    <Link Source="bts_sbom_app/cli_ext.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/code_intel.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/code_intel.py" Target="bts_sbom_app/arch.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/conformance.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/console.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/console.py" Target="bts_sbom_app/code_intel.py" />
+    <Link Source="bts_sbom_app/console.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="bts_sbom_app/contextpack.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/contextpack.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/ai.py" />
+    <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/council.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/coverage.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/coverage.py" Target="bts_sbom_app/triage.py" />
+    <Link Source="bts_sbom_app/cvss.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/cvss.py" Target="bts_sbom_app/cvss4.py" />
+    <Link Source="bts_sbom_app/cvss4.py" Target="bts_sbom_app/cvss4_data.py" />
+    <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/patch.py" />
+    <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="bts_sbom_app/doclint.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/engine.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom_app/engine.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/engine.py" Target="bts_sbom_app/cvss.py" />
+    <Link Source="bts_sbom_app/engine.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/engine.py" Target="bts_sbom_app/versions.py" />
+    <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/chat.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/council.py" />
+    <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/rag.py" />
+    <Link Source="bts_sbom_app/evals.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/changes.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/chat.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/conformance.py" />
+    <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/evals.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/evals_chat.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="bts_sbom_app/events.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/fleet.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/fleet.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/fleet.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="bts_sbom_app/fleet.py" Target="bts_sbom_app/versions.py" />
+    <Link Source="bts_sbom_app/impact.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/impact.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/impact.py" Target="bts_sbom_app/fleet.py" />
+    <Link Source="bts_sbom_app/licenses.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/licenses.py" Target="bts_sbom_app/net.py" />
+    <Link Source="bts_sbom_app/licenses.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/llm.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/llm.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/ai.py" />
+    <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/batch.py" />
+    <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/evals.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/loop.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/looplog.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/books.py" />
+    <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/chat.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/cli.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/evals.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/server.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/mcp_server.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/net.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/net.py" Target="bts_sbom_app/resilience.py" />
+    <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/__init__.py" />
+    <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/_internal/oss_precheck.py" />
+    <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/notice.py" />
+    <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="bts_sbom_app/oss_api.py" Target="bts_sbom/ossscan.py" />
+    <Link Source="bts_sbom_app/osv.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/osv.py" Target="bts_sbom_app/net.py" />
+    <Link Source="bts_sbom_app/patch.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/patch.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/patch.py" Target="bts_sbom_app/versions.py" />
+    <Link Source="bts_sbom_app/patch.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/ai.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/arch.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/changes.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/conformance.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/deliver.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/impact.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/patch.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/remediate.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/review.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/sectors.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/pipeline.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="bts_sbom_app/portfolio.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/portfolio.py" Target="bts_sbom_app/speclint.py" />
+    <Link Source="bts_sbom_app/portfolio.py" Target="bts_sbom_app/traceability.py" />
+    <Link Source="bts_sbom_app/portfolio.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/evals_chat.py" />
+    <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/rag.py" />
+    <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/osv.py" />
+    <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/versions.py" />
+    <Link Source="bts_sbom_app/report.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/cvss.py" />
+    <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/triage.py" />
+    <Link Source="bts_sbom_app/sbom.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/sectors.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/sectors.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/actions.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/arch_api.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/books.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/books_api.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/chat.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/chat_stream.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/cli.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/code_intel.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/conformance.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/console.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/conversation.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/coverage.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/evals.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/events.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/fleet.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/oss_api.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/pipeline.py" Category="Cycle" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/rag.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/report.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/selfcheck.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/triage.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="bts_sbom_app/srcscan.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/srcscan.py" Target="bts_sbom_app/contextpack.py" />
+    <Link Source="bts_sbom_app/srcscan.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="bts_sbom_app/traceability.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/traceability.py" Target="bts_sbom_app/speclint.py" />
+    <Link Source="bts_sbom_app/traceability.py" Target="bts_sbom_app/util.py" />
+    <Link Source="bts_sbom_app/triage.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="bts_sbom_app/triage.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="bts_sbom_app/web/arch_intel_render.js" Target="bts_sbom_app/web/bts_ui.js" />
+    <Link Source="bts_sbom_app/web/bts_governance.js" Target="bts_sbom_app/web/bts_ui.js" />
+    <Link Source="bts_sbom_app/workspace.py" Target="bts_sbom_app/util.py" />
+    <Link Source="run_bts_sbom_app.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/net.py" />
+    <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/osv.py" />
+    <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_agent_card_and_position.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/ai.py" />
+    <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="tests/bts_sbom_app/test_ai_rag_loop.py" Target="bts_sbom_app/loop.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/arch_api.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/events.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_api.py" Target="tests/bts_sbom_app/test_arch_intel.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_flow.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_flow.py" Target="bts_sbom_app/arch_flow.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_flow.py" Target="bts_sbom_app/arch_intel.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_flow.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_intel.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_intel.py" Target="bts_sbom_app/arch.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_intel.py" Target="bts_sbom_app/arch_intel.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_intel_ui.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_intel_ui.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="bts_sbom_app/arch_map.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_arch_map.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/mcp_server.py" />
+    <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_book_round2_improvements.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/books.py" />
+    <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/books_api.py" />
+    <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/rag.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/changes.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/triage.py" />
+    <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/actions.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/evals_chat.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="bts_sbom_app/util.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_actions.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/conversation.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_agent_upgrades.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="tests/bts_sbom_app/test_chat_tools_gate.py" Target="bts_sbom_app/loop.py" />
+    <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/arch.py" />
+    <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/arch_intel.py" />
+    <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/code_intel.py" />
+    <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/console.py" />
+    <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_code_intel.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/console.py" />
+    <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_console_ui.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_contextpack.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_contextpack.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_contextpack.py" Target="bts_sbom_app/contextpack.py" />
+    <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/council.py" />
+    <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_council.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/coverage.py" />
+    <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_coverage.py" Target="bts_sbom_app/util.py" />
+    <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/cvss.py" />
+    <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/cvss4.py" />
+    <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/cvss4_data.py" />
+    <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_doclint.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_doclint.py" Target="bts_sbom_app/doclint.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_adjustments.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_adjustments.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_adjustments.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/cvss.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/remediate.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="bts_sbom_app/versions.py" />
+    <Link Source="tests/bts_sbom_app/test_engine_licenses.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="bts_sbom_app/events.py" />
+    <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_events_sse.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/changes.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/conformance.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/fleet.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_fleet_chat.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/binscan.py" />
+    <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/selfcheck.py" />
+    <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/srcscan.py" />
+    <Link Source="tests/bts_sbom_app/test_fosslight_scan.py" Target="bts_sbom_app/util.py" />
+    <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/console.py" />
+    <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="bts_sbom_app/triage.py" />
+    <Link Source="tests/bts_sbom_app/test_governance_ui.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/chat_stream.py" />
+    <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/handoff.py" />
+    <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_handoff_stream.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/impact.py" />
+    <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/remediate.py" />
+    <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="bts_sbom_app/review.py" />
+    <Link Source="tests/bts_sbom_app/test_impact_review.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/ai.py" />
+    <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/loop.py" />
+    <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/rag.py" />
+    <Link Source="tests/bts_sbom_app/test_lecture_round1.py" Target="bts_sbom_app/speclint.py" />
+    <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/books.py" />
+    <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/mcp_server.py" />
+    <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_mcp_server.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_nl2sql.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_nl2sql.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="tests/bts_sbom_app/test_nl2sql.py" Target="bts_sbom_app/nl2sql.py" />
+    <Link Source="tests/bts_sbom_app/test_ops_probes.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_ops_probes.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="tests/bts_sbom_app/test_ops_probes.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_ops_probes.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom/ossscan.py" />
+    <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom_app/oss_api.py" />
+    <Link Source="tests/bts_sbom_app/test_oss_api.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/deliver.py" />
+    <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/patch.py" />
+    <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/remediate.py" />
+    <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/util.py" />
+    <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="bts_sbom_app/workspace.py" />
+    <Link Source="tests/bts_sbom_app/test_patch_delivery.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_portfolio.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_portfolio.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_portfolio.py" Target="bts_sbom_app/portfolio.py" />
+    <Link Source="tests/bts_sbom_app/test_quality_top10.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_quality_top10.py" Target="bts_sbom_app/quality.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/batch.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/llm.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/loop.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/net.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/report.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/util.py" />
+    <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_resilience.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_resilience.py" Target="bts_sbom_app/net.py" />
+    <Link Source="tests/bts_sbom_app/test_resilience.py" Target="bts_sbom_app/resilience.py" />
+    <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/doclint.py" />
+    <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/events.py" />
+    <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/licenses.py" />
+    <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/net.py" />
+    <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/portfolio.py" />
+    <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/resilience.py" />
+    <Link Source="tests/bts_sbom_app/test_review_fixes.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/chat.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/conformance.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_conformance.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/arch.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/engine.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/sbom.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="bts_sbom_app/sectors.py" />
+    <Link Source="tests/bts_sbom_app/test_sbom_sectors_arch.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/evals.py" />
+    <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/pipeline.py" />
+    <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="bts_sbom_app/server.py" />
+    <Link Source="tests/bts_sbom_app/test_server_cli.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/bts_sbom_app/test_specs.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_specs.py" Target="bts_sbom_app/speclint.py" />
+    <Link Source="tests/bts_sbom_app/test_traceability.py" Target="bts_sbom_app/__init__.py" />
+    <Link Source="tests/bts_sbom_app/test_traceability.py" Target="bts_sbom_app/cli.py" />
+    <Link Source="tests/bts_sbom_app/test_traceability.py" Target="bts_sbom_app/speclint.py" />
+    <Link Source="tests/bts_sbom_app/test_traceability.py" Target="bts_sbom_app/traceability.py" />
+    <Link Source="tests/bts_sbom_app/test_traceability.py" Target="tests/bts_sbom_app/conftest.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/__init__.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/manifests/__init__.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/pathutil.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/policy.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/remediation.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/sbom.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/spdx_sbom.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_internal/version_match.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/_version.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/cli.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/osvscanner.py" />
+    <Link Source="tests/test_bts_sbom_pkg.py" Target="bts_sbom/vex.py" />
+    <Link Source="tests/test_oss_binary.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/test_oss_binary.py" Target="bts_sbom/_internal/oss_binary.py" />
+    <Link Source="tests/test_oss_binary.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="tests/test_oss_dependency.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/test_oss_dependency.py" Target="bts_sbom/_internal/oss_dependency.py" />
+    <Link Source="tests/test_oss_dependency.py" Target="bts_sbom/_internal/oss_manifests_extra.py" />
+    <Link Source="tests/test_oss_dependency.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="tests/test_oss_precheck.py" Target="bts_sbom/__init__.py" />
+    <Link Source="tests/test_oss_precheck.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/test_oss_precheck.py" Target="bts_sbom/_internal/oss_precheck.py" />
+    <Link Source="tests/test_oss_precheck.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="tests/test_oss_source.py" Target="bts_sbom/__init__.py" />
+    <Link Source="tests/test_oss_source.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/test_oss_source.py" Target="bts_sbom/_internal/oss_source.py" />
+    <Link Source="tests/test_oss_source.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/__init__.py" />
+    <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/_internal/oss_android.py" />
+    <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/_internal/oss_yocto.py" />
+    <Link Source="tests/test_oss_yocto_android.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/__init__.py" />
+    <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/_internal/miniyaml.py" />
+    <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/_internal/xlsx_min.py" />
+    <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/notice.py" />
+    <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="tests/test_ossreport_notice.py" Target="bts_sbom/sbom.py" />
+    <Link Source="tests/test_ossscan.py" Target="bts_sbom/__init__.py" />
+    <Link Source="tests/test_ossscan.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/test_ossscan.py" Target="bts_sbom/_internal/oss_common.py" />
+    <Link Source="tests/test_ossscan.py" Target="bts_sbom/ossreport.py" />
+    <Link Source="tests/test_ossscan.py" Target="bts_sbom/ossscan.py" />
+    <Link Source="tests/test_safe_xml.py" Target="bts_sbom/_internal/__init__.py" />
+    <Link Source="tests/test_safe_xml.py" Target="bts_sbom/_internal/oss_manifests_extra.py" />
+    <Link Source="tests/test_safe_xml.py" Target="bts_sbom/_internal/safe_xml.py" />
+    <Link Source="tests/test_safe_xml.py" Target="bts_sbom/_internal/xlsx_min.py" />
+  </Links>
+  <Categories>
+    <Category Id="Contains" Label="Contains" IsContainment="True" />
+    <Category Id="Hotspot" Label="Hotspot" Background="#FF5A2D" />
+    <Category Id="Cycle" Label="Cycle edge" Stroke="#FF2A00" StrokeDashArray="4 2" />
+  </Categories>
 </DirectedGraph>

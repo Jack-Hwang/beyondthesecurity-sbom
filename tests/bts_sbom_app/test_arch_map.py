@@ -23,16 +23,56 @@ def test_dgml_is_wellformed_vs_interop_with_nodes_links_and_no_self_loops():
     edges = [("bts_sbom_app/a.py", "bts_sbom/core.py"), ("bts_sbom/core.py", "bts_sbom/core.py"),  # self-loop must drop
              ("bts_sbom_app/a.py", "bts_sbom_app/a.py")]
     xml = arch_map.to_dgml("Architecture of demo", sorted({n for e in edges for n in e}), edges,
-                           node_labels={"bts_sbom_app/a.py": "app module"})
+                           node_labels={"bts_sbom_app/a.py": "app module"}, groups=False)
     root = ET.fromstring(xml)                                             # well-formed XML a VS reader accepts
     assert root.tag == "{%s}DirectedGraph" % arch_map.DGML_NS
-    nodes = root.findall("{%s}Node" % arch_map.DGML_NS)
-    links = root.findall("{%s}Link" % arch_map.DGML_NS)
+    nodes = root.findall(".//{%s}Node" % arch_map.DGML_NS)
+    links = root.findall(".//{%s}Link" % arch_map.DGML_NS)
     assert len(nodes) == 2 and len(links) == 1                            # 2 nodes, self-loops dropped
     labelled = next(n for n in nodes if n.get("Id") == "bts_sbom_app/a.py")
     assert labelled.get("Label") == "app module"                          # the label override landed
     assert {links[0].get("Source"), links[0].get("Target")} == {"bts_sbom_app/a.py", "bts_sbom/core.py"}
     assert 'Kind="bts-sbom.arch-map.v1"' in xml
+
+
+def test_rich_dgml_carries_groups_contains_categories_and_styles():
+    """AC: BSA-AC-563"""
+    edges = [("bts_sbom_app/api.py", "bts_sbom/core.py"), ("bts_sbom/core.py", "bts_sbom_app/api.py")]
+    xml = arch_map.to_dgml("demo", ["bts_sbom_app/api.py", "bts_sbom/core.py"], edges,
+                           hotspots=["bts_sbom_app/api.py"], cycle_edges=edges)
+    root = ET.fromstring(xml)
+    ns = "{%s}" % arch_map.DGML_NS
+    groups = [n for n in root.findall(".//" + ns + "Node") if n.get("Group") == "Expanded"]
+    assert {g.get("Id") for g in groups} == {"bts_sbom_app", "bts_sbom"}   # directory groups cluster the map
+    contains = [l for l in root.findall(".//" + ns + "Link") if l.get("Category") == "Contains"]
+    assert len(contains) == 2                                              # each member wired into its group
+    cycles = [l for l in root.findall(".//" + ns + "Link") if l.get("Category") == "Cycle"]
+    assert len(cycles) == 2                                                # both cycle edges categorised
+    cats = {c.get("Id"): c for c in root.findall(".//" + ns + "Category")}
+    assert cats["Contains"].get("IsContainment") == "True"
+    assert cats["Hotspot"].get("Background") == "#FF5A2D"
+    assert cats["Cycle"].get("StrokeDashArray") == "4 2"
+    assert 'Layout="Sugiyama"' in xml and 'GraphDirection="TopToBottom"' in xml
+
+
+def test_layer_map_renders_layers_violation_categories_and_containment():
+    """AC: BSA-AC-564"""
+    edges = [("bts_sbom_app/api.py", "bts_sbom/core.py"),      # services -> core: legal
+             ("bts_sbom/core.py", "bts_sbom_app/api.py")]      # core -> services: illegal
+    rules = json.loads(arch_map.rules_example())
+    xml = arch_map.to_layer_dgml("layer check", ["bts_sbom_app/api.py", "bts_sbom/core.py"], edges, rules)
+    root = ET.fromstring(xml)
+    ns = "{%s}" % arch_map.DGML_NS
+    links = {(l.get("Source"), l.get("Target")): l.get("Category") for l in root.findall(".//" + ns + "Link")
+             if l.get("Category") != "Contains"}
+    assert links[("bts_sbom_app/api.py", "bts_sbom/core.py")] == "Legal"
+    assert links[("bts_sbom/core.py", "bts_sbom_app/api.py")] == "Illegal"
+    cats = {c.get("Id"): c for c in root.findall(".//" + ns + "Category")}
+    assert cats["Illegal"].get("Background") == "#FF5A2D" and cats["Bypassed"].get("StrokeDashArray") == "4 2"
+    groups = {n.get("Id") for n in root.findall(".//" + ns + "Node") if n.get("Group") == "Expanded"}
+    assert groups == {"layer:ui", "layer:services", "layer:core"}           # declared layers become group nodes
+    containment = [l for l in root.findall(".//" + ns + "Link") if l.get("Category") == "Contains"]
+    assert any(l.get("Target") == "bts_sbom_app/api.py" for l in containment)
 
 
 def test_layer_validate_reports_illegal_bypassed_unknown_and_pass():
@@ -58,7 +98,7 @@ def test_layer_validate_reports_illegal_bypassed_unknown_and_pass():
 
 
 def test_cli_arch_writes_dgml_and_layer_verdict(tmp_path, make_repo):
-    """AC: BSA-AC-558, BSA-AC-559"""
+    """AC: BSA-AC-558, BSA-AC-563"""
     origin = make_repo({"app.py": "import helpers\n", "helpers.py": "import os\n"})
     out_dgml = str(tmp_path / "arch.dgml")
     rules_file = str(tmp_path / "layers.json")

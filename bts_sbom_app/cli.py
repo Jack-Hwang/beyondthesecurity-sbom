@@ -88,6 +88,7 @@ def build_parser() -> argparse.ArgumentParser:
     a = sub.add_parser("arch", help="legacy architecture analysis")
     a.add_argument("source"); a.add_argument("--ref"); a.add_argument("--depth", type=int, default=200)
     a.add_argument("--dgml", default=None, help="write the import graph as a Visual Studio Code Map (.dgml)")
+    a.add_argument("--dgml-layers", default=None, help="write the layer validation map (.dgml): violations red, bypassed amber")
     a.add_argument("--layers", default=None, help="layer rules JSON: deny-by-default may_depend_on allow-lists (see arch_map.rules_example)")
     _common(a)
     b = sub.add_parser("batch", help="analyse many sources")
@@ -209,19 +210,37 @@ def main(argv: Optional[List[str]] = None) -> int:
         edges, _gi = archmod.import_graph(ws["path"], archmod.collect_files(ws["path"], 4000))
         from . import arch_map
         txt = ["Architecture of %s" % a.source, "files %s, LOC %s" % (res["stack"]["files"], res["stack"]["loc"]), "graph: %s" % kv({k: v for k, v in res["graph"].items() if k in ("import_edges", "cycle_count", "tangle_ratio", "max_depth")})]
+        hotspots = [h["file"] for h in (res.get("hotspots") or [])[:8]]
+        cycle_nodes = set()
+        for scc in archmod.sccs({n for e in edges for n in e}, set(edges)):
+            if len(scc) > 1:
+                cycle_nodes.update(scc)
+        cycle_edges = [(x, y) for x, y in edges if x in cycle_nodes and y in cycle_nodes]
         if a.dgml:
-            xml = arch_map.to_dgml("Architecture of %s" % a.source, sorted({n for e in edges for n in e}), edges)
+            xml = arch_map.to_dgml("Architecture of %s" % a.source, sorted({n for e in edges for n in e}), edges,
+                                   hotspots=hotspots, cycle_edges=cycle_edges)
             os.makedirs(os.path.dirname(a.dgml) or ".", exist_ok=True)
             with io.open(a.dgml, "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(xml)
-            txt.append("dgml: %s (nodes %d, links %d) - opens in Visual Studio Code Maps" % (
-                a.dgml, len(set(n for e in edges for n in e)), len([1 for x, y in edges if x != y])))
+            txt.append("dgml: %s (nodes %d, links %d, hotspots %d, cycle links %d) - opens in Visual Studio Code Maps" % (
+                a.dgml, len(set(n for e in edges for n in e)), len([1 for x, y in edges if x != y]),
+                len(hotspots), len(cycle_edges)))
         if a.layers:
             rules = json.load(io.open(a.layers, encoding="utf-8"))
             vr = arch_map.layer_validate(edges, rules)
             res["layer_validation"] = vr
             txt.append("layer validation: %s - illegal %d, bypassed %d, unknown-layer edges %d (checked %d)" % (
                 vr["verdict"], len(vr["violations"]), len(vr["bypassed"]), vr["unknown_layer_edges"], vr["checked"]))
+        if a.dgml_layers:
+            if not a.layers:
+                print("ERROR: --dgml-layers needs --layers rules.json", file=sys.stderr)
+                return 2
+            rules = json.load(io.open(a.layers, encoding="utf-8"))
+            lmap = arch_map.to_layer_dgml("Layer validation of %s" % a.source, sorted({n for e in edges for n in e}), edges, rules)
+            os.makedirs(os.path.dirname(a.dgml_layers) or ".", exist_ok=True)
+            with io.open(a.dgml_layers, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(lmap)
+            txt.append("layer map: %s - violations styled red, bypassed amber (opens in any DGML viewer)" % a.dgml_layers)
         txt += ["hotspot %s score %s" % (h["file"], h["score"]) for h in res["hotspots"][:5]] + ["%s %s: %s" % (m["kind"], m["target"], m["why"]) for m in res["modernization"]]
         _print(res, a.json, "\n".join(txt))
         return 0

@@ -26,26 +26,115 @@ SCHEMA = "bts-sbom.arch-map.v1"
 
 
 def to_dgml(title: str, nodes: Iterable[str], edges: Iterable[Tuple[str, str]],
-            node_labels: Optional[Dict[str, str]] = None) -> str:
-    """Nodes and (source, target) edges as one DGML document (DirectedGraph 8.0.0)."""
+            node_labels: Optional[Dict[str, str]] = None, hotspots: Iterable[str] = (),
+            cycle_edges: Iterable[Tuple[str, str]] = (), groups: bool = True) -> str:
+    """Nodes and (source, target) edges as one DGML document (DirectedGraph 8.0.0), VS Code Maps rich form.
+
+    Beyond bare nodes/links (DGML reference: Groups/Categories/Styles/Contains): nodes cluster into
+    directory Groups (Expanded) wired with Category="Contains" links, hotspot nodes carry the "Hotspot"
+    category (styled red by the map's own Categories block), and cycle edges carry the "Cycle" category
+    (styled red dashed) - so the map renders an architecture reading, not a hairball, straight in VS."""
     def esc(v: str) -> str:
         return saxutils.escape(str(v), {'"': "&quot;"})
 
     ns = DGML_NS
+    node_list = sorted(set(nodes))
+    edge_list = sorted(set((a, b) for a, b in edges if a != b))       # self-loops render as map noise
+    cycle = set(tuple(e) for e in cycle_edges) & set(edge_list)
+    hot = set(hotspots) & set(node_list)
     out = ['<?xml version="1.0" encoding="utf-8"?>',
            '<DirectedGraph xmlns="%s" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-           'Title="%s" Kind="%s">' % (ns, esc(title), esc(SCHEMA))]
-    seen: Set[str] = set()
-    for n in nodes:
-        if n in seen:
-            continue
-        seen.add(n)
-        label = (node_labels or {}).get(n, n)
-        out.append('  <Node Id="%s" Label="%s" />' % (esc(n), esc(label)))
-    for a, b in edges:
-        if a == b:
-            continue                                          # self-loops render as noise on a code map
-        out.append('  <Link Source="%s" Target="%s" />' % (esc(a), esc(b)))
+           'Title="%s" Kind="%s" Layout="Sugiyama" GraphDirection="TopToBottom">' % (ns, esc(title), esc(SCHEMA))]
+    groups_of: Dict[str, str] = {}
+    if groups:
+        for n in node_list:
+            grp = n.split("/")[0] if "/" in n else "(root)"
+            groups_of[n] = grp
+        out.append('  <Nodes>')
+        for g in sorted(set(groups_of.values())):
+            out.append('    <Node Id="%s" Label="%s" Group="Expanded" />' % (esc(g), esc(g)))
+        for n in node_list:
+            label = (node_labels or {}).get(n, n)
+            attrs = ' Category="Hotspot"' if n in hot else ""
+            out.append('    <Node Id="%s" Label="%s"%s />' % (esc(n), esc(label), attrs))
+        out.append('  </Nodes>')
+        out.append('  <Links>')
+        for n in node_list:                                           # containment first: groups hold their members
+            out.append('    <Link Source="%s" Target="%s" Category="Contains" />' % (esc(groups_of[n]), esc(n)))
+        for a, b in edge_list:
+            cat = ' Category="Cycle"' if (a, b) in cycle else ""
+            out.append('    <Link Source="%s" Target="%s"%s />' % (esc(a), esc(b), cat))
+        out.append('  </Links>')
+    else:
+        out.append('  <Nodes>')
+        for n in node_list:
+            label = (node_labels or {}).get(n, n)
+            attrs = ' Category="Hotspot"' if n in hot else ""
+            out.append('    <Node Id="%s" Label="%s"%s />' % (esc(n), esc(label), attrs))
+        out.append('  </Nodes>')
+        out.append('  <Links>')
+        for a, b in edge_list:
+            cat = ' Category="Cycle"' if (a, b) in cycle else ""
+            out.append('    <Link Source="%s" Target="%s"%s />' % (esc(a), esc(b), cat))
+        out.append('  </Links>')
+    out.append('  <Categories>')
+    out.append('    <Category Id="Contains" Label="Contains" IsContainment="True" />')
+    out.append('    <Category Id="Hotspot" Label="Hotspot" Background="#FF5A2D" />')
+    out.append('    <Category Id="Cycle" Label="Cycle edge" Stroke="#FF2A00" StrokeDashArray="4 2" />')
+    out.append('  </Categories>')
+    out.append('</DirectedGraph>')
+    return "\n".join(out) + "\n"
+
+
+def to_layer_dgml(title: str, nodes: Iterable[str], edges: Iterable[Tuple[str, str]], rules: Dict[str, Any]) -> str:
+    """The layer validation as one DGML map: declared layers as Group nodes containing their members,
+    cross-layer links categorised legal/illegal/bypassed with violations styled red/amber - the validation
+    verdict you can SEE in Visual Studio or any DGML viewer. DGML-spec-compliant companion to
+    layer_validate (the .layerdiag schema is undocumented, so we stay on the documented format)."""
+    result = layer_validate(edges, rules)
+    def esc(v: str) -> str:
+        return saxutils.escape(str(v), {'"': "&quot;"})
+
+    ns = DGML_NS
+    node_list = sorted(set(nodes))
+    layer_of: Dict[str, str] = {}
+    for n in node_list:
+        layer_of[n] = _layer_of(n, rules) or "unknown"
+    declared = sorted((rules.get("layers") or {}).keys())
+    groups = declared + (["unknown"] if any(v == "unknown" for v in layer_of.values()) else [])
+    illegal_srcs = {tuple(v["edge"]) for v in result["violations"]}
+    bypassed_srcs = {tuple(v["edge"]) for v in result["bypassed"]}
+    edge_list = sorted(set((a, b) for a, b in edges if a != b))
+    out = ['<?xml version="1.0" encoding="utf-8"?>',
+           '<DirectedGraph xmlns="%s" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+           'Title="%s" Kind="%s.layers" Layout="Sugiyama" GraphDirection="TopToBottom">' % (ns, esc(title), esc(SCHEMA))]
+    out.append('  <Nodes>')
+    for g in groups:
+        out.append('    <Node Id="layer:%s" Label="%s" Group="Expanded" />' % (esc(g), esc(g)))
+    for n in node_list:
+        out.append('    <Node Id="%s" Label="%s" />' % (esc(n), esc(n)))
+    out.append('  </Nodes>')
+    out.append('  <Links>')
+    for n in node_list:
+        out.append('    <Link Source="layer:%s" Target="%s" Category="Contains" />' % (esc(layer_of[n]), esc(n)))
+    for a, b in edge_list:
+        if (a, b) in illegal_srcs:
+            cat = ' Category="Illegal"'
+        elif (a, b) in bypassed_srcs:
+            cat = ' Category="Bypassed"'
+        else:
+            cat = ' Category="Legal"'
+        out.append('    <Link Source="%s" Target="%s"%s />' % (esc(a), esc(b), cat))
+    out.append('  </Links>')
+    out.append('  <Categories>')
+    out.append('    <Category Id="Contains" Label="Contains" IsContainment="True" />')
+    out.append('    <Category Id="Legal" Label="Allowed dependency" Stroke="#1A7F37" />')
+    out.append('    <Category Id="Illegal" Label="Illegal reference" Background="#FF5A2D" Stroke="#D1242F" />')
+    out.append('    <Category Id="Bypassed" Label="Bypassed intermediate layer" Stroke="#BF8700" StrokeDashArray="4 2" />')
+    out.append('  </Categories>')
+    out.append('  <Properties>')
+    out.append('    <Property Id="verdict" Label="Validation verdict" DataType="System.String" />')
+    out.append('  </Properties>')
     out.append('</DirectedGraph>')
     return "\n".join(out) + "\n"
 
