@@ -142,6 +142,7 @@
     <Node Id="bts_sbom_app/web/bts_ui.js" Label="bts_sbom_app/web/bts_ui.js" />
     <Node Id="bts_sbom_app/workspace.py" Label="bts_sbom_app/workspace.py" />
     <Node Id="run_bts_sbom_app.py" Label="run_bts_sbom_app.py" />
+    <Node Id="scripts/vs_mine.py" Label="scripts/vs_mine.py" />
     <Node Id="tests/bts_sbom_app/conftest.py" Label="tests/bts_sbom_app/conftest.py" />
     <Node Id="tests/bts_sbom_app/test_agent_card_and_position.py" Label="tests/bts_sbom_app/test_agent_card_and_position.py" />
     <Node Id="tests/bts_sbom_app/test_ai_rag_loop.py" Label="tests/bts_sbom_app/test_ai_rag_loop.py" />
@@ -338,6 +339,7 @@
     <Link Source="layer:app" Target="bts_sbom_app/web/bts_ui.js" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/workspace.py" Category="Contains" />
     <Link Source="layer:unknown" Target="run_bts_sbom_app.py" Category="Contains" />
+    <Link Source="layer:core" Target="scripts/vs_mine.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/conftest.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_agent_card_and_position.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_ai_rag_loop.py" Category="Contains" />
@@ -849,6 +851,7 @@
     <Link Source="bts_sbom_app/web/bts_governance.js" Target="bts_sbom_app/web/bts_ui.js" Category="Legal" />
     <Link Source="bts_sbom_app/workspace.py" Target="bts_sbom_app/util.py" Category="Legal" />
     <Link Source="run_bts_sbom_app.py" Target="bts_sbom_app/cli.py" Category="Illegal" />
+    <Link Source="scripts/vs_mine.py" Target="bts_sbom_app/binscan.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/engine.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/conftest.py" Target="bts_sbom_app/llm.py" Category="Illegal" />

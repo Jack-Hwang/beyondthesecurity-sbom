@@ -102,6 +102,12 @@ class StreamingChatbot(chatmod.Chatbot):
         self._emit("final", found=res.get("found"), answer_source=res.get("answer_source"),
                    tools=res.get("tools") or [], citation_accuracy=res.get("citation_accuracy"),
                    llm_note=res.get("llm_note") or "",
+                   answer=res.get("answer") or "",                        # the turn's answer body - a stream client
+                   contains_untrusted=bool(res.get("contains_untrusted")),   # renders the whole turn from events alone
+                   conflicts=res.get("conflicts") or [],
+                   retrieval_top=(res.get("retrieval") or {}).get("top") or [],
+                   routing=res.get("routing"), routing_note=res.get("routing_note") or "",
                    followup=bool(res.get("followup")), decomposed=res.get("decomposed") or [],
+                   diagrams=res.get("diagrams") or [],                      # drawn mid-conversation (ADR-0024)
                    injection_attempts=(res.get("injection") or {}).get("attempts", 0))
         return res

@@ -15,19 +15,29 @@
   }
 
   var GROUPS = {
-    'git': ['git', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
-    'graph-health': ['dep-graph', 'arch', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
-    'fix': ['fix-plan', 'fix-pr'], 'oss': ['oss'], 'report': ['report'], 'archintel': ['archintel'],
-    'books': ['books'], 'chat': ['chat'], 'more': ['more', 'fleet']
+    'git': ['git', 'oss', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
+    'graph-health': ['dep-graph', 'arch', 'code', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
+    'fix': ['fix-plan', 'fix-pr'], 'report': ['report'], 'archintel': ['archintel'], 'diagrams': ['diagrams'],
+    'books': ['books'], 'more': ['more', 'fleet']
   };
+  /* the Claude-client rail (CCD "Code 탭 화면 해부" + IF-B04): the sidebar is a SESSION list first and the
+     feature panels live inside five collapsed sections - every pane stays reachable, but the menu no longer
+     dominates the screen (사용자 지시 2026-11-22: "메뉴를 주요 기능으로 통합, claude client 기능으로 따라서"). */
+  var SECTIONS = [
+    { icon: '🔎', label: '분석 스캔', groups: ['git'] },
+    { icon: '📊', label: '결과와 우선순위', groups: ['risk', 'prioritize'] },
+    { icon: '🗄', label: '리포트와 구조', groups: ['report', 'archintel', 'diagrams', 'graph-health'] },
+    { icon: '📚', label: '지식과 컴플라이언스', groups: ['books', 'compliance'] },
+    { icon: '🔧', label: '수정과 운영', groups: ['fix', 'more'] }
+  ];
   var LABELS = {
     'git': '🌐 Scan', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Findings', 'changes': '🔔 What changed',
     'prioritize': '🎯 Prioritize', 'graph-health': '🕸 Graph & Health', 'compliance': '✅ Compliance', 'fix': '🔧 Fix',
     'ssvc': '🎯 SSVC', 'epss': '📡 EPSS', 'exploit-mat': '🔥 Exploit Mat.', 'dep-graph': '🕸 Dep Graph',
-    'arch': '🏛 Architecture', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
+    'arch': '🏛 Architecture', 'code': '🔎 Code Intel', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
     'vex': '📋 VEX · Decisions', 'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
-    'fix-pr': '🔧 Patch', 'oss': '📜 OSS Scanner', 'report': '📊 Report', 'archintel': '🏛 Arch Intel', 'books': '📚 Book KB',
-    'chat': '💬 Chat', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
+    'fix-pr': '🔧 Patch', 'oss': '📜 OSS 결과', 'report': '📊 Report', 'archintel': '🏛 Arch Intel', 'diagrams': '🖼 Diagrams',
+    'books': '📚 Book KB', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
   };
   var SEVS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
   var SEV_COLOR = U.SEV_COLOR;
@@ -56,13 +66,42 @@
     return '<button type="button" class="run" data-act="' + esc(act) + '"' + (attrs || '') + (S.busy && extra === 'job' ? ' disabled' : '') + '>' + label + '</button>';
   }
 
-  /* ---------- tabs (the desktop-shell sidebar; same grouping as the platform screen) ---------- */
+  /* ---------- the Claude-client rail: sessions first, feature panels collapsed, assistant at the bottom ---------- */
   function buildSideNav() {
     var nav = $('#sideNav');
     if (!nav) { return; }
-    nav.innerHTML = '<div class="bts-sidenav-brand">\u2699 BTS-SBOM</div>' + Object.keys(GROUPS).map(function (g) {
-      return '<div class="rtab" data-sv="' + esc(g) + '" role="button" tabindex="0">' + esc(LABELS[g] || g) + '</div>';
+    var h = '<div class="bts-sidenav-brand">\u2699 BTS-SBOM</div>';
+    h += '<button type="button" class="bts-rail-new" data-act="new">\uFF0B \uC0C8 \uBD84\uC11D</button>';
+    h += '<div class="bts-rail-h">\u2699 \uBD84\uC11D \uC138\uC158</div><div id="railSessions" class="bts-rail-sessions"></div>';
+    SECTIONS.forEach(function (s) {
+      h += '<details class="bts-rail-grp"><summary class="rtab" data-sv="' + esc(s.groups[0]) + '" role="button" tabindex="0">' +
+           s.icon + ' ' + esc(s.label) + '</summary>';
+      s.groups.forEach(function (g) {
+        (GROUPS[g] || []).forEach(function (m) {
+          h += '<button type="button" class="bts-rail-chip" data-act="goto" data-sv="' + esc(m) + '">' + esc(LABELS[m] || m) + '</button>';
+        });
+      });
+      h += '</details>';
+    });
+    h += '<button type="button" class="bts-rail-assist" data-act="assist">\uD83D\uDCAC \uC5B4\uC2DC\uC2A4\uD134\uD2B8</button>';
+    nav.innerHTML = h;
+    renderRailSessions();
+  }
+  function renderRailSessions() {
+    var box = $('#railSessions');
+    if (!box) { return; }
+    if (!S.history.length) { box.innerHTML = '<div class="bts-rail-empty">\uBD84\uC11D \uAE30\uB85D\uC774 \uC5C6\uB2E4.</div>'; return; }
+    box.innerHTML = S.history.slice(0, 12).map(function (h) {
+      return '<button type="button" class="bts-rail-session' + (h.name === S.project ? ' on' : '') + '" data-act="session" data-name="' + esc(h.name) + '" title="' + esc(h.source || '') + '">' +
+        '<span class="bts-rail-session-n">' + esc(h.name) + '</span>' +
+        '<span class="bts-rail-session-t">' + esc(String(h.analysed_at || '').replace('T', ' ').slice(0, 16)) + '</span></button>';
     }).join('');
+  }
+  function focusAssistant() {
+    var dock = $('#chatDock'), bar = $('#chatDockBar');
+    if (dock && bar && dock.className.indexOf('open') < 0) { bar.click(); }
+    var q = $('#chatDockQ');
+    if (q) { q.focus(); if (q.scrollIntoView) { q.scrollIntoView({ block: 'center' }); } }
   }
   function groupOf(sv) {
     for (var g in GROUPS) { if (GROUPS[g].indexOf(sv) >= 0) { return g; } }
@@ -76,11 +115,14 @@
       return '<button type="button" class="scan-subchip' + (m === member ? ' on' : '') + '" data-act="goto" data-sv="' + esc(m) + '">' + esc(LABELS[m] || m) + '</button>';
     }).join('');
   }
-  function activate(sv) {
+  /* exact=true: a sub-tab chip (or an explicit pane id) must open exactly that member; only the sidebar's
+     GROUP button restores the member the user visited last (sv === group). Without the exact path the first
+     member chip of a group can never reopen its own pane (e.g. the Scan landing after visiting OSS 결과). */
+  function activate(sv, exact) {
     var group = sv, member = sv;
     if ($('#view-scan .rtab[data-sv="' + sv + '"]')) { member = (GROUPS[sv] && GROUPS[sv][0]) || sv; }
     else { group = groupOf(sv); if (!group) { return; } }
-    if (sv === group && S.members[group] && GROUPS[group].indexOf(S.members[group]) >= 0) { member = S.members[group]; }
+    if (!exact && sv === group && S.members[group] && GROUPS[group].indexOf(S.members[group]) >= 0) { member = S.members[group]; }
     S.members[group] = member;
     $$('#view-scan .rtab').forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-sv') === group); });
     $$('#view-scan .rpane').forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-sv') === member); });
@@ -97,7 +139,7 @@
       bar.className = 'analysis-workflow';
       bar.innerHTML = STEPS.map(function (l, i) { return '<div class="aw-step" data-step="' + (i + 1) + '">' + (i + 1) + '. ' + l + '</div>'; }).join('') +
         '<div class="aw-message"></div>';
-      row.insertBefore(bar, row.firstChild);
+      row.parentNode.insertBefore(bar, row);   // the bar sits ABOVE the unified input row: inside it the flex row would wrap apart
     }
     var failed = !!isError;           // toggle(name, undefined) would FLIP the class instead of clearing it
     $$('.aw-step', bar).forEach(function (el, i) {
@@ -146,45 +188,41 @@
   }
   function analyse(src) {
     src = (src || '').trim();
-    if (!src) { setStep(1, 'Enter a repository URL or a local path.', true); return; }
-    var ossToo = !!($('#scaOss') && $('#scaOss').checked);
+    if (!src) { setStep(1, 'Enter a repository URL, a local path or an archive.', true); return; }
+    var ossOpts = window.BtsOss ? window.BtsOss.readForm() : null;      // modes/excludes/branch from the unified landing form
     runJob({ source: src, offline: !!$('#scaOffline').checked, use_llm: !!$('#scaLlm').checked }, 'Analysis').then(function (job) {
-      if (job && job.state === 'done') { activate('report'); }           // the report has its own tab now
-      if (ossToo && job && job.state === 'done') { runOssChain(src); }   // one Analyze, two engines: main pipeline first, OSS deliverables after
+      var ok = job && job.state === 'done';
+      if (ok) { activate('report'); }                                    // the report has its own tab now
+      runOssChain(src, ossOpts, ok);   // one Analyze, two engines: the OSS stage runs even when the main pipeline cannot read the target (archives)
     });
   }
-  /* runOssChain: the same target through the OSS Scanner engine (source + dependency + binary), so the
-     platform deliverables (OSS notice / spreadsheet) exist without a second manual entry point. Failure is
-     an honest note - the main analysis result stays valid and untouched. Same DOM rules as renderConsole:
-     note() returns an HTML string whose dynamic parts must be esc()ed, then a real button node is appended
-     (the page CSP forbids inline handlers). */
-  function runOssChain(src) {
+  /* runOssChain: the same target through the OSS Scanner engine (source / dependency / binary chosen on the
+     landing form), so the platform deliverables (OSS notice / spreadsheet) exist without a second manual entry
+     point. The stage never skips silently: a missing engine script or an empty mode selection is reported, the
+     stage runs even when the main pipeline failed on the same target (e.g. an archive the pipeline cannot read),
+     and every failure note states what happened to the main result. Same DOM rules as renderConsole: note()
+     returns an HTML string whose dynamic parts must be esc()ed, then a real button node is appended (the page
+     CSP forbids inline handlers). */
+  function runOssChain(src, opts, mainOk) {
     var banner = $('#scaBanner');
     if (!banner) { return; }
-    setStep(4, 'OSS Scanner: scanning the same target (source + dependency + binary)…');
-    api('/api/oss/scan', { target: src, modes: ['source', 'dependency', 'binary'], excludes: [], branch: '', correction: false }).then(function (r) {
-      if (!r.ok) {
-        banner.innerHTML = note('OSS 성과물 생성 실패: ' + esc((r.data && r.data.error) || ('HTTP ' + r.status)) + ' — 메인 분석 결과는 정상이다. 📜 OSS Scanner 탭에서 직접 시도할 것.', 'bad');
+    if (!window.BtsOss) { banner.innerHTML = note('OSS 엔진 스크립트가 로드되지 않았다 — OSS 단계는 실행되지 않았다.', 'bad'); return; }
+    if (!opts) { banner.innerHTML = note('OSS 분석 유형이 하나도 선택되지 않았다 — OSS 단계는 건너뛰었다.', 'warn'); return; }
+    if (!mainOk) { banner.innerHTML = note('메인 파이프라인이 이 대상을 분석하지 못했다(사유는 단계 바에 있다) — OSS 스캔만 계속 실행한다.', 'warn'); }
+    setStep(4, 'OSS Scanner: scanning the same target (' + opts.modes.join(' + ') + ')…');
+    window.BtsOss.start(src, opts).then(function (r) {
+      if (r && r.superseded) { return; }                                 // a newer Analyze took over the OSS stage
+      if (!r || !r.ok) {
+        banner.innerHTML = note('OSS 성과물 생성 실패: ' + esc((r && r.error) || 'unknown') + ' — ' + (mainOk ? '메인 분석 결과는 정상이다.' : '메인 파이프라인도 이 대상은 분석하지 못했다.'), 'bad');
         return;
       }
-      var id = String(r.data.job || '');
-      (function poll() {
-        api('/api/oss/jobs/' + encodeURIComponent(id)).then(function (j) {
-          var d = j.data || {};
-          if (d.state === 'running') { setTimeout(poll, 1200); return; }
-          if (d.state !== 'done') {
-            banner.innerHTML = note('OSS 스캔 실패: ' + esc(d.error || d.state || 'unknown') + ' — 메인 분석 결과는 정상이다.', 'bad');
-            return;
-          }
-          banner.innerHTML = note('OSS 성과물 완료 (job ' + esc(id) + ') — 공개문·엑셀·바이너리 목록은 📜 OSS Scanner 탭에 있다.', 'ok');
-          var view = document.createElement('button');
-          view.type = 'button';
-          view.className = 'bts-mini';
-          view.textContent = 'OSS Scanner에서 보기';
-          view.addEventListener('click', function () { activate('oss'); });
-          banner.appendChild(view);
-        });
-      })();
+      banner.innerHTML = note('OSS 성과물 완료 (job ' + esc(r.id) + ') — 공개문·엑셀·바이너리 목록은 📜 OSS 결과 탭에 있다.', 'ok');
+      var view = document.createElement('button');
+      view.type = 'button';
+      view.className = 'bts-mini';
+      view.textContent = '📜 OSS 결과에서 보기';
+      view.addEventListener('click', function () { activate('oss'); });
+      banner.appendChild(view);
     });
   }
 
@@ -231,7 +269,7 @@
   function loadHistory() {
     return api('/api/history').then(function (r) {
       S.history = (r.data && r.data.history) || [];
-      fillSelect(); renderHistory();
+      fillSelect(); renderHistory(); renderRailSessions();           // the rail session list refreshes with the history
       loadFleet();                                                     // the roll-up covers the same evidence folder: refresh it with the list
     });
   }
@@ -399,6 +437,51 @@
     }), 'No vulnerable component.');
     return out + note('The graph is a flat list per manifest: BTS-SBOM records which manifest a component comes from, not its parent edges.');
   }
+  /* Code Intel (Understand-like function-level lane, Python-only - honest about it): metrics, complexity top,
+     dead code, clones. Data comes from arch.code in the view projection (bts_sbom_app/code_intel.py). */
+  function codeIntel(v) {
+    var c = (v.arch || {}).code;
+    if (!c) {
+      return heading('Code Intel') + note('No function-level analysis was recorded for this project - it has no Python functions, or it was analysed before this lane existed. Other languages stay at module-level analysis.');
+    }
+    var m = c.metrics || {}, mx = m.max_complexity || {};
+    var out = heading('Code Intel', 'function-level facts (Python) - call graph, complexity, dead code, clones');
+    out += kv([['Functions analysed', m.functions], ['Avg complexity', m.avg_complexity],
+               ['Max complexity', (mx.name ? mx.name + ' (' + mx.file + ') — ' + mx.cc : '—')],
+               ['Dead functions (fan-in 0)', m.dead_count], ['Clone groups', m.clone_groups],
+               ['Resolved / unknown calls', (m.resolved_calls || 0) + ' / ' + (m.unknown_calls || 0)],
+               ['Language', c.language || '—']]);
+    out += '<div class="bts-actions">' +
+      '<button type="button" class="bts-mini" data-act="dl" data-url="/api/code-metrics/' + esc(encodeURIComponent(v.project)) + '">⬇ Metrics CSV (functions)</button></div>';
+    out += heading('Complexity top', 'cyclomatic = 1 + decisions (branches, loops, handlers, booleans)');
+    out += table(['Function', 'File', 'CC', 'nesting', 'fan-in', 'fan-out', 'sLOC'], (c.functions || []).map(function (f) {
+      return [f.name, f.file, f.complexity >= 9 ? H('<span class="bts-pill bad">' + esc(f.complexity) + '</span>') : f.complexity,
+              f.nesting === undefined ? '—' : f.nesting, f.fan_in, f.fan_out, f.sloc];
+    }), 'No functions were analysed.');
+    var bf = c.butterfly;
+    if (bf) {
+      out += heading('Butterfly: ' + bf.name, 'immediate neighbourhood (callers / callees, measured)');
+      out += table(['Direction', 'Function', 'File'], (bf.callers || []).map(function (x) {
+        return ['caller', x.name, x.file];
+      }).concat((bf.callees || []).map(function (x) {
+        return ['callee', x.name, x.file];
+      })), 'No resolved callers or callees for the top function (the resolver is name-based and Python-only).');
+    }
+    out += heading('Classes', 'name, bases and direct method count');
+    out += table(['Class', 'File', 'line', 'Bases', 'methods'], (c.classes || []).map(function (k) {
+      return [k.name, k.file, k.line, (k.bases || []).join(', ') || '—', k.methods];
+    }), 'No classes were analysed.');
+    out += heading('Dead code', 'never called in the analysed tree — remove or wire in, the judgement is yours');
+    out += table(['Function', 'File', 'line', 'sLOC'], (c.dead_code || []).map(function (d) {
+      return [d.name, d.file, d.line, d.sloc];
+    }), 'No dead function above the exclusions.');
+    out += heading('Clone groups', 'identical normalized bodies (identifiers and literals collapsed)');
+    out += table(['Group', 'Members'], (c.clones || []).map(function (g) {
+      return [g.hash, g.members.map(function (mm) { return mm.name + ' (' + mm.file + ':' + mm.line + ')'; }).join(', ')];
+    }), 'No clone group above the token threshold.');
+    (c.notes || []).forEach(function (n) { out += note(esc(n), 'warn'); });
+    return out;
+  }
   function arch(v) {
     var a = v.arch || {}, g = a.graph || {}, lang = ((a.stack || {}).languages) || {};
     if (!g.modules && !(a.hotspots || []).length && !(a.runtime_eol || []).length) {
@@ -562,7 +645,7 @@
     $('#paneEpss').innerHTML = unavailable('EPSS', 'No EPSS feed is wired into this workflow, so a finding has no score (it is absent, not zero).');
     $('#paneExploit').innerHTML = unavailable('Exploit maturity', 'It needs exploit-database and CISA KEV matching, which this workflow does not do.');
     $('#paneSupply').innerHTML = unavailable('Supply chain', 'Typosquatting and dependency-confusion detection exists in the core (bts_sbom.supply_chain) but is not wired into this workflow yet.');
-    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
+    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneCode: codeIntel, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
     Object.keys(map).forEach(function (id) { $('#' + id).innerHTML = v ? map[id](v) : needProject(); });
     renderHistory();
     renderGovernance();
@@ -570,6 +653,7 @@
   function renderAll() {
     renderConsole();
     renderPanes();
+    renderRailSessions();                                            // the rail session list follows the selected project
     var ack = $('#ackPlan');
     if (ack) { ack.addEventListener('change', function () { var b = $('[data-act="apply"]'); if (b) { b.disabled = !ack.checked || S.busy; } }); }
   }
@@ -626,15 +710,88 @@
     api(q.url).then(function (r) { S.affected = r; box.innerHTML = G.renderAffected(r, analysedMap()); });
   }
 
-  /* ---------- chat ---------- */
-  function ask() {
-    var q = $('#chatQ').value.trim(), out = $('#chatOut');
-    if (!q) { return; }
-    out.textContent = 'Thinking…';
-    api('/api/chat', { question: q, project: S.project || undefined, use_llm: !!$('#chatLlm').checked }).then(function (r) {
+  /* ---------- chat: the bottom dock (bts_chat_panel.js) owns the conversation UX; ask() and the chat-tab
+     bindings were removed together with the 💬 Chat tab. The dock reads the current project from #projSel. ---------- */
+
+  /* ---------- diagrams pane: the EA-17.2 catalog (ADR-0024), drawn from the measured record ----------
+     Same markup contract as the chat dock (.arc-dwrap > .arc-diagram + hidden .arc-mermaid-src), its own lazy
+     mermaid loader, and an honest note line when a kind has no measured source. */
+  var mermaidPromise = null;
+  function ensureMermaid() {
+    if (window.mermaid) { return Promise.resolve(window.mermaid); }
+    if (!mermaidPromise) {
+      mermaidPromise = new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = '/static/vendor/mermaid.min.js';
+        s.onload = function () {
+          if (window.mermaid) {
+            try { window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' }); } catch (e) { /* keep defaults */ }
+            resolve(window.mermaid);
+          } else { reject(new Error('mermaid loaded but the global is missing')); }
+        };
+        s.onerror = function () { reject(new Error('cannot load /static/vendor/mermaid.min.js')); };
+        document.head.appendChild(s);
+      }).catch(function (e) { mermaidPromise = null; throw e; });
+    }
+    return mermaidPromise;
+  }
+  var diagramSeq = 0;
+  function renderDiagramsIn(scope) {
+    Array.prototype.forEach.call((scope || document).querySelectorAll('.arc-dwrap'), function (wrap) {
+      var holder = wrap.querySelector('.arc-diagram');
+      var src = wrap.querySelector('.arc-mermaid-src');
+      if (!holder || !src || holder.childElementCount) { return; }   // already rendered (or empty)
+      var text = src.textContent || '';
+      if (!text.trim()) { return; }
+      ensureMermaid().then(function (m) {
+        return m.render('btsd-' + Date.now() + '-' + diagramSeq++, text);
+      }).then(function (out) {
+        holder.innerHTML = out.svg;                     // mermaid strict mode; the source is server-sanitized
+        src.hidden = true;
+      }).catch(function () {
+        src.hidden = false;                             // fallback: the Mermaid source, still the honest diagram
+      });
+    });
+  }
+  var dgCatalog = null;
+  function fillDiagramKindSelect() {
+    if ($('#dgKind') && $('#dgKind').childElementCount) { return Promise.resolve(); }
+    return api('/api/diagrams').then(function (r) {
+      dgCatalog = (r.data && r.data.catalog) || [];
+      var sel = $('#dgKind');
+      if (!sel) { return; }
+      var groups = {};
+      dgCatalog.forEach(function (c) { (groups[c.group] = groups[c.group] || []).push(c); });
+      sel.innerHTML = Object.keys(groups).map(function (g) {
+        return '<optgroup label="' + esc(g) + '">' + groups[g].map(function (c) {
+          return '<option value="' + esc(c.kind) + '">' + esc(c.title) + (c.needs_target ? ' (target)' : (c.needs_spec ? ' (spec)' : '')) + '</option>';
+        }).join('') + '</optgroup>';
+      }).join('');
+    });
+  }
+  function drawDiagram() {
+    var out = $('#paneDiagrams');
+    if (!out) { return; }
+    var kind = ($('#dgKind') || {}).value || '';
+    var p = encodeURIComponent(S.project || '');
+    var url = '/api/diagrams/' + encodeURIComponent(kind) +
+      (p ? '?project=' + p : '') +
+      ($('#dgTarget') && $('#dgTarget').value.trim() ? '&target=' + encodeURIComponent($('#dgTarget').value.trim()) : '') +
+      ($('#dgSpec') && $('#dgSpec').value.trim() ? '&spec=' + encodeURIComponent($('#dgSpec').value.trim()) : '');
+    out.innerHTML = note('Drawing…');
+    api(url).then(function (r) {
       var d = r.data || {};
-      if (!r.ok) { out.textContent = d.error || ('HTTP ' + r.status); return; }
-      out.innerHTML = U.renderChatAnswer(d);          // pure renderer in bts_ui.js: answer, routing, evidence chips, conflict notes
+      if (!r.ok) { out.innerHTML = note(esc(d.error || ('HTTP ' + r.status)), 'bad'); return; }
+      if (!d.mermaid) {
+        out.innerHTML = heading(d.title || kind, (d.group || '') + ' · ' + (d.ea || '')) + note(esc(d.note || '그릴 데이터가 없습니다.'), 'warn');
+        return;
+      }
+      var noteText = String(d.note || '').split('\n')[0];
+      out.innerHTML = heading(d.title || kind, (d.group || '') + ' · ' + (d.ea || '')) +
+        '<div class="bts-diagram arc-dwrap"><div class="arc-diagram"></div><pre class="arc-mermaid-src" hidden>' + esc(d.mermaid) + '</pre>' +
+        (noteText ? '<div class="bts-diagram-note">' + esc(noteText) + '</div>' : '') + '</div>' +
+        (d.lines && d.lines.length ? '<pre class="bts-diagram-lines">' + esc(d.lines.join('\n')) + '</pre>' : '');
+      renderDiagramsIn(out);
     });
   }
 
@@ -645,11 +802,14 @@
     if (t.classList.contains('rtab')) { activate(t.getAttribute('data-sv')); return; }
     if (t.classList.contains('egchip')) { $('#scaGitUrl').value = t.getAttribute('data-url'); $('#scaGitUrl').focus(); return; }
     var act = t.getAttribute('data-act');
-    if (act === 'goto') { activate(t.getAttribute('data-sv')); }
+    if (act === 'goto') { activate(t.getAttribute('data-sv'), t.classList.contains('scan-subchip')); }   // a sub-tab chip opens exactly that member
     else if (act === 'dl') { download(t.getAttribute('data-url'), t.getAttribute('data-fname')); }
     else if (act === 'triage-save') { saveDecision(); }
     else if (act === 'affected') { searchAffected(); }
     else if (act === 'open') { selectProject(t.getAttribute('data-name')).then(function () { activate('risk'); }); }
+    else if (act === 'session') { selectProject(t.getAttribute('data-name')).then(function () { activate('report', true); }); }   // a rail session opens its report
+    else if (act === 'new') { activate('git', true); }                             // ＋ 새 분석: the Scan landing
+    else if (act === 'assist') { focusAssistant(); }                               // 💬 어시스턴트: the main conversation surface
     else if (act === 'plan' && S.view) { runJob({ source: S.view.source, patch: true, approved: false, offline: !!$('#scaOffline').checked }, 'Plan preview').then(function () { activate('fix-pr'); }); }
     else if (act === 'apply' && S.view && S.view.patch && S.view.patch.digest && ($('#ackPlan') || {}).checked) {
       runJob({ source: S.view.source, patch: true, approved: true, approval_token: S.view.patch.digest, offline: !!$('#scaOffline').checked }, 'Approved patch').then(function () { activate('fix-pr'); });
@@ -659,6 +819,7 @@
     buildSideNav();
     activate('git');
     setStep(1, 'Choose an input source.');
+    document.addEventListener('bts:activate', function (e) { if (e && e.detail) { activate(String(e.detail), true); } });   // pane scripts (oss_scanner.js) request an exact pane
     $('#runScaReport').addEventListener('click', function () { activate('git'); analyse($('#scaGitUrl').value); });
     $('#scaGitUrl').addEventListener('keydown', function (e) { if (e.key === 'Enter') { analyse($('#scaGitUrl').value); } });
     $('#scaDemoBtn').addEventListener('click', function () { $('#scaGitUrl').value = 'https://github.com/adeyosemanputra/pygoat.git'; analyse($('#scaGitUrl').value); });
@@ -675,8 +836,8 @@
       $(id).addEventListener('change', updateTriageHint);
     });
     ['#afCve', '#afComp', '#afVer'].forEach(function (id) { $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { searchAffected(); } }); });
-    $('#chatBtn').addEventListener('click', ask);
-    $('#chatQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') { ask(); } });
+    fillDiagramKindSelect();                                        // the Diagrams pane (ADR-0024); Draw uses the selected project
+    if ($('#dgDraw')) { $('#dgDraw').addEventListener('click', drawDiagram); }
     watchBrand();
     renderPanes();
     loadEngine();

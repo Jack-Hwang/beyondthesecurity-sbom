@@ -260,12 +260,21 @@ def structure(root: str) -> Dict[str, Any]:
     for k in kf:
         k["loc"] = locs.get(k["path"], 0)
     total_loc = int((a.get("stack") or {}).get("loc") or 0)
+    code = a.get("code") or {}
+    top_fns = sorted(code.get("functions") or [], key=lambda f: (-(f.get("fan_in", 0) + f.get("fan_out", 0)),
+                                                                 -(f.get("complexity") or 0)))[:12]
     return {"stack": a.get("stack") or {}, "graph": a.get("graph") or {}, "clusters": (a.get("clusters") or [])[:8],
             "hotspots": hot, "runtime_eol": a.get("runtime_eol") or [], "notes": (a.get("notes") or [])[:6],
             "coupling": a.get("coupling") or {"pairs": [], "hidden_dependencies": 0, "pairs_total": 0},
             "files": files, "files_all": files, "files_count": len(files), "total_loc": total_loc,
             "manifests": _manifests(root),
-            "entry_points": entries, "key_files": kf, "modules": modules, "edges": edge_rank}
+            "entry_points": entries, "key_files": kf, "modules": modules, "edges": edge_rank,
+            "code": {"language": code.get("language"), "metrics": code.get("metrics") or {},
+                     "functions": [{k: f.get(k) for k in ("name", "file", "line", "complexity", "fan_in", "fan_out", "sloc")}
+                                   for f in top_fns],
+                     "dead_code": (code.get("dead_code") or [])[:10], "clones": (code.get("clones") or [])[:5],
+                     "call_edges": [{"from": x, "to": y} for x, y in (code.get("call_edges") or [])[:40]],
+                     "notes": (code.get("notes") or [])[:4]}}
 
 
 def _loc_map(root: str, paths: List[str], *, cap: int = 60, bytes_cap: int = 200_000) -> Dict[str, int]:
@@ -387,8 +396,21 @@ def prompt_evidence(name: str, lic: Dict[str, Any], struct: Dict[str, Any],
             "clusters": [{"domain": c["domain"], "modules": c["modules"]} for c in struct["clusters"][:8]],
             "insights": {"flow_blockers": fb.get("count"),
                          "bounded_context_candidates": [c["name"] for c in (bcc.get("candidates") or [])[:5]],
-                         "style_hypothesis": (ins.get("style_hypothesis") or {}).get("style") or ""},
+                         "style_hypothesis": (ins.get("style_hypothesis") or {}).get("style") or "",
+                         "code_smells": (ins.get("code_smells") or {}).get("count")},
+            "code": _code_metadata(struct.get("code")),
             "notes": struct["notes"]}
+
+
+def _code_metadata(code: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Counts and names only - never source lines (the AC-447 invariant test pins this file)."""
+    m = (code or {}).get("metrics") or {}
+    mx = m.get("max_complexity") or {}
+    return {"language": (code or {}).get("language"), "functions": m.get("functions"),
+            "max_complexity": {"name": mx.get("name"), "file": mx.get("file"), "cc": mx.get("cc")} if mx else None,
+            "dead_count": m.get("dead_count"),
+            "dead_names": [d.get("name") for d in (code or {}).get("dead_code") or []][:6],
+            "clone_groups": m.get("clone_groups")}
 
 
 def _clean_step(s: Any) -> Optional[Dict[str, str]]:
@@ -665,7 +687,41 @@ def mermaid_activity(flow: Dict[str, Any]) -> Tuple[str, str]:
     return "\n".join(lines), ""
 
 
-def build_diagrams(analysis: Dict[str, Any], edges: List[Tuple[str, str]]) -> Dict[str, Any]:
+def mermaid_callgraph(code: Dict[str, Any]) -> Tuple[str, str]:
+    """A deterministic function-level call graph over the measured Code Intel edges (never model-written).
+    Only edges between the degree-ranked top functions are drawn, capped - the honest picture is partial."""
+    fns = code.get("functions") or []
+    edges = code.get("call_edges") or []
+    names = {f["name"] for f in fns}
+    picked: Set[Tuple[str, str]] = set()
+    pids: Dict[str, str] = {}
+
+    def pid(name: str) -> str:
+        key = str(name).lower()
+        if key not in pids:
+            pids[key] = "f%d" % (len(pids) + 1)
+        return pids[key]
+
+    lines = ["graph TD"]
+    drawn = 0
+    for e in edges:
+        a = str(e.get("from") or "").split("::")[-1]
+        b = str(e.get("to") or "").split("::")[-1]
+        if a in names and b in names and (a, b) not in picked and a != b:
+            picked.add((a, b))
+            lines.append('  %s["%s"] --> %s["%s"]' % (pid(a), mermaid_label(a, 40), pid(b), mermaid_label(b, 40)))
+            drawn += 1
+            if drawn >= 24:
+                break
+    if not drawn:
+        return "", "no resolved function-level calls in this tree (the resolver is name-based and Python-only)"
+    m = (code.get("metrics") or {})
+    note = "resolved function calls %s of %s (name-based, Python-only lane)" % (
+        drawn, m.get("resolved_calls", drawn))
+    return "\n".join(lines), note
+
+
+def build_diagrams(analysis: Dict[str, Any], edges: List[Tuple[str, str]], code: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     comp_src, comp_note = mermaid_components(analysis, edges)
     seqs = [{"name": s["name"], "mermaid": mermaid_sequence(s), "steps": s.get("steps") or [],
              "inferred": bool(s.get("inferred"))} for s in analysis.get("scenarios") or []]
@@ -673,7 +729,9 @@ def build_diagrams(analysis: Dict[str, Any], edges: List[Tuple[str, str]]) -> Di
     for f in analysis.get("activity") or []:
         src, note = mermaid_activity(f)
         acts.append({"name": f["name"], "mermaid": src, "note": note, "steps": f.get("steps") or []})
-    return {"components": {"mermaid": comp_src, "note": comp_note}, "sequence": seqs, "activity": acts}
+    cg_src, cg_note = mermaid_callgraph(code or {})
+    return {"components": {"mermaid": comp_src, "note": comp_note}, "sequence": seqs, "activity": acts,
+            "callgraph": {"mermaid": cg_src, "note": cg_note}}
 
 
 # --------------------------------------------------------------------------- code snippets + highlighting
@@ -929,7 +987,7 @@ def run(src: str, *, work_root: str, out_dir: str, jid: str = "manual", client: 
                 ai_res["llm_note"] = (ai_res["llm_note"] + " | " if ai_res.get("llm_note") else "") + \
                     ("모든 LLM 시나리오가 검증에서 드롭되어 결정론적 기동 흐름으로 대체했습니다"
                      if lang != "en" else "all LLM scenarios were dropped by validation; replaced by the deterministic startup flow")
-        diagrams = build_diagrams(ai_res["analysis"], st["edges"])
+        diagrams = build_diagrams(ai_res["analysis"], st["edges"], code=st.get("code"))
         stage_done("anchors", t0)
 
         structure_pub = {k: v for k, v in st.items() if k != "files"}

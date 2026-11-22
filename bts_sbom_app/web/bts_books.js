@@ -1,5 +1,10 @@
 /*!
  * bts_books.js - the "Book KB" pane of the BTS-SBOM screen: the local architecture-book knowledge base.
+ * PURPOSE (사용자 지정 2026-11-22): this knowledge base is NOT a book/keyword database to build - it is raw
+ * material for reasoning about how to upgrade OUR SERVICE. So the screen leads with the inference output -
+ * the distilled notes (knowledge_books/, "이 프로젝트 적용") and the improvement map (which book techniques
+ * the service actually adopted, docs/BOOK_IMPROVEMENT_MAP.md) - while ingest, full-text search and the
+ * library registry stay below as the inference's source and evidence-checking infrastructure.
  * Shows the ingest registry (one row per book, each with its explicit status), the chapter outline of a book and
  * full-text search over the ingested books; an ingest job reads a local folder of PDF/EPUB files in the
  * background (books are read, never fetched). Written for BTS-SBOM, laid out like arch_intel.js.
@@ -30,7 +35,16 @@
     }).catch(function (e) { return { ok: false, status: 0, data: { error: String(e) } }; });
   }
 
-  /* ---------- layout ---------- */
+  /* ---------- layout: the inference output first, the infrastructure below ---------- */
+  var mapBox = el('div', { id: 'booksMap' });
+  var notesBox = el('div', { id: 'booksNotes' });
+  root.appendChild(el('div', { 'class': 'pathbox' }, [
+    el('label', { text: '🧠 우리 서비스 고도화 추론 — what this knowledge base is FOR' }),
+    el('div', { 'class': 'ex', text: '이 책 지식 베이스는 책 DB(키워드 DB)를 만들려는 게 아니다: 15권의 아키텍처·에이전트 책을 읽고 우리 서비스를 어떻게 고도화할지 추론한 산출물이 주인공이다. 아래의 인제스트와 검색은 그 추론의 원문 소스와 근거 확인에 쓰이는 인프라다.' }),
+    mapBox,
+    notesBox
+  ]));
+
   var ingestPath = el('input', { id: 'booksIngestPath', placeholder: 'D:\\path\\to\\book folder  (read-only; artifacts go to evidence/books/)', spellcheck: 'false', style: 'flex:1;min-width:340px;font-family:ui-monospace,monospace' });
   var ingestBtn = el('button', { 'class': 'run', type: 'button', id: 'booksIngestBtn', text: '\u25B6 Ingest folder' });
   var ingestOut = el('div', {});
@@ -40,13 +54,13 @@
   var listBox = el('div', { id: 'booksList' });
   var outlineBox = el('div', { id: 'booksOutline' });
   root.appendChild(el('div', { 'class': 'pathbox' }, [
-    el('label', { text: 'Ingest a local folder of PDF/EPUB books into the knowledge base' }),
+    el('label', { text: 'Ingest a local folder of PDF/EPUB books (the raw source the notes and the map above are inferred from)' }),
     el('div', { style: 'display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap' }, [ingestPath, ingestBtn]),
     el('div', { 'class': 'ex', text: 'Extraction: EPUB via the standard library, PDF via pdftotext when it is on PATH (otherwise the PDF is recorded as skipped - nothing is silently dropped). Identical files are indexed once (SHA-256). Extracted text stays in evidence/books/ (gitignored); only our own distilled notes live in the repository.' }),
     ingestOut
   ]));
   root.appendChild(el('div', { 'class': 'pathbox' }, [
-    el('label', { text: 'Search the ingested books' }),
+    el('label', { text: 'Search the ingested books (check an inference against the book text itself)' }),
     el('div', { style: 'display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap' }, [searchQ, searchBtn]),
     searchOut
   ]));
@@ -55,6 +69,51 @@
   root.appendChild(libHead);
   root.appendChild(listBox);
   root.appendChild(el('div', {}, [outlineBox]));
+
+  /* ---------- the inference output: improvement map + distilled notes ---------- */
+  function loadMap() {
+    api('/api/books/map').then(function (r) {
+      var d = r.data || {};
+      if (!d.sections || !d.sections.length) {
+        mapBox.innerHTML = note(esc(d.hint || 'docs/BOOK_IMPROVEMENT_MAP.md not readable - the adoption map cannot be shown.'), 'warn');
+        return;
+      }
+      var html = heading('개선 지도 — 책 기법 × 우리 서비스 적용 상태',
+                         d.sections.length + ' areas · source: ' + (d.source || ''));
+      d.sections.forEach(function (s) {
+        html += heading(s.area, '');
+        html += table(s.headers.length ? s.headers : ['\uAE30\uBC95', '\uC0C1\uD0C0', '\uADFC\uAC70'],
+                      s.rows.map(function (row) { return row.map(function (c) { return esc(c); }); }),
+                      'no rows recorded');
+      });
+      mapBox.innerHTML = html;
+    });
+  }
+  function loadNotes() {
+    api('/api/books/notes').then(function (r) {
+      var d = r.data || {};
+      if (!d.notes || !d.notes.length) {
+        notesBox.innerHTML = note(esc(d.hint || 'no distilled notes yet'), 'warn');
+        return;
+      }
+      var head = el('div', {});
+      head.innerHTML = heading('정제 노트 — 이 프로젝트 적용', d.total + ' notes · our own synthesis (no book text pasted)');
+      notesBox.textContent = '';
+      notesBox.appendChild(head);
+      d.notes.forEach(function (n) {
+        var det = el('details', { 'class': 'bts-note', style: 'padding:6px 10px' });
+        var sum = el('summary', {});
+        sum.appendChild(el('b', { text: n.title || n.file }));
+        if (n.book) { sum.appendChild(el('span', { 'class': 'sub', text: '  — ' + n.book })); }
+        det.appendChild(sum);
+        (n.principles || []).forEach(function (p) { det.appendChild(el('div', { text: '• ' + p })); });
+        det.appendChild(el('div', { 'class': 'sub', text: '이 프로젝트 적용' }));
+        var applied = (n.applied && n.applied.length) ? n.applied : ['(no explicit application recorded)'];
+        applied.forEach(function (a) { det.appendChild(el('div', { text: '→ ' + a })); });
+        notesBox.appendChild(det);
+      });
+    });
+  }
 
   /* ---------- registry ---------- */
   function loadRegistry() {
@@ -145,5 +204,7 @@
     if (b) { loadOutline(b.getAttribute('data-book')); }
   });
 
+  loadMap();
+  loadNotes();
   loadRegistry();
 })();

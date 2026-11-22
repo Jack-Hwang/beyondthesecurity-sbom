@@ -31,8 +31,8 @@ HARNESS = os.path.join(HERE, "js", "render_harness.js")
 WEB = server.WEB_DIR
 TODAY = "2026-11-17"
 SCRIPTS = ["/static/sca_app.js", "/static/bts_ui.js", "/static/bts_governance.js", "/static/bts_report.js", "/static/bts_console.js",
-           "/static/oss_scanner.js", "/static/arch_intel_render.js", "/static/arch_intel.js", "/static/bts_books.js",
-           "/static/bts_stream.js"]   # + the OSS Scanner, Arch Intel, Book KB, Report screens, and the chat step stream
+           "/static/bts_chat_panel.js", "/static/oss_scanner.js", "/static/arch_intel_render.js", "/static/arch_intel.js",
+           "/static/bts_books.js"]   # + the OSS Scanner, Arch Intel, Book KB, Report screens, and the bottom chat dock
 
 
 # ------------------------------------------------------------------ helpers
@@ -141,7 +141,7 @@ def test_page_loads_the_governance_scripts_in_order_and_every_id_the_scripts_rea
         assert 'class="rpane" data-sv="%s"' % sv in page
     src = open(os.path.join(WEB, "bts_console.js"), encoding="utf-8").read()
     read = {x for x in re.findall(r"""['"]#([A-Za-z][\w-]*)['"]""", src) if not re.fullmatch(r"[0-9a-fA-F]{3,8}", x)}      # '#e6edf3' is a colour
-    assert read - ids - {"scaWorkflow", "ackPlan", "sxSbomFmt"} == set()                  # every '#id' the glue reads exists (3 are built at run time: step bar, patch checkbox, sca_app.js select)
+    assert read - ids - {"scaWorkflow", "ackPlan", "sxSbomFmt", "railSessions", "chatDockBar", "chatDockQ"} == set()   # every '#id' the glue reads exists (6 are built at run time: step bar, patch checkbox, sca_app.js select, rail session list, the chat dock's bar/input)
     for api in ("/api/conformance/", "/api/changes/", "/api/vex/", "/api/fleet", "/api/affected", "/api/triage"):
         assert api in src or api in open(os.path.join(WEB, "bts_governance.js"), encoding="utf-8").read()
     assert "not yet written into the OpenVEX" not in src                                   # decisions now reach the document; the old claim must be gone

@@ -39,3 +39,8 @@ evidence/.llm_config.json
 evidence/supply_chain/
 evidence/reimpl/
 evidence/arch_intel/arch_out.json
+
+# REA/round artefacts that must never ship: downloaded vendor binaries and runtime logs
+/downloads/
+evidence/serve_8800.log
+evidence_e2e/

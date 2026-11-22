@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 from datetime import date
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from . import net, workspace
+from . import code_intel, net, workspace
 from .util import read_text
 
 _SKIP = {".git", "node_modules", "vendor", "dist", "build", "target", "__pycache__", ".venv", "venv", "third_party",
@@ -517,6 +517,21 @@ def analyze(root: str, *, online: bool = False, max_commits: int = 400, max_file
         notes.append("ruby: only require/require_relative edges are resolved; Rails autoloaded constants are not (graph is partial)")
     out["runtime_eol"] = runtimes(root, online)
     out["modernization"] = modernization(out)
+    out["code"] = code_intel.analyze(root, max_files=max_files)          # function-level lane (Python-only, ADR-0023)
+    out["edges"] = sorted(edges)[:3000]        # the measured import edges, capped, for the diagram lane (ADR-0024)
+    notes.extend("code intel: " + n for n in out["code"]["notes"])
+    m = out["code"]["metrics"]
+    if m["functions"]:
+        notes.append("code intel: %d Python functions analysed, max complexity %d (%s), %d dead, %d clone group(s); "
+                     "other languages stay at module-level analysis" %
+                     (m["functions"], (m.get("max_complexity") or {}).get("cc", 0), (m.get("max_complexity") or {}).get("name", "?"),
+                      m["dead_count"], m["clone_groups"]))
+    else:
+        notes.append("code intel: no Python functions found - function-level lane is empty, not zero-risk")
+    for d in (out["code"]["dead_code"] or [])[:2]:
+        out["modernization"].append({"kind": "remove_dead_code", "priority": "low", "target": "%s (%s)" % (d["name"], d["file"]),
+                                     "why": "defined but never called in the analysed tree (fan-in 0, %d sloc)" % d["sloc"]})
+    out["modernization"] = sorted(out["modernization"], key=lambda x: {"high": 0, "medium": 1, "low": 2}[x["priority"]])[:12]
     return out
 
 

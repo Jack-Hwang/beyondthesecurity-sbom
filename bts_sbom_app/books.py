@@ -359,3 +359,95 @@ def load_notes(root: str) -> List[Dict[str, Any]]:
     for c in chunks:
         c["source"] = NOTES_DIR + "/" + c["source"]
     return chunks
+
+
+MAP_DOC = os.path.join("docs", "BOOK_IMPROVEMENT_MAP.md")
+
+
+def _split_md_sections(text: str) -> List[tuple]:
+    """The "## <heading>" sections of a note as (heading, body-lines) pairs, in file order."""
+    sections: List[tuple] = []
+    head, lines = None, []
+    for ln in text.splitlines():
+        if ln.startswith("## "):
+            if head is not None:
+                sections.append((head, lines))
+            head, lines = ln[3:].strip(), []
+        elif head is not None:
+            lines.append(ln)
+    if head is not None:
+        sections.append((head, lines))
+    return sections
+
+
+def _bullet_lines(lines: List[str]) -> List[str]:
+    """The non-empty bullet text of a section body ("- x" -> "x"), in order."""
+    out = []
+    for ln in lines:
+        s = ln.strip()
+        if s.startswith("- "):
+            out.append(s[2:].strip())
+    return out
+
+
+def read_notes(root: str) -> Dict[str, Any]:
+    """The distilled notes (knowledge_books/*.md) in their authored shape - title, the 출처 line naming the book
+    they synthesize, the 핵심 원칙 and the 이 프로젝트 적용 bullets. This is the INFERENCE OUTPUT the Book KB
+    screen exists for: the books are read-only raw material, these notes are what our service took from them
+    (사용자 지정 2026-11-22: the book KB is not a database to build, it is material for reasoning about how to
+    upgrade this service). Read-only; a missing folder is an honest empty list, never an error."""
+    if not root:                                       # no root -> never fall back to the CWD (a test double or a
+        return {"notes": [], "total": 0, "hint": "no knowledge_books/ folder - nothing distilled yet"}
+    d = os.path.join(root, NOTES_DIR)
+    if not os.path.isdir(d):
+        return {"notes": [], "total": 0, "hint": "no knowledge_books/ folder - nothing distilled yet"}
+    notes = []
+    for fn in sorted(os.listdir(d)):
+        if not fn.endswith(".md"):
+            continue
+        try:
+            with open(os.path.join(d, fn), "r", encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        title, source = "", ""
+        for ln in text.splitlines():
+            if ln.startswith("# ") and not title:
+                title = ln[2:].strip()
+            if ln.startswith("출처:"):
+                source = ln[len("출처:"):].strip()
+        secs = {h: _bullet_lines(ls) for h, ls in _split_md_sections(text)}
+        principles = next((v for k, v in secs.items() if k.startswith("핵심 원칙")), [])
+        applied = next((v for k, v in secs.items() if k.startswith("이 프로젝트 적용")), [])
+        notes.append({"file": NOTES_DIR + "/" + fn, "title": title or fn[:-3], "book": source,
+                      "principles": principles, "applied": applied})
+    return {"notes": notes, "total": len(notes)}
+
+
+def read_improvement_map(root: str) -> Dict[str, Any]:
+    """docs/BOOK_IMPROVEMENT_MAP.md parsed into its "## <area>" tables: every book technique with its status
+    (구현 / 신규 구현 / 부분 / 기각·비적용, AC cited) and its evidence - the machine-readable answer to
+    "which book techniques did this service actually adopt". A missing doc is an honest empty map."""
+    if not root:                                       # no root -> never fall back to the CWD (see read_notes)
+        return {"sections": [], "source": MAP_DOC, "hint": "no improvement-map doc"}
+    path = os.path.join(root, MAP_DOC)
+    if not os.path.isfile(path):
+        return {"sections": [], "source": MAP_DOC, "hint": "no improvement-map doc"}
+    sections: List[Dict[str, Any]] = []
+    area: Optional[str] = None
+    for ln in open(path, "r", encoding="utf-8").read().splitlines():
+        if ln.startswith("## "):
+            area = ln[3:].strip()
+            sections.append({"area": area, "headers": [], "rows": []})
+            continue
+        if area is None or not ln.strip().startswith("|"):
+            continue
+        cells = [c.strip().replace("**", "") for c in ln.strip().strip("|").split("|")]
+        if all(set(c) <= set("-: ") and c for c in cells):      # the |---|---| separator row
+            continue
+        sec = sections[-1]
+        if not sec["rows"] and not sec["headers"] and len(sec["headers"]) == 0:
+            sec["headers"] = cells                              # the first table row of the section is its header
+        else:
+            sec["rows"].append(cells)
+    return {"sections": [s for s in sections if s["rows"]], "source": MAP_DOC}

@@ -28,7 +28,8 @@ def js(*calls):
     if not shutil.which("node"):
         pytest.skip("node is not installed")
     import subprocess
-    proc = subprocess.run(["node", HARNESS], input=json.dumps(list(calls)), capture_output=True, text=True, timeout=120)
+    # encoding="utf-8": the builders emit UTF-8 Korean text; the default cp949 on a Korean Windows cannot decode it
+    proc = subprocess.run(["node", HARNESS], input=json.dumps(list(calls)), capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout)
 
@@ -43,8 +44,10 @@ def test_shell_sidebar_replaces_the_top_tab_bar():
     m = re.search(r"var GROUPS = \{(.*?)\};", con, re.S)
     assert m, "GROUPS table missing"
     groups = m.group(1)
-    for g in ("git", "risk", "prioritize", "graph-health", "compliance", "fix", "oss", "report", "archintel", "books", "chat", "more"):
+    # chat is owned by the bottom-dock refactor (bts_chat_panel.js, parallel session) and is asserted there
+    for g in ("git", "risk", "prioritize", "graph-health", "compliance", "fix", "report", "archintel", "books", "more"):
         assert "'" + g + "':" in groups, "sidebar group %s missing" % g
+    assert "'git': ['git', 'oss', 'lock', 'container']" in groups       # ADR-0026: the OSS Scanner group is a Scan-section member
     assert "function buildSideNav()" in con and "buildSideNav();" in con
     # the sidebar buttons keep the .rtab[data-sv] contract that the delegated click handler and activate() rely on
     assert 'class="rtab" data-sv' in con
@@ -105,21 +108,20 @@ def test_governance_cards_builder():
 def test_analysis_auto_switches_to_the_report_tab():
     """AC: BSA-AC-540."""
     con = _read("bts_console.js")
-    assert re.search(r"job\.state === 'done'\) \{ activate\('report'\); \}", con)
+    assert re.search(r"var ok = job && job\.state === 'done';", con)         # done is decided once, before both consumers
+    assert "if (ok) { activate('report'); }" in con                          # a done analysis switches to the Report tab on its own
     assert "$('#reportBanner')" in con and "$('#scaBanner')" in con          # scan status stays on the Scan tab
     assert "empty_project" in con and "data_status" in con                   # the two honest warning cases moved with it
 
 
-def test_chat_has_its_own_tab():
-    """AC: BSA-AC-538."""
+def test_chat_dock_is_mounted_on_every_tab():
+    """AC: BSA-AC-533. The Claude-Code-style bottom chat dock replaces the chat tab."""
     html = _read("index.html")
     con = _read("bts_console.js")
-    assert "'chat': ['chat']" in con, "chat group missing"
-    assert '<div class="rpane" data-sv="chat">' in html, "chat pane missing"
-    pane = re.search(r'<div class="rpane" data-sv="chat">(.*?)\n        </div>', html, re.S)
-    body = pane.group(1) if pane else html
-    for fid in ("chatBox", "chatQ", "chatOut", "streamBox", "streamQ", "streamTimeline"):
-        assert 'id="%s"' % fid in body, "chat node %s not in the chat pane" % fid
+    assert "'chat': ['chat']" not in con, "the chat tab group must be gone from the sidebar"
+    assert 'id="chatDock"' in html and 'class="bts-chatdock open"' in html   # the dock ships OPEN: the Claude-client main conversation surface (ADR-0027)
+    assert os.path.exists(os.path.join(WEB, "bts_chat_panel.js")), "the dock script must exist"
+    assert "/static/bts_chat_panel.js" in html and "/static/bts_stream.js" not in html
 
 
 def test_pinned_platform_renderer_stays_byte_identical():

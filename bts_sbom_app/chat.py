@@ -400,6 +400,11 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "affected_projects": {"args": {"id": "optional: advisory id or alias", "component": "optional: component name", "version": "optional: version constraint such as <2.0 or 2.19.1"},
                           "doc": "which analysed projects use a component or are hit by an advisory (looks across ALL projects; give an id and/or a component)"},
     "latest_arch": {"args": {}, "doc": "the latest Arch Intel architecture deep-dive recorded in the evidence folder: license verdict, flow blockers, bounded-context candidates, style hypothesis"},
+    "draw_diagram": {"args": {"kind": "diagram kind; kind=catalog lists them all (e.g. class|component|sequence|state|erd|dfd|decision|archimate|mindmap|call|butterfly|custom)",
+                              "target": "optional: function/class/scenario the diagram zooms into", "spec": "optional: custom flowchart, copied VERBATIM from the question's arrows, e.g. A -> B -> C"},
+                     "doc": "draw a diagram of this project from measured data (the EA-17.2 style catalog; kind=catalog lists every kind). Returns Mermaid the UI renders"},
+    "decide": {"args": {"facts": "optional: comma-separated k=v facts overriding the measured ones, e.g. severity=critical,license_category=copyleft,distribution=binary"},
+               "doc": "run the built-in decision table (DMN-style inference) over the project's measured facts: which rule fires, what action, and the trace"},
     "book_search": {"args": {"q": "topic, book title or question to look up in the local architecture-book library"},
                     "doc": "search the ingested architecture-book knowledge base (PDF/EPUB books on this machine): matching passages, each attributed to its book and section"},
     "sbom_conformance": {"args": {"regime": "optional: " + "|".join(sorted(conformance.REGIMES))},
@@ -423,10 +428,11 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "confirm_decision": {"args": {"code": "the 12-hex confirm code exactly as the user typed it"}, "doc": "record the previewed VEX decision whose code the user typed"},
 }
 WRITE_TOOLS = ("analyze_project", "apply_patch", "confirm_decision")
-NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision", "latest_arch", "book_search")       # these can run before any project is loaded
+NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision", "latest_arch", "book_search",
+                    "draw_diagram", "decide")                   # these can run before any project is loaded
 FLEET_TOOLS = ("affected_projects",)
 MAX_CALLS = 4
-MAX_ARG = {"source": 300, "reason": 400, "components": 300, "q": 300}
+MAX_ARG = {"source": 300, "reason": 400, "components": 300, "q": 300, "spec": 400, "target": 120, "facts": 240}
 
 
 def catalog(writable: bool) -> Dict[str, Dict[str, Any]]:
@@ -521,6 +527,86 @@ def _book_search_lines(books_index: Any, q: str) -> List[str]:
     return out
 
 
+def _parse_facts(text: str) -> Dict[str, str]:
+    """``k=v, k2=v2`` (or ``k:v``) pairs from the user's/model's text -> facts dict. Unparseable chunks are
+    dropped and reported by the caller's honesty line, never silently coerced."""
+    out: Dict[str, str] = {}
+    for chunk in re.split(r"[,\n;]+", text or ""):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        for sep in ("=", ":"):
+            if sep in chunk:
+                k, v = chunk.split(sep, 1)
+                k, v = k.strip(), v.strip()
+                if k and v and re.fullmatch(r"[a-z_]{1,30}", k.lower().replace("-", "_")):
+                    out[k.lower().replace("-", "_")] = v[:80]
+                break
+    return out
+
+
+_DIAGRAM_KINDS: Tuple[Tuple[str, str], ...] = (                 # kind -> trigger words (checked in this order)
+    ("call", (r"콜\s*그래프", r"호출\s*그래프", r"call\s*graph")),
+    ("butterfly", (r"버터플라이", r"butterfly")),
+    ("cluster", (r"클러스터\s*콜", r"cluster\s*call")),
+    ("sequence", (r"시퀀스", r"sequence")),
+    ("state", (r"상태\s*머신", r"상태\s*다이어그램", r"state\s*(machine|diagram)")),
+    ("activity", (r"액티비티", r"활동\s*다이어그램", r"activity")),
+    ("usecase", (r"유스케이스", r"use\s*case")),
+    ("erd", (r"\berd\b", r"er\s*다이어그램", r"데이터\s*모델", r"관계\s*스키마")),
+    ("dfd", (r"데이터\s*흐름", r"\bdfd\b", r"data\s*flow")),
+    ("decision", (r"\bdmn\b", r"의사결정\s*다이어그램", r"결정\s*다이어그램")),
+    ("archimate", (r"아키타메이트", r"archimate", r"계층\s*뷰")),
+    ("mindmap", (r"마인드\s*맵", r"mind\s*map")),
+    ("kanban", (r"칸반", r"kanban")),
+    ("dashboard", (r"대시보드", r"dashboard")),
+    ("requirements", (r"요구사항\s*다이어그램", r"requirement\s*diagram")),
+    ("maintenance", (r"유지보수\s*다이어그램", r"변경\s*다이어그램", r"maintenance\s*diagram")),
+    ("timing", (r"타이밍", r"타임라인", r"timing", r"gantt")),
+    ("bpmn", (r"\bbpmn\b", r"비즈니스\s*프로세스\s*다이어그램")),
+    ("logical", (r"레이어\s*(검증|다이어그램)", r"논리\s*다이어그램", r"layer\s*diagram")),
+    ("object", (r"오브젝트\s*다이어그램", r"인스턴스\s*다이어그램", r"object\s*diagram")),
+    ("composite", (r"컴포지트", r"composite\s*structure")),
+    ("communication", (r"커뮤니케이션\s*다이어그램", r"communication\s*diagram")),
+    ("interaction", (r"인터랙션\s*오버뷰", r"interaction\s*overview")),
+    ("business", (r"비즈니스\s*모델링\s*다이어그램", r"business\s*modeling")),
+    ("package", (r"패키지\s*다이어그램", r"package\s*diagram")),
+    ("deployment", (r"배포\s*다이어그램", r"deployment\s*diagram")),
+    ("class", (r"클래스\s*다이어그램", r"class\s*diagram", r"클래스\s*구조")),
+    ("component", (r"컴포넌트\s*다이어그램", r"component\s*diagram")),
+    ("flowchart", (r"플로우\s*차트", r"flow\s*chart", r"파이프라인\s*다이어그램")),
+    ("bdd", (r"블록\s*정의\s*다이어그램", r"block\s*definition", r"\bbdd\b")),
+    ("ibd", (r"내부\s*블록\s*다이어그램", r"internal\s*block", r"\bibd\b")),
+    ("parametric", (r"파라메트릭", r"parametric")),
+    ("robustness", (r"러스트니스", r"로버스트니스", r"robustness")),
+    ("custom", (r"custom\s*diagram", r"커스텀\s*다이어그램")),
+)
+
+_ARROW_CHAIN = re.compile(r"((?:[\w가-힣.\-/:]{1,40})(?:\s*(?:->|-->|→)\s*[\w가-힣.\-/:]{1,40})+)")
+
+
+def _diagram_kind(q: str) -> str:
+    """Trigger words -> catalog kind; arrows without a named kind -> custom (draw what was typed);
+    nothing recognisable -> 'catalog' (the honest answer is the list, not a guess)."""
+    low = q.lower()
+    for kind, words in _DIAGRAM_KINDS:
+        if any(re.search(w, low) for w in words):
+            return kind
+    from . import diagrams as diagramsmod                        # an exact catalog id typed by the model wins too
+    for k in diagramsmod.CATALOG:
+        if re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(k), low):
+            return k
+    if _ARROW_CHAIN.search(q):
+        return "custom"
+    return "catalog"
+
+
+def _arrow_spec(q: str) -> str:
+    """Every arrow chain in the question, one per line, verbatim node names (the custom diagram's source)."""
+    chains = [m.group(1).strip() for m in _ARROW_CHAIN.finditer(q)]
+    return "\n".join(chains[:8])
+
+
 def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], projects: Optional[Dict[str, Dict[str, Any]]] = None,
              actions: Any = None, triage_store: Optional[Dict[str, Any]] = None,
              arch_dir: Optional[str] = None, books: Any = None) -> List[Dict[str, Any]]:
@@ -560,6 +646,36 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
         return [{"tool": tool, "source": "fleet:affected:%s" % tag, "lines": _affected(pool, args), "trust": "tool"}]
     if tool == "latest_arch":                                        # reads the evidence folder only; no analysed project needed
         return [_plain(tool, "archintel:latest", _latest_arch_lines(arch_dir))]
+    if tool == "draw_diagram":                                       # EA-17.2 catalog; kind=catalog needs no project
+        from . import diagrams as diagramsmod
+        kind = str(args.get("kind") or "").strip().lower()
+        if kind == "catalog":
+            return [_plain(tool, "diagrams:catalog", diagramsmod.catalog_lines())]
+        out = diagramsmod.draw_for_chat(kind, rec, arch_dir, target=args.get("target"), spec=args.get("spec"))
+        res = _plain(tool, "diagrams:%s" % kind.lower(), [out["note"]] if out["note"] else ["그릴 내용이 없습니다."])
+        if out.get("diagram"):
+            res["diagrams"] = [out["diagram"]]                       # the UI renders it under the answer
+        return [res]
+    if tool == "decide":                                             # DMN-style inference over measured facts
+        from . import decision as dmn
+        from . import diagrams as diagramsmod
+        facts = diagramsmod.facts_from_record(rec, _parse_facts(str(args.get("facts") or "")))
+        table = dmn.remediation_policy()
+        res_eval = dmn.evaluate(table, facts)
+        lines = ["의사결정 테이블 %s 평가: verdict=%s, 발화 규칙=%s." % (
+            table.name, res_eval["verdict"], ",".join(res_eval["matched"]) or "없음")]
+        if res_eval["outputs"]:
+            lines.append("결정: [%s] %s" % (res_eval["outputs"].get("priority", "?"), res_eval["outputs"].get("action", "")))
+        if res_eval["verdict"] == "none":
+            lines.append("발화 없음: 팩트가 부족하다 (%s 제공, 필요 %s). 기본값은 임의로 채우지 않는다." % (
+                ", ".join(sorted(facts)) or "없음", ", ".join(sorted(table.inputs))))
+        lines.append("측정 팩트: %s." % (", ".join("%s=%s" % (k, facts[k]) for k in sorted(facts)) or "없음 (명시적 팩트만 제공)"))
+        lines.extend(dmn.table_lines(table))
+        out = {"tool": tool, "source": "decision:%s:%s" % (table.name, res_eval["verdict"]), "lines": lines, "trust": "tool"}
+        d = diagramsmod.build("decision", rec, None)
+        if d.get("mermaid"):
+            out["diagrams"] = [{"name": d["title"], "mermaid": d["mermaid"], "note": ""}]
+        return [out]
     if tool == "book_search":                                        # reads the ingested book library; no analysed project needed
         return [_plain(tool, "books:search", _book_search_lines(books, str(args.get("q") or "")), trust="book")]
     assert rec is not None, "tool %s needs a project" % tool
@@ -661,6 +777,10 @@ def validate_calls(calls: Any, rec: Optional[Dict[str, Any]], question: Optional
         elif c["tool"] == "sbom_conformance" and "regime" in args:
             args["regime"] = args["regime"].lower()
             bad = args["regime"] not in conformance.REGIMES
+        elif c["tool"] == "draw_diagram" and "kind" in args:
+            from . import diagrams as diagramsmod
+            args["kind"] = args["kind"].strip().lower()
+            bad = bad or (args["kind"] not in diagramsmod.CATALOG and args["kind"] != "catalog")
         elif c["tool"] == "affected_projects":
             bad = not (args.get("id") or args.get("component"))      # at least one thing to look for
             if args.get("id"):
@@ -814,7 +934,7 @@ class Chatbot:
         acts = self._action_calls(q, rec)
         if any(t == "apply_patch" for t, _ in acts) or _PATCH_ACT.search(low):      # asked to DO it: the preview / result already says what the generic plan tool would
             calls = [c for c in calls if c[0] != "patch"]
-        calls = acts + calls
+        calls = acts + calls + self._diagram_calls(q)
         if re.search(r"요약|개요|overview|summary|현황|상태", low) and not any(c[0] == "overview" for c in calls):
             calls.insert(0, ("overview", {}))
         return self._run(rec, self._valid(calls, rec, q))
@@ -823,6 +943,28 @@ class Chatbot:
         """Regex-built calls go through the same validator as the model's: the gates are not a property of the LLM path."""
         ok, _ = validate_calls([{"tool": t, "args": a} for t, a in calls], rec, q)
         return ok
+
+    def _diagram_calls(self, q: str) -> List[Tuple[str, Dict[str, Any]]]:
+        """다이어그램·추론 라우팅 (LLM 플래너의 결정론적 폴백): '그려줘/다이어그램/draw' -> draw_diagram,
+        결정 테이블 물음 -> decide. 종류는 트리거 단어에서 온다; 모르면 kind=catalog로 목록을 보여준다."""
+        low = q.lower()
+        out: List[Tuple[str, Dict[str, Any]]] = []
+        if re.search(r"다이어그램|도식|그려|그려줘|그림|draw|diagram", low):
+            kind = _diagram_kind(q)
+            call: Dict[str, Any] = {"kind": kind}
+            if kind == "custom":
+                spec = _arrow_spec(q)
+                if spec:
+                    call["spec"] = spec
+            m = re.search(r"(?:target|타깃|대상)\s*[:：]\s*([\w.\-]{2,60})", q, re.I)
+            if m and kind in ("butterfly", "composite", "sequence"):
+                call["target"] = m.group(1)
+            out.append(("draw_diagram", call))
+        if re.search(r"\bdmn\b|결정\s*테이블|decision\s*table|추론\s*엔진|정책\s*판단|어떤\s*행동을\s*해야", low) \
+                and not re.search(r"다이어그램|도식|그려|draw", low):
+            mf = re.search(r"(?:팩트|facts?)\s*[:=]\s*([^\n]{1,200})", q, re.I)
+            out.append(("decide", {"facts": mf.group(1).strip()} if mf else {}))
+        return out
 
     def _action_calls(self, q: str, rec: Optional[Dict[str, Any]]) -> List[Tuple[str, Dict[str, Any]]]:
         """Regex routes of the license / proposal / patch / VEX / analysis tools (the deterministic fallback of the planner)."""
@@ -874,6 +1016,9 @@ class Chatbot:
             return self._run(None, pre + [{"tool": "latest_arch", "args": {}}])
         if re.search(r"(?<!해결)(?<!대책)(?<!방책)책|서적|도서|\bbooks?\b", low):   # the book library likewise (해결책 is not a book)
             return self._run(None, pre + [{"tool": "book_search", "args": {"q": q[:300]}}])
+        diag = self._valid(self._diagram_calls(q), None, q)          # 다이어그램/추론: 프로젝트 없이도 catalog·custom·decide는 답한다
+        if diag:
+            return self._run(None, pre + diag)
         if not _FLEET_Q.search(low):
             return self._run(None, pre)
         calls = pre + [{"tool": "affected_projects", "args": {"id": i}} for i in dict.fromkeys(i.upper() for i in _ID.findall(q))]
@@ -927,6 +1072,7 @@ class Chatbot:
         trust: Dict[str, str] = {}
         claims: List[Dict[str, Any]] = []
         tools_used: List[str] = []
+        diagrams: List[Dict[str, Any]] = []
         routing, routing_note, plan_dropped = "regex", "", {}
         if rec is not None:
             results: Optional[List[Dict[str, Any]]] = None
@@ -944,6 +1090,7 @@ class Chatbot:
                 results = self._tools(question, rec) if len(parts) == 1 else conversation.merge_tool_results(parts, lambda part: self._tools(part, rec))
             for t in results:
                 tools_used.append(t["tool"])
+                diagrams.extend(t.get("diagrams") or [])
                 docs[t["source"]] = "\n".join(t["lines"])
                 trust[t["source"]] = t["trust"]
                 claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"]} for ln in t["lines"])
@@ -959,6 +1106,7 @@ class Chatbot:
                     routing_note = "LLM tool planning unavailable -> regex router: " + str(exc)[:160]
             for t in (unscoped if unscoped is not None else self._fleet_tools(question)):
                 tools_used.append(t["tool"])
+                diagrams.extend(t.get("diagrams") or [])
                 docs[t["source"]] = "\n".join(t["lines"])
                 trust[t["source"]] = t["trust"]
                 claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"]} for ln in t["lines"])
@@ -988,7 +1136,8 @@ class Chatbot:
         if not claims:
             return dict({"found": False, "answer": "I could not find this in the analysed projects or the knowledge base.", "claims": [],
                          "answer_source": "none", "tools": [], "retrieval": retrieval, "citation_accuracy": 1.0,
-                         "llm_note": self._no_client_note(use_llm), "contains_untrusted": False, "conflicts": []}, **meta)
+                         "llm_note": self._no_client_note(use_llm), "contains_untrusted": False, "conflicts": [],
+                         "diagrams": diagrams[:3]}, **meta)
         ver = verify_claims(claims, docs)
         answer = "\n".join(("- [untrusted quote] " if c.get("trust") == "untrusted-quote" else "- ") + c["text"] for c in ver["kept"])
         src = "tools" if tools_used else "rag"
@@ -1029,4 +1178,5 @@ class Chatbot:
                 meta["injection"]["attempts"], ", ".join(meta["injection"]["sources"][:3]))
         return dict({"found": True, "answer": answer, "claims": ver["kept"], "answer_source": src, "tools": tools_used,
                      "retrieval": retrieval, "citation_accuracy": ver["accuracy"], "llm_note": llm_note,
-                     "contains_untrusted": any(c.get("trust") == "untrusted-quote" for c in ver["kept"]), "conflicts": conf}, **meta)
+                     "contains_untrusted": any(c.get("trust") == "untrusted-quote" for c in ver["kept"]), "conflicts": conf,
+                     "diagrams": diagrams[:3]}, **meta)

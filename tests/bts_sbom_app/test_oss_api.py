@@ -215,7 +215,7 @@ def test_page_has_the_oss_tab_and_the_script_never_writes_data_with_innerhtml(ui
     assert "innerHTML" not in js and "eval(" not in js and "document.write" not in js
     assert _req(ui["base"] + "/static/oss_scanner.css")[0] == 200
     console_js = open(os.path.join(server.WEB_DIR, "bts_console.js"), encoding="utf-8").read()
-    assert "'oss': ['oss']" in console_js
+    assert "'git': ['git', 'oss', 'lock', 'container']" in console_js   # the OSS Scanner group is a Scan-section member now
 
 
 # ------------------------------------------------------------------------------- host pin, body size, jobs, cancel

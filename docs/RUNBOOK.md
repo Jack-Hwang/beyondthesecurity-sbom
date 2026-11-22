@@ -41,6 +41,23 @@ What exists today and what was actually checked, in this worktree, as of this ch
   live in `knowledge_books/` (serve-time only). **RAG baselines unchanged by the book layer** — the raw chunks and
   the notes are both excluded from `evals.build_index` (테스트 강제, `books_eval_baseline.json` == post-ingestion
   측정). The chat answers from the library via the `book_search` tool and the Book KB tab serves registry, outline,
+- **2026-11-22: bottom chat dock + Azure deployment review.** The 💬 Chat tab was replaced by a
+  Claude-Code-desktop-style **bottom chat dock** (bts_chat_panel.js) docked on every tab: a turn = one
+  `/api/chat/stream` call whose 7 events render as a collapsible activity card, the `final` event now carries
+  the answer body (+ conflicts, retrieval top, routing) so the stream alone completes a turn (one LLM budget
+  per turn), and an `awaiting_approval` event renders an inline approve button that posts the token question
+  (real approval still requires `--chat-actions`). The SSE client moved from bts_stream.js (removed) into the
+  panel. Separately, the MS Azure deployment **review** was completed and written up (`docs/AZURE_DEPLOYMENT.md`
+  + `deploy/azure/containerapp.yaml` + `deploy/azure/README.md`): recommended target **Azure Container Apps**
+  (single replica, Azure Files 2Gi evidence volume, Easy Auth mandatory for public ingress - the service stays
+  unauthenticated by design), `BTS_OSS_ALLOWED_HOSTS=<fqdn>` un-blocks the oss/arch/books Host checks behind
+  ingress, zero code changes required. Deployment status: **검토 완료·미배포** (az login + first-deploy
+  measurements pending; the README lists the volume-UID item as the must-verify unknown).
+- **2026-11-22: Code Intel — Understand(SciTools)의 함수 레벨 기능을 설치·의존 없이 자체 재구현** (ADR-0023,
+  BSA-AC-553..557): AST 기반 콜그래프·순환 복잡도·데드코드·클론 검출이 `arch.analyze()["code"]`로 상주하고,
+  콘솔 🔎 Code Intel 판 + Arch Intel Code Intel 섹션(결정론 콜그래프)으로 표시된다. Python-first이며 타 언어는
+  모듈 레벨 유지를 notes로 명시. 실측(django.nV): 49 함수, 최대 복잡도 9(task_details), 데드 40, 콜 해석 2/329.
+  Understand 설치러 자체는 REA로만 식별(Qt Installer Framework)하고 설치·실행하지 않았다(사용자 결정).
   search and re-ingest.
 - **2026-11-22: real user test of the full 5-step scenario (구글링 → 신규 폴더 clone → 스캔·리포트 → AI 재구현 →
   시퀀스 다이어그램) found and fixed 4 real defects**, then a 100-round HTTP loop (`scripts/usertest_loop.py`,
@@ -55,10 +72,16 @@ What exists today and what was actually checked, in this worktree, as of this ch
   4. a project whose every LLM scenario fails validation lost the Sequence view entirely (django.nV: 5 dropped,
      sequence count 0) - the deterministic static-inference startup flow now fills in, honestly labelled
      (arch_intel.py, ai_note states the replacement).
-  One incident to own: while fixing 2/3, the pre-existing LLM tests pointed `State.root` at the REAL repository
-  and overwrote the user's saved `evidence/.llm_config.json` with a test key - the Azure key the user had kept
-  there is **lost and must be re-entered** (Connect in the top bar with save checked); the test fixture now uses
-  a tmp root so it cannot happen again (test_server_cli.py).
+  One incident, owned and then RECOVERED: while fixing 2/3, the pre-existing LLM tests pointed `State.root` at
+  the REAL repository and overwrote the user's saved `evidence/.llm_config.json` with a test key. Recovery (same
+  day, on the user's request "복구해봐"): the live server process had loaded the Azure key before the clobber, so
+  a minidump of that process (ctypes MiniDumpWriteDump with full memory; the helper lives outside the repo at
+  C:\firebaseprojects\usertest\recovery\dump_and_search.py and stores no key material) was searched for a key
+  whose 4-char tail matched the masked tail /api/llm had reported (xv5v); one 84-char candidate was validated
+  with a single real completion call and the Azure-shaped config was written back. Post-recovery state:
+  configured gpt-5-mini, tail xv5v, saved - identical to pre-clobber. The dump and the candidate files were
+  deleted after recovery. Root cause of the incident is fixed: the test fixture now uses a tmp root and cannot
+  touch the real repository (test_server_cli.py).
 - **2026-11-22: `bts-sbom-app ragloop` pass 5 is RED — and the books layer is not the cause.** The gate compares
   against pass 4 (brief1-era baseline: dev recall 1.000, dev mrr 0.869, dev ood 1.000) and fails on drift that was
   introduced by the earlier round-1/brief-5 work (now commit `ec58c1b`): the `knowledge/lecture/*.md` corpus
@@ -78,6 +101,19 @@ What exists today and what was actually checked, in this worktree, as of this ch
 - **kind manifests for a single-node cluster were produced but NOT deployed** (`deploy/kind/`, brief 5 G1 산출만):
   `kubectl apply --dry-run=client --validate=false` parses all four documents; the cluster apply itself is blocked
   on `kind` not being installed here - the honest status lives in `deploy/kind/README.md`.
+- **2026-11-22 (third release, EA-17.2 diagram catalog + DMN-style decision engine)**: the REA of
+  `C:\firebaseprojects\REA\scitools\easetup_x64.msi` identified the artefact as **Sparx Enterprise Architect
+  Trial 17.2.1721.15** (not SciTools - see `docs/EA_REA_FINDINGS.md`), extracted the embedded New-Diagram
+  registry from EA.exe and the MDG technology files, and the product now mirrors that catalog natively:
+  `bts_sbom_app/diagrams.py` draws 37 diagram kinds (36 measured builders + 1 honest "not derivable" wireframing
+  entry; the round-2 REA re-verification corrected the first-pass SysML claim and added SysML BDD/IBD/Parametric + ICONIX Robustness) as Mermaid over the analysed record, `bts_sbom_app/decision.py` runs a DMN-style decision table
+  (hit policies F/U/A/P, band-rank severity comparison, absent facts never match) over the measured facts with
+  the shipped `remediation-policy` table, the chat dock and the new 🖼 Diagrams tab render the same `.arc-dwrap`
+  markup contract through the vendored mermaid (source-text fallback), and `/api/diagrams` serves the catalog and
+  per-kind builds (spec AC-573..578, ADR-0024; tests `test_diagrams.py` 26 + `test_decision.py` 10). The chat
+  tools `draw_diagram`/`decide` are read-only and pass the same call validator as every other tool; a kind whose
+  measured inputs are missing draws nothing and says why. The extracted installer contents remain under
+  `C:\firebaseprojects\REA\scitools\extract\` unexecuted.
 - Everything else in this file (the specific rollback thresholds and monitoring fields) is read off the code that
   ships with this change, not off a deployment that has run in production - there is no production deployment of this
   tool today.

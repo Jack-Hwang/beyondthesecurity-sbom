@@ -1,15 +1,23 @@
 /*!
- * oss_scanner.js - the "OSS Scanner" pane of the BTS-SBOM screen (source / dependency / binary scan, results, licenses, notice).
- * Written for BTS-SBOM. Rules (same as bts_console.js): every dynamic value is put into the page with textContent / setAttribute
- * (analysed data comes from untrusted repositories); no inline event handlers (strict Content-Security-Policy); a view says
- * "not available" instead of showing a made-up value.
+ * oss_scanner.js - the OSS scan engine of the BTS-SBOM screen (source / dependency / binary scan, results, licenses, notice).
+ * Since the scan-entry unification the FORM pieces (analysis modes, exclude globs) and the "Previous scans" list live on
+ * the 🌐 Scan landing pane, in the index.html containers #scaOssModes / #scaOssExcludes / #ossHistoryLanding next to the
+ * main input row; THIS pane (#paneOss, the 📜 OSS 결과 sub-tab of the Scan section) renders the progress and the results
+ * (license risk / source / dependency / binary / OSS notice / export). bts_console.js starts the scan through
+ * window.BtsOss.start() - one ▶ Analyze on the landing runs the main pipeline and this engine on the same target.
+ * Written for BTS-SBOM. Rules (same as bts_console.js): every dynamic value is put into the page with textContent /
+ * setAttribute (analysed data comes from untrusted repositories); no HTML-string writes, no inline event handlers
+ * (strict Content-Security-Policy); a view says "not available" instead of showing a made-up value.
  */
 (function () {
   'use strict';
   var root = document.getElementById('paneOss');
-  if (!root) { return; }
+  var modesBox = document.getElementById('scaOssModes');
+  var exBox = document.getElementById('scaOssExcludes');
+  var histBox = document.getElementById('ossHistoryLanding');
+  if (!root || !modesBox || !exBox || !histBox) { return; }
 
-  var S = { job: null, timer: null, kind: 'src', q: '', sort: 'path', dir: 'asc', offset: 0, limit: 50, total: 0, excludes: [], overview: null };
+  var S = { job: null, epoch: 0, kind: 'src', q: '', sort: 'path', dir: 'asc', offset: 0, limit: 50, total: 0, excludes: [], overview: null };
   var KINDS = { src: 'Source', dep: 'Dependency', bin: 'Binary' };
   var PATHLABEL = { src: 'Source Path', dep: 'Package URL', bin: 'Binary Path' };
   var STAGES = [['prepare', 'Prepare (download / extract)'], ['analyze', 'Analyze'], ['normalize', 'Normalize results']];
@@ -31,10 +39,7 @@
   }
   function note(text, cls) { return el('div', { 'class': 'oss-note ' + (cls || ''), text: text }); }
 
-  /* ---------- layout ---------- */
-  var form = el('div', { 'class': 'pathbox' });
-  var target = el('input', { id: 'ossTarget', placeholder: 'D:\\path\\to\\project  -or-  project.zip / .tar.gz / .jar / .whl / .rpm  -or-  https://github.com/org/repo.git  -or-  https://host/file.tgz', spellcheck: 'false', style: 'flex:1;min-width:360px;font-family:ui-monospace,monospace' });
-  var branch = el('input', { id: 'ossBranch', placeholder: 'branch / tag (git URLs)', spellcheck: 'false', style: 'width:170px' });
+  /* ---------- landing form pieces: analysis modes + exclude globs (the target row itself is index.html markup) ---------- */
   var modes = {};
   var modeRow = el('div', { 'class': 'oss-row' }, [el('span', { 'class': 'sub', text: 'Analysis:' })]);
   [['source', 'Source code'], ['dependency', 'Dependency'], ['binary', 'Binary']].forEach(function (m) {
@@ -44,25 +49,11 @@
   });
   var corr = el('input', { type: 'checkbox', checked: 'checked' });
   modeRow.appendChild(el('label', { 'class': 'oss-chk', title: 'Apply sbom-info.yaml from the project root (corrections / exclusions)' }, [corr, ' apply sbom-info.yaml']));
+  modesBox.appendChild(modeRow);
+
   var exIn = el('input', { placeholder: 'exclude path or glob (e.g. node_modules, test/*) - Enter to add', spellcheck: 'false', style: 'flex:1;min-width:240px' });
   var exChips = el('span', { 'class': 'oss-chips' });
-  var runBtn = el('button', { 'class': 'run', type: 'button', text: '\u25B6 Analyze' });
-  var cancelBtn = el('button', { 'class': 'run', type: 'button', text: 'Cancel', style: 'background:#333;display:none' });
-  form.appendChild(el('label', { text: 'Analyze a folder, archive or URL on the machine running this service' }));
-  form.appendChild(el('div', { 'class': 'oss-row' }, [target, branch, runBtn, cancelBtn]));
-  form.appendChild(modeRow);
-  form.appendChild(el('div', { 'class': 'oss-row' }, [exIn, exChips]));
-  form.appendChild(el('div', { 'class': 'ex', text: 'Archives are extracted with size and path limits; git URLs are cloned with hooks disabled; nothing from the analysed material is executed. Reports are written only to the evidence folder.' }));
-  var banner = el('div', {});
-  var progress = el('div', { 'class': 'oss-steps' });
-  var result = el('div', {});
-  var history = el('div', { 'class': 'oss-history' });
-  root.appendChild(form);
-  root.appendChild(banner);
-  root.appendChild(progress);
-  root.appendChild(result);
-  root.appendChild(el('h3', { text: 'Previous scans', style: 'margin-top:18px' }));
-  root.appendChild(history);
+  exBox.appendChild(el('div', { 'class': 'oss-row' }, [exIn, exChips]));
 
   function renderChips() {
     exChips.textContent = '';
@@ -76,7 +67,22 @@
     if (e.key === 'Enter' && exIn.value.trim()) { S.excludes.push(exIn.value.trim()); exIn.value = ''; renderChips(); }
   });
 
-  /* ---------- scan + progress ---------- */
+  /* the form the console reads on every ▶ Analyze; null means "no analysis type selected" (the console reports that honestly) */
+  function readForm() {
+    var m = Object.keys(modes).filter(function (k) { return modes[k].checked; });
+    if (!m.length) { return null; }
+    var br = document.getElementById('ossBranch');
+    return { modes: m, excludes: S.excludes.slice(), branch: br ? br.value.trim() : '', correction: corr.checked };
+  }
+
+  /* ---------- results pane (#paneOss): progress + result, with an honest empty state ---------- */
+  var progress = el('div', { 'class': 'oss-steps' });
+  var idle = note('No scan is open yet. One \u25B6 Analyze on the \uD83C\uDF10 Scan landing runs this engine together with the main pipeline; finished scans are listed under "Previous scans" there.');
+  var result = el('div', {});
+  root.appendChild(progress);
+  root.appendChild(idle);
+  root.appendChild(result);
+
   function renderProgress(job) {
     progress.textContent = '';
     if (!job) { return; }
@@ -87,40 +93,10 @@
       progress.appendChild(el('span', { 'class': 'oss-step' + (done ? ' done' : (i === idx && job.state === 'running' ? ' on' : '')), text: (i + 1) + '. ' + s[1] }));
     });
   }
-  function setBusy(b) { runBtn.disabled = b; cancelBtn.style.display = b ? '' : 'none'; }
-
-  function poll() {
-    if (!S.job) { return; }
-    api('/api/oss/jobs/' + encodeURIComponent(S.job)).then(function (r) {
-      if (!r.ok) { banner.textContent = ''; banner.appendChild(note(r.data.error || 'lookup failed', 'bad')); setBusy(false); return; }
-      var job = r.data;
-      renderProgress(job);
-      if (job.state === 'running') { S.timer = setTimeout(poll, 800); return; }
-      setBusy(false);
-      banner.textContent = '';
-      if (job.state === 'error' || job.state === 'cancelled') { banner.appendChild(note((job.state === 'cancelled' ? 'Cancelled. ' : 'The scan failed: ') + (job.error || ''), job.state === 'error' ? 'bad' : 'warn')); return; }
-      showResult(job.id);
-      loadHistory();
-    });
-  }
-  runBtn.addEventListener('click', function () {
-    var t = target.value.trim();
-    if (!t) { banner.textContent = ''; banner.appendChild(note('Enter a folder, archive or URL first.', 'warn')); return; }
-    var m = Object.keys(modes).filter(function (k) { return modes[k].checked; });
-    if (!m.length) { banner.textContent = ''; banner.appendChild(note('Select at least one analysis type.', 'warn')); return; }
-    banner.textContent = ''; result.textContent = ''; setBusy(true);
-    api('/api/oss/scan', { target: t, modes: m, excludes: S.excludes, branch: branch.value.trim(), correction: corr.checked }).then(function (r) {
-      if (!r.ok) { setBusy(false); banner.appendChild(note(r.data.error || ('HTTP ' + r.status), 'bad')); return; }
-      S.job = r.data.job; renderProgress({ stage: 'prepare', state: 'running' }); poll();
-    });
-  });
-  cancelBtn.addEventListener('click', function () { if (S.job) { api('/api/oss/jobs/' + S.job + '/cancel', {}); } });
-
-  /* ---------- results ---------- */
   function showResult(jid) {
     S.job = jid; S.offset = 0; S.q = '';
     api('/api/oss/overview/' + jid).then(function (r) {
-      if (!r.ok) { banner.textContent = ''; banner.appendChild(note(r.data.error || 'result not found', 'bad')); return; }
+      if (!r.ok) { result.textContent = ''; result.appendChild(note(r.data.error || 'result not found', 'bad')); return; }
       S.overview = r.data;
       renderResult();
     });
@@ -257,29 +233,69 @@
     });
   }
 
-  /* ---------- history ---------- */
+  /* ---------- history: the "Previous scans" list on the landing pane ---------- */
   function loadHistory() {
     api('/api/oss/history').then(function (r) {
-      history.textContent = '';
+      histBox.textContent = '';
       var rows = (r.data && r.data.history) || [];
-      if (!rows.length) { history.appendChild(el('div', { 'class': 'sub', text: 'No scans yet.' })); return; }
+      if (!rows.length) { histBox.appendChild(el('div', { 'class': 'sub', text: 'No scans yet.' })); return; }
       rows.slice(0, 20).forEach(function (h) {
         var c = h.counts || {};
         var open = el('button', { type: 'button', 'class': 'bts-mini', text: 'Open' });
-        open.addEventListener('click', function () { S.tab = 'overview'; showResult(h.id); });
+        open.addEventListener('click', function () { openJob(h.id); });
         var cmp = el('button', { type: 'button', 'class': 'bts-mini', text: 'Compare with open scan' });
         cmp.addEventListener('click', function () {
           if (!S.job || S.job === h.id) { return; }
           api('/api/oss/compare?a=' + h.id + '&b=' + S.job).then(function (cr) {
-            banner.textContent = '';
-            if (!cr.ok) { banner.appendChild(note(cr.data.error || 'compare failed', 'bad')); return; }
+            if (!cr.ok) { return; }
             var s = cr.data.summary;
-            banner.appendChild(note('Compared with ' + (h.target || h.id) + ': +' + s.added + ' added, -' + s.deleted + ' deleted, ~' + s.changed + ' changed.', 'ok'));
+            histBox.textContent = '';
+            histBox.appendChild(note('Compared with ' + (h.target || h.id) + ': +' + s.added + ' added, -' + s.deleted + ' deleted, ~' + s.changed + ' changed.', 'ok'));
+            loadHistory();
           });
         });
-        history.appendChild(el('div', { 'class': 'oss-hrow' }, [el('span', { text: (h.finished || '') + '  ' + (h.target || '') }), el('span', { 'class': 'sub', text: '  src ' + (c.src || 0) + ' / dep ' + (c.dep || 0) + ' / bin ' + (c.bin || 0) + '  ' }), open, cmp]));
+        histBox.appendChild(el('div', { 'class': 'oss-hrow' }, [el('span', { text: (h.finished || '') + '  ' + (h.target || '') }), el('span', { 'class': 'sub', text: '  src ' + (c.src || 0) + ' / dep ' + (c.dep || 0) + ' / bin ' + (c.bin || 0) + '  ' }), open, cmp]));
       });
     });
   }
+
+  /* ---------- job start + polling: bts_console.js calls BtsOss.start on every ▶ Analyze ---------- */
+  function start(target, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      var epoch = ++S.epoch;                       // a newer start supersedes an older poll loop
+      idle.style.display = 'none';
+      result.textContent = '';
+      renderProgress({ stage: 'prepare', state: 'running' });
+      api('/api/oss/scan', { target: target, modes: opts.modes, excludes: opts.excludes || [], branch: opts.branch || '', correction: !!opts.correction }).then(function (r) {
+        if (epoch !== S.epoch) { resolve({ ok: false, superseded: true, error: 'superseded by a newer scan' }); return; }
+        if (!r.ok) { renderProgress(null); resolve({ ok: false, error: (r.data && r.data.error) || ('HTTP ' + r.status) }); return; }
+        poll(r.data.job, epoch, resolve);
+      });
+    });
+  }
+  function poll(id, epoch, resolve) {
+    if (epoch !== S.epoch) { resolve({ ok: false, superseded: true, error: 'superseded by a newer scan' }); return; }
+    api('/api/oss/jobs/' + encodeURIComponent(id)).then(function (r) {
+      if (epoch !== S.epoch) { resolve({ ok: false, superseded: true, error: 'superseded by a newer scan' }); return; }
+      if (!r.ok) { renderProgress(null); resolve({ ok: false, error: (r.data && r.data.error) || 'lookup failed' }); return; }
+      var job = r.data;
+      renderProgress(job);
+      if (job.state === 'running') { setTimeout(function () { poll(id, epoch, resolve); }, 800); return; }
+      if (job.state === 'error' || job.state === 'cancelled') { resolve({ ok: false, error: (job.state === 'cancelled' ? 'Cancelled. ' : 'The scan failed: ') + (job.error || '') }); return; }
+      showResult(job.id);
+      loadHistory();
+      resolve({ ok: true, id: job.id });
+    });
+  }
+  /* history "Open": render the scan here and jump to this sub-tab (the landing and this pane are different tabs now) */
+  function openJob(jid) {
+    idle.style.display = 'none';
+    S.tab = 'overview';
+    showResult(jid);
+    document.dispatchEvent(new CustomEvent('bts:activate', { detail: 'oss' }));
+  }
+
+  window.BtsOss = { readForm: readForm, start: start, open: openJob };
   loadHistory();
 })();

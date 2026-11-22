@@ -72,6 +72,30 @@ table.bts-table td code{word-break:break-all}
 .bts-sidenav .rtab.active{background:#1f6feb33;border-left-color:#4493f8;color:#f0f6fc}
 .bts-content{flex:1;min-width:0}
 
+/* The Claude-client rail (CCD Code 탭 해부): 새 분석 button, the analysis-session list (the conversations of
+   this service), five collapsed feature sections and the assistant toggle - the menu no longer dominates. */
+.bts-rail-new{display:block;width:100%;background:#1f6feb33;border:1px solid #4493f855;color:#e6edf3;font:inherit;font-size:12.5px;font-weight:700;border-radius:8px;padding:7px 10px;cursor:pointer;margin-bottom:8px}
+.bts-rail-new:hover{background:#1f6feb55}
+.bts-rail-h{font-size:10px;font-weight:700;letter-spacing:.6px;color:#8b949e;text-transform:uppercase;padding:6px 10px 4px}
+.bts-rail-sessions{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}
+.bts-rail-empty{color:#8b949e;font-size:11px;padding:2px 10px 6px}
+.bts-rail-session{display:block;width:100%;text-align:left;background:none;border:0;border-radius:6px;color:#adbac7;font:inherit;font-size:12px;padding:6px 10px;cursor:pointer}
+.bts-rail-session:hover{background:#1c2128;color:#e6edf3}
+.bts-rail-session.on{background:#1f6feb33;color:#f0f6fc}
+.bts-rail-session-n{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bts-rail-session-t{display:block;color:#8b949e;font-size:10.5px}
+.bts-rail-grp{border-top:1px solid #262c33}
+.bts-rail-grp summary{list-style:none;display:block;border-bottom:0;border-left:2px solid transparent;border-radius:6px;color:#adbac7;font-size:12px;font-weight:600;padding:6px 10px;white-space:nowrap;cursor:pointer}
+.bts-rail-grp summary::-webkit-details-marker{display:none}
+.bts-rail-grp summary::after{content:'\25B8';float:right;color:#8b949e}
+.bts-rail-grp[open] summary::after{content:'\25BE'}
+.bts-rail-grp summary:hover{background:#1c2128;color:#e6edf3}
+.bts-rail-grp .rtab.active{background:#1f6feb33;border-left-color:#4493f8;color:#f0f6fc}
+.bts-rail-chip{display:block;width:100%;text-align:left;background:none;border:0;color:#8b949e;font:inherit;font-size:11.5px;padding:4px 10px 4px 20px;cursor:pointer;white-space:nowrap;border-radius:6px}
+.bts-rail-chip:hover{background:#1c2128;color:#e6edf3}
+.bts-rail-assist{display:block;width:100%;background:#161b22;border:1px solid #30363d;color:#7ee2b8;font:inherit;font-size:12px;font-weight:700;border-radius:8px;padding:7px 10px;cursor:pointer;margin-top:8px}
+.bts-rail-assist:hover{background:#1c2128}
+
 /* Report tab: header (identity + severity chips + downloads), then the ScaApp body, then the governance cards */
 .bts-reporthead{border:1px solid #d0d7de;border-radius:10px;padding:12px 16px;background:#fff;margin:4px 0 10px}
 .bts-reporthead-title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
@@ -95,3 +119,39 @@ table.bts-table td code{word-break:break-all}
   .bts-sidenav .rtab{border-left:0;border-bottom:2px solid transparent;border-radius:0}
   .bts-sidenav .rtab.active{border-bottom-color:#4493f8;background:none}
 }
+
+/* Bottom chat dock (Claude-Code-desktop style): one collapsed bar / expanded conversation panel, docked at the
+   bottom of the content column on every tab. All values escaped in bts_chat_panel.js; strict CSP respected. */
+.bts-chatdock{margin-top:14px;border:1px solid #262c33;border-radius:10px;background:#11151a}
+.bts-chatdock.open{margin-bottom:4px}
+.bts-cd-bar{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:#e6edf3;font:inherit;font-size:12.5px;font-weight:700;padding:9px 12px;cursor:pointer;text-align:left}
+.bts-cd-mark{color:#7ee2b8}
+.bts-cd-status{color:#8b949e;font-weight:400}
+.bts-cd-caret{margin-left:auto;color:#8b949e}
+.bts-cd-body{border-top:1px solid #262c33;padding:10px 12px 8px}
+.bts-cd-msgs{max-height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
+.bts-cd-turn-user{align-self:flex-end;background:#1f6feb33;color:#e6edf3;border-radius:10px;padding:6px 12px;max-width:80%;white-space:pre-wrap;font-size:12.5px}
+.bts-cd-turn{border:1px solid #262c33;border-radius:10px;background:#0d1117;padding:8px 12px;max-width:96%}
+.bts-cd-card{margin:6px 0}
+.bts-cd-card summary{cursor:pointer;color:#8b949e;font-size:11px}
+.bts-cd-card-body{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.bts-cd-act{display:flex;gap:8px;align-items:baseline;border-left:3px solid #8b949e;background:#161b22;border-radius:4px;padding:3px 8px;font-size:11.5px;color:#adbac7}
+.bts-cd-act-kind{flex:0 0 auto;font-weight:700;color:#e6edf3}
+.bts-cd-act-body{word-break:break-all;white-space:pre-wrap}
+.bts-cd-answer{font-size:12.5px}
+.bts-cd-answer .bts-chat-out{background:none;border:0;padding:0;color:#e6edf3}
+.bts-cd-approve{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid #d4a72c;background:#fff8c5;border-radius:8px;padding:8px 10px;margin:8px 0;color:#1f2328;font-size:12px}
+.bts-cd-approve code{background:#fff;border:1px solid #d0d7de;border-radius:4px;padding:1px 6px}
+.bts-cd-input{display:flex;gap:8px;align-items:center;margin-top:8px}
+.bts-cd-input input[type=text],.bts-cd-input input:not([type]){flex:1;min-width:240px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;padding:8px 10px;font:inherit;font-size:12.5px}
+.bts-cd-llm{color:#8b949e;font-size:11.5px;white-space:nowrap}
+.bts-cd-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.bts-cd-chip{background:#161b22;border:1px solid #30363d;color:#adbac7;border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer}
+.bts-cd-chip:hover{color:#e6edf3;border-color:#4493f8}
+@media (max-width:900px){ .bts-cd-msgs{max-height:32vh} }
+/* ---------- Diagrams (EA-17.2 catalog, ADR-0024): pane + mid-conversation blocks share the contract ---------- */
+.bts-diagram{border:1px solid #30363d;border-radius:10px;background:#0d1117;padding:10px 12px;margin:8px 0;overflow-x:auto}
+.bts-diagram-title{font-weight:700;color:#e6edf3;font-size:12.5px;margin-bottom:4px}
+.bts-diagram .arc-diagram svg{max-width:100%;height:auto}
+.bts-diagram-note{color:#8b949e;font-size:11.5px;margin-top:6px;white-space:pre-wrap}
+.bts-diagram-lines{color:#adbac7;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:6px 10px;font-size:11px;overflow-x:auto;white-space:pre}

@@ -1,0 +1,56 @@
+# Azure Container Apps 정의 (deploy/azure/containerapp.yaml) — bts-sbom-app
+# 배포: deploy/azure/README.md 의 az CLI 절차를 따른다. 이 YAML은 `az containerapp create --yaml` 또는
+# 검토용 선언으로 쓴다. 실측 근거: deploy/kind/bts-sbom.yaml(로컬 검증)과 동일한 리소스·프로브·단일 레플리카.
+# 주의: 무인증 서비스이므로 public ingress에 두려면 반드시 Easy Auth를 먼저 설정한다 (docs/AZURE_DEPLOYMENT.md §1).
+properties:
+  environmentInfo: null          # az containerapp env 가 채움 (managedEnvironment id)
+  configuration:
+    activeRevisionsMode: single
+    ingress:
+      external: true             # Easy Auth(AAD) 활성 전까지는 false(internal)로 유지할 것
+      targetPort: 8800
+      transport: auto            # SSE(/api/chat/stream) 스트림 허용
+      allowInsecure: false
+    secrets:
+      - name: azure-api-key
+        value: "<AZURE_OPENAI_KEY — az keyvault 또는 수동 입력>"
+      - name: azure-base-url
+        value: "https://<resource>.openai.azure.com"
+      - name: azure-deployment
+        value: "gpt-5-mini"
+      - name: azure-api-version
+        value: "2025-04-01-preview"
+    services: null
+  template:
+    containers:
+      - name: bts-sbom-app
+        image: "<REGISTRY>/bts-sbom-app:8.1.0"   # Dockerfile.bts-sbom-app 빌드 결과
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: BTS_OSS_ALLOWED_HOSTS
+            value: "<app FQDN, 예: bts-sbom.<env>.azurecontainerapps.io>"
+          - name: BTS_SBOM_LLM_DAILY_BUDGET
+            value: "80"
+          - name: BTS_SBOM_UNICODE
+            value: "1"
+          - name: AZURE_OPENAI_API_KEY
+            secretRef: azure-api-key
+          - name: AZURE_OPENAI_BASE_URL
+            secretRef: azure-base-url
+          - name: AZURE_OPENAI_DEPLOYMENT
+            secretRef: azure-deployment
+          - name: AZURE_OPENAI_API_VERSION
+            secretRef: azure-api-version
+        volumeMounts:
+          - volumeName: evidence-files
+            mountPath: /tmp/evidence
+            subPath: evidence
+    volumes:
+      - name: evidence-files
+        storageType: AzureFile
+        storageName: evidence-files        # az containerapp env storage-scale/set (README §3)
+    scale:
+      minReplicas: 1                       # 단일 프로세스·evidence 공유 계약 — 0 스케일 배제
+      maxReplicas: 1

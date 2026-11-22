@@ -54,18 +54,23 @@
              GROUPS/LABELS; the sidebar buttons carry the same .rtab[data-sv] contract the old top bar had. -->
         <div id="scanSubNav" style="display:none;gap:6px;flex-wrap:wrap;margin:-6px 0 12px" aria-label="Group sub-tabs"></div>
 
-        <!-- GIT REPO: landing pane; the analysis report itself opens on its own 📊 Report tab -->
+        <!-- GIT REPO + OSS SCANNER: the unified landing pane. One form, one ▶ Analyze: the main SBOM/CVE pipeline
+             AND the OSS scan (source/dependency/binary) run on the same target; oss_scanner.js fills the mode
+             checkboxes (#scaOssModes), the exclude row (#scaOssExcludes) and the Previous-scans list
+             (#ossHistoryLanding), and renders the scan results on the 📜 OSS 결과 sub-tab (#paneOss). -->
         <div class="rpane on" data-sv="git">
           <div class="pathbox" id="scaRepoPanel">
-            <label>&#127760; Analyze a Git repo or a local path <span class="sub">&mdash; clone/read &rarr; SBOM &rarr; OSV.dev CVEs + deps.dev licenses &rarr; safe-upgrade plan</span></label>
+            <label>&#127760; Analyze a Git repo, a local folder or an archive <span class="sub">&mdash; clone/read &rarr; SBOM &rarr; OSV.dev CVEs + deps.dev licenses &rarr; safe-upgrade plan &rarr; OSS 스캔(공개문·엑셀 성과물)</span></label>
             <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap" id="scaInputRow">
-              <input id="scaGitUrl" value="" placeholder="https://github.com/org/repo.git   &mdash;or&mdash;   owner/repo   &mdash;or&mdash;   D:\path\to\project" spellcheck="false" style="flex:1;min-width:340px;font-family:ui-monospace,monospace">
-              <label style="font-size:12px;margin:0"><input type="checkbox" id="scaOffline"> offline</label>
-              <label style="font-size:12px;margin:0" title="Ask LG EXAONE for upgrade proposals (needs a configured key; otherwise rule-based proposals are used)"><input type="checkbox" id="scaLlm"> EXAONE</label>
-              <label style="font-size:12px;margin:0" title="Analyze 가 끝나면 같은 대상을 OSS Scanner로도 스캔합니다 (소스·의존성·바이너리 + 공개문·엑셀 성과물). 결과는 📜 OSS Scanner 탭에서"><input type="checkbox" id="scaOss"> OSS 성과물</label>
+              <input id="scaGitUrl" value="" placeholder="https://github.com/org/repo.git   &mdash;or&mdash;   owner/repo   &mdash;or&mdash;   D:\path\to\project   &mdash;or&mdash;   project.zip / .tar.gz / .jar / .whl / .rpm" spellcheck="false" style="flex:1;min-width:340px;font-family:ui-monospace,monospace">
+              <input id="ossBranch" placeholder="branch / tag (git URLs)" spellcheck="false" style="width:170px">
+              <label style="font-size:12px;margin:0;white-space:nowrap"><input type="checkbox" id="scaOffline"> offline</label>
+              <label style="font-size:12px;margin:0;white-space:nowrap" title="Ask LG EXAONE for upgrade proposals (needs a configured key; otherwise rule-based proposals are used)"><input type="checkbox" id="scaLlm"> EXAONE</label>
               <button class="run" id="scaDemoBtn" style="background:#333">&#127919; Demo repo</button>
               <button class="run" id="runScaReport">&#9654; Analyze</button>
             </div>
+            <div id="scaOssModes" style="margin-top:8px"></div>
+            <div id="scaOssExcludes" style="margin-top:6px"></div>
             <div class="ex" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <span>Try:</span>
               <span class="egchip" data-url="https://github.com/adeyosemanputra/pygoat.git">pygoat (Python)</span>
@@ -73,8 +78,11 @@
               <span class="egchip" data-url="https://github.com/OWASP/NodeGoat.git">NodeGoat (npm)</span>
               <span class="sub" style="margin-left:auto">The clone is analysed in a temporary copy; the origin is never modified and nothing from it is executed.</span>
             </div>
+            <div class="ex">Archives are extracted with size and path limits; git URLs are cloned with hooks disabled; nothing from the analysed material is executed. Reports are written only to the evidence folder.</div>
             <div id="scaBanner"></div>
-            <div class="bts-note">The full report of the selected project lives on its own <b>&#128202; Report</b> tab (sidebar) &mdash; it opens there automatically after an analysis.</div>
+            <h3 style="margin-top:16px;margin-bottom:6px">Previous scans</h3>
+            <div id="ossHistoryLanding" class="oss-history"></div>
+            <div class="bts-note">One <b>&#9654; Analyze</b> runs both engines: the SBOM/CVE report opens on its own <b>&#128202; Report</b> tab, and the OSS deliverables (license risk, source / dependency / binary lists, OSS notice, exports) land on the <b>&#128220; OSS 결과</b> sub-tab of this Scan section.</div>
           </div>
         </div>
 
@@ -100,6 +108,7 @@
         <div class="rpane" data-sv="exploit-mat"><div id="paneExploit"></div></div>
         <div class="rpane" data-sv="dep-graph"><div id="paneDep"></div></div>
         <div class="rpane" data-sv="arch"><div id="paneArch"></div></div>
+        <div class="rpane" data-sv="code"><div id="paneCode"></div></div>
         <div class="rpane" data-sv="supply-chain"><div id="paneSupply"></div></div>
         <div class="rpane" data-sv="changes"><div id="paneChanges"></div></div>
         <div class="rpane" data-sv="ntia"><div id="paneSbom"></div></div>
@@ -139,6 +148,22 @@
         <div class="rpane" data-sv="fix-pr"><div id="paneFixPr"></div></div>
         <div class="rpane" data-sv="oss"><div id="paneOss"></div></div>
         <div class="rpane" data-sv="archintel"><div id="paneArchIntel"></div></div>
+        <!-- DIAGRAMS: the EA-17.2 diagram catalog (ADR-0024) drawn from measured data; the chat draws the same kinds mid-conversation -->
+        <div class="rpane" data-sv="diagrams">
+          <div class="bts-formbox">
+            <div class="bts-h">🖼 Diagrams <span class="sub">&mdash; EA 17.2 카탈로그(REA 재현)를 분석 기록의 측정값으로 그린다; 채팅에서도 같은 종류를 대화 중에 그릴 수 있다</span></div>
+            <div class="bts-fields">
+              <label for="dgKind">Kind</label>
+              <select id="dgKind"></select>
+              <label for="dgTarget">Target</label>
+              <input id="dgTarget" spellcheck="false" placeholder="butterfly/composite/sequence 대상 (선택)">
+              <label for="dgSpec">Spec</label>
+              <input id="dgSpec" spellcheck="false" placeholder="custom: A -&gt; B -&gt; C (선택)">
+            </div>
+            <div class="bts-actions"><button type="button" class="run" id="dgDraw">✏️ Draw</button></div>
+          </div>
+          <div id="paneDiagrams"></div>
+        </div>
         <div class="rpane" data-sv="books"><div id="paneBooks"></div></div>
         <div class="rpane" data-sv="more"><div id="paneHistory"></div></div>
         <div class="rpane" data-sv="fleet">
@@ -155,28 +180,10 @@
           <div id="paneFleet"></div>
         </div>
 
-        <!-- CHAT: its own tab in the desktop shell -->
-        <div class="rpane" data-sv="chat">
-          <details class="bts-chat" id="chatBox" open>
-            <summary>&#128172; Ask about the selected project <span class="sub">&mdash; answers cite their source; nothing is answered from memory</span></summary>
-            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-              <input id="chatQ" placeholder="e.g. which fix clears the most advisories? / licenses? / architecture? / 책에서 fitness function 찾아줘" style="flex:1;min-width:300px">
-              <label style="font-size:12px;margin:0"><input type="checkbox" id="chatLlm"> EXAONE</label>
-              <button class="run" id="chatBtn">Ask</button>
-            </div>
-            <div id="chatOut" class="bts-chat-out"></div>
-          </details>
-
-          <details class="bts-chat" id="streamBox">
-            <summary>&#127922; 단계 스트림 질문 <span class="sub">&mdash; 7종 이벤트(step_start/tool_call/tool_result/awaiting_approval/handoff/final/error)를 그 순서대로 표시 · 승인은 사람이</span></summary>
-            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-              <input id="streamQ" placeholder="e.g. requests 패키지의 패치 계획을 보여줘" style="flex:1;min-width:300px">
-              <button class="run" id="streamBtn">스트림 질문</button>
-            </div>
-            <div id="streamTimeline" style="margin-top:10px;display:flex;flex-direction:column;gap:6px"></div>
-            <div id="streamGap" style="display:none;margin-top:8px;padding:8px 10px;border:1px solid #e6a23c;background:#fdf6ec;border-radius:6px;font-size:13px"></div>
-          </details>
-        </div>
+        <!-- The chat surface (bts_chat_panel.js) rides at the end of the content column on every tab - the
+             Claude-client main conversation window (Code 탭 해부 zone 2): it ships OPEN, the feature panels
+             above are artifacts the conversation and the rail open on demand. -->
+        <div id="chatDock" class="bts-chatdock open"></div>
         </div><!-- /.bts-content -->
       </div>
     </div>
@@ -188,10 +195,10 @@
 <script src="/static/bts_governance.js"></script>
 <script src="/static/bts_report.js"></script>
 <script src="/static/bts_console.js"></script>
+<script src="/static/bts_chat_panel.js"></script>
 <script src="/static/oss_scanner.js"></script>
 <script src="/static/arch_intel_render.js"></script>
 <script src="/static/arch_intel.js"></script>
 <script src="/static/bts_books.js"></script>
-<script src="/static/bts_stream.js"></script>
 </body>
 </html>

@@ -1,16 +1,19 @@
-/* OSS Scanner pane - written for BTS-SBOM; reuses the platform tokens, adds only what the pane needs. */
-#paneOss .oss-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
-#paneOss .oss-chk { font-size: 12px; margin: 0; display: inline-flex; gap: 4px; align-items: center; }
-#paneOss .oss-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
-#paneOss .oss-chip { background: var(--card-bg, #1f2937); color: inherit; border: 1px solid #475569; border-radius: 12px; padding: 2px 10px; cursor: pointer; font-size: 12px; }
-#paneOss .oss-note { padding: 8px 12px; border-radius: 6px; margin: 10px 0; border: 1px solid #475569; font-size: 13px; }
-#paneOss .oss-note.bad { border-color: #ef4444; }
-#paneOss .oss-note.warn { border-color: #f59e0b; }
-#paneOss .oss-note.ok { border-color: #34d399; }
-#paneOss .oss-steps { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
-#paneOss .oss-step { padding: 4px 12px; border-radius: 12px; border: 1px solid #475569; font-size: 12px; opacity: .6; }
-#paneOss .oss-step.on { opacity: 1; border-color: #60a5fa; }
-#paneOss .oss-step.done { opacity: 1; border-color: #34d399; }
+/* OSS Scanner pane - written for BTS-SBOM; reuses the platform tokens, adds only what the pane needs.
+   Since the scan-entry unification (ADR-0026) the form pieces and the "Previous scans" list live on the
+   Scan landing (#scaRepoPanel), so the component styles are scoped to BOTH the results pane (#paneOss)
+   and the landing. */
+#paneOss .oss-row, #scaRepoPanel .oss-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+#paneOss .oss-chk, #scaRepoPanel .oss-chk { font-size: 12px; margin: 0; display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
+#paneOss .oss-chips, #scaRepoPanel .oss-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+#paneOss .oss-chip, #scaRepoPanel .oss-chip { background: var(--card-bg, #1f2937); color: inherit; border: 1px solid #475569; border-radius: 12px; padding: 2px 10px; cursor: pointer; font-size: 12px; }
+#paneOss .oss-note, #scaRepoPanel .oss-note { padding: 8px 12px; border-radius: 6px; margin: 10px 0; border: 1px solid #475569; font-size: 13px; }
+#paneOss .oss-note.bad, #scaRepoPanel .oss-note.bad { border-color: #ef4444; }
+#paneOss .oss-note.warn, #scaRepoPanel .oss-note.warn { border-color: #f59e0b; }
+#paneOss .oss-note.ok, #scaRepoPanel .oss-note.ok { border-color: #34d399; }
+#paneOss .oss-steps, #scaRepoPanel .oss-steps { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+#paneOss .oss-step, #scaRepoPanel .oss-step { padding: 4px 12px; border-radius: 12px; border: 1px solid #475569; font-size: 12px; opacity: .6; }
+#paneOss .oss-step.on, #scaRepoPanel .oss-step.on { opacity: 1; border-color: #60a5fa; }
+#paneOss .oss-step.done, #scaRepoPanel .oss-step.done { opacity: 1; border-color: #34d399; }
 #paneOss .oss-cards { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
 #paneOss .oss-card { border: 1px solid #475569; border-radius: 8px; padding: 10px 18px; min-width: 110px; text-align: center; }
 #paneOss .oss-card-n { font-size: 24px; font-weight: 700; }
@@ -26,5 +29,5 @@
 #paneOss .oss-tier-Medium { border-color: #f59e0b; }
 #paneOss .oss-tier-Low { border-color: #34d399; }
 #paneOss .oss-lic { font-size: 13px; margin: 3px 0; }
-#paneOss .oss-hrow { padding: 4px 0; border-bottom: 1px solid #334155; font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-#paneOss a.oss-dl { text-decoration: none; display: inline-block; }
+#paneOss .oss-hrow, #scaRepoPanel .oss-hrow { padding: 4px 0; border-bottom: 1px solid #334155; font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#paneOss a.oss-dl, #scaRepoPanel a.oss-dl { text-decoration: none; display: inline-block; }

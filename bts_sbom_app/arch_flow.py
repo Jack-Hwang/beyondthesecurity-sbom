@@ -171,6 +171,34 @@ def modularity_summary(st: Dict[str, Any]) -> Dict[str, Any]:
             "note": "모듈리티는 복합 특성이다 - 한 지표로 정의되지 않는다."}
 
 
+# --------------------------------------------------------------------------- code smells (function level)
+def code_smells(st: Dict[str, Any]) -> Dict[str, Any]:
+    """Function-level smell signals from the Code Intel measurements (complexity outliers, dead code, clones).
+    Understand's metrics/CodeCheck lane, reimplemented deterministically - a signal list, never a verdict."""
+    code = st.get("code") or {}
+    m = code.get("metrics") or {}
+    smells: List[Dict[str, Any]] = []
+    mx = m.get("max_complexity") or {}
+    if isinstance(mx.get("cc"), int) and mx["cc"] >= 9:
+        smells.append({"code": "complexity_outlier", "why": "%s의 인지 복잡도가 %d - 분기 폭탄, 분해 후보" % (mx.get("name"), mx["cc"]),
+                       "measured": {"function": mx.get("name"), "file": mx.get("file"), "cyclomatic": mx["cc"]}})
+    avg = m.get("avg_complexity")
+    if isinstance(avg, (int, float)) and avg >= 6.0 and m.get("functions"):
+        smells.append({"code": "high_avg_complexity", "why": "함수 평균 복잡도 %s - 코드베이스 차원의 과분기 신호" % avg,
+                       "measured": {"avg_complexity": avg, "functions": m.get("functions")}})
+    dead = code.get("dead_code") or []
+    if len(dead) >= 10:
+        names = [d.get("name") for d in dead[:5]]
+        smells.append({"code": "dead_code", "why": "호출부가 없는 함수 %d개 - 제거·부활 판단은 사람이" % len(dead),
+                       "measured": {"dead_count": len(dead), "examples": names}})
+    clones = code.get("clones") or []
+    if clones:
+        smells.append({"code": "duplicate_code", "why": "정규화 토큰이 동일한 함수 묶음 %d그룹 - 한쪽 수정이 다른 쪽을 놓치는 부식 경로" % len(clones),
+                       "measured": {"clone_groups": len(clones), "largest": max(c.get("count", 0) for c in clones)}})
+    return {"count": len(smells), "smells": smells,
+            "note": "Python 함수 레벨 실측(다른 언어는 모듈 레벨만) - 목록이며 판정이 아니다."}
+
+
 def build_insights(st: Dict[str, Any], manifests: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """The whole insight pack over one measured structure (all deterministic)."""
     members: Dict[str, List[str]] = {}
@@ -183,4 +211,5 @@ def build_insights(st: Dict[str, Any], manifests: Optional[Dict[str, Any]] = Non
             "bounded_context_candidates": bounded_context_candidates(st, members),
             "style_hypothesis": style_hypothesis(st, manifests or {}),
             "antipattern_signals": antipattern_signals(st),
-            "modularity": modularity_summary(st)}
+            "modularity": modularity_summary(st),
+            "code_smells": code_smells(st)}

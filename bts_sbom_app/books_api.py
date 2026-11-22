@@ -2,6 +2,11 @@
 ``web/bts_books.js``.
 
 GET  /api/books            -> registry summary (totals + one row per book, each with its explicit status)
+GET  /api/books/notes      -> the distilled notes (knowledge_books/*.md): per note its book, the 핵심 원칙 and
+                              the 이 프로젝트 적용 bullets - the service-upgrade inference output (the books are
+                              read-only raw material, NOT a database to build)
+GET  /api/books/map        -> docs/BOOK_IMPROVEMENT_MAP.md parsed: per area every book technique with its
+                              adoption status (구현/신규 구현/부분/기각, AC cited) and its evidence
 GET  /api/books/<slug>     -> chapter/section outline of one indexed book (headings + sizes, never the full text)
 GET  /api/books/search?q=  -> top-k passages over the serve-time book index (book, source id, snippet, scores)
 POST /api/books/ingest     -> {src: local folder} builds/refreshes the knowledge base as a background job
@@ -90,6 +95,22 @@ def _search(st: Any, q: Dict[str, List[str]]) -> Response:
                 "results": out, "took_ms": round((time.perf_counter() - t0) * 1000, 2)})
 
 
+def _root(st: Any) -> str:
+    """The repository root (knowledge_books/ and docs/ live there); a test double without one gets an honest empty."""
+    return getattr(st, "root", "") or ""
+
+
+def _notes(st: Any) -> Response:
+    """The distilled notes - the inference output the Book KB screen exists for: what each book made our
+    service do (이 프로젝트 적용), not the books themselves (사용자 지정 2026-11-22)."""
+    return _ok(books.read_notes(_root(st)))
+
+
+def _map(st: Any) -> Response:
+    """The improvement map - which book techniques the service actually adopted (구현/신규/부분/기각, AC cited)."""
+    return _ok(books.read_improvement_map(_root(st)))
+
+
 # ------------------------------------------------------------------------------------------------ ingest job
 def _running_ingests(st: Any) -> int:
     return sum(1 for v in getattr(st, "jobs", {}).values() if v.get("kind") == "books" and v.get("state") == "running")
@@ -165,6 +186,10 @@ def route(method: str, path: str, q: Dict[str, List[str]], body: Dict[str, Any],
             return _registry(st)
         if path == "/api/books/search":
             return _search(st, q)
+        if path == "/api/books/notes":
+            return _notes(st)
+        if path == "/api/books/map":
+            return _map(st)
         slug = path[len("/api/books/"):]
         if slug:
             doc = books.outline(_bdir(st), slug)

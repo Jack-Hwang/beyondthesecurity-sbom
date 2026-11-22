@@ -360,10 +360,37 @@
       items.push({ id: 'code_' + i, section: 'Code', label: String(obj(c).path || ('file #' + (i + 1))),
         title: 'Code — ' + String(obj(c).path || i), html: codeView(c), props: codeProps(c) });
     });
+    /* Code Intel: the deterministic function-level lane (call graph, complexity, dead code, clones - Python only).
+       The call graph comes from the same deterministic builder as every other diagram - the model never writes Mermaid. */
+    var codeL = obj(obj(d.structure).code);
+    if (codeL.metrics && codeL.metrics.functions) {
+      var cgm = obj(dg.callgraph);
+      var mx = obj(codeL.metrics.max_complexity);
+      var dead = list(codeL.dead_code);
+      var clones = list(codeL.clones);
+      var ciHtml = heading('Code Intel', 'function-level facts (Python, deterministic)') +
+        kv([['functions', esc(val(codeL.metrics.functions))], ['avg complexity', esc(val(codeL.metrics.avg_complexity))],
+            ['max complexity', esc(mx.name ? mx.name + ' (' + val(mx.file) + ') — cc ' + val(mx.cc) : '—')],
+            ['dead functions', esc(val(codeL.metrics.dead_count))], ['clone groups', esc(val(codeL.metrics.clone_groups))],
+            ['resolved / unknown calls', esc(val(codeL.metrics.resolved_calls)) + ' / ' + esc(val(codeL.metrics.unknown_calls))]]) +
+        (cgm.mermaid ? heading('Call graph', esc(cgm.note || 'measured function-level calls')) +
+          diagramBlock(cgm.mermaid, 'No call graph for this tree.')
+                     : note('No resolved function-level call in this tree - the call resolver is name-based and Python-only.', 'warn')) +
+        (dead.length ? heading('Dead functions (fan-in 0)', esc(dead.length) + ' listed of ' + esc(val(codeL.metrics.dead_count))) +
+          kv(dead.slice(0, 10).map(function (x) { return [val(x.name), val(x.file) + ':' + val(x.line) + ' (' + val(x.sloc) + ' sloc)']; })) : '') +
+        (clones.length ? heading('Clone groups', esc(clones.length) + ' groups of identical normalized bodies') +
+          kv(clones.slice(0, 6).map(function (g) { return [val(g.hash) + ' ×' + val(g.count),
+            list(g.members).map(function (mm) { return val(mm.name) + ' (' + val(mm.file) + ':' + val(mm.line) + ')'; }).join(', ')]; })) : '') +
+        list(codeL.notes).map(function (x) { return note(esc(x), 'warn'); }).join('');
+      items.push({ id: 'code_intel', section: 'Code Intel', label: 'Code Intel', title: 'Code Intel (function level)',
+        html: ciHtml, props: kv([['language', esc(val(codeL.language))], ['functions', esc(val(codeL.metrics.functions))],
+          ['dead', esc(val(codeL.metrics.dead_count))], ['clone groups', esc(val(codeL.metrics.clone_groups))],
+          ['kind', esc('code intel')]]) });
+    }
     return { items: items, meta: meta, licCat: licCat, license: lic, analysis: an };
   }
 
-  var SECTION_ORDER = ['License', 'Overview', 'Insights', 'Diagrams', 'Components', 'Code'];
+  var SECTION_ORDER = ['License', 'Overview', 'Insights', 'Diagrams', 'Components', 'Code', 'Code Intel'];
 
   /* ---------- the shell ---------- */
   function result(doc) {

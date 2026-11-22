@@ -71,6 +71,14 @@
       h += note('<b>[conflict]</b> ' + esc(c.label) + ': ' + esc(c.a.value) + ' (' + esc(c.a.source) + ') vs ' +
                 esc(c.b.value) + ' (' + esc(c.b.source) + ') - the sources disagree; the judgement stays with you.', 'warn');
     });
+    /* diagrams drawn mid-conversation (ADR-0024): Mermaid source stays in a hidden pre; bts_console.js renders
+       it with the vendored mermaid and falls back to showing the source when rendering fails. */
+    (d.diagrams || []).forEach(function (dg) {
+      if (!dg || !dg.mermaid) { return; }
+      h += '<div class="bts-diagram arc-dwrap"><div class="bts-diagram-title">' + esc(dg.name || 'diagram') + '</div>' +
+           '<div class="arc-diagram"></div><pre class="arc-mermaid-src" hidden>' + esc(dg.mermaid) + '</pre>' +
+           (dg.note ? '<div class="bts-diagram-note">' + esc(dg.note) + '</div>' : '') + '</div>';
+    });
     return h;
   }
 

@@ -168,7 +168,7 @@ def test_modularity_summary_computes_cohesion_acyclic_and_candidate_flags():
 
 
 # ------------------------------------------------------------------- AC: BSA-AC-476
-def test_build_insights_returns_the_schema_and_all_five_families_with_notes():
+def test_build_insights_returns_the_schema_and_all_six_families_with_notes():
     """AC: BSA-AC-476"""
     st = {"graph": {"cycles": [["a", "b", "a"]]},
           "clusters": [{"domain": "svc/pay", "cohesion": 0.8, "inbound": 0, "outbound": 1, "modules": 2,
@@ -176,10 +176,10 @@ def test_build_insights_returns_the_schema_and_all_five_families_with_notes():
           "files_all": ["svc/pay/a.py", "svc/pay/b.py"]}
     pack = arch_flow.build_insights(st, {"Dockerfile": True})
     assert set(pack) == {"schema", "flow_blockers", "bounded_context_candidates", "style_hypothesis",
-                         "antipattern_signals", "modularity"}
+                         "antipattern_signals", "modularity", "code_smells"}
     assert pack["schema"] == arch_flow.SCHEMA
     for family in ("flow_blockers", "bounded_context_candidates", "style_hypothesis",
-                   "antipattern_signals", "modularity"):
+                   "antipattern_signals", "modularity", "code_smells"):
         assert pack[family]["note"], family                            # every family stays honest about being a heuristic
     assert pack["flow_blockers"]["count"] == 1
     assert pack["bounded_context_candidates"]["candidates"][0]["files"] == ["svc/pay/a.py", "svc/pay/b.py"]
@@ -196,7 +196,7 @@ def test_prompt_evidence_carries_insights_as_metadata_only():
     pack = arch_flow.build_insights(st, {})
     ev = arch_intel.prompt_evidence("p", lic, st, pack)
     blob = json.dumps(ev["insights"])
-    assert set(ev["insights"]) == {"flow_blockers", "bounded_context_candidates", "style_hypothesis"}
+    assert set(ev["insights"]) == {"flow_blockers", "bounded_context_candidates", "style_hypothesis", "code_smells"}
     assert all(f not in blob for f in st["files_all"])                 # insight file lists never reach the prompt
 
 
