@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import sys
@@ -86,6 +87,8 @@ def build_parser() -> argparse.ArgumentParser:
     _common(p); _patch_args(p)
     a = sub.add_parser("arch", help="legacy architecture analysis")
     a.add_argument("source"); a.add_argument("--ref"); a.add_argument("--depth", type=int, default=200)
+    a.add_argument("--dgml", default=None, help="write the import graph as a Visual Studio Code Map (.dgml)")
+    a.add_argument("--layers", default=None, help="layer rules JSON: deny-by-default may_depend_on allow-lists (see arch_map.rules_example)")
     _common(a)
     b = sub.add_parser("batch", help="analyse many sources")
     b.add_argument("sources_json"); b.add_argument("--tag", default="batch"); b.add_argument("--jobs", type=int, default=1)
@@ -203,7 +206,22 @@ def main(argv: Optional[List[str]] = None) -> int:
             _print(ws, a.json, "ERROR: " + ws["error"])
             return 2
         res = archmod.analyze(ws["path"], online=a.arch_online)
+        edges, _gi = archmod.import_graph(ws["path"], archmod.collect_files(ws["path"], 4000))
+        from . import arch_map
         txt = ["Architecture of %s" % a.source, "files %s, LOC %s" % (res["stack"]["files"], res["stack"]["loc"]), "graph: %s" % kv({k: v for k, v in res["graph"].items() if k in ("import_edges", "cycle_count", "tangle_ratio", "max_depth")})]
+        if a.dgml:
+            xml = arch_map.to_dgml("Architecture of %s" % a.source, sorted({n for e in edges for n in e}), edges)
+            os.makedirs(os.path.dirname(a.dgml) or ".", exist_ok=True)
+            with io.open(a.dgml, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(xml)
+            txt.append("dgml: %s (nodes %d, links %d) - opens in Visual Studio Code Maps" % (
+                a.dgml, len(set(n for e in edges for n in e)), len([1 for x, y in edges if x != y])))
+        if a.layers:
+            rules = json.load(io.open(a.layers, encoding="utf-8"))
+            vr = arch_map.layer_validate(edges, rules)
+            res["layer_validation"] = vr
+            txt.append("layer validation: %s - illegal %d, bypassed %d, unknown-layer edges %d (checked %d)" % (
+                vr["verdict"], len(vr["violations"]), len(vr["bypassed"]), vr["unknown_layer_edges"], vr["checked"]))
         txt += ["hotspot %s score %s" % (h["file"], h["score"]) for h in res["hotspots"][:5]] + ["%s %s: %s" % (m["kind"], m["target"], m["why"]) for m in res["modernization"]]
         _print(res, a.json, "\n".join(txt))
         return 0

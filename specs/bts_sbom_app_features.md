@@ -678,3 +678,46 @@ resources/read 본문 반환, 미지 URI는 isError+known 목록 — "툴=행동
 - BSA-AC-546 [Event] When a follow-up-shaped question arrives (demonstrative start, 그중/이중, bare severity filter, or topic+particle question like "라이선스는?") and the conversation memory holds a previous turn, the router shall see the previous question merged as context and the answer shall carry followup true, while a full standalone question is never rewritten and the memory window stays at 3 turns; the server's shared memory shall carry this across separate HTTP requests (4 of 4 follow-up shapes, 1 of 1 no-rewrite rule).
 - BSA-AC-547 [Event] When a question contains explicit coordination (그리고/및/쉼표/and) or a particle split whose right side opens with a tool intent, ask shall decompose it into up to 4 parts, run the tool router per part, merge results deduplicated by source, and report the parts in decomposed - while "CVE-X와 관련된 프로젝트" stays a single question and single-intent questions pass through unchanged (2 of 2 split rules, 1 of 1 no-split rule).
 - BSA-AC-548 [Event] When tool or retrieval text carries instruction-injection patterns (ignore previous instructions, system prompt, you are now, reveal prompt, system tags) the answer shall carry an injection guard annotation naming the attempt count and sources, and the result shall report attempts - the content stays quarantined by the existing structural defences and is never obeyed or silently dropped (6 of 6 pattern families, 1 of 1 visibility rule).
+
+## Code Intel (bts_sbom_app/code_intel.py, arch.py, arch_flow.py)
+
+### 함수 레벨 코드 이해 레인 (Understand 기능 자체 재구현, ADR-0023, 2026-11-22)
+
+SciTools Understand(REA로 설치러 식별: Qt Installer Framework, ev_555081ae)의 핵심 기능 — 함수 콜그래프·순환
+복잡도·데드코드·중복 코드 검출 — 을 설치·외부 의존 없이 표준 `ast`로 자체 재구현한다(사용자 결정). 커버리지는
+정직하게 Python-first: 다른 언어는 기존 모듈 레벨 분석을 유지하고 그 한계를 notes로 명시한다. 결과는
+`arch.analyze()["code"]`로 기록되고, 콘솔 🔎 Code Intel 판과 Arch Intel의 Code Intel 섹션(결정론 콜그래프
+다이어그램 포함)으로 표시되며, LLM 프롬프트에는 이름·수치 메타데이터만 들어간다(소스 라인 금지 불변식 유지).
+
+- BSA-AC-553 [Event] When Python sources are analysed the system shall build a function inventory with per-function cyclomatic complexity computed from the AST (1 + branches, loops, handlers, boolean alternatives, asserts, match cases, comprehensions), resolve against project-wide function names, and record the measured caps (functions, call edges) with an explicit truncation note in notes when hit (8 of 8 synthetic functions counted correctly, 2 of 2 cap cases).
+- BSA-AC-554 [Event] When a call cannot be resolved the system shall count it as unknown instead of guessing, resolve the rest name-based across the project (cross-file too), and project the result into the view bounded to 15 functions and 40 call edges with an honest None when the lane is empty (2 of 2 projection cases, 2 of 2 bounds).
+- BSA-AC-555 [Event] When a Python function has fan-in 0 the system shall report it as dead code except the explicitly listed exclusions (main/cli/run/setup/teardown, dunders, test_*, decorated functions) and list those rules in notes so the reader can disagree (2 of 2 exclusion classes verified on the synthetic tree).
+- BSA-AC-556 [Event] When two function bodies normalize to the identical token sequence (identifiers and literals collapsed) with at least 24 tokens the system shall report one clone group with its members, and never group tiny getters (1 of 1 synthetic duplicate pair, 0 of 0 false groups on hot).
+- BSA-AC-557 [Event] When the Arch Intel prompt is assembled the code lane shall contribute metadata only (counts, names, per-function max-complexity location) - never a source line - and the deterministic call-graph diagram plus the insights family code_smells (complexity outlier, high average, dead code, duplicates) shall be derived from the same measurements (0 of 0 source lines leaked in the invariant test, 1 of 1 diagram builder, 4 of 4 smell rules).
+
+### VS Code Maps 수용 — DGML 내보내기·레이어 검증 (arch_map)
+
+Visual Studio 모델링 도구(Code Maps, 의존성 다이어그램)의 두 기능을 이미 측정된 import 그래프
+(arch.import_graph, Py/JS/Java/Go/C/Rust/Ruby) 위에 이식한다 (arch_map.py, 결정론·오프라인·LLM 없음).
+(1) DGML 내보내기: 노드/링크를 DirectedGraph 8.0.0 XML(.dgml)로 렌더링해 Visual Studio Code Maps에서
+바로 연다 — 셀프 루프는 지도에서 소음이므로 제외하고 노드 라벨 재정의를 허용한다. CLI: `arch --dgml
+<out.dgml>`. (2) 레이어 검증: 의존성 다이어그램 검증과 동일한 선언 규칙 — fnmatch로 노드→레이어 매핑,
+deny-by-default may_depend_on 허용목록, 위반은 VS의 두 범주(불법 참조 + 선언된 홉 우회)로 보고하고
+미매핑 엣지는 unknown으로 세어 전부 미매핑이면 판정을 inconclusive로 명시한다 (조용한 vacuous pass 금지).
+CLI: `arch --layers <rules.json>` — 결과는 레코드의 layer_validation으로 들어가 아키텍처 답변·화면에
+나타난다. rules_example()이 형식 계약을 문서화한다.
+
+- BSA-AC-558 [Event] When the arch CLI runs with --dgml it shall write a well-formed DirectedGraph DGML document in the VS namespace carrying every distinct node with its optional label overrides and every cross-node link with self-loops dropped, parseable by a standard XML reader (1 of 1 documents, 1 of 1 self-loop rule).
+- BSA-AC-559 [Event] When the arch CLI runs with --layers it shall validate the measured import graph against the deny-by-default may_depend_on rules, reporting violations in the two dependency-diagram categories - illegal references (target layer not allowed for the source, including unknown layers) and bypassed intermediate layers (a direct edge skips an allowed neighbour that itself may reach the target) - counting unmapped edges as unknown, returning verdict fail on any violation, inconclusive when every checked edge is unmapped, pass otherwise, and storing the result as the record's layer_validation (2 of 2 violation categories, 3 of 3 verdict states).
+
+### Code Intel v2 — 클래스 인지·Butterfly·메트릭 export (REA 채굴 어휘 반영, ADR-0023 후속, 2026-11-22)
+
+설치러 문자열 채굴로 Understand의 그래프 어휘(Butterfly·Interaction·Dependencies·Essential 계열·Clone·Compare)와
+`und` CLI를 확인했다. v2는 그 어휘를 우리 측정으로 흡수한다: ① 메서드를 `클래스.메서드` 엔티티로 수집하고
+`self.method`·`Cls.method`·동일 파일 우선순위로 콜 해석을 정밀화(동명 함수가 여러 파일이어도 실제 호출 파일만
+fan-in) ② 함수별 callers/callees 이웃(Butterfly 아날로그)을 /api/code-butterfly로 제공 ③ 함수 메트릭 전수를
+CSV로 내보내는 /api/code-metrics(Understand metrics export 아날로그) ④ nesting depth 메트릭 추가.
+
+- BSA-AC-560 [Event] When Python sources are analysed the system shall collect classes (name, bases, direct methods) and the enclosing class of every function, resolve calls with class context (self.method to the caller's own class, ClassName.method to that class, plain names with the caller's file first), and record a nesting-depth metric per function (2 of 2 self-method resolutions, 1 of 1 same-file precedence case, 1 of 1 class inventory).
+- BSA-AC-561 [Event] When a function's neighbourhood is requested over GET /api/code-butterfly/<project>?function=<name> the system shall return the function with its measured callers and callees, return 404 for an unknown function, 400 for a missing function parameter, and include the top-complexity function's neighbourhood in the view projection (1 of 1 neighbourhood shapes, 2 of 2 error states).
+- BSA-AC-562 [Event] When GET /api/code-metrics/<project> is served it shall return every analysed function as a text/csv attachment with the header name,file,line,complexity,nesting,loc,sloc,fan_in,fan_out, and answer 404 with an honest reason when the project has no function-level analysis (1 of 1 CSV shapes, 1 of 1 honest 404).
