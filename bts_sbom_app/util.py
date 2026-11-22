@@ -89,7 +89,10 @@ def tree_hash(root: str, skip_dirs: Iterable[str] = (".git",)) -> str:
         dns[:] = sorted(d for d in dns if d not in skip)
         for fn in sorted(fns):
             fp = os.path.join(dp, fn)
-            rel = os.path.relpath(fp, root).replace("\\", "/")
+            try:
+                rel = os.path.relpath(fp, root).replace("\\", "/")
+            except ValueError:
+                continue          # Windows reserved-device names (nul/con/...) normalise to a device path
             h.update(rel.encode("utf-8", errors="replace") + b"\0")
             try:
                 with open(fp, "rb") as fh:
