@@ -141,7 +141,8 @@ def license_ok_of(folder: str) -> Tuple[bool, str]:
                     break
             if lic:
                 break
-    risky = any(k in lic.upper() for k in ("GPL", "AGPL"))
+    up = lic.upper()
+    risky = ("AGPL" in up) or ("GPL" in up and "LGPL" not in up)   # LGPL: obligations, but reimplementation is allowed
     return (not risky), (lic or "unknown")
 
 

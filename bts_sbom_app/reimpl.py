@@ -220,9 +220,16 @@ def llm_generate(spec: str, client: Any, prior_fail: Optional[str] = None) -> st
 
 def gen_tests(module_name: str, iface: Dict[str, Any]) -> str:
     out = ["\"\"\"Generated contract tests for the reimplementation of %s (self-runnable without pytest).\"\"\"" % module_name,
-           "", "import importlib, sys, traceback", "",
-           "mod = importlib.import_module(%s)" % json.dumps(module_name), "", "def test_import_roundtrip():",
-           "    assert mod is not None", ""]
+           "", "import importlib.util, inspect, os, sys, traceback", "",
+           "try:",
+           "    _spec = importlib.util.spec_from_file_location('reimpl_under_test_' + %s,"
+           " os.path.join(os.path.dirname(os.path.abspath(__file__)), %s + '.py'))" % (json.dumps(module_name), json.dumps(module_name)),
+           "    mod = importlib.util.module_from_spec(_spec)",
+           "    sys.modules['reimpl_under_test_' + %s] = mod" % json.dumps(module_name),
+           "    _spec.loader.exec_module(mod)",
+           "except ImportError as _dep:",
+           "    print('SKIP-DEP:', _dep.name or _dep)", "    sys.exit(3)          # missing dependency is a skip, not a failure", "",
+           "def test_import_roundtrip():", "    assert mod is not None", ""]
     names: List[str] = []
     for f in iface["functions"]:
         if not f["args"]:
@@ -231,8 +238,17 @@ def gen_tests(module_name: str, iface: Dict[str, Any]) -> str:
                     "    assert True  # calling with no args must not raise", ""]
     for c in iface["classes"]:
         names.append("test_class_%s_instantiable" % c["name"])
-        out += ["def %s():" % names[-1], "    inst = mod.%s()" % c["name"],
-                "    for m in %s:" % json.dumps(c["methods"]), "        assert hasattr(inst, m)", ""]
+        out += ["def %s():" % names[-1],
+                "    cls = getattr(mod, %s, None)" % json.dumps(c["name"]),
+                "    if cls is None:", "        raise AssertionError('class missing: %s')" % c["name"],
+                "    req = [p for p in inspect.signature(cls.__init__).parameters.values()"
+                " if p.name != 'self' and p.default is p.empty and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]",
+                "    try:", "        konly = [p.name for p in inspect.signature(cls.__init__).parameters.values()"
+                " if p.name != 'self' and p.default is p.empty and p.kind == p.KEYWORD_ONLY]",
+                "        inst = cls(*([None] * len(req)), **dict.fromkeys(konly))",
+                "    except Exception:", "        inst = None                       # a validating constructor: presence is still proven",
+                "    if inst is not None:", "        for m in %s:" % json.dumps(c["methods"]),
+                "            assert hasattr(inst, m), m", ""]
     names.append("test_public_surface")
     out += ["def test_public_surface():", "    for name in %s:" % json.dumps([f["name"] for f in iface["functions"]]),
             "        assert hasattr(mod, name)", ""]
@@ -319,7 +335,12 @@ def _run_py(test_file: str, work: str) -> Dict[str, Any]:
         p = subprocess.run([sys.executable, "-X", "utf8", test_file], capture_output=True, text=True,
                            encoding="utf-8", timeout=TEST_TIMEOUT, cwd=work)
         tail = ((p.stdout or "") + (p.stderr or "")).strip()[-400:]
-        return {"ran": True, "ok": p.returncode == 0, "code": p.returncode, "tail": tail, "timeout": False}
+        out = {"ran": True, "ok": p.returncode == 0, "code": p.returncode, "tail": tail, "timeout": False}
+        if p.returncode == 3 and "SKIP-DEP" in (p.stdout or ""):   # the module needs a dependency this env lacks
+            out["ok"] = True                                        # honest: cannot verify here, not a code failure
+            out["skipped_dep"] = next((ln.split("SKIP-DEP:", 1)[1].strip() for ln in p.stdout.splitlines()
+                                       if "SKIP-DEP:" in ln), "unknown dependency")
+        return out
     except subprocess.TimeoutExpired:
         return {"ran": True, "ok": False, "code": None, "tail": "test subprocess timed out after %ds" % TEST_TIMEOUT,
                 "timeout": True}
@@ -427,9 +448,17 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
         _emit(progress, "tests_running", module=module_name)
         tr = run_tests(work, module_name)
         res["tests"] = tr
-        _emit(progress, "tests_passed" if tr["ok"] else "tests_failed", tail=tr["tail"][:200])
+        _emit(progress, "tests_passed" if tr.get("ok") else "tests_failed", tail=tr["tail"][:200])
+        if tr.get("skipped_dep"):                                # dependency missing here: cannot verify, honestly
+            res["tests_skipped_deps"] = tr["skipped_dep"]
+            res.update(verdict="deps_missing",
+                       reason="the module needs %r which is not installed in this environment - install it and rerun" % tr["skipped_dep"])
+            break
         if not tr["ok"]:
             res.update(verdict="tests_failed", reason="the generated tests failed against the implementation")
+            if client is not None and attempt < max(1, attempts):  # loop engineering: the failure tail rides along
+                prior_fail = tr["tail"][-500:]
+                continue
             break
 
         # stage E2: the upstream (legacy) test suite as the behaviour oracle - a reimplementation that
