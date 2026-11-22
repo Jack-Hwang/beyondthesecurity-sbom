@@ -41,10 +41,29 @@ RUNBOOK의 서비스 범위 선언: **"localhost, single-process, no authenticat
 - env: `BTS_OSS_ALLOWED_HOSTS=<app FQDN>`, `BTS_SBOM_LLM_DAILY_BUDGET=80`(기본), `BTS_SBOM_UNICODE=1`.
 - 검증 절차: 배포 → `/healthz`·`/readyz` 200 → Easy Auth 로그인 → 스캔 1건 → SSE 대화 1턴 → 리비전 롤백 리허설.
 
-## 4. 비용 대략 (월, 대략치 — 견적 아님)
+## 4. 비용 (월, 공개 요금 × 수식 — 견적 아님, 2025 공개 단가 기준)
 
-- Container Apps: 소비 플랜 기준 min 1 replica 상시(CPU 0.5·Mem 1Gi) ≈ 3~6만원대 + 로그·대역폭·Files(2Gi ≈ 1천원대).
-- Easy Auth/AAD: 무료(티어 기본). 정확한 청구는 Azure 계산기로 확정할 것 — 이 표는 규모 감각만 제공.
+단가: vCPU-초 $0.000024, GiB-초 $0.0000093, 월 730h(2,628,000초). 무료 공제: 월 vCPU-초 180,000 · GiB-초 360,000.
+LLM 토큰 비용은 별도 과금(Azure OpenAI 리소스 — 우리 사용량 규모로 월 $1~3 수준). Files Standard-LRS 2Gi ≈ $0.4.
+
+| 옵션 | 구성 | 계산 | 월액(USD→원) |
+|---|---|---|---|
+| **A. 상시 1레플리카 (권장)** | 0.5 vCPU / 1Gi | vCPU (1,314,000−180,000)×$0.000024=$27.2 · Mem (2,628,000−360,000)×$0.0000093=$21.1 | **≈ $50 ≈ 6.8만원** |
+| B. 저사양 상시 | 0.25 vCPU / 0.5Gi | vCPU (657,000−180,000)×$0.000024=$11.4 · Mem (1,314,000−360,000)×$0.0000093=$8.9 | ≈ $21 ≈ 2.8만원 |
+| C. 스케일 0 (호출 시 기동) | 0.5/1Gi, 하루 1시간 사용 가정 | 3,600초/일 × $0.0000213/초 × 30일 + Files | ≈ $3 ≈ 4천원 |
+
+- A는 24시간 즉시 응답; B는 절반 가격이나 0.25 vCPU는 스캔 피크(북 인덱스 13초 재구성·다중 도구)에서 스로틀 위험 — 채택 시 실측 필요; C는 콜드스타트 20~40초(컨테이너 부팅+books 인덱스 재구성)를 감수하는 대신 거의 공짜, evidence는 Azure Files에 영속이라 안전.
+- 환율 가정 ₩1,350/$. 대역폭은 이 서비스 규모에서 무시 가능(월 100GB 무료 공제 내), Log Analytics 켜면 +$2~5.
+- Easy Auth/AAD 무료.
+
+## 4.1 LLM 배포 현황 (실측 2026-11-22, az cognitiveservices deployment list)
+
+리소스 `bts-sbom-openai-9f2c`(rg-bts-openai, 구독 "Azure in Open")에는 **gpt-5-mini 1개만 배포됨**
+(version 2025-08-07, GlobalStandard, capacity 10). 앱은 deployment 이름을 설정값으로만 쓰므로 다른 모델
+호출에 코드 변경은 불필요 — 포털에서 배포를 추가한 뒤 `azure_deployment` 값(gitignored 설정 파일 또는
+ACA secret)만 바꾼다. **시연 때만 업로드**하는 운영이라면 스케일 0(옵션 C)이 정답: 상시 과금 없이
+구동 시간만 과금되어 시연 1회당 수백 원 수준(2시간 기준 ≈ $0.25), 종료 후 `az containerapp delete`로
+잔여 과금도 제거한다(Files 2Gi만 유지 시 월 $0.4).
 
 ## 5. 배포 절차
 
