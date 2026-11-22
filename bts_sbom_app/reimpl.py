@@ -159,13 +159,18 @@ def scaffold_code(module_name: str, iface: Dict[str, Any]) -> str:
     return "\n".join(out)
 
 
-def llm_generate(spec: str, client: Any) -> str:
+def llm_generate(spec: str, client: Any, prior_fail: Optional[str] = None) -> str:
     """Wall 2 in code: the prompt is built ONLY from the spec text - the original source is not a parameter
-    of this function, so it structurally cannot leak into the prompt."""
+    of this function, so it structurally cannot leak into the prompt. ``prior_fail`` carries the previous
+    attempt's failing legacy-test output (loop engineering): the retry fixes THAT behaviour, not a paraphrase."""
+    system = ("You are the implementation team inside a clean-room process. Below is a SPEC only. Write a NEW "
+              "implementation that satisfies it. Return JSON {\"code\": string} where code is a complete Python "
+              "module. Original code was never shown to you and must not be guessed at or quoted.")
+    if prior_fail:
+        system += (" IMPORTANT: your previous implementation failed the legacy acceptance suite. The failures "
+                   "were:\n%s\n\nFix exactly those behaviours while keeping the rest of the contract." % prior_fail[:800])
     raw = client.complete(
-        "You are the implementation team inside a clean-room process. Below is a SPEC only. Write a NEW "
-        "implementation that satisfies it. Return JSON {\"code\": string} where code is a complete Python "
-        "module. Original code was never shown to you and must not be guessed at or quoted.\n\n" + spec,
+        system + "\n\nRespond with ONLY valid JSON, no prose, no code fences.",
         "SPEC:\n" + spec, max_tokens=4096, json_mode=True)
     from . import ai
     obj = ai._parse_json(raw)
@@ -210,6 +215,71 @@ def run_tests(work: str, module_name: str) -> Dict[str, Any]:
     arguments would resolve against the wrong root."""
     work = os.path.abspath(work)
     test_file = os.path.abspath(os.path.join(work, "test_%s.py" % module_name))
+    return _run_py(test_file, work)
+
+
+# The legacy-suite compatibility shim, verbatim: old suites (2008-era) crash on Python 3.11+ unittest
+# (functools.partial test callables have no __name__) and often ignore their own failure count. The shim
+# neutralises addDuration and turns the runner's result into an exit code - so a legacy oracle can grade a
+# fresh implementation on this runtime.
+LEGACY_SHIM = (
+    "import functools, unittest, runpy, sys\n"
+    "class Partial(functools.partial):\n"                       # 2008-era suites build tests from partials,
+    "    __name__ = 'legacy_partial_test'\n"                    # which Python 3.11+ unittest cannot stringify
+    "functools.partial = Partial\n"                             # one patch neutralises every str(test) surface
+    "unittest.result.TestResult.addDuration = lambda self, test, elapsed: None\n"
+    "unittest.case.TestCase.addDuration = lambda self, elapsed: None\n"
+    "if hasattr(unittest, 'runner'):\n"
+    "    unittest.runner.TextTestRunner.getDescription = lambda self, test: (\n"
+    "        test.shortDescription() or test.id())\n"
+    "_orig = unittest.TextTestRunner.run\n"
+    "def _run(self, suite):\n"
+    "    r = _orig(self, suite)\n"
+    "    if not r.wasSuccessful():\n"
+    "        sys.exit(1)\n"
+    "unittest.TextTestRunner.run = _run\n"
+    "runpy.run_path(sys.argv[1], run_name='__main__')\n"
+)
+
+
+def discover_adopted_tests(source_root: str) -> Dict[str, List[str]]:
+    """Upstream test files (test_*.py / *_test.py) plus their data fixtures (.json/.txt/.xml/.csv/.yaml in
+    the same folder) - the legacy behaviour oracle a reimplementation must satisfy. Absolute paths."""
+    tests: List[str] = []
+    data: List[str] = []
+    for fn in sorted(os.listdir(source_root)):
+        fp = os.path.join(source_root, fn)
+        if not os.path.isfile(fp):
+            continue
+        low = fn.lower()
+        if low.startswith("test_") or low.endswith("_test.py"):
+            tests.append(fp)
+        elif low.endswith((".json", ".txt", ".xml", ".csv", ".yaml", ".yml")):
+            data.append(fp)
+    return {"tests": tests, "data": data}
+
+
+def run_adopted_tests(work: str, adopted: Dict[str, List[str]]) -> Dict[str, Any]:
+    """Run the upstream (legacy) test suite inside the work folder under the compatibility shim. The
+    shim's exit code is the verdict: legacy runners often print results without exiting non-zero."""
+    work = os.path.abspath(work)
+    for src in adopted.get("tests", []) + adopted.get("data", []):
+        shutil.copyfile(src, os.path.join(work, os.path.basename(src)))
+    tails: List[str] = []
+    all_ok = True
+    for src in adopted.get("tests", []):
+        p = subprocess.run([sys.executable, "-X", "utf8", "-c", LEGACY_SHIM, os.path.basename(src)],
+                           capture_output=True, text=True, encoding="utf-8", timeout=TEST_TIMEOUT, cwd=work)
+        tail = ((p.stdout or "") + (p.stderr or "")).strip()[-300:]
+        tails.append("%s -> %s" % (os.path.basename(src), "OK" if p.returncode == 0 else "FAILED"))
+        tails.append(tail)
+        if p.returncode != 0:
+            all_ok = False
+    return {"ran": True, "ok": all_ok, "files": [os.path.basename(x) for x in adopted.get("tests", [])],
+            "tail": "\n".join(tails)[-500:]}
+
+
+def _run_py(test_file: str, work: str) -> Dict[str, Any]:
     try:
         p = subprocess.run([sys.executable, "-X", "utf8", test_file], capture_output=True, text=True,
                            encoding="utf-8", timeout=TEST_TIMEOUT, cwd=work)
@@ -273,51 +343,82 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
     _emit(progress, "spec_ready", spec=spec_path)
     _emit(progress, "diagram_ready", dgml=dgml_path)
 
-    # stage C: generation behind wall 2 (LLM when available, deterministic scaffold otherwise)
-    code, generated_by = "", "scaffold"
-    if client is not None:
-        try:
-            code = llm_generate(spec, client)
-            generated_by = "llm"
-        except Exception as exc:                                   # noqa: BLE001 - degrade honestly to the scaffold
-            res["llm_error"] = str(exc)[:160]
-    if generated_by == "scaffold":
-        code = scaffold_code(module_name, iface)
-    code_path = os.path.join(out_dir, "%s.py" % module_name)
-    io_wrap(code_path, code)
-    res["generated_by"] = generated_by
-    res["artifacts"]["code"] = code_path
-    _emit(progress, "code_ready", by=generated_by, path=code_path)
-
-    # stage D: the measured clean-room gate
-    overlap = shingle_overlap(code, original_src)
-    lic = license_strings_in(code)
-    gate = {"overlap": overlap, "threshold": copy_threshold, "license_strings": lic,
-            "passed": overlap <= copy_threshold and not lic}
-    res["copy_gate"] = gate
-    _emit(progress, "copy_gate", overlap=overlap, passed=gate["passed"])
-    if not gate["passed"]:
-        res.update(verdict="rejected", reason="copy gate failed: shingle overlap %.3f > %.3f%s" % (
-            overlap, copy_threshold, " and/or license strings present" if lic else ""))
-        _emit(progress, "copy_gate_failed", overlap=overlap)
-        return res
-
-    # stage E: generated contract tests in an isolated work folder
+    # stages C..E2 in a loop-engineering cycle (max 2 attempts): generate -> clean-room gate -> contract
+    # tests -> the upstream legacy suite as the behaviour oracle; a compatibility failure regenerates ONCE
+    # with the failing output attached (the nl2sql precedent). Scaffold mode has nothing to retry from -
+    # it exits honestly after its single pass.
     work = os.path.join(out_dir, "work")
     os.makedirs(work, exist_ok=True)
-    shutil.copyfile(code_path, os.path.join(work, "%s.py" % module_name))
     tests = gen_tests(module_name, iface)
-    io_wrap(os.path.join(work, "test_%s.py" % module_name), tests)
-    _emit(progress, "tests_running", module=module_name)
-    tr = run_tests(work, module_name)
-    res["tests"] = tr
-    _emit(progress, "tests_passed" if tr["ok"] else "tests_failed", tail=tr["tail"][:200])
-    if not tr["ok"]:
-        res.update(verdict="tests_failed", reason="the generated tests failed against the implementation")
-        return res
+    verdict = None
+    prior_fail = None
+    attempt = 0
+    while True:
+        attempt += 1
+        code, generated_by = "", "scaffold"
+        if client is not None:
+            try:
+                code = llm_generate(spec, client, prior_fail=prior_fail)
+                generated_by = "llm"
+            except Exception as exc:                               # noqa: BLE001 - degrade honestly to the scaffold
+                res["llm_error"] = str(exc)[:160]
+        if generated_by == "scaffold":
+            code = scaffold_code(module_name, iface)
+        code_path = os.path.join(out_dir, "%s.py" % module_name)
+        io_wrap(code_path, code)
+        res["generated_by"] = generated_by
+        res["attempts"] = attempt
+        res["artifacts"]["code"] = code_path
+        _emit(progress, "code_ready", by=generated_by, path=code_path, attempt=attempt)
 
-    # stage F: publish (folder copy; the analysed source is never overwritten without an explicit flag)
-    if publish_dest:
+        # stage D: the measured clean-room gate
+        overlap = shingle_overlap(code, original_src)
+        lic = license_strings_in(code)
+        gate = {"overlap": overlap, "threshold": copy_threshold, "license_strings": lic,
+                "passed": overlap <= copy_threshold and not lic}
+        res["copy_gate"] = gate
+        _emit(progress, "copy_gate", overlap=overlap, passed=gate["passed"])
+        if not gate["passed"]:
+            res.update(verdict="rejected", reason="copy gate failed: shingle overlap %.3f > %.3f%s" % (
+                overlap, copy_threshold, " and/or license strings present" if lic else ""))
+            _emit(progress, "copy_gate_failed", overlap=overlap)
+            break
+
+        # stage E: generated contract tests in an isolated work folder
+        shutil.copyfile(code_path, os.path.join(work, "%s.py" % module_name))
+        io_wrap(os.path.join(work, "test_%s.py" % module_name), tests)
+        _emit(progress, "tests_running", module=module_name)
+        tr = run_tests(work, module_name)
+        res["tests"] = tr
+        _emit(progress, "tests_passed" if tr["ok"] else "tests_failed", tail=tr["tail"][:200])
+        if not tr["ok"]:
+            res.update(verdict="tests_failed", reason="the generated tests failed against the implementation")
+            break
+
+        # stage E2: the upstream (legacy) test suite as the behaviour oracle - a reimplementation that
+        # passes its own contracts but fails the 2008 suite is NOT compatible. Under the legacy shim.
+        adopted = discover_adopted_tests(source_root)
+        if adopted.get("tests"):
+            res["adopted_tests"] = {"files": [os.path.basename(x) for x in adopted["tests"]]}
+            _emit(progress, "adopted_tests_running", files=len(adopted["tests"]))
+            atr = run_adopted_tests(work, adopted)
+            res["adopted_tests"].update(ok=atr["ok"], tail=atr["tail"])
+            _emit(progress, "adopted_tests_passed" if atr["ok"] else "adopted_tests_failed", tail=atr["tail"][:200])
+            if atr["ok"]:
+                verdict = "ok"
+                break
+            if generated_by == "scaffold" or attempt >= 2:
+                res.update(verdict="compatibility_failed",
+                           reason="the upstream legacy test suite failed - the reimplementation is not behaviour-compatible yet")
+                break
+            prior_fail = atr["tail"][-800:]                        # loop engineering: the failures ride along
+            _emit(progress, "regenerating", reason="compatibility failure - one retry with the failures attached")
+            continue
+        verdict = "ok"
+        break
+    # stage F: publish only a fully passing lane (folder copy; the analysed source is never overwritten
+    # without an explicit flag)
+    if verdict == chr(111) + chr(107) and publish_dest:
         dest = os.path.abspath(publish_dest)
         if os.path.abspath(source_root) == dest and not allow_inplace:
             res.update(verdict="publish_refused", reason="inplace publish needs allow_inplace=True")
@@ -328,7 +429,8 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
         shutil.copyfile(os.path.join(work, "test_%s.py" % module_name), os.path.join(dest, "test_%s.py" % module_name))
         res["published_to"] = dest
         _emit(progress, "published", dest=dest)
-    res["verdict"] = "ok"
+    if not res.get("verdict"):                                  # a loop break already set an honest verdict
+        res["verdict"] = "ok"
     res["honesty"] = HONESTY
     return res
 
