@@ -72,6 +72,21 @@
   "project": "django-nV"
  },
  {
+  "feature": "DB 생태계별 집계",
+  "tool": "nl2sql",
+  "q": "OSV 데이터베이스에서 생태계별 취약점 수 알려줘"
+ },
+ {
+  "feature": "DB 총 개수",
+  "tool": "nl2sql",
+  "q": "데이터베이스에 취약점이 총 몇 개야?"
+ },
+ {
+  "feature": "DB 패키지 취약점",
+  "tool": "nl2sql",
+  "q": "OSV DB에서 requests 패키지의 취약점 목록 보여줘"
+ },
+ {
   "feature": "SBOM 규합",
   "tool": "sbom_conformance",
   "q": "SBOM conformance 검사 결과 보여줘",
@@ -86,7 +101,7 @@
  {
   "feature": "업그레이드 시뮬레이션",
   "tool": "what_if_upgrade",
-  "q": "django를 5.2.17로 업그레이드하면 어때?",
+  "q": "django를 5.2.17로 업그레이드하면 어때? 시뮬레이션 결과 보여줘",
   "project": "django-nV"
  },
  {

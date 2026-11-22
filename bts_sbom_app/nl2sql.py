@@ -104,11 +104,11 @@ CATALOG: Dict[str, Any] = {
             "ecosystem": "생태계 (PyPI, npm, ...)", "vuln_id": "OSV/CVE 식별자",
             "vuln_json": "OSV 원문 JSON - 요약은 json_extract(vuln_json,'$.summary')"}},
         "pkg_map": {"desc": "패키지-취약점 연결(1행 = 패키지 1개가 걸린 권고문 1건)", "columns": {
-            "ecosystem": "생태계", "name": "패키지 이름(소문자)", "vuln_id": "권고문 식별자"}},
+            "ecosystem": "생태계", "package_name": "패키지 이름(소문자)", "vuln_id": "권고문 식별자"}},
     },
     "metrics": {
         "취약점 수": "SELECT COUNT(*) FROM vulns - 중복 없이 권고문 건수",
-        "패키지별 취약점": "pkg_map 를 name 으로 GROUP BY - 건수는 걸린 권고문 수",
+        "패키지별 취약점": "pkg_map 를 package_name 으로 GROUP BY - 건수는 걸린 권고문 수",
     },
 }
 
@@ -129,13 +129,13 @@ def route(question: str) -> Optional[str]:
     if re.search(r"생태계", q) and re.search(r"목록|리스트|종류|어떤|무슨", q):
         return "SELECT DISTINCT ecosystem FROM vulns ORDER BY ecosystem"
     if re.search(r"패키지별", q):
-        return "SELECT name, COUNT(*) AS cnt FROM pkg_map GROUP BY name ORDER BY cnt DESC, name LIMIT 20"
+        return "SELECT name, COUNT(*) AS cnt FROM pkg_map GROUP BY package_name ORDER BY cnt DESC, name LIMIT 20"
     pkg = re.search(r"([A-Za-z][A-Za-z0-9_.-]{1,40})\s*(패키지|라이브러리|모듈)?의?\s*(취약점|권고문)\s*(목록|리스트)?", q)
     if pkg and pkg.group(1).lower() not in ("취약점", "보안", "이", "그"):
         name = pkg.group(1).lower()
-        return ("SELECT p.name, p.vuln_id, json_extract(v.vuln_json,'$.summary') AS summary FROM pkg_map p "
+        return ("SELECT p.package_name, p.vuln_id, json_extract(v.vuln_json,'$.summary') AS summary FROM pkg_map p "
                 "JOIN vulns v ON v.ecosystem = p.ecosystem AND v.vuln_id = p.vuln_id "
-                "WHERE p.name = '%s' ORDER BY p.vuln_id LIMIT 20" % name.replace("'", "''"))
+                "WHERE p.package_name = '%s' ORDER BY p.vuln_id LIMIT 20" % name.replace("'", "''"))
     if re.search(r"(취약점|보안|권고문).*?(요약|설명)", q):
         return "SELECT vuln_id, json_extract(vuln_json,'$.summary') AS summary FROM vulns ORDER BY vuln_id LIMIT 20"
     if re.search(r"(전체|총|몇\s*개|수)", q) and re.search(r"취약", q):
@@ -248,8 +248,8 @@ def _default_golden() -> List[Dict[str, str]]:
         ("취약점이 총 몇 개나 돼?", "SELECT COUNT(*) AS vuln_count FROM vulns"),
         ("생태계별 취약점 수를 보여줘", "SELECT ecosystem, COUNT(*) AS cnt FROM vulns GROUP BY ecosystem ORDER BY cnt DESC, ecosystem"),
         ("생태계별로 몇 건씩 있어?", "SELECT ecosystem, COUNT(*) AS cnt FROM vulns GROUP BY ecosystem ORDER BY cnt DESC, ecosystem"),
-        ("패키지별 취약점 건수는?", "SELECT name, COUNT(*) AS cnt FROM pkg_map GROUP BY name ORDER BY cnt DESC, name LIMIT 20"),
-        ("패키지별로 취약점이 몇 건이야?", "SELECT name, COUNT(*) AS cnt FROM pkg_map GROUP BY name ORDER BY cnt DESC, name LIMIT 20"),
+        ("패키지별 취약점 건수는?", "SELECT name, COUNT(*) AS cnt FROM pkg_map GROUP BY package_name ORDER BY cnt DESC, name LIMIT 20"),
+        ("패키지별로 취약점이 몇 건이야?", "SELECT name, COUNT(*) AS cnt FROM pkg_map GROUP BY package_name ORDER BY cnt DESC, name LIMIT 20"),
         ("생태계 목록을 알려줘", "SELECT DISTINCT ecosystem FROM vulns ORDER BY ecosystem"),
         ("이 DB에 어떤 생태계가 있어?", "SELECT DISTINCT ecosystem FROM vulns ORDER BY ecosystem"),
         ("등록된 생태계 종류는?", "SELECT DISTINCT ecosystem FROM vulns ORDER BY ecosystem"),
@@ -257,9 +257,9 @@ def _default_golden() -> List[Dict[str, str]]:
         g.append({"question": q, "reference_sql": s})
     for pkg in ("requests", "leftpad", "flask", "lodash"):
         g.append({"question": "%s 패키지의 취약점 목록을 보여줘" % pkg,
-                  "reference_sql": ("SELECT p.name, p.vuln_id, json_extract(v.vuln_json,'$.summary') AS summary "
+                  "reference_sql": ("SELECT p.package_name, p.vuln_id, json_extract(v.vuln_json,'$.summary') AS summary "
                                     "FROM pkg_map p JOIN vulns v ON v.ecosystem = p.ecosystem AND v.vuln_id = p.vuln_id "
-                                    "WHERE p.name = '%s' ORDER BY p.vuln_id LIMIT 20" % pkg)})
+                                    "WHERE p.package_name = '%s' ORDER BY p.vuln_id LIMIT 20" % pkg)})
     for vid in ("CVE-2018-18074", "GHSA-x84v-xcm2-53pg", "CVE-2021-1", "GHSA-aaaa-bbbb-cccc"):
         g.append({"question": "%s 취약점이 뭐야?" % vid,
                   "reference_sql": ("SELECT vuln_id, json_extract(vuln_json,'$.summary') AS summary FROM vulns "
@@ -272,9 +272,9 @@ def _default_golden() -> List[Dict[str, str]]:
         g.append({"question": q, "reference_sql": s})
     for pkg in ("mocha", "express", "django", "numpy", "urllib3"):
         g.append({"question": "%s 패키지의 취약점 목록을 보여줘" % pkg,
-                  "reference_sql": ("SELECT p.name, p.vuln_id, json_extract(v.vuln_json,'$.summary') AS summary "
+                  "reference_sql": ("SELECT p.package_name, p.vuln_id, json_extract(v.vuln_json,'$.summary') AS summary "
                                     "FROM pkg_map p JOIN vulns v ON v.ecosystem = p.ecosystem AND v.vuln_id = p.vuln_id "
-                                    "WHERE p.name = '%s' ORDER BY p.vuln_id LIMIT 20" % pkg)})
+                                    "WHERE p.package_name = '%s' ORDER BY p.vuln_id LIMIT 20" % pkg)})
     for vid in ("CVE-2019-1234", "GHSA-pqrs-tuvw-xyz"):
         g.append({"question": "%s 취약점이 뭐야?" % vid,
                   "reference_sql": ("SELECT vuln_id, json_extract(vuln_json,'$.summary') AS summary FROM vulns "

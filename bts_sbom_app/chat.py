@@ -409,6 +409,8 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
                      "doc": "draw a diagram of this project from measured data (the EA-17.2 style catalog; kind=catalog lists every kind). Returns Mermaid the UI renders"},
     "decide": {"args": {"facts": "optional: comma-separated k=v facts overriding the measured ones, e.g. severity=critical,license_category=copyleft,distribution=binary"},
                "doc": "run the built-in decision table (DMN-style inference) over the project's measured facts: which rule fires, what action, and the trace"},
+    "nl2sql": {"args": {"q": "natural-language question over the local OSV database (e.g. 생태계별 취약점 수 / django의 취약점 목록 / 전체 취약점 개수)"},
+               "doc": "ask the local OSV database in natural language - read-only SELECT, capped rows, 4-state result"},
     "book_search": {"args": {"q": "topic, book title or question to look up in the local architecture-book library"},
                     "doc": "search the ingested architecture-book knowledge base (PDF/EPUB books on this machine): matching passages, each attributed to its book and section"},
     "sbom_conformance": {"args": {"regime": "optional: " + "|".join(sorted(conformance.REGIMES))},
@@ -432,7 +434,7 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "confirm_decision": {"args": {"code": "the 12-hex confirm code exactly as the user typed it"}, "doc": "record the previewed VEX decision whose code the user typed"},
 }
 WRITE_TOOLS = ("analyze_project", "apply_patch", "confirm_decision")
-NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision", "latest_arch", "book_search",
+NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision", "latest_arch", "book_search", "nl2sql",
                     "draw_diagram", "decide")                   # these can run before any project is loaded
 FLEET_TOOLS = ("affected_projects",)
 MAX_CALLS = 4
@@ -598,7 +600,7 @@ def _diagram_kind(q: str) -> str:
             return kind
     from . import diagrams as diagramsmod                        # an exact catalog id typed by the model wins too
     for k in diagramsmod.CATALOG:
-        if re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(k), low):
+        if re.search(r"(?<![A-Za-z0-9_-])%s(?![A-Za-z0-9_-])" % re.escape(k), low):
             return k
     if _ARROW_CHAIN.search(q):
         return "custom"
@@ -613,7 +615,7 @@ def _arrow_spec(q: str) -> str:
 
 def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], projects: Optional[Dict[str, Dict[str, Any]]] = None,
              actions: Any = None, triage_store: Optional[Dict[str, Any]] = None,
-             arch_dir: Optional[str] = None, books: Any = None) -> List[Dict[str, Any]]:
+             arch_dir: Optional[str] = None, books: Any = None, client: Any = None, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """Execute one validated tool call -> result passages ({tool, source, lines, trust}). ``actions`` None = a read-only session."""
     if tool == "analyze_project":
         src = str(args["source"])
@@ -682,6 +684,21 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
         return [out]
     if tool == "book_search":                                        # reads the ingested book library; no analysed project needed
         return [_plain(tool, "books:search", _book_search_lines(books, str(args.get("q") or "")), trust="book")]
+    if tool == "nl2sql":                                             # asks the local OSV database; 4-state honest result
+        from . import nl2sql as nl2sql_mod
+        if not db_path or not os.path.exists(db_path):
+            return [_plain(tool, "db:access", ["The local OSV database is not present on this machine - "
+                                               "build it first (bts_sbom osvscanner) and check BTS_SBOM_OSV_DB_PATH."], trust="tool")]
+        res = nl2sql_mod.answer(str(args.get("q") or ""), db_path=db_path, client=client)
+        lines = ["status: %s%s" % (res.get("status"), " (truncated)" if res.get("truncated") else ""),
+                 "sql: %s" % (res.get("sql") or "-")]
+        for row in (res.get("rows") or [])[:12]:
+            lines.append("row: " + " | ".join(str(v) for v in (row if isinstance(row, (list, tuple)) else [row])))
+        if res.get("error"):
+            lines.append("error: %s" % json.dumps(res["error"], ensure_ascii=False))
+        if res.get("clarification_needed"):
+            lines.append("clarification needed: %s" % res["clarification_needed"])
+        return [_plain(tool, "db:nl2sql", lines, trust="tool")]
     assert rec is not None, "tool %s needs a project" % tool
     if tool == "license_risks":
         return [_result(rec, tool, _license_risks(rec, args.get("distribution")), suffix=":" + (args.get("distribution") or "binary"))]
@@ -876,14 +893,16 @@ def parse_decision(q: str) -> Optional[Dict[str, str]]:
 class Chatbot:
     def __init__(self, index: rag.Index, projects: Optional[Dict[str, Dict[str, Any]]] = None, client: Optional[ChatClient] = None,
                  actions: Any = None, triage_store: Optional[Dict[str, Any]] = None, arch_dir: Optional[str] = None,
-                 books: Any = None, memory: Optional[Any] = None):
+                 books: Any = None, memory: Optional[Any] = None, db_path: Optional[str] = None):
         self.index = index
         self.projects = projects or {}
         self.client = client
+        self.db_path = db_path                        # the local OSV database path, for the nl2sql tool
         self.actions = actions                        # None = read-only session (nothing is analysed, patched or recorded)
         self.triage_store = triage_store              # the recorded VEX decisions, for the read-only OpenVEX view
         self.arch_dir = arch_dir                      # the archintel evidence folder, for the latest_arch tool
-        self.books = books                            # the serve-time book index (rag.Index, kind="books"), for book_search
+        self.books = books
+        self.db_path = db_path                        # the local OSV database path, for the nl2sql tool                            # the serve-time book index (rag.Index, kind="books"), for book_search
         self.memory = memory                          # conversation memory (conversation.ConversationMemory), shared by the server's State
 
     def _no_client_note(self, use_llm: bool) -> str:
@@ -909,7 +928,7 @@ class Chatbot:
         ids = list(dict.fromkeys(i.upper() for i in _ID.findall(q)))
         for i in ids:
             calls.append(("vuln_lookup", {"id": i}))
-        names = [c["name"] for c in rec.get("components") or [] if len(c["name"]) >= 3 and re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(c["name"].lower()), low)]
+        names = [c["name"] for c in rec.get("components") or [] if len(c["name"]) >= 3 and re.search(r"(?<![A-Za-z0-9_-])%s(?![A-Za-z0-9_-])" % re.escape(c["name"].lower()), low)]
         for n in list(dict.fromkeys(names))[:2]:
             calls.append(("component_lookup", {"name": n}))
         if re.search(r"취약|vulnerab|cve|critical|심각|위험", low) and not ids:
@@ -917,12 +936,20 @@ class Chatbot:
             calls.append(("top_vulns", {}))
         if re.search(r"라이선스|license|copyleft|gpl|spdx", low):
             calls.append(("license", {}))
+        what_if = next((n for n in names if re.search(r"(어때|어떨까|시뮬레이션|영향|hypothetical)", low)
+                        and re.search(re.escape(n.lower()) + r"[^\d]{0,20}\d+(\.\d+){1,3}", low)), None)
+        if what_if:
+            ver = re.search(re.escape(what_if.lower()) + r"[^\d]{0,20}(\d+(\.\d+){1,3})", low)
+            if ver:
+                calls.append(("what_if_upgrade", {"component": what_if, "version": ver.group(1)}))
         if re.search(r"패치|수정|업그레이드|patch|fix|upgrade|remediat", low):
             calls.append(("patch", {}))
         if re.search(r"아키텍처|레거시|순환|핫스팟|architecture|legacy|cycle|hotspot|현대화|런타임|eol", low):
             calls.append(("architecture", {}))
         if re.search(r"(?<!해결)(?<!대책)(?<!방책)책|서적|도서|\bbooks?\b", low):   # the ingested book library (no project needed)
             calls.append(("book_search", {"q": q[:300]}))
+        if re.search(r"\bsql\b|쿼리|데이터베이스|osv ?(데이터|db)|\bdb\b", low) and not ids:
+            calls.append(("nl2sql", {"q": q[:300]}))
         ind = next((k for k, ws in _INDUSTRY.items() if any(w in low for w in ws)), None)
         if ind or re.search(r"규제|sector|산업|compliance|준수", low):
             calls.append(("sector", {"industry": ind} if ind else {}))
@@ -982,7 +1009,7 @@ class Chatbot:
             calls.append(("confirm_decision", {"code": m12.group(1)}))
         if rec is None:
             return calls
-        pcomps = [p["component"] for p in actionsmod.plan_selection(rec) if re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(p["component"].lower()), low)]
+        pcomps = [p["component"] for p in actionsmod.plan_selection(rec) if re.search(r"(?<![A-Za-z0-9_-])%s(?![A-Za-z0-9_-])" % re.escape(p["component"].lower()), low)]
         carg = {"components": ",".join(dict.fromkeys(pcomps))} if pcomps else {}
         m16 = re.search(r"\b([0-9a-f]{16})\b", low)
         if m16 and _APPROVE.search(low):
@@ -1004,7 +1031,7 @@ class Chatbot:
     def _run(self, rec: Optional[Dict[str, Any]], calls: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
         for c in calls:
-            for p in run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store, self.arch_dir, self.books):
+            for p in run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store, self.arch_dir, self.books, self.client, self.db_path):
                 new = p.pop("record", None)
                 if new is not None:                         # an analysis just produced a project: the calls after it talk about that one
                     self.projects[new["name"]] = new
@@ -1020,6 +1047,12 @@ class Chatbot:
             return self._run(None, pre + [{"tool": "latest_arch", "args": {}}])
         if re.search(r"(?<!해결)(?<!대책)(?<!방책)책|서적|도서|\bbooks?\b", low):   # the book library likewise (해결책 is not a book)
             return self._run(None, pre + [{"tool": "book_search", "args": {"q": q[:300]}}])
+        if re.search(r"\bsql\b|쿼리|데이터베이스|osv ?(데이터|db)|\bdb\b", low):
+            return self._run(None, pre + [{"tool": "nl2sql", "args": {"q": q[:300]}}])
+        if re.search(r"\bsql\b|쿼리|데이터베이스|osv ?(데이터|db)|\bdb\b", low):
+            return self._run(None, pre + [{"tool": "nl2sql", "args": {"q": q[:300]}}])
+        if re.search(r"\bsql\b|쿼리|데이터베이스|osv ?(데이터|db)|\bdb\b", low):
+            return self._run(None, pre + [{"tool": "nl2sql", "args": {"q": q[:300]}}])
         diag = self._valid(self._diagram_calls(q), None, q)          # 다이어그램/추론: 프로젝트 없이도 catalog·custom·decide는 답한다
         if diag:
             return self._run(None, pre + diag)
@@ -1027,7 +1060,7 @@ class Chatbot:
             return self._run(None, pre)
         calls = pre + [{"tool": "affected_projects", "args": {"id": i}} for i in dict.fromkeys(i.upper() for i in _ID.findall(q))]
         names = sorted({fleet.canon_name(c["name"]): c["name"] for p in self.projects.values() for c in p.get("components") or []      # one entry per canonical name
-                        if len(c["name"]) >= 3 and re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(c["name"].lower()), low)}.values())
+                        if len(c["name"]) >= 3 and re.search(r"(?<![A-Za-z0-9_-])%s(?![A-Za-z0-9_-])" % re.escape(c["name"].lower()), low)}.values())
         ver = re.search(r"(?<![\w.])(\d+(?:\.\d+){1,3})(?![\w.])", q)
         for n in names[:2]:
             calls.append({"tool": "affected_projects", "args": dict({"component": n}, **({"version": ver.group(1)} if ver and len(names) == 1 else {}))})
@@ -1092,6 +1125,9 @@ class Chatbot:
                     routing_note = "LLM tool planning unavailable -> regex router: " + str(exc)[:160]
             if results is None:
                 results = self._tools(question, rec) if len(parts) == 1 else conversation.merge_tool_results(parts, lambda part: self._tools(part, rec))
+            else:                                            # llm plan ran: still union the deterministic diagram/decide keywords -
+                have = {t["tool"] for t in results}          # a "그려줘/다이어그램" question must always draw even when the planner mis-selected (measured 2026-11-23: plan said ['decide'] only)
+                results += [t for t in self._valid(self._diagram_calls(question), rec, question) if t["tool"] not in have]
             for t in results:
                 tools_used.append(t["tool"])
                 diagrams.extend(t.get("diagrams") or [])

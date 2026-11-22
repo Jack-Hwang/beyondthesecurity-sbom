@@ -16,7 +16,7 @@
 
   var GROUPS = {
     'git': ['git', 'oss', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
-    'graph-health': ['dep-graph', 'arch', 'code', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
+    'graph-health': ['dep-graph', 'arch', 'code', 'db', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
     'fix': ['fix-plan', 'fix-pr'], 'report': ['report'], 'archintel': ['archintel'], 'diagrams': ['diagrams'],
     'books': ['books'], 'more': ['more', 'fleet']
   };
@@ -34,7 +34,7 @@
     'git': '🌐 Scan', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Findings', 'changes': '🔔 What changed',
     'prioritize': '🎯 Prioritize', 'graph-health': '🕸 Graph & Health', 'compliance': '✅ Compliance', 'fix': '🔧 Fix',
     'ssvc': '🎯 SSVC', 'epss': '📡 EPSS', 'exploit-mat': '🔥 Exploit Mat.', 'dep-graph': '🕸 Dep Graph',
-    'arch': '🏛 Architecture', 'code': '🔎 Code Intel', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
+    'arch': '🏛 Architecture', 'code': '🔎 Code Intel', 'db': '🗄 DB 질의', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
     'vex': '📋 VEX · Decisions', 'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
     'fix-pr': '🔧 Patch', 'oss': '📜 OSS 결과', 'report': '📊 Report', 'archintel': '🏛 Arch Intel', 'diagrams': '🖼 Diagrams',
     'books': '📚 Book KB', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
@@ -402,6 +402,62 @@
     });
   }
 
+  /* ---------- DB 인텔: 로컬 OSV DB에 자연어 질문 (nl2sql, 3주차 강의 기능) ---------- */
+  function dbIntel(v) {
+    var out = heading('DB 질의 (NL2SQL)', '로컬 OSV 데이터베이스에 자연어로 묻는다 — 읽기 전용 SELECT, 행 수 제한, 4상태 응답');
+    out += '<div class="bts-formbox"><div class="bts-fields"><label for="dbQ">질문</label>' +
+      '<input id="dbQ" placeholder="예: 생태계별 취약점 수 알려줘 / django의 취약점 목록 / 전체 취약점 개수" spellcheck="false"></div>' +
+      '<div class="bts-actions"><button type="button" class="run" id="dbQBtn">▶ 질의</button>' +
+      '<button type="button" class="bts-mini" id="dbSchemaBtn">스키마 보기</button></div>' +
+      '<div class="bts-small">NL2SQL(3주차 강의 기능): 질문이 SQL로 변환되어 로컬 OSV DB(읽기 전용)에서 실행된다. ' +
+      'DB가 없으면 정직하게 안내한다. 쓰기·여러 문장은 검증기가 차단한다.</div></div>';
+    out += '<div id="paneDbOut"></div>';
+    return out;
+  }
+  function dbStatusPill(s) {
+    var cls = s === 'success' ? 'ok' : (s === 'empty_result' ? 'muted' : (s === 'partial_result' ? 'warn' : 'bad'));
+    return pill(s || '—', cls);
+  }
+  function bindDbPane() {
+    var pane = $('#paneDb');
+    if (!pane || pane.dataset.dbBound) { return; }
+    pane.dataset.dbBound = '1';
+    pane.querySelector('#dbQBtn').addEventListener('click', function () {
+      var q = $('#dbQ').value.trim(), out = $('#paneDbOut');
+      if (!q) { out.innerHTML = note('질문을 입력하라.', 'warn'); return; }
+      out.innerHTML = note('질의 실행 중…', 'warn');
+      api('/api/db/query', { q: q }).then(function (r) {
+        var d = r.data || {};
+        if (!r.ok) { out.innerHTML = note('<b>질의 실패.</b> ' + esc(d.error || ('HTTP ' + r.status)), 'bad'); return; }
+        var h = heading('질의 결과', 'status: ' + (d.status || '?') + (d.truncated ? ' · 잘림' : '') +
+          ' · source: ' + esc(d.source || '?') + ' · attempts: ' + esc(d.attempts));
+        h += kv([['SQL', H('<code>' + esc(d.sql || '—') + '</code>')]]);
+        var rows = d.rows || [];
+        if (rows.length) {
+          var cols = Object.keys(rows[0]);
+          h += table(cols, rows.slice(0, 50).map(function (row) { return cols.map(function (k) { return row[k]; }); }),
+            '행 없음.');
+          if (rows.length > 50) { h += note('앞 50행만 표시 (전체 ' + rows.length + '행).', 'warn'); }
+        } else if (d.status === 'empty_result') {
+          h += note('조건에 맞는 행이 없다 — 빈 결과는 오류가 아니다.', 'warn');
+        }
+        if (d.error) { h += note('<b>질의 오류.</b> ' + esc(d.error.message || ''), 'bad'); }
+        if (d.clarification_needed) { h += note('명확화 필요: ' + esc(d.clarification_needed), 'warn'); }
+        out.innerHTML = h;
+      });
+    });
+    pane.querySelector('#dbSchemaBtn').addEventListener('click', function () {
+      api('/api/db/schema').then(function (r) {
+        var d = r.data || {};
+        if (!r.ok) { $('#paneDbOut').innerHTML = note(esc(d.error || '조회 실패'), 'bad'); return; }
+        var rows = Object.keys(d.tables || {}).map(function (k) { return [k, d.tables[k]]; });
+        $('#paneDbOut').innerHTML = heading('스키마 요약', esc(d.db || '')) +
+          table(['테이블', '행 수'], rows, '테이블 없음.');
+      });
+    });
+  }
+
+  /* ---------- panes ---------- */
   /* ---------- panes ---------- */
   function risk(v) {
     var rep = v.report, s = rep.severity, f = rep.findings.slice();
@@ -648,10 +704,11 @@
     $('#paneEpss').innerHTML = unavailable('EPSS', 'No EPSS feed is wired into this workflow, so a finding has no score (it is absent, not zero).');
     $('#paneExploit').innerHTML = unavailable('Exploit maturity', 'It needs exploit-database and CISA KEV matching, which this workflow does not do.');
     $('#paneSupply').innerHTML = unavailable('Supply chain', 'Typosquatting and dependency-confusion detection exists in the core (bts_sbom.supply_chain) but is not wired into this workflow yet.');
-    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneCode: codeIntel, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
+    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneCode: codeIntel, paneDb: dbIntel, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
     Object.keys(map).forEach(function (id) { $('#' + id).innerHTML = v ? map[id](v) : needProject(); });
     renderHistory();
     renderGovernance();
+    bindDbPane();
   }
   function renderAll() {
     renderConsole();

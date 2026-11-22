@@ -844,3 +844,18 @@ branch bts-sbom/auto-fix 커밋 d54d30c3e5, **원본 무변경·푸시 없음**;
 - BSA-AC-593 [Event] When a plan-shaped question names the plan without the apply words ("수정 계획을 세워줘") the router shall route to plan_patch - never to the read-only status display - so the turn emits awaiting_approval with a token and changes nothing; when a patch run is approved and executed its record shall carry an "at" timestamp, and the read-only patch display shall present the stored status as history ("Last recorded patch run of <at> ... this question applied nothing; to apply, ask for the plan and approve its token") instead of a bare present-tense status that reads as if it had just happened (1 of 1 routing rules, 1 of 1 timestamp, 1 of 1 historical wording; the live chain measured both directions: approved apply in an isolated work copy with the origin untouched, and the flag-less server refusing read-only).
 
 - BSA-AC-601 [Event] When read_dgml opens a Visual Studio code map (.dgml) it shall return the nodes, the cross-node edges (Contains containment links separated from dependency links), the group nodes and their membership, and whether styles are present - and a map produced by to_dgml shall survive the round trip with its edges intact so layer_validate can judge an imported VS map with the same deny-by-default rules (3 of 3 structure kinds, 1 of 1 round trip).
+
+## NL2SQL 챗봇 통합 + DB 질의 판 (bts_sbom_app/nl2sql.py, chat.py, server.py)
+
+### DB에게 묻는다 — nl2sql 챗 도구·DB 질의 판 (3주차 강의 기능 고도화, 2026-11-22, ADR-0023 후속)
+
+고아 상태였던 nl2sql.py를 서비스 전면에 연결한다. ① **스키마 계약 통일**: 템플릿·카탈로그·golden이 쓰던
+`pkg_map.name`을 실제 빌더(osv_local_db.py)의 `package_name`으로 정렬 — 실 DB 질의가 전부 실패하던 버그
+수정. ② **챗 도구 `nl2sql`**: 프로젝트 불필요(NO_PROJECT_TOOLS), 4상태 응답(status/sql/rows/error)을 그대로
+passage로, DB 부재는 정직 안내. LLM 라인은 run_tool에 client를 전달해 자기교정(self-correction) 활성화.
+③ **API**: `POST /api/db/query`(자연어→SQL→rows), `GET /api/db/schema`(테이블·행 수). ④ **DB 질의 판**:
+질문 입력→상태 pill·SQL·rows 표, 스키마 요약, dock 제안 칩.
+
+- BSA-AC-602 [Event] When a natural-language question over the local OSV database reaches the chat the system shall resolve it through the nl2sql tool without an analysed project, running a read-only SELECT against BTS_SBOM_OSV_DB_PATH or the repo-root default and returning the 4-state result with SQL and up to 12 row lines (1 of 1 db paths resolved, 3 of 3 state fields surfaced).
+- BSA-AC-603 [Event] When the OSV database file is absent or a query fails the system shall answer with the honest 4-state failure (access_failure with error envelope, or a not-present guide naming BTS_SBOM_OSV_DB_PATH and the scanner build path) and never an invented table (2 of 2 failure shapes).
+- BSA-AC-604 [Event] When the service serves GET /api/db/schema it shall return the DB path with per-table row counts read through a read-only connection, and POST /api/db/query shall reject an empty q with 400 (2 of 2 routes, 1 of 1 schema shape).

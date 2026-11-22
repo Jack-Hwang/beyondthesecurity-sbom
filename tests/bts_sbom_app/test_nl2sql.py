@@ -17,7 +17,7 @@ VULN_ROWS = [  # (ecosystem, vuln_id, summary)
     ("PyPI", "CVE-2020-9999", "flask open redirect"),
     ("PyPI", "GHSA-zzzz-yyyy-xxxx", "requests cookie exposure"),
 ]
-PKG_ROWS = [  # (ecosystem, name, vuln_id)
+PKG_ROWS = [  # (ecosystem, package_name, vuln_id) - the real builder schema (osv_local_db.py)
     ("PyPI", "requests", "CVE-2018-18074"), ("PyPI", "requests", "GHSA-x84v-xcm2-53pg"),
     ("PyPI", "requests", "GHSA-zzzz-yyyy-xxxx"), ("npm", "leftpad", "GHSA-aaaa-bbbb-cccc"),
     ("npm", "lodash", "CVE-2021-1"), ("PyPI", "flask", "CVE-2020-9999"),
@@ -29,7 +29,7 @@ def osv_db(tmp_path):
     path = str(tmp_path / "osv.db")
     conn = sqlite3.connect(path)
     conn.execute("CREATE TABLE vulns (ecosystem TEXT, vuln_id TEXT, vuln_json TEXT, PRIMARY KEY (ecosystem, vuln_id))")
-    conn.execute("CREATE TABLE pkg_map (ecosystem TEXT, name TEXT, vuln_id TEXT, PRIMARY KEY (ecosystem, name, vuln_id))")
+    conn.execute("CREATE TABLE pkg_map (ecosystem TEXT, package_name TEXT, vuln_id TEXT, PRIMARY KEY (ecosystem, package_name, vuln_id))")
     conn.executemany("INSERT INTO vulns VALUES (?,?,?)",
                      [(e, i, json.dumps({"id": i, "summary": s})) for e, i, s in VULN_ROWS])
     conn.executemany("INSERT INTO pkg_map VALUES (?,?,?)", PKG_ROWS)
@@ -55,7 +55,7 @@ def test_executor_four_states(osv_db):
     """AC: BSA-AC-511"""
     ok = nl2sql.run_readonly("SELECT COUNT(*) FROM vulns", osv_db)
     assert ok["status"] == "success" and ok["rows"] == [(6,)]
-    empty = nl2sql.run_readonly("SELECT * FROM pkg_map WHERE name = 'nope'", osv_db)
+    empty = nl2sql.run_readonly("SELECT * FROM pkg_map WHERE package_name = 'nope'", osv_db)
     assert empty == {"status": "empty_result", "rows": []}                        # 0 rows is never an error
     part = nl2sql.run_readonly("SELECT * FROM vulns ORDER BY vuln_id", osv_db, max_rows=2)
     assert part["status"] == "partial_result" and part["truncated"] is True and len(part["rows"]) == 2

@@ -117,6 +117,12 @@ class State:
         location as the LLM ledger), independent of which --evidence runs folder the service was started with."""
         return books.books_dir(os.path.join(self.root, "evidence"))
 
+    def db_path(self) -> str:
+        """The local OSV database for the nl2sql lane. Resolution: the BTS_SBOM_OSV_DB_PATH env first, then the
+        repo-root default the scanner writes to (bts_sbom/_internal/osv_local_db.py:42 uses cwd - the service
+        resolves against self.root so the DB is found no matter where the server was launched from)."""
+        return os.environ.get("BTS_SBOM_OSV_DB_PATH") or os.path.join(self.root, "bts_sbom_osv_local.db")
+
     def books_index(self):
         """The serve-time index over the ingested books (kind="books"), built once and reused across chat requests
         (``State.bot`` rebuilds the main index per request; the book corpus is far too large for that - ADR-0021).
@@ -193,7 +199,7 @@ class State:
         return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
                                projs, client, acts, self.triage(),
                                arch_dir=os.path.join(self.evidence, "archintel"), books=self.books_index(),
-                               memory=self.chat_memory)
+                               memory=self.chat_memory, db_path=self.db_path())
 
     def stream_bot(self, sink: Any) -> chat_stream.StreamingChatbot:
         """The same wiring as :meth:`bot`, as the observing subclass: the 7 chat-level events go to ``sink``."""
@@ -201,7 +207,7 @@ class State:
         client = self.client if self.client.available else None
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
         return chat_stream.StreamingChatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
-                                            projs, client, acts, self.triage(), arch_dir=os.path.join(self.evidence, "archintel"),
+                                            projs, client, acts, self.triage(), arch_dir=os.path.join(self.evidence, "archintel"), db_path=self.db_path(),
                                             books=self.books_index(), memory=self.chat_memory, sink=sink)
 
     def triage(self) -> Dict[str, Any]:
@@ -520,6 +526,21 @@ def make_handler(st: State):
             if path.startswith("/api/jobs/"):
                 j = st.jobs.get(path.rsplit("/", 1)[-1])
                 return self._send(200 if j else 404, j or {"error": "unknown job"})
+            if path.startswith("/api/db/schema"):
+                dbp = st.db_path()
+                if not os.path.exists(dbp):
+                    return self._send(404, {"error": "the local OSV database is not present - build it with the scanner or set BTS_SBOM_OSV_DB_PATH"})
+                from . import nl2sql as nl2sql_mod
+                import sqlite3 as _sq
+                conn = _sq.connect("file:%s?mode=ro" % dbp.replace("\\", "/"), uri=True)
+                try:
+                    tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+                    out = {}
+                    for tb in tables:
+                        out[tb] = conn.execute("SELECT COUNT(*) FROM %s" % tb).fetchone()[0]
+                finally:
+                    conn.close()
+                return self._send(200, {"db": dbp, "tables": out})
             if path.startswith("/api/code-metrics/"):
                 hit = st.project(urllib.parse.unquote(path[len("/api/code-metrics/"):]))
                 if hit is None:
@@ -605,6 +626,17 @@ def make_handler(st: State):
             except _BadBody as exc:
                 return self._send(exc.code, {"error": str(exc)})
             path = urllib.parse.urlsplit(self.path).path
+            if path.startswith("/api/db/query"):
+                dbp = st.db_path()
+                if not os.path.exists(dbp):
+                    return self._send(404, {"error": "the local OSV database is not present - build it with the scanner or set BTS_SBOM_OSV_DB_PATH"})
+                question = (b.get("q") or "").strip()
+                if not question:
+                    return self._send(400, {"error": "q required"})
+                from . import nl2sql as nl2sql_mod
+                client = st.client if st.client.available else None
+                res = nl2sql_mod.answer(question, db_path=dbp, client=client)
+                return self._send(200, res)
             if path == "/api/triage":
                 key, status, note = b.get("check_id"), b.get("status"), b.get("note")
                 bad = console.valid_triage(key, status, note) or triagemod.check_extras(b.get("justification"), b.get("expires"), b.get("scope"), b.get("by"))
