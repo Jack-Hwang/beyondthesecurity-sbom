@@ -48,3 +48,6 @@ evidence/reimpl_batch/*/
 evidence/reimpl_batch/*.log
 evidence/legacy_oss/
 evidence/serve_*.log
+
+# consolidated one-off scripts and session scratch (kept on disk, never shipped)
+_attic/
