@@ -4,6 +4,10 @@ Configuration (first found wins):  environment ``EXAONE_API_KEY`` / ``EXAONE_BAS
 a JSON file named by ``BTS_SBOM_LLM_CONFIG`` (keys exaone_api_key / exaone_base_url / exaone_model, or api_key /
 base_url / model), or the generic ``LLM_API_KEY`` / ``LLM_BASE_URL`` / ``LLM_MODEL`` for any OpenAI-compatible server
 (e.g. a local Ollama at http://localhost:11434/v1 running an EXAONE build - no daily limit there).
+Azure OpenAI is also supported (checked first): ``AZURE_OPENAI_API_KEY`` / ``AZURE_OPENAI_BASE_URL`` /
+``AZURE_OPENAI_DEPLOYMENT`` / ``AZURE_OPENAI_API_VERSION`` or config keys azure_api_key / azure_base_url /
+azure_deployment / azure_api_version - auth is the ``api-key`` header and the URL is the deployment-scoped
+``/openai/deployments/<deployment>/chat/completions?api-version=<v>`` form.
 The key is never written to evidence, logs, caches or errors.
 
 Cost/limit protection: a per-day call ledger (``daily_budget``, default 80 < the 100/day free tier) stops calls BEFORE
@@ -27,6 +31,7 @@ from .util import read_json, write_json
 
 DEFAULT_BASE = "https://api.exaone.ai/v1"
 DEFAULT_MODEL = "k-exaone_v2.5"
+DEFAULT_AZURE_API_VERSION = "2024-10-21"
 FLOOR_TOKENS = 1024
 # tests: callable(url, headers, body_dict) -> (status:int, text:str); None = real network
 TRANSPORT: Optional[Callable[[str, Dict[str, str], Dict[str, Any]], Tuple[int, str]]] = None
@@ -43,13 +48,14 @@ class LLMUnavailable(LLMError):
 class ChatClient:
     def __init__(self, api_key: str = "", base_url: str = DEFAULT_BASE, model: str = DEFAULT_MODEL, *,
                  timeout: float = 300.0, daily_budget: Optional[int] = None, ledger: Optional[str] = None,
-                 provider: str = "exaone"):
+                 provider: str = "exaone", api_version: str = ""):
         self._lock = threading.Lock()
         self.api_key = api_key
         self.base_url = (base_url or DEFAULT_BASE).rstrip("/")
         self.model = model or DEFAULT_MODEL
         self.timeout = timeout
         self.provider = provider
+        self.api_version = api_version or DEFAULT_AZURE_API_VERSION
         self.daily_budget = int(os.environ.get("BTS_SBOM_LLM_DAILY_BUDGET", "80")) if daily_budget is None else daily_budget
         self.ledger = ledger
         self.calls = 0
@@ -58,11 +64,17 @@ class ChatClient:
 
     # -- configuration
     @classmethod
-    def from_config(cls, key: str, base_url: str = "", model: str = "", *, ledger: Optional[str] = None) -> "ChatClient":
+    def from_config(cls, key: str, base_url: str = "", model: str = "", *, ledger: Optional[str] = None,
+                    provider: Optional[str] = None, api_version: Optional[str] = None) -> "ChatClient":
         """A client from explicit parts (the web console sends exactly these). A localhost base needs no key and has no daily budget."""
         eff_model = model or DEFAULT_MODEL
-        c = cls(key or "", base_url or DEFAULT_BASE, eff_model, ledger=ledger,
-                provider="exaone" if "exaone" in eff_model.lower() else "openai-compatible")
+        eff_provider = provider or (
+            "azure" if ".openai.azure.com" in (base_url or "") else
+            "exaone" if "exaone" in eff_model.lower() else "openai-compatible")
+        if eff_provider == "azure" and not api_version:
+            api_version = "2025-04-01-preview" if re.match(r"^(gpt-[5-9]|o\d)", eff_model) else "2024-10-21"
+        c = cls(key or "", base_url or DEFAULT_BASE, eff_model, ledger=ledger, provider=eff_provider,
+                api_version=api_version or "")
         if c.base_url.startswith(("http://localhost", "http://127.0.0.1")):
             if not c.api_key:
                 c.api_key = "local"                  # local servers ignore the key
@@ -75,6 +87,12 @@ class ChatClient:
         path = os.environ.get("BTS_SBOM_LLM_CONFIG", "")
         if path:
             cfg = read_json(path, {}) or {}
+        azure_key = os.environ.get("AZURE_OPENAI_API_KEY") or cfg.get("azure_api_key")
+        if azure_key:
+            a_base = os.environ.get("AZURE_OPENAI_BASE_URL") or cfg.get("azure_base_url") or ""
+            a_model = os.environ.get("AZURE_OPENAI_DEPLOYMENT") or cfg.get("azure_deployment") or cfg.get("azure_model") or ""
+            a_ver = os.environ.get("AZURE_OPENAI_API_VERSION") or cfg.get("azure_api_version") or ""
+            return cls.from_config(azure_key, a_base, a_model, ledger=ledger, provider="azure", api_version=a_ver)
         key = os.environ.get("EXAONE_API_KEY") or cfg.get("exaone_api_key") or cfg.get("api_key") or os.environ.get("LLM_API_KEY", "")
         base = os.environ.get("EXAONE_BASE_URL") or cfg.get("exaone_base_url") or cfg.get("base_url") or os.environ.get("LLM_BASE_URL") or ""
         model = os.environ.get("EXAONE_MODEL") or cfg.get("exaone_model") or cfg.get("model") or os.environ.get("LLM_MODEL") or ""
@@ -115,12 +133,26 @@ class ChatClient:
             raise LLMUnavailable("local daily budget reached (%d calls) - protecting the provider's day limit" % self.daily_budget)
         msgs = [{"role": "system", "content": system + ("\n\nRespond with ONLY valid JSON, no prose, no code fences." if json_mode else "")},
                 {"role": "user", "content": user}]
-        body: Dict[str, Any] = {"model": self.model, "messages": msgs, "max_tokens": max(max_tokens, FLOOR_TOKENS)}
-        if self.provider == "exaone":
-            body["reasoning_effort"] = "low"
-        headers = {"Authorization": "Bearer " + self.api_key, "Content-Type": "application/json",
-                   "User-Agent": "bts-sbom-app/" + __version__}
-        url = self.base_url + "/chat/completions"
+        floor = 2048 if self.provider == "azure" else FLOOR_TOKENS
+        body: Dict[str, Any] = {"messages": msgs, "max_tokens": max(max_tokens, floor)}
+        if self.provider == "azure":
+            # Azure OpenAI: the deployment rides in the URL, auth is the api-key header. gpt-5+/o* reasoning
+            # deployments require max_completion_tokens and burn completion tokens on reasoning, so the floor is
+            # higher and reasoning_effort is pinned low; non-reasoning deployments reject that parameter.
+            body["max_completion_tokens"] = body.pop("max_tokens")
+            if re.match(r"^(gpt-[5-9]|o\d)", self.model):
+                body["reasoning_effort"] = "low"
+            url = "%s/openai/deployments/%s/chat/completions?api-version=%s" % (
+                self.base_url, self.model, self.api_version)
+            headers = {"api-key": self.api_key, "Content-Type": "application/json",
+                       "User-Agent": "bts-sbom-app/" + __version__}
+        else:
+            if self.provider == "exaone":
+                body["reasoning_effort"] = "low"
+            body["model"] = self.model
+            url = self.base_url + "/chat/completions"
+            headers = {"Authorization": "Bearer " + self.api_key, "Content-Type": "application/json",
+                       "User-Agent": "bts-sbom-app/" + __version__}
         wait = 3.0
         for attempt in range(2):
             self._bump()                  # every network attempt counts against the provider's day limit, failures included

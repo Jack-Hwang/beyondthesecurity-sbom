@@ -1,7 +1,8 @@
 # BTS-SBOM chatbot / API service (stdlib only; the bts_sbom core is part of this repository, so there is nothing else to install).
-# NOT BUILT YET: written/edited locally, `docker build` has never been run to completion on this file - see docs/RUNBOOK.md
-# "Delivery State" for exactly what was and was not verified (the current edit only ran the static policy tests in
-# tests/bts_sbom_app/test_container_policy.py, which read this file's text; they do not invoke the Docker daemon).
+# BUILT AND MEASURED (2026-11-22): `docker build` completed in 50.61 s and the running container reached
+# `/readyz` 200 + HEALTHCHECK `healthy` (FailingStreak 0); Trivy found 0 CRITICAL. Full evidence:
+# `python scripts/supply_chain_gate.py` -> evidence/supply_chain/ and docs/RUNBOOK.md "Delivery State".
+# The static policy tests in tests/bts_sbom_app/test_container_policy.py read this file's text only.
 # Build:  docker build -f Dockerfile.bts-sbom-app -t bts-sbom-app .
 # Run:    docker run --rm -p 127.0.0.1:8800:8800 -e EXAONE_API_KEY=... bts-sbom-app
 # The service binds 0.0.0.0 inside the container; publish the port on localhost only (as above) - it has NO authentication.

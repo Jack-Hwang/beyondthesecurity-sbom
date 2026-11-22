@@ -464,3 +464,116 @@ summarises the latest recorded run from the evidence folder.
 - BSA-AC-478 [Event] When a result carries the insight pack, the renderer shall add exactly 1 model browser item with id insights inside its own section, holding the style pill and the heuristic honesty note (1 of 1 items, 2 of 2 rendered marks).
 - BSA-AC-479 [Event] When a finished result carries insights, report_md shall contain exactly 1 Insights section with 1 table row per flow blocker (1 of 1 sections, 1 of 1 rows), and a result without insights shall contain 0 such sections (1 of 1 negative case).
 - BSA-AC-480 [Event] When the latest_arch chat tool runs with a reachable archintel store, it shall summarise the run with the latest finished stamp as exactly 7 lines covering run, license verdict, flow blockers, bounded contexts, style, antipatterns and the honesty note (7 of 7 lines), and with no store or no recorded run it shall say so honestly in 1 line (2 of 2 empty cases).
+
+### TOP10 답변 품질 스코어카드 (`bts_sbom_app.quality`)
+
+MetaNet 심화과정 별첨 「AI 에이전트 답변 품질 평가 TOP10」의 게이트를 오프라인 결정적 챗 세트 위에 얹은
+점수카드. 판정 모델(LLM 심사기)을 쓰지 않는다 — 모든 지표는 이번 실행의 실측 산출물에서 코드로 계산한다:
+근거성은 챗의 클레임 지지율과 같은 정의, 관련성은 질문-답변 토큰 코사인(코스의 0.80 게이트는 임베딩
+역생성 방식으로, 측정 수단이 다르므로 이 코퍼스의 실측 하한을 기준으로 둔다), 완결성은 질문별 필수
+요소 충족률, 툴 정확도는 결정적 라우터가 담당하는 범위 내 세트의 라우팅률(패러프레이즈 세트의 정규식
+저조율은 계획기(플래너)가 존재하는 이유이므로 보고만 하고 게이트하지 않는다), 과잉 거절률은 정상 질문에
+대한 오거절 비율이다. 쓰기 툴 1.0 규칙은 구조적으로 actions 게이트(chat.validate_calls)가 담당한다.
+
+- BSA-AC-481 [Event] When top10_report runs over the offline chat set it shall return a scorecard holding exactly 5 gated metrics (faithfulness, relevance, completeness, tool_accuracy, over_refusal), each carrying value, threshold and pass, plus the paraphrase routing rate reported but not gated (5 of 5 metrics, 5 of 5 gates, 1 of 1 reported-only).
+- BSA-AC-482 [Event] When apply_gates receives metrics that meet every threshold it shall return verdict pass with 0 failures, and with one metric below its threshold it shall return fail with exactly 1 failure naming that metric (2 of 2 verdicts, 1 of 1 named failure).
+- BSA-AC-483 [Ubiquitous] The gates shall be faithfulness >= 0.90, relevance >= 0.25, completeness >= 0.90, tool_accuracy >= 0.95 and over_refusal <= 0.05, with over_refusal the only upper-bound gate (5 of 5 thresholds, 1 of 1 upper bound).
+- BSA-AC-484 [Event] When a found answer is scored, completeness shall return the required-element ratio from the per-question element list and relevance shall return the question/answer token cosine bounded to 0..1 (2 of 2 per-case metrics).
+- BSA-AC-485 [Event] When render_markdown formats a report it shall emit exactly 1 scorecard table with 1 row per gated metric plus the verdict line, and write_report shall write that markdown to the given path (5 of 5 rows, 2 of 2 actions).
+
+
+## Lecture round 1 adoption (Metanet advanced weeks 1-2): precision observability, conflict annotation, case-level regression rate, requirement-kind map, trim accounting, chat answer renderer
+
+The six week-1/2 decks are adopted by measurement, not by checklist: the lecture's re-ranker was measured as an
+ordering change and REJECTED (ADR-0016 keeps the three variants and their numbers) - what ships is the precision
+annotation; the conflict log (ADR-0017), the case-level regression rate (ADR-0018) and the requirement-kind map with
+trim accounting (ADR-0019) ship as enforced behavior. The chat answer renderer (bts_ui.renderChatAnswer) shows
+evidence chips, routing and the conflict annotations on the security screen.
+
+- BSA-AC-486 [Event] When a question token matches a chunk's heading (patch/patching relaxed), that result shall carry a positive lex precision score (1 of 1 signals).
+- BSA-AC-487 [Event] When no question token matches a chunk's heading, that result shall carry lex 0 with its rrf and bm25 scores intact (3 of 3 fields).
+- BSA-AC-488 [State] While any result carries a positive lex score, the returned order shall stay exactly the reported rrf descending order (0 reorders over 3 results).
+- BSA-AC-489 [Event] When a search returns n candidates of which m carry a heading match, the rerank block shall report pool n and lex_candidates m (2 of 2 counts).
+- BSA-AC-490 [Event] When _relaxed compares patch with patching both ways it shall match, and patch with p2p or cv with cve shall not (2 of 2 stems, 2 of 2 exact-misses).
+- BSA-AC-491 [Event] When the same measured label carries different numbers in two different top chunks, conflicts shall return exactly 1 entry with rule escalate and status unresolved (1 of 1 entries, 2 of 2 fields).
+- BSA-AC-492 [Event] When the same label carries the same number in two different chunks, conflicts shall return 0 entries (0 of 1 candidate pairs).
+- BSA-AC-493 [Event] When two different measured values sit inside one chunk, conflicts shall return 0 entries because both facts share 1 source (0 of 1 candidates).
+- BSA-AC-494 [Event] When the chatbot answers from 2 knowledge chunks with 1 cross-source label conflict, the answer shall carry exactly 1 [conflict] line naming both values and the human-judgement note, and the result shall list 1 conflict (2 of 2 surfaces).
+- BSA-AC-495 [Event] When an out-of-corpus question is rejected by the confidence gate, the result shall carry an empty conflicts list (0 of 1 entries, 1 of 1 empty lists).
+- BSA-AC-496 [Event] When the candidate misses carry 1 query the baseline passed and 1 query the baseline missed, case_regressions shall list only the newly failing query and skip sets the baseline never measured (1 of 2 candidates, 0 of 1 skipped sets).
+- BSA-AC-497 [Event] When aggregate metrics are flat but 1 query that passed at baseline now fails, the rag pass shall roll back with the case regression named in the gate failures (1 of 1 rollbacks, 1 of 1 failure lines).
+- BSA-AC-498 [Event] When a query that failed at baseline passes now and no baseline-passing query fails, the pass shall be accepted with 0 case regressions (1 of 1 accepts, 0 regressions).
+- BSA-AC-499 [Event] When an eval set vanishes the pass shall stay undecidable over its 5 baseline metrics and invent 0 case regressions from the missing set (5 of 5 undecidables, 0 regressions).
+- BSA-AC-500 [Event] When a fresh loop runs its first rag pass, the decision shall be baseline with an empty case regression list (1 of 1 decisions, 0 regressions).
+- BSA-AC-501 [Event] When an approval-token requirement and a first-token-within-2-seconds requirement are tagged, the kinds shall be exactly SECR and PER (2 of 2 kinds).
+- BSA-AC-502 [Event] When a schema-version requirement and an /api/chat route requirement are tagged, the kinds shall be exactly DAR and SIR (2 of 2 kinds).
+- BSA-AC-503 [Event] When a non-stdlib constraint and a plain 3-files functional requirement are tagged, the kinds shall be exactly CONR and SFR with defaults 1 (2 of 2 kinds, 1 of 1 defaults).
+- BSA-AC-504 [Ubiquitous] The requirement map shall partition every parsed AC into exactly 1 kind, so the kind counts sum to the AC total and the id lists cover each id once (1 of 1 partitions, 0 unassigned).
+- BSA-AC-505 [Event] When a project carries 20 vulnerabilities, 20 plans and 20 unresolved licenses, the evidence shall keep 12 of each and report 8 dropped in trimmed for all 3 lists (12 of 12 kept, 3 of 3 counts).
+- BSA-AC-506 [State] While every evidence list stays within its cap, all 8 trimmed counts shall be 0 (8 of 8 zero counts).
+- BSA-AC-507 [Event] When the answer, a heading and quoted values carry script tags, quotes and ampersands, the renderer shall escape all of them so 0 raw tags reach the markup (3 of 3 escapes, 0 raw).
+- BSA-AC-508 [Event] When the answer contains untrusted quotes and 2 conflicts, the renderer shall draw exactly 1 untrusted warning and 2 conflict notes, and a clean answer 0 notes (3 of 3 notes, 0 of 0 notes).
+- BSA-AC-509 [Event] When 2 retrieval hits and a routing note are present, the renderer shall draw exactly 2 evidence chips with their rrf titles and the routing note once, and omit the note when it is empty (2 of 2 chips, 1 of 1 notes, 1 of 1 omissions).
+
+### NL2SQL 안전 레인 (`bts_sbom_app.nl2sql`)
+
+로컬 OSV SQLite 미러 위의 Text-to-SQL 레인 (MetaNet 3주차 2차시). 안전은 3층이다 — (1) 토크나이저
+검증기: 단일 문장, SELECT/WITH만(CTE 본문 포함 쓰기 토큰 전면 차단), LIMIT 강제(없으면 추가, 상한 초과는
+축소), (2) 실행 연결은 읽기전용 URI + PRAGMA query_only — 검증기를 우회해도 DB 자체가 쓰기를 거부한다,
+(3) 4상태 실행기(success/empty_result/partial_result/access_failure)는 정당한 0건을 오류로, 오류를 빈
+결과로 바꾸지 않는다. 생성은 결정적 템플릿 라우터(오프라인 기본, EX 평가 대상)와 선택적 LLM 레인
+(json_mode, 스키마 카탈로그, clarification_needed nullable)이며, 자기교정 루프는 원 질문+실패 SQL+구체적
+오류를 재생성 프롬프트에 첨부하고 상한 3회, 동일 오류 반복 시 즉시 중단한다. EX는 작성된 기준 쿼리의
+결과 집합과 후보의 결과 집합이 상태·행 단위로 일치하는지로 판정한다(정당한 빈 집합의 일치도 정답).
+
+- BSA-AC-510 [Event] When validate receives a write or multi-statement SQL (INSERT, UPDATE, DELETE, DROP, PRAGMA, ATTACH, a DML inside a WITH, or a second statement) it shall raise an SqlError carrying errorCategory business or validation, and when the SQL lacks LIMIT or exceeds the cap it shall return the SQL with LIMIT enforced to the cap (6 of 6 refusals, 2 of 2 limit enforcements).
+- BSA-AC-511 [Event] When run_readonly executes a query it shall return success with rows, empty_result for a valid 0-row answer, partial_result with truncated true when the row cap is reached, and access_failure with a retryable error for a failed query - and a write attempt reaching the connection shall come back as access_failure because the connection is read-only (4 of 4 states, 1 of 1 write refusal).
+- BSA-AC-512 [Event] When the LLM lane's first SQL fails validation and the second succeeds, answer shall return the successful rows with attempts 2 and the regeneration prompt shall carry the previous attempt's concrete error message, and when the same error repeats it shall stop after 2 attempts with access_failure and the error (2 of 2 loop behaviours, 1 of 1 attached error).
+- BSA-AC-513 [Event] When nl2sql_eval runs its 30-question golden set over the seeded local database the deterministic template lane shall reach execution accuracy EX >= 0.8 with equal result sets, and an out-of-scope question without a client shall return access_failure with an honest error instead of empty rows (1 of 1 sets, 1 of 1 honest miss).
+
+### 공급망 게이트 (MetaNet 4주차 1차시)
+
+scripts/supply_chain_gate.py 한 명령이 코스 파이프라인 전체를 실측한다 — Dockerfile 빌드 → Trivy
+이미지 스캔(CRITICAL, --exit-code 1) → CycloneDX 이미지 SBOM → 자기 SBOM(bts-sbom이 자기 저장소를
+스캔, --offline) → 서빙 벤치 스모크(/healthz 60회 p50/p95). 도구 부재는 계산된 계획(plan, 순수
+함수)에서 미리 드러나며 모든 생략에는 이유가 붙는다 — 정직한 생략은 데이터, 조용한 생략은 거짓말.
+게이트 판정(aggregate)은 실패 단계 하나면 fail, 스캔 성공 0이면 CRITICAL 0, 스캔 생략이면
+critical_found null(정직한 미지), 도구 소실(127)은 취약점이 아니라 생략으로 기록한다. 산출물은
+고정 경로 evidence/supply_chain/gate_<ts>.json + bench/bench_latest.json + bench 타임스탬프 사본에
+기록된다(schema bts-sbom.supply-chain.v1).
+
+- BSA-AC-514 [Event] When plan receives a tool-availability map it shall emit the ordered build/scan/sbom/self_sbom/bench steps with every unavailable tool as a skipped step carrying a reason, the Trivy CRITICAL scan with exit-code 1 through native trivy when present or through the aquasec/trivy container when only docker exists, and build skipped by flag when reuse is requested (5 of 5 step families, 3 of 3 tool layouts).
+- BSA-AC-515 [Event] When aggregate receives the step entries it shall fail the gate on any failed step, record critical_found 0 for a passing scan and -1 for a failing scan, keep null when the scan was skipped, and treat a vanished tool (127) as a skip rather than a vulnerability (1 of 1 decisions, 4 of 4 code paths).
+- BSA-AC-516 [Event] When the gate completes it shall write the report with schema bts-sbom.supply-chain.v1 to evidence/supply_chain/gate_<ts>.json and the bench summary to evidence/supply_chain/bench/bench_latest.json plus one timestamped bench copy, with per-step state and skip reasons preserved (2 of 2 artifact paths, 1 of 1 bench copy).
+
+### 오류 봉투·핸드오프·챗 스트림·HITL (MetaNet 4주차 3차시)
+
+실패를 숨기지 않는다. `handoff.py`는 4-3차시의 오류 봉투({error_type, severity warning/recoverable/fatal,
+retry_budget, completed_steps, partialResult, coverage_gap})와 단계 간 명시 계약({schema_version, task,
+context, constraints, not_passed})을 순수 함수로 제공하고, council 판정 어댑터는 멤버 실패가 없으면 봉투를
+만들지 않는다(거짓 봉투 금지) — 부분 합의는 recoverable, needs_human 붕괴는 fatal. `chat_stream.py`의
+StreamingChatbot은 Chatbot을 상속해 관찰만 추가한다(라우터·검증기·게이트 무손상): 7종 이벤트
+step_start/tool_call/tool_result/awaiting_approval/handoff/final/error를 순서대로 내보내고, 도구 하나의
+실패는 recoverable 봉투+다음 도구로 이어지는 부분 결과이며, plan_patch 결과는 승인 토큰과 함께
+awaiting_approval을 내고 events.py의 PATCH_GATE 상태(awaiting_approval/approved/not_requested)를 그대로
+쓴다 — 적용은 사용자만 닫는다(HITL). `POST /api/chat/stream`은 이 이벤트를 text/event-stream으로
+실시간 송출하고, 웹 콘솔의 단계 스트림 패널이 타임라인·갭 배너·승인 배너를 렌더링한다.
+
+- BSA-AC-517 [Event] When error_envelope is called it shall return exactly {error_type, severity, retry_budget, completed_steps, partialResult, coverage_gap} and refuse a severity outside warning/recoverable/fatal; the handoff shall carry schema_version bts-sbom.handoff.v1 with task/context/constraints/not_passed, council_envelope shall return None when no member failed, a recoverable envelope with the surviving partial verdict when members failed but a verdict was reached, and a fatal one when the verdict collapsed to needs_human (3 of 3 severities, 1 of 1 no-lie case).
+- BSA-AC-518 [Event] When StreamingChatbot asks a patch-plan question it shall emit the ordered step_start, tool_call, tool_result, awaiting_approval, handoff, final timeline with dense seq numbers, the awaiting_approval carrying the 16-hex approval token and events.PATCH_GATE_STATES, the handoff carrying schema_version and no not_passed entries for a clean answer, and the /api/chat/stream route shall serve the same events as text/event-stream with id/event/data records (7 of 7 kinds, 1 of 1 token).
+- BSA-AC-519 [Event] When a chat tool raises mid-turn StreamingChatbot shall emit an error event whose envelope is recoverable with retry_budget 1 and a coverage gap naming the failed tool, continue with the remaining tools, still return a found answer and still end the timeline with final (1 of 1 failures, 1 of 1 surviving turns).
+- BSA-AC-520 [Event] When format_stream_sse renders an event it shall produce id/event headers plus a newline-safe multi-line data body terminated by a blank line, matching events.format_sse's wire discipline, and every streamed record shall parse back to one chat event with its seq preserved (2 of 2 wire rules, 1 of 1 round-trip).
+
+### 벤치 3경로·kind 매니페스트 (브리프 5 G1 + 미측정 해소)
+
+게이트의 벤치 단계는 /healthz(검사 없음) 하나만 재서는 실측을 늘리지 않는다 — 세 지연 등급을 함께 잰다:
+/healthz(프로세스 생존), /readyz(검사 수행: 폴더 쓰기+import+코퍼스), /api/history(증거 폴더 읽기),
+경로별 p50/p95/max를 `bench_latest.json`의 endpoints 블록에 기록하고 세 경로 전부 200일 때만 ok.
+deploy/kind/는 단일 노드 kind 클러스터용 매니페스트를 산출만으로 제공한다(호스트에 kind 부재 — 미배포를
+README가 명시): replicas 1 + Recreate(공유 상태는 evidence PVC 하나), readiness /readyz·liveness
+/healthz 역할 분리, ClusterIP 고정(무인증 서비스의 노출 축 고정), 비루트 UID 10001, :latest 금지,
+리소스 한도 선언. 검증은 kubectl client dry-run 파싱(4문서)과 정적 규칙 테스트이며, 클러스터 적용은
+kind 설치 후 README 절차를 따른다(fsGroup 필요 여부는 적용 후 실측 항목으로 명시).
+
+- BSA-AC-521 [Event] When the gate's bench step runs it shall request /healthz, /readyz and /api/history the same number of times and record per-path p50/p95/max with the HTTP status in bench_latest.json, marking ok only when all three returned 200 (3 of 3 latency classes, 1 of 1 ok rule).
+- BSA-AC-522 [Event] The kind manifest set shall contain exactly Namespace, PersistentVolumeClaim, Deployment, Service with runAsNonRoot UID 10001, a pinned non-latest image, distinct /readyz readiness and /healthz liveness probes, ClusterIP-only exposure with no NodePort or LoadBalancer, the evidence PVC mount, replicas 1 with Recreate, declared resource limits - parseable by kubectl client dry-run - and the README shall state 산출만/미배포 with the port-forward procedure and the unverified fsGroup item (4 of 4 documents, 8 of 8 policy rules).

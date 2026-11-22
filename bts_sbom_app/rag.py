@@ -6,6 +6,11 @@ Design (each point is measured by evals/rag_golden.json):
   * bilingual tokenizer: ASCII words, identifier parts (CVE-2024-1234 stays whole AND splits), Hangul runs plus
     syllable bigrams (no morphological analyser needed), Korean particles stripped from long words;
   * query expansion with a small domain synonym table (Korean <-> English) - recall for cross-lingual questions;
+  * lexical-precision re-rank: a THIRD rank list (heading match + ordered bigram adjacency) fused by the same RRF,
+    so it competes with BM25/TF-IDF instead of overriding them; the ``found`` gate reads the pool-best BM25 so a
+    re-ordering can never turn a found question into "not found";
+  * ``conflicts``: the same measured label carrying different numbers in two different top chunks is annotated as an
+    unresolved conflict (rule ``escalate``) - nothing is auto-preferred;
   * confidence gate: a question whose content words are not covered by the best chunk is OUT OF CORPUS
     (``found=False``) instead of being answered with the least-bad chunk;
   * metadata filters (kind, project) so project evidence never answers a general question and vice versa.
@@ -56,6 +61,69 @@ def _hangul_tokens(run: str) -> List[str]:
     if w != run and len(run) >= 2:
         out.append(run)
     out.extend(run[i:i + 2] for i in range(len(run) - 1))
+    return out
+
+
+def _relaxed(a: str, b: str) -> bool:
+    """A relaxed token match for the re-rank signals: equal, or a shared stem of at least 4 characters
+    (patch/patching, license/licensing). Shorter tokens must match exactly - bigrams are already imprecise."""
+    return a == b or (len(a) >= 4 and len(b) >= 4 and (a.startswith(b) or b.startswith(a)))
+
+
+_FACT_EQ = re.compile(r"([A-Za-z가-힣][A-Za-z0-9가-힣 .·/_%-]{0,24}?)\s*[=:：]\s*(\d+(?:\.\d+)?)")
+_FACT_IS = re.compile(r"([A-Za-z][A-Za-z0-9 .·/_%-]{0,24}?)\s+(?:is|are)\s+(\d+(?:\.\d+)?)")
+_FACT_KR = re.compile(r"([가-힣]{2,12})\s(\d{1,4})(?=\s*(?:회|건|개|배|초|%|점|명|개월|일))")
+_LEADING_STOP = re.compile(r"^(?:the|a|an|this|그|이|저)\s+")
+
+
+def _norm_label(lab: str) -> str:
+    lab = re.sub(r"\s+", " ", lab).strip().rstrip(":：= ").lower()
+    lab = _LEADING_STOP.sub("", lab)
+    return _PARTICLE.sub("", lab) if len(lab) >= 3 else lab
+
+
+def _facts(text: str) -> List[Tuple[str, str]]:
+    """Measured facts in a chunk: (normalized label, number as written). Two regex forms - ``label = 3`` and the
+    Korean counting form ``한도 80회`` - are enough for the corpus; anything else is not machine-readable here."""
+    out: List[Tuple[str, str]] = []
+    seen: set = set()
+    for rx in (_FACT_EQ, _FACT_IS, _FACT_KR):
+        for m in rx.finditer(text):
+            lab, val = _norm_label(m.group(1)), m.group(2)
+            key = (lab, val)
+            if len(lab) >= 2 and key not in seen:
+                seen.add(key)
+                out.append(key)
+    return out
+
+
+def conflicts(results: Sequence[Dict[str, Any]], limit: int = 3) -> List[Dict[str, Any]]:
+    """Deterministic conflict annotation over the top retrieved chunks (the lecture's 상충 로그): the same measured
+    label carrying DIFFERENT numbers in two DIFFERENT sources. Authority between two knowledge files is unknowable
+    here, so the resolution rule is always ``escalate`` and the status ``unresolved`` - the judgement stays with the
+    reader, and nothing is silenced or auto-preferred."""
+    facts: List[Tuple[str, str, str]] = []
+    for r in results[:2]:
+        src = r["chunk"]["source"]
+        for lab, val in _facts(r["chunk"]["text"]):
+            facts.append((lab, val, src))
+    out: List[Dict[str, Any]] = []
+    reported: set = set()
+    for i in range(len(facts)):
+        for j in range(i + 1, len(facts)):
+            a, b = facts[i], facts[j]
+            if a[0] != b[0] or a[1] == b[1] or a[2] == b[2] or a[0] in reported:
+                continue
+            try:
+                if float(a[1]) == float(b[1]):
+                    continue
+            except ValueError:
+                continue
+            reported.add(a[0])
+            out.append({"label": a[0], "a": {"source": a[2], "value": a[1]}, "b": {"source": b[2], "value": b[1]},
+                        "rule": "escalate", "status": "unresolved"})
+            if len(out) >= limit:
+                return out
     return out
 
 
@@ -201,18 +269,42 @@ class Index:
             tfidf[i] = dot / (qn * norms[i])
         r1 = {i: r for r, i in enumerate(sorted(bm, key=lambda i: -bm[i]))}
         r2 = {i: r for r, i in enumerate(sorted(tfidf, key=lambda i: -tfidf[i]))}
+        # lexical-precision OBSERVABILITY (the lecture's re-ranker, measured and REJECTED as an ordering change - see
+        # ADR-0016 for the three measured variants): heading match + ordered query-bigram adjacency form a precision
+        # score that is REPORTED per result (``lex``) but changes NO ordering - every ordering variant measured
+        # negative on the gate (dev recall -0.067, one OOD flipped), while the same signal confirmed the lecture's
+        # precision claim on the untouched test set (mrr +0.097). A future cross-encoder starts from these numbers.
+        lex: Dict[int, float] = {}
+        qtok_uniq = list(dict.fromkeys(qt))
+        for i in bm:
+            tfc = self.tf[i]
+            h = sum(1 for t in qtok_uniq if any(_relaxed(t, ht) for ht in self._head_toks(i)))
+            if h > 0:
+                p = sum(1 for a, b in zip(qt, qt[1:]) if tfc.get(a) and tfc.get(b))
+                lex[i] = h * 2.0 + p
         fused = {i: 1 / (RRF_K + r1[i] + 1) + 1 / (RRF_K + r2[i] + 1) for i in bm}
         order = sorted(fused, key=lambda i: -fused[i])
         results = []
-        content = [t for t in dict.fromkeys(qt) if len(t) >= 2]
+        content = [t for t in qtok_uniq if len(t) >= 2]
         for i in order[:k]:
             cov = (sum(1 for t in content if t in self.tf[i]) / len(content)) if content else 0.0
             results.append({"chunk": self.chunks[i], "rrf": round(fused[i], 5), "bm25": round(bm[i], 3),
-                            "tfidf": round(tfidf[i], 3), "coverage": round(cov, 2)})
+                            "tfidf": round(tfidf[i], 3), "coverage": round(cov, 2), "lex": round(lex.get(i, 0.0), 2)})
         top = results[0] if results else None
         found = bool(top and top["bm25"] >= min_bm25 and top["coverage"] >= min_cover)
         return {"found": found, "results": results, "coverage": top["coverage"] if top else 0.0,
+                "rerank": {"pool": len(bm), "lex_candidates": len(lex)},
                 "reason": "" if found else ("no chunk covers the question's content words" if top else "no lexical match")}
+
+    def _head_toks(self, i: int) -> List[str]:
+        """Tokenized heading path of chunk i, cached per index build (headings are short and stable)."""
+        cache = getattr(self, "_head_cache", None)
+        if cache is None:
+            cache = self._head_cache = {}
+        got = cache.get(i)
+        if got is None:
+            got = cache[i] = set(tokenize(self.chunks[i].get("heading") or ""))
+        return got
 
 
 def load_dir(root: str, *, kind: str = "knowledge", exts: Tuple[str, ...] = (".md",)) -> List[Dict[str, Any]]:

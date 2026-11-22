@@ -47,7 +47,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import __version__, actions as actionsmod, arch_api, chat as chatmod, conformance, console, coverage, engine, events, evals, fleet, oss_api, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, actions as actionsmod, arch_api, chat as chatmod, chat_stream, conformance, console, coverage, engine, events, evals, fleet, oss_api, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 from .util import clip, read_json, write_json
@@ -156,6 +156,14 @@ class State:
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
         return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs)), projs, client, acts, self.triage(),
                                arch_dir=os.path.join(self.evidence, "archintel"))
+
+    def stream_bot(self, sink: Any) -> chat_stream.StreamingChatbot:
+        """The same wiring as :meth:`bot`, as the observing subclass: the 7 chat-level events go to ``sink``."""
+        projs = load_projects(self.evidence)
+        client = self.client if self.client.available else None
+        acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
+        return chat_stream.StreamingChatbot(evals.build_index(self.root, evidence_chunks(projs)), projs, client, acts,
+                                            self.triage(), arch_dir=os.path.join(self.evidence, "archintel"), sink=sink)
 
     def triage(self) -> Dict[str, Any]:
         with self.lock:
@@ -530,6 +538,28 @@ def make_handler(st: State):
                 if not q:
                     return self._send(400, {"error": "question required"})
                 return self._send(200, st.bot().ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm"))))
+            if path == "/api/chat/stream":
+                q = str(b.get("question") or "").strip()
+                if not q:
+                    return self._send(400, {"error": "question required"})
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+
+                def sink(ev: Dict[str, Any]) -> None:      # live flush per event; a gone reader must not fail the turn
+                    try:
+                        self.wfile.write(chat_stream.format_stream_sse(ev).encode("utf-8"))
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError, OSError):
+                        pass
+
+                try:
+                    st.stream_bot(sink).ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
+                except Exception:                          # noqa: BLE001 - the bot already emitted its fatal error envelope
+                    pass
+                return
             if path == "/api/llm":
                 key = str(b.get("api_key") or "").strip()
                 base = str(b.get("base_url") or "").strip()

@@ -1,0 +1,93 @@
+# bts-sbom-app on a single-node kind cluster (brief 5 G1 - 산출만: produced, NOT deployed here; `kind` is
+# not installed on this host - see README.md). One process, one evidence volume, no auth: the exposure is
+# ClusterIP + `kubectl port-forward` only, because publishing this service to a node port or a load
+# balancer would hand an unauthenticated tool to the network (docs/RUNBOOK.md scope).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bts-sbom
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: evidence-pvc
+  namespace: bts-sbom
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bts-sbom-app
+  namespace: bts-sbom
+  labels:
+    app: bts-sbom-app
+spec:
+  replicas: 1                      # single-process tool: the evidence folder is the shared state, so 1
+  strategy:
+    type: Recreate                 # not RollingUpdate: two replicas would share the evidence volume
+  selector:
+    matchLabels:
+      app: bts-sbom-app
+  template:
+    metadata:
+      labels:
+        app: bts-sbom-app
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001           # matches the Dockerfile's numeric USER (docs/RUNBOOK.md Delivery State)
+        runAsGroup: 10001
+      containers:
+        - name: app
+          image: bts-sbom-app:gate     # pinned local tag from scripts/supply_chain_gate.py; kind loads it
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8800
+          args: ["--root", "/app", "serve", "--host", "0.0.0.0", "--port", "8800", "--evidence", "/tmp/evidence"]
+          readinessProbe:          # /readyz actually checks evidence_writable + core_import + knowledge_corpus
+            httpGet:
+              path: /readyz
+              port: 8800
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:           # /healthz answers without checking: process liveness only, by design
+            httpGet:
+              path: /healthz
+              port: 8800
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"        # one scan holds a repo-sized work copy in memory; the concurrent-scan
+                                   # memory measurement is still open (docs/capacity.md 2.3) - revisit then
+          volumeMounts:
+            - name: evidence
+              mountPath: /tmp/evidence
+      volumes:
+        - name: evidence
+          persistentVolumeClaim:
+            claimName: evidence-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bts-sbom-app
+  namespace: bts-sbom
+spec:
+  type: ClusterIP                  # deliberately NOT NodePort/LoadBalancer: no authentication on this service
+  selector:
+    app: bts-sbom-app
+  ports:
+    - port: 8800
+      targetPort: 8800

@@ -841,7 +841,7 @@ class Chatbot:
             return {"found": False, "answer": "Unknown project %r: the analysed projects are %s." % (project, sorted(self.projects) or "none"),
                     "claims": [], "answer_source": "none", "tools": [], "retrieval": {"found": False, "coverage": 0.0, "top": []},
                     "citation_accuracy": 1.0, "llm_note": self._no_client_note(use_llm), "routing": "none",
-                    "routing_note": "unknown project id; nothing was guessed", "plan_dropped": {}, "contains_untrusted": False}
+                    "routing_note": "unknown project id; nothing was guessed", "plan_dropped": {}, "contains_untrusted": False, "conflicts": []}
         rec = self._pick_project(question, project)
         docs: Dict[str, str] = {}
         trust: Dict[str, str] = {}
@@ -886,6 +886,9 @@ class Chatbot:
         res = self.index.search(question, k=k, filters=flt)
         retrieval = {"found": res["found"], "coverage": res["coverage"],
                      "top": [{"source": r["chunk"]["source"], "heading": r["chunk"]["heading"], "rrf": r["rrf"]} for r in res["results"][:k]]}
+        # conflict annotation (the lecture's 상충 로그): two top chunks from different sources answering the same
+        # measured label with different numbers are shown side by side, never silently resolved (rule: escalate).
+        conf = rag.conflicts(res["results"][:2]) if res["found"] else []
         if res["found"]:
             qtok = set(rag.tokenize(question, for_query=True))
             for r in res["results"][:2]:
@@ -901,7 +904,7 @@ class Chatbot:
         if not claims:
             return dict({"found": False, "answer": "I could not find this in the analysed projects or the knowledge base.", "claims": [],
                          "answer_source": "none", "tools": [], "retrieval": retrieval, "citation_accuracy": 1.0,
-                         "llm_note": self._no_client_note(use_llm), "contains_untrusted": False}, **meta)
+                         "llm_note": self._no_client_note(use_llm), "contains_untrusted": False, "conflicts": []}, **meta)
         ver = verify_claims(claims, docs)
         answer = "\n".join(("- [untrusted quote] " if c.get("trust") == "untrusted-quote" else "- ") + c["text"] for c in ver["kept"])
         src = "tools" if tools_used else "rag"
@@ -937,6 +940,9 @@ class Chatbot:
                     llm_note = "EXAONE answer rejected (citation accuracy %s) -> extractive answer" % v2["accuracy"]
             except (LLMUnavailable, LLMError, ValueError, TypeError, AttributeError) as exc:
                 llm_note = "EXAONE unavailable -> extractive answer: " + str(exc)[:160]
+        if conf:                                        # reader-facing annotation, appended AFTER every answer source (extractive or LLM)
+            answer += "".join("\n- [conflict] %s: %s (%s) vs %s (%s) - the sources disagree; the judgement stays with you." % (
+                c["label"], c["a"]["value"], c["a"]["source"], c["b"]["value"], c["b"]["source"]) for c in conf)
         return dict({"found": True, "answer": answer, "claims": ver["kept"], "answer_source": src, "tools": tools_used,
                      "retrieval": retrieval, "citation_accuracy": ver["accuracy"], "llm_note": llm_note,
-                     "contains_untrusted": any(c.get("trust") == "untrusted-quote" for c in ver["kept"])}, **meta)
+                     "contains_untrusted": any(c.get("trust") == "untrusted-quote" for c in ver["kept"]), "conflicts": conf}, **meta)

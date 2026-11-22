@@ -1,0 +1,8 @@
+# kind cluster config for bts-sbom-app (brief 5 G1 - 산출만). One control-plane node is the whole point:
+# this product is a single localhost process and its capacity math (docs/capacity.md 2.3) treats one
+# process + one evidence volume as the replication unit. More nodes would need auth + a proxy first.
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: bts-sbom
+nodes:
+  - role: control-plane

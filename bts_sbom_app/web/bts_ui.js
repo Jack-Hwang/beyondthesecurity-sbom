@@ -49,7 +49,31 @@
   function unavailable(title, why) {
     return heading(title) + note('<b>Not computed by BTS-SBOM.</b> ' + esc(why) + ' Nothing is shown rather than a made-up value.', 'warn');
   }
+  /* Chat answer renderer (pure, harness-tested): answer text, source/citation/routing line, retrieval evidence chips,
+     untrusted-quote warning and conflict annotations. Every dynamic value is escaped - analysed data and knowledge
+     chunks come from untrusted repositories. No inline event handlers (strict CSP). */
+  function renderChatAnswer(d) {
+    d = d || {};
+    var h = '<div class="bts-chat-out">' + esc((d.found ? '' : '[not found] ') + (d.answer || '')) + '</div>';
+    h += '<div class="bts-chat-src">source: ' + esc(d.answer_source) + ' · citation accuracy: ' + esc(d.citation_accuracy) +
+         ' · routing: ' + esc(d.routing || 'n/a') + (d.routing_note ? ' · ' + esc(d.routing_note) : '') + '</div>';
+    var tops = (d.retrieval && d.retrieval.top) || [];
+    if (tops.length) {
+      h += '<div class="bts-chat-chips">' + tops.map(function (t) {
+        return '<span class="bts-chat-chip" title="rrf ' + esc(t.rrf) + '">' + esc(t.heading || t.source) +
+               ' <span class="bts-chat-chip-src">' + esc(t.source) + '</span></span>';
+      }).join('') + '</div>';
+    }
+    if (d.contains_untrusted) {
+      h += note('Contains untrusted third-party quotes - shown verbatim, never obeyed.', 'warn');
+    }
+    (d.conflicts || []).forEach(function (c) {
+      h += note('<b>[conflict]</b> ' + esc(c.label) + ': ' + esc(c.a.value) + ' (' + esc(c.a.source) + ') vs ' +
+                esc(c.b.value) + ' (' + esc(c.b.source) + ') - the sources disagree; the judgement stays with you.', 'warn');
+    });
+    return h;
+  }
 
   return { SEV_COLOR: SEV_COLOR, esc: esc, H: H, cell: cell, absent: absent, val: val, when: when, table: table, sevBadge: sevBadge, pill: pill,
-           note: note, heading: heading, kv: kv, unavailable: unavailable };
+           note: note, heading: heading, kv: kv, unavailable: unavailable, renderChatAnswer: renderChatAnswer };
 });

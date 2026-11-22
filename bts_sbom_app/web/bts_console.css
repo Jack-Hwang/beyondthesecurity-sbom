@@ -41,6 +41,10 @@ details.bts-chat{margin-top:22px;border:1px solid #d0d7de;border-radius:8px;padd
 details.bts-chat summary{cursor:pointer;font-weight:600;color:#1f2328}
 .bts-chat-out{margin-top:10px;font-size:12.5px;line-height:1.55;color:#1f2328;white-space:pre-wrap}
 .bts-chat-src{color:#57606a;font-size:11px;margin-top:6px}
+.bts-chat-chips{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.bts-chat-chip{display:inline-block;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid #d0d7de;border-radius:999px;
+  background:#f6f8fa;color:#1f2328;font-size:11px;padding:2px 9px}
+.bts-chat-chip-src{color:#57606a;font-size:10px}
 .bts-link{color:#0969da;cursor:pointer;background:none;border:0;padding:0;font:inherit;text-decoration:underline}
 
 /* SBOM-governance panes (conformance, what changed, decisions, fleet) */

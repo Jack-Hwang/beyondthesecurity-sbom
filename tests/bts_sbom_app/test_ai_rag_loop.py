@@ -184,3 +184,51 @@ def test_chat_accepts_bracketed_ids_and_rejects_translated_quotes(world):
     assert good["answer_source"] == "exaone" and good["citation_accuracy"] == 1.0 and len([c for c in good["claims"] if c["trust"] != "untrusted-quote"]) == 2
     bad = _chat_with(world, [{"text": "c", "quote": "CVE-2018-18074 는 requests 2.19.1 에 영향을 주며 심각도는 HIGH 입니다", "source": src}])
     assert bad["answer_source"] == "tools" and "rejected" in bad["llm_note"]
+
+
+def test_azure_openai_uses_api_key_header_and_deployment_url(monkeypatch):
+    """Azure OpenAI: api-key header + deployment-scoped URL, no Bearer, no model key in body."""
+    from bts_sbom_app import llm as llm_mod
+    seen = {}
+
+    def transport(url, headers, body):
+        seen["url"], seen["headers"], seen["body"] = url, headers, body
+        return _ok("hi")
+
+    monkeypatch.setattr(llm_mod, "TRANSPORT", transport)
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azkey")
+    monkeypatch.setenv("AZURE_OPENAI_BASE_URL", "https://test-res.openai.azure.com")
+    monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5-mini")
+    monkeypatch.delenv("EXAONE_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    c = llm_mod.ChatClient.from_env()
+    out = c.complete("sys", "user")
+    assert out == "hi" and c.provider == "azure"
+    assert seen["url"] == "https://test-res.openai.azure.com/openai/deployments/gpt-5-mini/chat/completions?api-version=2025-04-01-preview"
+    assert seen["headers"].get("api-key") == "azkey" and "Authorization" not in seen["headers"]
+    assert "model" not in seen["body"] and "max_tokens" not in seen["body"]
+    assert seen["body"]["max_completion_tokens"] == 2048 and seen["body"]["reasoning_effort"] == "low"
+
+
+def test_azure_config_file_keys_win_over_exaone(monkeypatch, tmp_path):
+    """azure_* config keys route the client to the azure provider."""
+    from bts_sbom_app import llm as llm_mod
+    cfg = tmp_path / "cfg.json"
+    cfg.write_text(json.dumps({"azure_api_key": "k2", "azure_base_url": "https://r.openai.azure.com",
+                               "azure_deployment": "d1", "azure_api_version": "2025-04-01"}), encoding="utf-8")
+    monkeypatch.setenv("BTS_SBOM_LLM_CONFIG", str(cfg))
+    monkeypatch.setenv("EXAONE_API_KEY", "exaone-key")
+    c = llm_mod.ChatClient.from_env()
+    assert c.provider == "azure" and c.api_key == "k2" and c.model == "d1" and c.api_version == "2025-04-01"
+    assert c.base_url == "https://r.openai.azure.com"
+
+
+def test_from_config_autodetects_azure_by_base_url():
+    """A web-console client pointed at an Azure endpoint routes to the azure provider with a gpt-5-aware default api-version."""
+    from bts_sbom_app.llm import ChatClient
+    c = ChatClient.from_config("k", "https://res.openai.azure.com", "gpt-5-mini")
+    assert c.provider == "azure" and c.api_version == "2025-04-01-preview"
+    c2 = ChatClient.from_config("k", "https://res.openai.azure.com", "gpt-4o")
+    assert c2.provider == "azure" and c2.api_version == "2024-10-21"
+    c3 = ChatClient.from_config("k", "https://api.exaone.ai/v1", "k-exaone_v2.5")
+    assert c3.provider == "exaone"

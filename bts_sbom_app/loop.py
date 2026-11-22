@@ -212,12 +212,30 @@ def run_pass(tag: str, sources: List[Dict[str, Any]], out_root: str, loop_root: 
     return entry
 
 
+def case_regressions(base_misses: Dict[str, List[Dict[str, Any]]], cand_misses: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, str]]:
+    """Case-level regression rate (the lecture's definition: pass -> fail, per query): queries that had their expected
+    document retrieved at the accepted baseline but lost it in the candidate. Aggregate metrics can stay flat while a
+    single query regresses (another query improved to compensate) - that is exactly what this catches. A query that
+    failed before and passes now is an improvement, never a regression; a set the baseline didn't measure is skipped."""
+    out: List[Dict[str, str]] = []
+    for name, cm in cand_misses.items():
+        bm = base_misses.get(name)
+        if bm is None:
+            continue
+        base_q = {m["q"] for m in bm}
+        for m in cm:
+            if m["q"] not in base_q:
+                out.append({"set": name, "q": m["q"]})
+    return out
+
+
 def rag_history_path(loop_root: str) -> str:
     return os.path.join(loop_root, "rag_history.json")
 
 
 def run_rag_pass(tag: str, loop_root: str, root: str, *, variable: str, hypothesis: str = "", delta: float = 0.02) -> Dict[str, Any]:
-    """Retrieval-only loop pass: evaluate the golden/dev/test sets, gate every metric against the accepted baseline."""
+    """Retrieval-only loop pass: evaluate the golden/dev/test sets, gate every metric against the accepted baseline,
+    and block on case-level regressions (a query that passed at baseline and fails now, even when the aggregates hold)."""
     res = evals.rag_sets_eval(root)
     metrics: Dict[str, Any] = {}
     for name, r in res.items():
@@ -229,6 +247,7 @@ def run_rag_pass(tag: str, loop_root: str, root: str, *, variable: str, hypothes
     failed: List[str] = []
     undecidable: List[str] = []
     deltas: Dict[str, float] = {}
+    regressions: List[Dict[str, str]] = []
     if base:
         for k, b in base["metrics"].items():
             if b is None:
@@ -240,12 +259,17 @@ def run_rag_pass(tag: str, loop_root: str, root: str, *, variable: str, hypothes
             deltas[k] = round(v - b, 4)
             if v - b < -delta - 1e-9:
                 failed.append("%s: %.3f -> %.3f" % (k, b, v))
-    if base and not deltas and not undecidable:             # nothing was compared (empty/all-None baseline, or no eval set at all): not a pass
+        regressions = case_regressions(base.get("misses") or {}, {n: r["misses"] for n, r in res.items()})
+        if regressions:
+            failed.append("case regression: %d query(ies) passed at baseline but fail now: %s" % (
+                len(regressions), "; ".join("[%s] %s" % (r["set"], r["q"]) for r in regressions[:3])))
+    if base and not deltas and not undecidable and not regressions:   # nothing was compared (empty/all-None baseline, or no eval set at all): not a pass
         undecidable.append("no metric is comparable between baseline and candidate")
     ok = not failed and not undecidable
     decision = "baseline" if base is None else ("accept" if ok else "rollback")
     entry = {"pass": len(hist) + 1, "tag": tag, "at": now_iso(), "variable": variable, "hypothesis": hypothesis, "decision": decision,
              "gate": {"pass": ok, "failed": failed, "undecidable": undecidable, "deltas": deltas, "delta_limit": delta}, "metrics": metrics,
+             "case_regressions": regressions,
              "misses": {n: r["misses"] for n, r in res.items()},
              "code": code_fingerprint(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))}
     hist.append(entry)

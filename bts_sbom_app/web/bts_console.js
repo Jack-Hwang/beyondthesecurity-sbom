@@ -561,10 +561,7 @@
     api('/api/chat', { question: q, project: S.project || undefined, use_llm: !!$('#chatLlm').checked }).then(function (r) {
       var d = r.data || {};
       if (!r.ok) { out.textContent = d.error || ('HTTP ' + r.status); return; }
-      var srcs = {};
-      (d.claims || []).forEach(function (c) { srcs[c.source] = 1; });
-      out.innerHTML = '<div>' + esc((d.found ? '' : '[not found] ') + (d.answer || '')) + '</div><div class="bts-chat-src">source: ' + esc(d.answer_source) +
-        ' · citation accuracy: ' + esc(d.citation_accuracy) + (Object.keys(srcs).length ? ' · evidence: ' + esc(Object.keys(srcs).join(', ')) : '') + '</div>';
+      out.innerHTML = U.renderChatAnswer(d);          // pure renderer in bts_ui.js: answer, routing, evidence chips, conflict notes
     });
   }
 
