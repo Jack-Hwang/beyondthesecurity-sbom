@@ -50,6 +50,8 @@ SYNONYMS = {
     "복구": ["revert", "되돌림"], "낡은": ["eol", "runtime", "런타임"], "오래된": ["eol", "runtime", "런타임"],
     "지원되는지": ["eol", "end-of-life"], "지원 종료": ["eol", "end-of-life"], "횟수 제한": ["limit", "429", "budget", "한도"],
     "호출 횟수": ["limit", "429", "budget", "한도"], "한도": ["limit", "429", "budget"],
+    # paraphrase vocabulary (2026-11-22, dev failures after the round-1 lecture corpus landed)
+    "고쳤는데": ["fix", "patch", "regression"], "새 문제": ["regression", "재발"],
 }
 
 
@@ -237,11 +239,15 @@ class Index:
         return self.norm
 
     def search(self, query: str, k: int = 5, *, filters: Optional[Dict[str, Any]] = None, min_cover: float = 0.0,
-               min_bm25: float = 11.0) -> Dict[str, Any]:
+               min_bm25: float = 12.0) -> Dict[str, Any]:
         # Confidence gate: absolute BM25 of the best chunk. (An unweighted query-token coverage ratio was tried first; with
         # Korean syllable bigrams a query has 17-24 tokens, so even good matches scored low coverage and 51-67% of valid
         # questions were rejected. Threshold chosen on golden+dev, verified on the untouched test set - see evidence/loop.)
         # The absolute value depends on corpus size and query length: re-measure it when either changes substantially.
+        # 2026-11-22 re-measure (corpus grew: round-1 lecture knowledge + book-derived domain notes): the generic
+        # Korean word "결과" repeated in a lecture chunk scored 11.7 and leaked an out-of-domain query past the
+        # old 11.0 gate (dev OOD 0.8). 12.0 rejects that hit with ZERO loss on golden/dev/test recall, precision
+        # or OOD (measured before/after on all three sets); 12.5 starts dropping true finds (dev found 1.0 -> 0.933).
         qt = tokenize(query, for_query=True)
         qc = Counter(qt)
         if not qc or not self.chunks:
