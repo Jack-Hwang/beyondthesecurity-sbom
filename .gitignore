@@ -45,3 +45,6 @@ evidence/arch_intel/arch_out.json
 evidence/serve_8800.log
 evidence_e2e/
 evidence/reimpl_batch/*/
+evidence/reimpl_batch/*.log
+evidence/legacy_oss/
+evidence/serve_*.log

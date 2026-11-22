@@ -93,6 +93,20 @@ def test_a_patch_needs_the_token_of_the_plan_it_was_shown_and_nothing_else_appli
     assert saved["patch"]["status"] == "applied" and saved["patch"]["branch"] == "bts-sbom/auto-fix" and len(saved["patch"]["rounds"]) == 1
 
 
+def test_a_plan_request_routes_to_plan_patch_and_the_recorded_status_is_labelled_historical(env):
+    """AC: BSA-AC-593 — the --chat-actions live-chain findings (2026-11-22): "수정 계획을 세워줘" asked for a PLAN
+    but the regex router gave the read-only status display, and a stored patch status read as if it had just happened."""
+    b, rec = _analysed(env)
+    r = b.ask("수정 계획을 세워줘")
+    assert "plan_patch" in r["tools"] and "Approval token" in r["answer"]          # a plan ask plans; it never patches
+    tok = _token(rec)
+    done = b.ask("패치 승인 %s" % tok)
+    assert rec["patch"]["status"] == "applied" and rec["patch"].get("at")          # the approved run is timestamped
+    status = b.ask("django-nV 패치 상태 보여줘")
+    assert "Last recorded patch run of " in status["answer"] and "this question applied nothing" in status["answer"]
+    assert "Patch status:" not in status["answer"]                                 # the bare stale wording is gone
+
+
 def test_a_token_covers_exactly_its_selection_and_the_patch_runs_one_round(env):
     """AC: BSA-AC-202"""
     b, rec = _analysed(env)

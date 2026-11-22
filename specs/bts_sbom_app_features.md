@@ -827,3 +827,18 @@ Claude 클라이언트 셸(AC-583)의 2차: 대화면이 앱의 실제 구동 �
 불가)는 조용한 기능 상실이 아니라 "영속되지 않음"으로만 끝난다. 프로젝트별 지우기 버튼이 있다.
 
 - BSA-AC-592 [Event] When a chat turn is sent the conversation surface shall first resolve app slash commands locally - the fifteen panel commands open their panel through the bts:activate event and /scan <target> additionally fills the Scan landing input and runs the unified Analyze - without any model call, reporting an unknown command with an honest hint instead of forwarding it; when a turn finishes the surface shall offer a next-steps row built only from the tools that turn actually executed, each button opening the matching panel; and the conversation shall persist per project in this browser only, stripped of approval and next-step controls on save, swapped on project change, clearable per project, with a failed storage write ending as a non-persistent conversation rather than an error (15 of 15 panel commands, 1 of 1 scan-with-target flow, 12 of 12 tool-to-panel suggestions, 1 of 1 per-project persistence).
+
+### HITL 승인 체인 실측(--chat-actions)과 실측이 잡아낸 두 결함 수선 (사용자 지시 "계속", 2026-11-22)
+
+남은 실측 항목(--chat-actions 승인 체인)을 8801 실측 서버로 전 구간 측정했다. 측정이 두 결함을 잡아냈다:
+① "수정 계획을 세워줘"(계획 요청)가 plan_patch가 아니라 읽기 전용 상태 표시(patch)로 라우팅됐고 — _PLAN_ASK에
+"수정 계획"이 없었다 ② _patch가 타임스탬프 없이 저장된 패치 상태를 현재형("Patch status: applied")으로 내보여
+오래된 기록이 방금 일어난 일처럼 읽혔다. 수선: _PLAN_ASK에 수정·업그레이드 계획/remediation plan/계획을 세워를
+추가하고, actions.patch_apply 결과에 at 타임스탬프를 남기며, _patch는 "Last recorded patch run of <시각> …
+this question applied nothing; to apply, ask for the plan and approve its token"으로 역사 표시로 바꾼다.
+실측 자체의 결과(양방향): **긍정** — plan_patch → awaiting_approval(토큰 f8d55f1d53c83755) → 사람이 승인 버튼
+클릭("계획 적용 승인 <토큰>") → apply_patch가 격리 작업 사본에서 1컴포넌트 승급·재스캔 29개 조치/0 신규,
+branch bts-sbom/auto-fix 커밋 d54d30c3e5, **원본 무변경·푸시 없음**; **부정** — 플래그 없는 서버는 같은 승인
+문장에 read-only 정직 거부("This chat session is read-only, so the patch was not executed")로 끝난다.
+
+- BSA-AC-593 [Event] When a plan-shaped question names the plan without the apply words ("수정 계획을 세워줘") the router shall route to plan_patch - never to the read-only status display - so the turn emits awaiting_approval with a token and changes nothing; when a patch run is approved and executed its record shall carry an "at" timestamp, and the read-only patch display shall present the stored status as history ("Last recorded patch run of <at> ... this question applied nothing; to apply, ask for the plan and approve its token") instead of a bare present-tense status that reads as if it had just happened (1 of 1 routing rules, 1 of 1 timestamp, 1 of 1 historical wording; the live chain measured both directions: approved apply in an isolated work copy with the origin untouched, and the flag-less server refusing read-only).

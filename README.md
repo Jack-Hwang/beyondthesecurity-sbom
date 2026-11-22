@@ -13,9 +13,43 @@ standard library (Python >= 3.10). The package can prove it:
 
 ```console
 $ python -m bts_sbom selfsbom
-{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.3.0", "dependsOn": [] }],
+{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.5.0", "dependsOn": [] }],
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
+
+## What's new in 0.5.0 — clean-room reimplementation + REA-integrated architecture tools
+
+The headline of this release: the toolkit no longer only *scans* — it can now **re-implement** a
+compliance-risky legacy component from its measured architecture, prove the result, and publish it:
+
+- **Clean-room reimplementation workbench** (`bts-sbom-app reimpl <source> --component <module>` /
+  `POST /api/reimpl`): interface spec -> NEW code generated behind a two-wall process (the generator
+  never sees the original source) -> measured copy gate (line-shingle overlap with docstrings excluded
+  as spec-derived) -> generated contract tests **plus the upstream legacy test suite** adopted as the
+  behaviour oracle (run under a legacy-runtime shim for 2008-era runners) -> best-of-N candidates by
+  measured compatibility -> publish. Every stage streams live (`adopted_tests_passed`, `copy_gate`,
+  `published`, ...). Batch-verified on 64 real legacy PyPI packages (dataset: 146 rows, 32 packages
+  through the lane, 31/32 behaviour-compatible in the latest run; full analysis in
+  `evidence/reimpl_batch/ANALYSIS.md`).
+- **REA-integrated architecture tools** (adopted from a REA of the shipped Visual Studio 2026 modeling
+  assemblies — provenance in `docs/VS2026_REA_FINDINGS.md`): DGML export of the measured import graph
+  (`arch --dgml`, opens in VS Code Maps) with directory groups, hotspot/cycle categories and a
+  layer-validation map (`arch --dgml-layers`); layer validation with the REAL Visual Studio semantics —
+  ForbiddenNamespace deny-lists, obsolete layers, unique names, moniker ambiguity, participation
+  opt-out — and VS's own error message wording.
+- **Book knowledge base**: two-tier extraction of local PDF/EPUB libraries (stdlib EPUB spine parsing,
+  pdftotext subprocess with honest skips, SHA-256 dedupe; serve-time-only raw index + distilled notes;
+  eval-corpus isolation measured, ADR-0021). `book_search` chat tool, `/api/books/*`, Book KB tab.
+- **MCP server** (`python -m bts_sbom_app mcp`): Model Context Protocol over stdio JSON-RPC 2.0 —
+  tools/list, tools/call, resources/list, resources/read; the tools delegate to the real modules.
+- **A2A-style agent card** (`GET /api/agent-card`): 7 skills with their real gates, honest
+  securitySchemes, and the MCP surface.
+- **Chatbot upgrades**: multi-turn conversation memory with deterministic follow-up resolution
+  ("그중 HIGH만 보여줘" now routes with the previous turn), compound-question decomposition,
+  lost-in-the-middle passage reordering, 7-event chat-level SSE with a HITL approval gate, and the
+  VS error-message wording for layer findings.
+- **Ops**: supply-chain gate measured end to end (docker build -> Trivy CRITICAL gate -> CycloneDX SBOM
+  -> own-repo SBOM -> /healthz bench), RUNBOOK/capacity docs updated with the measured delivery state.
 
 ## Quickstart
 

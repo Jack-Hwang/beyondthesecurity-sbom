@@ -123,6 +123,17 @@
   var sendBtn = el('button', { type: 'button', 'class': 'run', id: 'chatDockSend', text: '\u27A4 보내기' });
   var clearBtn = el('button', { type: 'button', 'class': 'bts-cd-clear', id: 'chatDockClear', title: '이 프로젝트의 대화를 지운다', text: '\u232B' });
   var inputRow = el('div', { 'class': 'bts-cd-input' }, [input, clearBtn, llmLab, sendBtn]);
+  /* a chatbot answers conversationally: the LLM lane turns on by itself whenever a client is configured,
+     and the toggle's state is stated next to the input so "raw tool dump" turns are never a surprise */
+  fetch('/api/llm').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.key_configured) {
+      llmChk.checked = true;
+      llmLab.title = '연결됨: ' + (d.model || 'LLM') + ' — 해제하면 규칙 기반 요약으로 답한다';
+    } else {
+      llmChk.disabled = true;
+      llmLab.title = 'LLM 미연결: 상단 EXAONE/Azure에서 Connect하면 자연어 답변이 활성화된다';
+    }
+  }).catch(function () { /* the toggle keeps its manual state */ });
   body.appendChild(msgs);
   body.appendChild(chipsRow);
   body.appendChild(inputRow);

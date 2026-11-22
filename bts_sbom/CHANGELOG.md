@@ -2,6 +2,31 @@
 
 All notable changes to bts-sbom are documented here.
 
+## 0.5.0 - 2026-11-22: Clean-room reimplementation lane + book KB + MCP server + VS 2026 REA
+
+- Clean-room reimplementation workbench (`bts-sbom-app reimpl` / POST /api/reimpl): interface spec ->
+  NEW code generated behind a two-wall process (the generator never sees the original source) ->
+  measured copy gate (line-shingle overlap, docstrings excluded as spec-derived) -> generated contract
+  tests + the upstream legacy suite as behaviour oracle under a legacy-runtime shim -> best-of-N
+  candidates by measured compatibility -> publish. Live SSE events for every stage.
+- Book knowledge base (two-tier extraction: stdlib EPUB spine parsing + pdftotext with honest skips;
+  serve-time-only raw index + distilled notes; eval-corpus isolation measured, ADR-0021) with a
+  book_search chat tool, /api/books registry|outline|search|ingest and a Book KB tab.
+- MCP server over stdio JSON-RPC 2.0 (`python -m bts_sbom_app mcp`): tools/list, tools/call,
+  resources/list, resources/read; tools delegate to the real modules.
+- A2A-style agent card at GET /api/agent-card: 7 skills with their real gates, honest securitySchemes.
+- Chat upgrades: multi-turn conversation memory with deterministic follow-up resolution, compound-
+  question decomposition, lost-in-the-middle passage reordering, upstream-oracle compatibility loop for
+  generated code, 7-event chat-level SSE with HITL approval, and the REAL Visual Studio layer-model
+  semantics (ForbiddenNamespace, obsolete layers, unique names, moniker ambiguity, participation
+  opt-out) adopted by REA of the shipped Microsoft.VisualStudio.Layer 18.11 assemblies.
+- DGML export of the measured import graph (Visual Studio Code Maps interop) with directory groups,
+  hotspot/cycle categories and a layer-validation map; supply-chain gate (docker build -> Trivy
+  CRITICAL gate -> CycloneDX SBOM -> own-repo SBOM -> /healthz bench) measured end to end.
+- Batch experiment dataset: 64 legacy PyPI packages run through the lane (146 dataset rows; latest-run
+  verdicts ok 31 / compatibility_failed 1 / tests_failed 0 of 32 laned) with the full analysis in
+  evidence/reimpl_batch/ANALYSIS.md.
+
 ## 0.3.0 - 2026-11-21: Arch Intel - license verdict + AI architecture deep-dive, deterministic insights
 
 * **New: the Arch Intel screen** (`/api/arch/*`, pipeline `bts_sbom_app/arch_intel.py`, pure renderer

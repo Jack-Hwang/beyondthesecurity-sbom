@@ -34,7 +34,7 @@ _FLEET_Q = re.compile(r"영향.{0,8}프로젝트|(어느|어떤|몇).{0,4}프로
 # a source the user typed: URL, github shorthand, or an absolute / relative / drive path (bare owner/repo is left to the LLM planner: "and/or" matches it)
 _SRC = re.compile(r"(?:https?://|ssh://|git@|file://)[^\s\"']+|github\.com/[\w.-]+/[\w.-]+|github:[\w.-]+/[\w.-]+|(?:[A-Za-z]:[\\/]|\.{1,2}[\\/]|~[\\/]|/)[^\s\"']+")
 _PATCH_ACT = re.compile(r"(패치|수정|업그레이드|고쳐|고치|patch|fix|upgrade).{0,14}(해|적용|진행|apply|하자|it\b)|apply.{0,12}patch|patch it")
-_PLAN_ASK = re.compile(r"승인 ?토큰|approval token|패치 ?계획|patch plan")
+_PLAN_ASK = re.compile(r"승인 ?토큰|approval token|패치 ?계획|patch plan|수정 ?계획|업그레이드 ?계획|remediation plan|계획을 ?세워")
 _APPROVE = re.compile(r"승인|approve|apply|적용|진행|go ahead")
 _CONFIRM = re.compile(r"확정|confirm|기록해|record it")
 _STATUS_WORDS = (("false-positive", r"오탐|false.?positive|영향 ?없|해당 ?없|not.?affected"), ("accepted", r"위험.{0,3}수용|수용|accept"),
@@ -148,8 +148,10 @@ def _patch(rec: Dict[str, Any]) -> List[str]:
         rec["name"], len(ups), len(plans) - len(ups), sum(1 for p in ups if p["verification"].get("clean") is True))]
     pa = rec.get("patch") or {}
     if pa:
-        lines.append("Patch status: %s (approved=%s)%s." % (pa.get("status"), pa.get("approved"),
-                                                         (", branch " + pa["branch"]) if pa.get("branch") else ""))
+        when = (" of " + pa["at"]) if pa.get("at") else " (an earlier session - no timestamp recorded)"
+        lines.append("Last recorded patch run%s: %s (approved=%s)%s - shown from the record, this question applied nothing; "
+                     "to apply, ask for the plan and approve its token." % (when, pa.get("status"), pa.get("approved"),
+                                                                           (", branch " + pa["branch"]) if pa.get("branch") else ""))
     for p in ups[:3]:
         lines.append("Upgrade %s from %s to %s (clears %d advisories%s)." % (p["component"], p["current_version"], p["safe_version"],
                                                                          len(p["clears"]), ", major bump" if p["major_bump"] else ""))
