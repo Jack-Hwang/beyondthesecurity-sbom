@@ -796,3 +796,20 @@ Executable State Machines, Wireframing, DMN-Sim 워크스페이스, BPSim/LSim �
 - BSA-AC-579 [Event] When the layer validator runs it shall enforce the REAL Visual Studio layer-model semantics extracted by REA of the shipped Microsoft.VisualStudio.Layer 18.11 assembly (channel-manifest targeted payload download, provenance recorded in vs_alignment): per-layer forbidden deny-lists (ForbiddenNamespace / ForbiddenNamespaceDependencies) matching imported node paths, obsolete-layer findings for declared layers whose match patterns hit zero nodes (ValidateLayerHasNoOrObsoleteArtifacts), duplicate layer-name detection on trimmed display names (LayerNamesMustBeUnique), all three finding kinds failing the verdict - forbidden hits reported as their own category alongside illegal and bypassed (3 of 3 VS rules, 3 of 3 finding categories).
 
 - BSA-AC-580 [Event] When the layer validator encounters a node path matching several layer patterns it shall report an ambiguous_monikers finding naming the node and all matched layers (validation proceeds on the first match - the ambiguity is a finding, never a silent choice), and when a layer declares exclude patterns the matching nodes shall be removed from validation entirely - not checked, not counted as unknown, named in excluded_nodes - the VS SupportsValidation participation semantics; ambiguous monikers fail the verdict while excluded nodes never do (1 of 1 ambiguity rule, 1 of 1 participation rule).
+
+### Claude 클라이언트 셸 — 사이드바는 세션 목록, 패널은 접이식, 대화가 주 화면 (CCD 명세 기반, 사용자 지시 2026-11-22, ADR-0027)
+
+CCD(Claude Code Desktop) 명세 8종(CC D×RFC API·인터페이스 명세서, Code 탭 화면 해부, IF-B04 Desktop 제어면
+도구, IF-A04 슬래시 명령, 하네스·가드레일·생애주기·보안·플랫폼 덱)을 전수 분석한 결론을 화면에 적용한다:
+Claude 클라이언트의 사이드바는 기능 메뉴가 아니라 **세션 목록**이고, 기능은 대화가 앱을 부르는 구조(IF-B04)다.
+사용자 지시("여기 메뉴를 주요 기능으로 통합해 기능이 너무 많아")에 따라 레일을 재구성한다 — ① 맨 위 ＋ 새 분석
+버튼(Scan 랜딩) ② 분석 세션 목록(/api/history 프로젝트 12건, 클릭=프로젝트 선택+리포트 패널, 선택 하이라이트)
+③ 기존 12판을 전부 보존하는 5개 접이식 섹션(분석 스캔/결과와 우선순위/리포트와 구조/지식과 컴플라이언스/수정과
+운영 — .rtab[data-sv] 계약은 섹션 헤더가 유지) ④ 하단 💬 어시스턴트 토글(챗 독 열기+포커스). 대화면(챗 독)은
+접힘에서 **펼침 기본**으로 바뀌어 주 화면이 되고(초기 상태는 마크업이 결정 — bts_chat_panel.js는 root 클래스에서
+읽는다), 메시지 영역은 44vh→52vh로 확대된다. 판 자체는 하나도 삭제하지 않는다 — 내비게이션만 Claude 클라이언트
+모양으로 바뀐다.
+
+- BSA-AC-583 [Event] When the console loads it shall build the rail as a Claude-client session list - a ＋ 새 분석 button that opens the Scan landing, an analysis-session list of the analysed projects (up to 12, click selects the project and opens its Report panel, the selected one highlighted) and five collapsed feature sections that keep all 26 panels reachable under their .rtab[data-sv] headers - with a 💬 어시스턴트 toggle that opens and focuses the conversation surface, while the conversation dock ships OPEN as the main window (its initial state decided by the markup class, message area enlarged to at least 50vh) (1 of 1 session lists, 5 of 5 sections, 26 of 26 panels preserved, 1 of 1 open-by-default surfaces).
+
+- BSA-AC-591 [Event] When the layer validator reports findings it shall use the REAL Visual Studio message formats extracted verbatim from LayerDesigner.Dsl by REA - an empty layer reported as "Layer {name} has no artifacts or child layers." and an ambiguous moniker reported as "Ambiguous moniker '{node}' encountered. It is used for both '{layer1}' and '{layer2}'." - so users see the same wording Visual Studio shows (2 of 2 message formats, 1 of 1 verbatim rule).

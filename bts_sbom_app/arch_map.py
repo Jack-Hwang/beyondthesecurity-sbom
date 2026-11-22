@@ -188,7 +188,9 @@ def layer_validate(edges: Iterable[Tuple[str, str]], rules: Dict[str, Any]) -> D
         matching = [name for name in names_in_order
                     if any(fnmatch.fnmatch(n, p) for p in (layers[name].get("match") or []))]
         if len(matching) > 1:
-            ambiguous.append({"node": n, "layers": matching})
+            quoted = " and ".join("'%s'" % m for m in matching)
+            ambiguous.append({"node": n, "layers": matching,
+                              "message": "Ambiguous moniker '%s' encountered. It is used for both %s." % (n, quoted)})
     for a, b in edge_list:
         if a not in node_layer:
             node_layer[a] = _layer_of(a, rules) or "unknown"
@@ -232,7 +234,9 @@ def layer_validate(edges: Iterable[Tuple[str, str]], rules: Dict[str, Any]) -> D
                 break                                       # one bypass report per offending edge
     # VS ValidateLayerHasNoOrObsoleteArtifacts: a declared layer whose patterns matched no node is obsolete.
     matched_layers = {v for v in node_layer.values()}
-    obsolete = [n for n in names_in_order if n not in matched_layers]
+    # VS message formats, verbatim from LayerDesigner.Dsl (REA): empty/obsolete layer, duplicate names
+    obsolete = ["Layer %s has no artifacts or child layers." % n
+                for n in names_in_order if n not in matched_layers]
     stripped = [n.strip() for n in names_in_order]                      # VS: LayerNamesMustBeUnique (display names)
     duplicate_names = len(stripped) != len(set(stripped))
     if duplicate_names:

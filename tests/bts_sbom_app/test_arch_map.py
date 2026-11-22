@@ -130,7 +130,7 @@ def test_cli_arch_layer_violations_reported(tmp_path, make_repo, capsys):
 
 
 def test_rea_informed_forbidden_obsolete_and_uniqueness_semantics():
-    """AC: BSA-AC-579 - the REAL VS layer-model semantics (ForbiddenNamespace etc.), extracted by REA of
+    """AC: BSA-AC-579, BSA-AC-591 - the REAL VS layer-model semantics (ForbiddenNamespace etc.), extracted by REA of
     Microsoft.VisualStudio.Layer 18.11, enforced by our validator."""
     rules = {"layers": {
         "ui": {"match": ["web/*", "*/web/*"], "may_depend_on": ["services"], "forbidden": ["bts_sbom/*"]},
@@ -142,7 +142,7 @@ def test_rea_informed_forbidden_obsolete_and_uniqueness_semantics():
     r = arch_map.layer_validate(edges, rules)
     assert r["verdict"] == "fail"
     assert r["forbidden"] and r["forbidden"][0]["layer"] == "ui"              # the VS ForbiddenNamespace category
-    assert "ghost" in r["obsolete_layers"]                                    # VS: ValidateLayerHasNoOrObsoleteArtifacts
+    assert "Layer ghost has no artifacts or child layers." in r["obsolete_layers"]  # VS message format, verbatim
     assert r["vs_alignment"]["source"].startswith("Microsoft.VisualStudio.Layer 18.11")
     dup = {"layers": {"a": {"match": ["x/*"]}, "a ": {"match": ["y/*"]}}}
     dupr = arch_map.layer_validate([], dup)
@@ -151,7 +151,7 @@ def test_rea_informed_forbidden_obsolete_and_uniqueness_semantics():
 
 
 def test_moniker_ambiguity_and_participation_exclusion():
-    """AC: BSA-AC-580 - VS ValidateMonikerAmbiguity + SupportsValidation adoption."""
+    """AC: BSA-AC-580, BSA-AC-591 - VS ValidateMonikerAmbiguity + SupportsValidation adoption."""
     rules = {"layers": {
         "ui": {"match": ["web/*"], "may_depend_on": ["core"]},
         "shared": {"match": ["web/shared/*"], "may_depend_on": ["core"]},     # overlaps ui on web/shared/*
@@ -164,6 +164,8 @@ def test_moniker_ambiguity_and_participation_exclusion():
     r = arch_map.layer_validate(edges, rules)
     amb = r["ambiguous_monikers"]
     assert amb and amb[0]["node"] == "web/shared/util.py" and set(amb[0]["layers"]) == {"ui", "shared"}
+    assert amb[0]["message"] == ("Ambiguous moniker 'web/shared/util.py' encountered. "
+                                 "It is used for both 'ui' and 'shared'.")                 # the VS wording, verbatim
     assert r["verdict"] == "fail" and any("ambiguous" in a["node"] for a in []) or amb     # ambiguity is the finding
     assert r["excluded_nodes"] == ["bts_sbom/vendor/embedded.py"]              # participation opt-out honoured
     assert r["checked"] == len([e for e in edges if "vendor" not in e[1]])     # excluded edges are not checked
