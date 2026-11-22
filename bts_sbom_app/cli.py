@@ -1,4 +1,4 @@
-"""Command line: scan | patch | arch | batch | loop | evalrag | evalchat | contextpack | chat | serve."""
+"""Command line: scan | patch | arch | batch | loop | evalrag | evalchat | contextpack | chat | books | serve."""
 from __future__ import annotations
 
 import argparse
@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from typing import Any, Dict, List, Optional
 
 from . import __version__, arch as archmod, batch, chat as chatmod, evals, loop, pipeline, rag, report, workspace
@@ -110,6 +111,11 @@ def build_parser() -> argparse.ArgumentParser:
     rl = sub.add_parser("ragloop", help="retrieval-only loop pass over the golden/dev/test sets")
     rl.add_argument("--variable", required=True); rl.add_argument("--hypothesis", default=""); rl.add_argument("--tag", default="rag")
     rl.add_argument("--json", action="store_true")
+    bk = sub.add_parser("books", help="build the book knowledge base from a local folder of PDF/EPUB books")
+    bk.add_argument("src"); bk.add_argument("--out", default=None, help="output folder (default: <root>/evidence/books)")
+    bk.add_argument("--json", action="store_true")
+    mc = sub.add_parser("mcp", help="serve the Model Context Protocol over stdio (JSON-RPC 2.0: tools/list, tools/call)")
+    mc.add_argument("--evidence", default=None)
     c = sub.add_parser("chat", help="ask a grounded question (with --actions: analyse, patch with an approval token, record VEX decisions)")
     c.add_argument("question", nargs="?", default=None); c.add_argument("--evidence", default=None); c.add_argument("--project", default=None)
     c.add_argument("--llm", action="store_true"); c.add_argument("--llm-config", default=None); c.add_argument("--json", action="store_true")
@@ -217,6 +223,29 @@ def main(argv: Optional[List[str]] = None) -> int:
                               client=client, rag_eval=rag_e, chat_eval=chat_e, jobs=a.jobs, hyp_client=client, work_root=a.work)
         _print(entry, a.json, "pass %s [%s] decision=%s gate=%s\nfailed=%s undecidable=%s\nnext=%s" % (entry["pass"], a.variable, entry["decision"], entry["gate"]["pass"], entry["gate"]["failed"], entry["gate"].get("undecidable", []), [h["variable"] for h in entry["next"]["items"]]))
         return 0 if entry["decision"] != "rollback" else 1
+    if a.cmd == "books":
+        from . import books as booksmod
+        out = a.out or os.path.join(a.root, "evidence", "books")
+        t0 = time.time()
+        reg = booksmod.build(a.src, out)
+        t = reg.get("totals") or {}
+        took = round(time.time() - t0, 1)
+        txt = ["books: %s -> %s (%ss)" % (a.src, out, took),
+               "files %s: ok %s, skipped %s, duplicates %s | sections %s, chars %s | pdftotext: %s" % (
+                   t.get("files"), t.get("ok"), t.get("skipped"), t.get("duplicates"), t.get("sections"), t.get("chars"),
+                   reg.get("pdftotext") or "NOT FOUND (pdfs skipped)")]
+        for b in reg.get("books", []):
+            if b.get("status") != "ok":
+                why = b.get("reason") or ("duplicate of %s" % b.get("duplicate_of") or "?") if (b.get("reason") or b.get("duplicate_of")) else b.get("status")
+                txt.append("  %s: %s (%s)" % (b.get("file"), b.get("status"), why))
+        _print(reg, a.json, "\n".join(txt))
+        return 0
+    if a.cmd == "mcp":
+        from . import mcp_server
+        # stdout carries ONLY protocol messages (a stray line corrupts the MCP session); the banner goes to stderr
+        print("bts-sbom MCP server: protocol %s, tools: %s" % (mcp_server.PROTOCOL_VERSION,
+                                                               ", ".join(t["name"] for t in mcp_server.TOOL_DEFS)), file=sys.stderr)
+        return mcp_server.serve_stdio(mcp_server.Session(a.root, a.evidence), sys.stdin, sys.stdout)
     if a.cmd == "evalrag":
         r = evals.rag_eval(a.root, a.golden)
         c = evals.chat_eval(a.root)

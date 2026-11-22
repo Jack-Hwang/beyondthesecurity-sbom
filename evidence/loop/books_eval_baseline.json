@@ -1,0 +1,23 @@
+{
+ "rag_golden": {
+  "recall_at_k": 1.0,
+  "mrr": 0.975,
+  "ndcg_at_k": 0.95,
+  "found_rate": 0.85,
+  "ood_rate": 1.0
+ },
+ "rag_dev": {
+  "recall_at_k": 0.933,
+  "mrr": 0.802,
+  "ndcg_at_k": 0.828,
+  "found_rate": 1.0,
+  "ood_rate": 0.8
+ },
+ "rag_test": {
+  "recall_at_k": 0.917,
+  "mrr": 0.757,
+  "ndcg_at_k": 0.769,
+  "found_rate": 0.917,
+  "ood_rate": 1.0
+ }
+}

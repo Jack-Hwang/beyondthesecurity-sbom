@@ -47,7 +47,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import __version__, actions as actionsmod, arch_api, chat as chatmod, chat_stream, conformance, console, coverage, engine, events, evals, fleet, oss_api, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, coverage, engine, events, evals, fleet, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 from .util import clip, read_json, write_json
@@ -106,6 +106,34 @@ class State:
                 self.client = ChatClient.from_config(str(saved.get("api_key")), str(saved.get("base_url") or ""),
                                                      str(saved.get("model") or ""), ledger=os.path.join(root, "evidence", ".llm_ledger.json"))
         self.triage_path = os.path.join(evidence, ".triage.json")
+        self._books_cache: Optional[Tuple[Optional[Tuple[int, int]], Any]] = None   # ((mtime_ns, size) of registry.json, rag.Index)
+
+    def books_dir(self) -> str:
+        """The book KB is stable state, not a run artifact: it lives at <root>/evidence/books (same root-based
+        location as the LLM ledger), independent of which --evidence runs folder the service was started with."""
+        return books.books_dir(os.path.join(self.root, "evidence"))
+
+    def books_index(self):
+        """The serve-time index over the ingested books (kind="books"), built once and reused across chat requests
+        (``State.bot`` rebuilds the main index per request; the book corpus is far too large for that - ADR-0021).
+        Invalidated by the registry.json signature, so an ingest job is picked up without a server restart.
+        An empty (no registry) index is still a valid ``rag.Index``: every reader answers honestly on it."""
+        path = os.path.join(self.books_dir(), "registry.json")
+        try:
+            sig = (os.stat(path).st_mtime_ns, os.stat(path).st_size)
+        except OSError:
+            sig = None
+        with self.lock:
+            if sig is not None and self._books_cache and self._books_cache[0] == sig:
+                return self._books_cache[1]
+        idx = rag.Index(books.load_chunks(self.books_dir())) if sig is not None else rag.Index(())
+        with self.lock:
+            self._books_cache = (sig, idx)
+        return idx
+
+    def reset_books_cache(self) -> None:
+        with self.lock:
+            self._books_cache = None
 
     def _llm_config_path(self) -> str:
         return os.path.join(self.evidence, ".llm_config.json")
@@ -154,16 +182,18 @@ class State:
         projs = load_projects(self.evidence)
         client = self.client if self.client.available else None
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
-        return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs)), projs, client, acts, self.triage(),
-                               arch_dir=os.path.join(self.evidence, "archintel"))
+        return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
+                               projs, client, acts, self.triage(),
+                               arch_dir=os.path.join(self.evidence, "archintel"), books=self.books_index())
 
     def stream_bot(self, sink: Any) -> chat_stream.StreamingChatbot:
         """The same wiring as :meth:`bot`, as the observing subclass: the 7 chat-level events go to ``sink``."""
         projs = load_projects(self.evidence)
         client = self.client if self.client.available else None
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
-        return chat_stream.StreamingChatbot(evals.build_index(self.root, evidence_chunks(projs)), projs, client, acts,
-                                            self.triage(), arch_dir=os.path.join(self.evidence, "archintel"), sink=sink)
+        return chat_stream.StreamingChatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
+                                            projs, client, acts, self.triage(), arch_dir=os.path.join(self.evidence, "archintel"),
+                                            books=self.books_index(), sink=sink)
 
     def triage(self) -> Dict[str, Any]:
         with self.lock:
@@ -209,6 +239,48 @@ def _mtime_iso(path: str) -> Optional[str]:
         return datetime.datetime.fromtimestamp(os.path.getmtime(path)).astimezone().isoformat(timespec="seconds")
     except OSError:
         return None
+
+
+def agent_card(st: "State") -> Dict[str, Any]:
+    """A2A-style agent card (Building Agentic AI Systems, brief-5 books): machine-readable discovery of THIS
+    agent's skills, gates and endpoints. A card declares capability, not state - readiness is /readyz, and the
+    honesty rules apply here too (securitySchemes says plainly that there is none on localhost)."""
+    return {
+        "name": "bts-sbom", "version": __version__,
+        "description": "Open-source vulnerability / license / SBOM analyzer with an approval-gated patch loop, "
+                       "a deterministic license council, a grounded chatbot and a book knowledge base.",
+        "url": "http://127.0.0.1", "protocolVersion": "bts-sbom.card.v1",
+        "capabilities": {"streaming": True, "pushNotifications": False, "stateTransitionHistory": False},
+        "securitySchemes": {"none": {"type": "none", "description": "localhost only, no authentication - do not expose beyond loopback (docs/RUNBOOK.md)"}},
+        "handoffSchema": "bts-sbom.handoff.v1",
+        "skills": [
+            {"id": "scan", "name": "Analyze a source", "gate": "none",
+             "description": "git URL / owner-repo / local folder -> components, CVEs, licenses, SBOM, VEX, architecture; the record feeds every other skill.",
+             "inputModes": ["git-url", "owner-repo", "local-path", "archive"], "outputModes": ["project-record", "sse-job-events"]},
+            {"id": "patch", "name": "Propose and apply upgrades", "gate": "approval-token",
+             "description": "plan -> 16-hex approval token -> apply in an isolated work copy with regression check; the token must be text the USER typed.",
+             "inputModes": ["plan-preview", "approval-token"], "outputModes": ["patch-result", "sse-job-events"]},
+            {"id": "license_council", "name": "Multi-member license verdict", "gate": "deterministic-aggregation",
+             "description": "3 independent LLM members + deterministic verdict code; member failures surface as a recoverable/fatal error envelope (handoff.v1).",
+             "inputModes": ["license-text"], "outputModes": ["verdict", "error-envelope"]},
+            {"id": "chat", "name": "Grounded chatbot", "gate": "citation-verification",
+             "description": "tool-routed answers with verified claims; untrusted quotes are marked verbatim; streams 7 chat-level event kinds.",
+             "inputModes": ["text"], "outputModes": ["answer-claims", "sse-chat-events"]},
+            {"id": "book_search", "name": "Book knowledge base", "gate": "serve-time-index",
+             "description": "search the ingested local book library (deterministic extraction, distilled notes; ADR-0021).",
+             "inputModes": ["text-query"], "outputModes": ["passages"]},
+            {"id": "nl2sql", "name": "Read-only text-to-SQL", "gate": "3-layer-safety",
+             "description": "natural-language questions over the local OSV mirror; tokenizer validator + read-only connection + 4-state executor.",
+             "inputModes": ["text-query"], "outputModes": ["rows-or-4-state"]},
+            {"id": "supply_chain_gate", "name": "Self supply-chain gate", "gate": "trivy-critical-0",
+             "description": "build -> Trivy CRITICAL gate -> CycloneDX SBOM -> own-repo SBOM -> serving bench (scripts/supply_chain_gate.py).",
+             "inputModes": ["none"], "outputModes": ["gate-report"]},
+        ],
+        "endpoints": {"/api/chat": "POST answer", "/api/chat/stream": "POST sse-7-events", "/api/scan": "POST job",
+                      "/api/jobs/<id>/events": "GET sse-job-events", "/api/books/search": "GET passages",
+                      "/api/books/ingest": "POST job", "/api/oss/scan": "POST oss-scan-job",
+                      "mcp": "stdio via: python -m bts_sbom_app mcp"},
+    }
 
 
 def _record_file(folder: str) -> str:
@@ -326,6 +398,18 @@ def make_handler(st: State):
                 self._send(code, obj, ctype, headers)
             return True
 
+        def _books(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
+            """The Book KB screen's API (books_api.py); False when the path is not one of its routes."""
+            hit = books_api.route(method, path, q, body, self.headers, st, bind=tuple(self.server.server_address[:2]))
+            if hit is None:
+                return False
+            code, obj, ctype, headers = hit
+            if isinstance(obj, (bytes, bytearray)):
+                self._emit(code, bytes(obj), ctype, headers)
+            else:
+                self._send(code, obj, ctype, headers)
+            return True
+
         def _serve_events(self, jid: str, q: Dict[str, Any]) -> None:
             """GET /api/jobs/<jid>/events as text/event-stream. Unknown job -> plain 404 JSON (never a stream).
             Resumes after ``Last-Event-ID`` (header takes precedence over ``?after=``); heartbeats keep an idle
@@ -381,6 +465,8 @@ def make_handler(st: State):
                     core = {"error": str(exc)}
                 return self._send(200, {"name": "BTS-SBOM", "workflow_version": __version__, "core": core, "llm": st.client.describe(),
                                         "evidence": st.evidence, "projects": len(project_records(st.evidence))})
+            if path == "/api/agent-card":
+                return self._send(200, agent_card(st))
             if path == "/api/projects":
                 return self._send(200, {"projects": sorted(load_projects(st.evidence))})
             if path == "/api/history":
@@ -449,6 +535,8 @@ def make_handler(st: State):
             if self._oss("GET", path, q, {}):
                 return
             if self._arch("GET", path, q, {}):
+                return
+            if self._books("GET", path, q, {}):
                 return
             self._send(404, {"error": "not found"})
 
@@ -573,6 +661,8 @@ def make_handler(st: State):
             if self._oss("POST", path, {}, b):
                 return
             if self._arch("POST", path, {}, b):
+                return
+            if self._books("POST", path, {}, b):
                 return
             self._send(404, {"error": "not found"})
 

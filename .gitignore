@@ -25,6 +25,9 @@ evidence/.llm_ledger.json
 evidence/runs/
 bts_sbom_work_*/
 
+# extracted text of the user's own PDF/EPUB books (copyrighted works - rebuild with `bts-sbom-app books --src <folder>`)
+evidence/books/
+
 # bulky per-project machine records of analysed third-party repositories (regenerate with `bts-sbom-app batch`);
 # summaries, loop history and the human-readable reports stay tracked
 evidence/batch/runs/*/*/*.json

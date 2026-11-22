@@ -17,14 +17,17 @@
   var GROUPS = {
     'git': ['git', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
     'graph-health': ['dep-graph', 'arch', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
-    'fix': ['fix-plan', 'fix-pr'], 'oss': ['oss'], 'more': ['more', 'fleet']
+    'fix': ['fix-plan', 'fix-pr'], 'oss': ['oss'], 'report': ['report'], 'archintel': ['archintel'],
+    'books': ['books'], 'chat': ['chat'], 'more': ['more', 'fleet']
   };
   var LABELS = {
-    'git': '🌐 Git repo', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Overview', 'changes': '🔔 What changed',
+    'git': '🌐 Scan', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Findings', 'changes': '🔔 What changed',
+    'prioritize': '🎯 Prioritize', 'graph-health': '🕸 Graph & Health', 'compliance': '✅ Compliance', 'fix': '🔧 Fix',
     'ssvc': '🎯 SSVC', 'epss': '📡 EPSS', 'exploit-mat': '🔥 Exploit Mat.', 'dep-graph': '🕸 Dep Graph',
     'arch': '🏛 Architecture', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
     'vex': '📋 VEX · Decisions', 'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
-    'fix-pr': '🔧 Patch', 'oss': '📜 OSS Scanner', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
+    'fix-pr': '🔧 Patch', 'oss': '📜 OSS Scanner', 'report': '📊 Report', 'archintel': '🏛 Arch Intel', 'books': '📚 Book KB',
+    'chat': '💬 Chat', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
   };
   var SEVS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
   var SEV_COLOR = U.SEV_COLOR;
@@ -53,7 +56,14 @@
     return '<button type="button" class="run" data-act="' + esc(act) + '"' + (attrs || '') + (S.busy && extra === 'job' ? ' disabled' : '') + '>' + label + '</button>';
   }
 
-  /* ---------- tabs (same grouping as the platform screen) ---------- */
+  /* ---------- tabs (the desktop-shell sidebar; same grouping as the platform screen) ---------- */
+  function buildSideNav() {
+    var nav = $('#sideNav');
+    if (!nav) { return; }
+    nav.innerHTML = '<div class="bts-sidenav-brand">\u2699 BTS-SBOM</div>' + Object.keys(GROUPS).map(function (g) {
+      return '<div class="rtab" data-sv="' + esc(g) + '" role="button" tabindex="0">' + esc(LABELS[g] || g) + '</div>';
+    }).join('');
+  }
   function groupOf(sv) {
     for (var g in GROUPS) { if (GROUPS[g].indexOf(sv) >= 0) { return g; } }
     return null;
@@ -75,6 +85,7 @@
     $$('#view-scan .rtab').forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-sv') === group); });
     $$('#view-scan .rpane').forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-sv') === member); });
     subnav(group, member);
+    if (member === 'report') { renderConsole(); }     // the report tab owns the only ScaApp mount: re-render on entry
   }
 
   /* ---------- 1-4 step bar (same markup as the platform) ---------- */
@@ -136,7 +147,45 @@
   function analyse(src) {
     src = (src || '').trim();
     if (!src) { setStep(1, 'Enter a repository URL or a local path.', true); return; }
-    runJob({ source: src, offline: !!$('#scaOffline').checked, use_llm: !!$('#scaLlm').checked }, 'Analysis');
+    var ossToo = !!($('#scaOss') && $('#scaOss').checked);
+    runJob({ source: src, offline: !!$('#scaOffline').checked, use_llm: !!$('#scaLlm').checked }, 'Analysis').then(function (job) {
+      if (job && job.state === 'done') { activate('report'); }           // the report has its own tab now
+      if (ossToo && job && job.state === 'done') { runOssChain(src); }   // one Analyze, two engines: main pipeline first, OSS deliverables after
+    });
+  }
+  /* runOssChain: the same target through the OSS Scanner engine (source + dependency + binary), so the
+     platform deliverables (OSS notice / spreadsheet) exist without a second manual entry point. Failure is
+     an honest note - the main analysis result stays valid and untouched. Same DOM rules as renderConsole:
+     note() returns an HTML string whose dynamic parts must be esc()ed, then a real button node is appended
+     (the page CSP forbids inline handlers). */
+  function runOssChain(src) {
+    var banner = $('#scaBanner');
+    if (!banner) { return; }
+    setStep(4, 'OSS Scanner: scanning the same target (source + dependency + binary)…');
+    api('/api/oss/scan', { target: src, modes: ['source', 'dependency', 'binary'], excludes: [], branch: '', correction: false }).then(function (r) {
+      if (!r.ok) {
+        banner.innerHTML = note('OSS 성과물 생성 실패: ' + esc((r.data && r.data.error) || ('HTTP ' + r.status)) + ' — 메인 분석 결과는 정상이다. 📜 OSS Scanner 탭에서 직접 시도할 것.', 'bad');
+        return;
+      }
+      var id = String(r.data.job || '');
+      (function poll() {
+        api('/api/oss/jobs/' + encodeURIComponent(id)).then(function (j) {
+          var d = j.data || {};
+          if (d.state === 'running') { setTimeout(poll, 1200); return; }
+          if (d.state !== 'done') {
+            banner.innerHTML = note('OSS 스캔 실패: ' + esc(d.error || d.state || 'unknown') + ' — 메인 분석 결과는 정상이다.', 'bad');
+            return;
+          }
+          banner.innerHTML = note('OSS 성과물 완료 (job ' + esc(id) + ') — 공개문·엑셀·바이너리 목록은 📜 OSS Scanner 탭에 있다.', 'ok');
+          var view = document.createElement('button');
+          view.type = 'button';
+          view.className = 'bts-mini';
+          view.textContent = 'OSS Scanner에서 보기';
+          view.addEventListener('click', function () { activate('oss'); });
+          banner.appendChild(view);
+        });
+      })();
+    });
   }
 
   /* ---------- engine, history, project ---------- */
@@ -194,7 +243,7 @@
       if (!rs[0].ok) {
         S.view = null;
         resetGovernance();
-        $('#scaReportOut').innerHTML = note(esc((rs[0].data && rs[0].data.error) || 'The project could not be loaded.'), 'bad');
+        $('#reportOut').innerHTML = note(esc((rs[0].data && rs[0].data.error) || 'The project could not be loaded.'), 'bad');
         renderPanes();
         return;
       }
@@ -242,7 +291,7 @@
     });
   }
   function watchBrand() {
-    var mount = $('#scaReportOut');
+    var mount = $('#reportOut');
     new MutationObserver(function () { rebrand(mount); }).observe(mount, { childList: true, subtree: true });
   }
   function download(url, fname) {
@@ -272,9 +321,12 @@
     });
   }
   function renderConsole() {
-    var mount = $('#scaReportOut'), banner = $('#scaBanner');
+    var mount = $('#reportOut'), banner = $('#reportBanner'), head = $('#reportHead');
+    if (!mount) { return; }
     banner.innerHTML = '';
-    if (!S.view) { mount.innerHTML = ''; return; }
+    if (!window.BtsReport) { head.innerHTML = ''; }
+    else { head.innerHTML = BtsReport.renderHead(S.view); }
+    if (!S.view) { mount.innerHTML = ''; $('#govCards').innerHTML = ''; return; }
     var rep = S.view.report, b = rep.bts || {};
     if (b.empty_project) {
       banner.innerHTML = note('<b>No supported manifest or lockfile was found in this source.</b> The result is <b>unknown</b>, not "no vulnerabilities".', 'warn');
@@ -285,6 +337,27 @@
     window.ScaApp.render(mount, rep, {
       proxy: proxy, triage: triage, triageCached: function () { return S.triage; },
       testedLabel: S.view.analysed_at ? 'Analysed ' + when(S.view.analysed_at) : ''
+    });
+    renderGovCards();
+  }
+  /* The three governance cards of the Report tab. Coverage and conformance are fetched lazily, once per
+     project; a failed fetch shows an honest "not loaded" line in the card instead of a made-up number. */
+  function renderGovCards() {
+    var box = $('#govCards');
+    if (!box || !window.BtsReport || !S.project) { return; }
+    var gc = S.govReport;
+    if (!gc || gc.name !== S.project) { gc = S.govReport = { name: S.project, coverage: null, conformance: null, fetched: false }; }
+    box.innerHTML = BtsReport.renderGovCards({ view: S.view, coverage: gc.coverage, conformance: gc.conformance });
+    if (gc.fetched) { return; }
+    gc.fetched = true;
+    var n = encodeURIComponent(S.project);
+    api('/api/coverage/' + n).then(function (r) {
+      gc.coverage = r.ok ? r.data : { error: (r.data && r.data.error) || ('HTTP ' + r.status) };
+      renderGovCards();
+    });
+    api('/api/conformance/' + n).then(function (r) {
+      gc.conformance = r.ok ? r.data : { error: (r.data && r.data.error) || ('HTTP ' + r.status) };
+      renderGovCards();
     });
   }
 
@@ -583,6 +656,7 @@
     }
   });
   function init() {
+    buildSideNav();
     activate('git');
     setStep(1, 'Choose an input source.');
     $('#runScaReport').addEventListener('click', function () { activate('git'); analyse($('#scaGitUrl').value); });

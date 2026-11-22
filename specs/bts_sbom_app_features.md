@@ -577,3 +577,75 @@ kind 설치 후 README 절차를 따른다(fsGroup 필요 여부는 적용 후 �
 
 - BSA-AC-521 [Event] When the gate's bench step runs it shall request /healthz, /readyz and /api/history the same number of times and record per-path p50/p95/max with the HTTP status in bench_latest.json, marking ok only when all three returned 200 (3 of 3 latency classes, 1 of 1 ok rule).
 - BSA-AC-522 [Event] The kind manifest set shall contain exactly Namespace, PersistentVolumeClaim, Deployment, Service with runAsNonRoot UID 10001, a pinned non-latest image, distinct /readyz readiness and /healthz liveness probes, ClusterIP-only exposure with no NodePort or LoadBalancer, the evidence PVC mount, replicas 1 with Recreate, declared resource limits - parseable by kubectl client dry-run - and the README shall state 산출만/미배포 with the port-forward procedure and the unverified fsGroup item (4 of 4 documents, 8 of 8 policy rules).
+
+## Book KB (bts_sbom_app/books.py, bts_sbom_app/books_api.py)
+
+### 아키텍처 도서 지식 베이스 (Book KB, 2026-11-22)
+
+사용자가 소유한 로컬 PDF/EPUB 아키텍처 도서(실측 30권, 422MB)를 레거시 재구현 프로젝트의 지식 원으로 흡수한다.
+계층 1은 결정론적 추출이다: `books.py`가 폴더를 순회해 EPUB은 표준 라이브러리만으로(zipfile+html.parser+xml.etree,
+ADR-0007 유지), PDF는 외부 `pdftotext`로 텍스트를 뽑고, 책별 `sections.jsonl`/`book.md`/`stats.json`(페이지·문자·
+정크비율)과 전역 `registry.json`(모든 파일에 ok/skipped/duplicate 명시 상태)을 `evidence/books/`(gitignored —
+저작물 원문은 저장소에 넣지 않는다)에 쓴다. 계층 2는 정제 노트다: `knowledge_books/*.md`는 추출 원문을 읽고 우리
+말로 종합한 것으로 각 노트가 "이 프로젝트 적용" 절을 가진다. 노트를 knowledge/ 평가 코퍼스에 넣었을 때
+실측 회귀가 나왔다(dev recall 0.933→0.867, 게이트 허용폭 0.02 초과) — 따라서 노트도 serve-time 채팅 인덱스에만
+적재되고 평가 코퍼스는 불변이다. 원문 청크(kind="books")는 State에 캐시되는 serve-time 전용 2차 인덱스로만 검색된다 — `State.bot()`이 요청마다 인덱스를 재구성하는 구조에서
+수만 청크를 재구성에 끌어들이지 않고, RAG 평가 코퍼스(golden/dev/test 기준선)를 불변으로 지키기 위해서다. 채팅은
+`book_search` 도구(프로젝트 불필요)로 이 2차 인덱스를 조회하고 모든 행에 `[book] 제목 (형식) - 절: "짧은 인용"`
+속성을 단다. UI는 Book KB 탭에서 등록부·목차·검색·ingest 작업을 제공한다.
+
+- BSA-AC-523 [Event] When the books builder runs over a source folder it shall attempt every .pdf/.epub file and record one registry entry per file with an explicit status ok, skipped or duplicate plus per-book stats (sections, chars, junk_ratio) and per-book artifacts sections.jsonl, book.md, stats.json under the output folder (2 of 2 synthetic files; 30 of 30 on the real folder 2026-11-22).
+- BSA-AC-524 [Event] When two ingested files have identical SHA-256 the system shall index the first and record the second as duplicate with duplicate_of pointing at the first file (1 of 1 duplicate pair).
+- BSA-AC-525 [Event] When an EPUB book is extracted the system shall parse it with the Python standard library only (zipfile, html.parser, xml.etree), honouring container.xml rootfile, OPF metadata title and spine order, and fall back to sorted xhtml members with spine_fallback recorded when the OPF cannot be honoured (0 new third-party dependencies, 1 of 1 fallback path).
+- BSA-AC-526 [Event] When no PDF text extractor is on PATH or pdftotext fails or the PDF has no text layer the system shall record the PDF as skipped with a reason string and never silently drop or half-index it (3 of 3 skip reasons, 1 of 1 synthetic no-extractor case).
+- BSA-AC-527 [Event] When a client searches the book library over GET /api/books/search the system shall return found plus top-k rows each carrying book, source id, heading and a snippet of at most 241 chars with took_ms, refuse an empty or oversized q with 400, and answer an empty library with an honest ingest hint (3 of 3 route cases, 1 of 1 snippet bound).
+- BSA-AC-528 [Event] When a question names the book library the chatbot shall route to book_search without an analysed project, from both the regex router and the planner catalog, and answer with [book]-attributed lines or the honest no-library hint (3 of 3 routing questions: Korean fleet, English fleet, project-scoped).
+- BSA-AC-529 [Event] When books are ingested the system shall keep the raw book chunks kind="books" in a serve-time-only index cached on State and invalidated by the registry signature, and load the distilled notes from knowledge_books into the chat index only, both excluded from evals.build_index so the RAG golden/dev/test baselines are unchanged by the book layer (3 of 3 eval sets identical pre/post; measured 2026-11-22).
+- BSA-AC-530 [Event] When the distilled notes of the book library are stored in knowledge_books every note shall be our own synthesis carrying an "이 프로젝트 적용" section, no line over 400 chars so no book text is pasted, and every indexed book slug shall have one note (29 of 29 notes).
+- BSA-AC-531 [Event] When an ingest is requested the system shall refuse a non-existing folder with 400, refuse a second concurrent ingest with 429, and report job state on /api/jobs/<id> with the same event bus wire as scan jobs, refusing cross-origin POSTs with 403 (3 of 3 refusals, 1 of 1 done job).
+- BSA-AC-532 [Event] When book_search returns passages every line shall attribute the book title, format and section heading so the reader can locate the passage in their own copy, and the closing line shall state the copyright stays with the authors (1 of 1 synthetic book, 3 of 3 attributed lines).
+
+### 스캔 진입점 통합 — Analyze 한 번에 OSS 성과물까지 (UX 정리)
+
+메인 Scan(🌐)과 OSS Scanner(📜)는 엔진이 다르다(파이프라인 vs oss_api) — 그래서 진입점이 두 개였다는
+것이 UX 불편이므로, 메인 Analyze가 끝나면 체크박스(#scaOss "OSS 성과물")가 켜져 있을 때 같은 대상을
+OSS Scanner 엔진(source+dependency+binary)으로 이어 스캔한다. 결과는 #scaBanner에 기록된다: 성공 시
+job id와 OSS Scanner 탭 이동 버튼(addEventListener 방식 — CSP상 인라인 핸들러 금지), 실패 시 실패
+이유와 "메인 분석 결과는 정상"임을 명시하는 정직한 노트. OSS 탭은 고급 옵션(exclude·브랜치·보정·내보내기
+서식)용으로 유지된다. DOM 규칙은 콘솔과 동일: note()는 HTML 문자열이고 동적 값은 esc()로 감싼다.
+
+- BSA-AC-533 [Event] When the main Analyze finishes and the OSS-deliverables checkbox is checked the console shall chain the same target into POST /api/oss/scan with all three modes, poll GET /api/oss/jobs/<id> until it leaves running, and then render in the scan banner either the success note with the job id and a real button that activates the OSS tab, or an honest failure note naming the reason and stating the main result is untouched - never a silent skip of the OSS stage (1 of 1 chains, 2 of 2 banner outcomes).
+
+### 책 라이브러리 기법 통합 — MCP 서버·Agent Card·컨텍스트 순서 (ai책모음 15권)
+
+사용자 서재(ai책모음, 15권 12.02M자, junk_ratio<=0.03)에서 추론한 기법을 기능으로 통합한다 (정제 노트
+30개는 knowledge_books/, AC-530 계약). (1) MCP 서버(mcp_server.py): stdio 위 JSON-RPC 2.0, initialize
+핸드셰이크(프로토콜 2024-11-05)·tools/list·tools/call로 engine_status·book_search·project_overview·
+chat_ask를 노출한다 — 도구는 기존 모듈 위임(이중 구현 없음), 도구 오류는 result.isError+메시지(4상태
+철학), stdout은 프로토콜 전용(배너는 stderr), CLI 진입은 `python -m bts_sbom_app mcp`. (2) Agent Card
+(/api/agent-card): A2A식 발견 문서로 7개 스킬(scan/patch/license_council/chat/book_search/nl2sql/
+supply_chain_gate)의 게이트를 자기 서술하고 securitySchemes는 "none, localhost"로 정직히 선언하며
+handoff 스키마와 MCP 표면을 함께 공개한다. (3) lost-in-the-middle 대책: LLM 경로에 넘길 신뢰 문서를
+질문 토큰 겹침 순으로 재배열(최고 근거가 맨 앞, 동률은 id 결정론, 상한 6) — 추출 답변·검색·기준선에는
+무영향이고 프롬프트 순서만 바뀐다.
+
+- BSA-AC-534 [Event] When an MCP client speaks the line-delimited JSON-RPC 2.0 protocol to `python -m bts_sbom_app mcp` it shall complete the initialize handshake with protocolVersion 2024-11-05, list exactly the four tools with object input schemas, call each tool against the real modules (engine_status reads registry and LLM-config presence, book_search returns book-provenance passages capped at 240 chars or an honest miss note, project_overview returns the overview lines and isError+reason for an unknown project, chat_ask returns a grounded cited answer), keep stdout protocol-pure with the banner on stderr, and answer -32601/-32602 for unknown method and unknown tool (4 of 4 tools, 2 of 2 protocol errors).
+- BSA-AC-535 [Event] When a client GETs /api/agent-card it shall receive a card named bts-sbom with version, streaming capability true, the handoff schema id, seven skills whose gate fields name the real gates (approval-token, deterministic-aggregation, citation-verification, 3-layer-safety, trivy-critical-0), a securitySchemes entry that states none-localhost outright, and an endpoints map that includes the MCP stdio entry (7 of 7 skills, 1 of 1 honest security declaration).
+- BSA-AC-536 [Event] When the LLM lane assembles its prompt the trusted documents shall be reordered by token overlap with the question - most relevant first, ties broken deterministically by source id, capped at 6 - and the retrieval, extractive answer and evaluation baselines shall be untouched by the reordering (1 of 1 orderings, 3 of 3 untouched surfaces).
+
+## Report screen shell (bts_sbom_app/web/index.html, bts_console.js, bts_report.js)
+
+### 데스크탑 셸 + 리포트 별도 탭 (사용자 지시 "클로드 데스크탑 형태", 2026-11-22)
+
+콘솔을 좌측 사이드바 내비게이션 + 콘텐츠 열의 데스크탑 앱 셸로 개편하고, Git 스캔 판에 파묻혀 있던 SCA 리포트를
+**📊 Report 별도 탭**으로 승격한다. 리포트 탭은 ① 프로젝트 헤더(이름·출처·분석 시각·심각도 칩 5종·SBOM/OpenVEX/
+리포트 다운로드 4종) ② 복제 플랫폼 렌더러(sca_app.js — 해시 고정 무수정) 본문 ③ 거버넌스 카드 3종(수정 계획 요약은
+/api/view에서, VEX 커버리지·규제 적합도는 프로젝트당 1회 lazy fetch)으로 구성된다. 채팅도 💬 Chat 별도 탭이 된다.
+사이드바 버튼은 기존 상단 탭 바와 동일한 `.rtab[data-sv]` 계약을 유지해 activate()/subnav()/GROUPS 로직을 무변경
+으로 둔다. ScaApp 마운트는 #reportOut 하나뿐이며 탭 진입마다 재렌더한다(sca_app.js는 mount 스코프+1회 바인딩 가드).
+
+- BSA-AC-538 [Event] When the console page loads it shall build the section navigation as a desktop-style sidebar from GROUPS/LABELS with the same .rtab[data-sv] contract as the old top bar, containing 12 groups including the single-member report and chat groups whose sub-chip row stays hidden (12 of 12 groups, 1 of 1 built-at-init call).
+- BSA-AC-539 [Event] When the Report tab is opened the system shall render the selected project's header (name, source, analysed time, 5 severity chips, 4 document download buttons), the copied ScaApp report body into the single #reportOut mount, and re-render the whole screen on every entry of the tab (1 of 1 mount, 4 of 4 downloads, 5 of 5 chips, 1 of 1 entry hook).
+- BSA-AC-540 [Event] When an analysis finishes with state done the system shall switch to the Report tab automatically and render the two honest data-status warnings (empty project, incomplete vulnerability data) in the report banner while the scan-time status stays on the Scan tab (2 of 2 warning cases, 1 of 1 auto-switch).
+- BSA-AC-541 [Event] When the Report tab renders its governance cards it shall show the fix-plan summary from /api/view and fetch decision coverage and SBOM conformance once per project, rendering a loading line before the fetch, the measured numbers after it, and a not-loaded line carrying the error when the fetch fails (3 of 3 cards, 2 of 2 lazy fetches, 2 of 2 error lines).
+- BSA-AC-542 [State] The copied platform renderer sca_app.js and the platform stylesheets shall stay byte-identical to their pinned hashes while the desktop shell, the Report tab and the Chat tab are added around them (6 of 6 pinned files unchanged, 1 of 1 ScaApp mount in the page).

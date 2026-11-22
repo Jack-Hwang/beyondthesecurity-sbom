@@ -44,6 +44,7 @@
 | SLO·용량 산정 근거 수식 (4주차 2차시) | 구현 | `docs/capacity.md` — 실측 원본 표 + Little's Law/처리량 수식, 미측정 항목은 "미측정"으로 명시 (2026-11-22, 브리프 5) |
 | TOP10 답변 품질 게이트 (별첨 1) | 구현 | `quality.py` — 근거성 1.0·관련성 0.359·완결성 1.0·툴정확도 1.0·과잉거절 0.0 전 게이트 통과, AC-481~485 (2026-11-22, 브리프 5) |
 | kind 매니페스트·롤백/프로브 계승 (4주차 2차시, G1) | 산출만 | `deploy/kind/` — 단일 노드용 Namespace+PVC+Deployment(replicas 1·Recreate·readiness /readyz)+Service(ClusterIP), kubectl client dry-run 파싱 통과·미배포(kind 부재), AC-522 (2026-11-22, 브리프 5) |
+| ai책모음 15권 기법 통합: MCP 서버·A2A Agent Card·lost-in-the-middle (사용자 서재) | 구현 | `mcp_server.py`(stdio JSON-RPC 4도구), `/api/agent-card`(7스킬·게이트 선언), `chat.order_passages_for_prompt` — 정제 노트 30개(knowledge_books/), RAG 기준선 불변 실측, AC-534~536 (2026-11-22) |
 | LLM·RAG·파인튜닝·에이전트 아키텍처 해설 (별첨 2) | 부분 | 이 표 상단의 회로차단기·SSE·검증된 인용 등으로 이미 반영; AI DBA·KEDA·LoRA·GraphRAG는 기각 (`docs/GLM_IMPLEMENTATION_BRIEF_5.md` 매핑표) |
 
 저작권 메모: `knowledge/lecture/` 는 강의 내용을 **의역·요약**한 것이며 슬라이드 원문을 옮기지 않았다. 레포를 공개하기 전에

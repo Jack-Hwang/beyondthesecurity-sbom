@@ -74,3 +74,24 @@
 1. `python scripts/supply_chain_gate.py` (빌드·스캔·SBOM·벤치 전체 재실측).
 2. §1 표의 값과 날짜를 새 게이트 리포트로 교체, §2의 수식 분자·분모를 재계산.
 3. 측정이 불가능해진 항목은 값 대신 "미측정(이유)"을 쓴다 — 측정 안 된 수를 지우지 않고 남기는 것도 금지.
+
+## 5. Book KB 용량 (2026-11-22, ADR-0021, 이 워크트리)
+
+| 측정 | 값 | 커맨드 | 산출물 |
+|---|---|---|---|
+| 도서 수집 (30파일, 422 MB) | 29 ok / 0 skipped / 1 duplicate, 270 섹션, 31.4 MB 텍스트, **130.5 s** | `python -m bts_sbom_app books "C:\Users\Administrator\Documents\HBJ_2025하반기부터\아키텍처책모음"` | `evidence/books/registry.json` |
+| 원문 2차 인덱스 | **22,857 청크** — 로드 1.3 s + 빌드 **13.4 s** (레지스트리 시그니처별 1회 캐시) | 인라인 실측 스크립트 | `evidence/loop/books_index_measure.json` |
+| 원문 검색 지연 (웜) | 48쿼리: p50 **129.8 ms** / p95 **240.7 ms** / max 2,103 ms(첫 쿼리 — norm 최초 계산) | 同 | 同 |
+| RAG 기준선 (책 레이어 전후) | golden/dev/test 15지표 **불변** — 원문·정제 노트 모두 `evals.build_index` 밖 (테스트 강제) | `evals.rag_sets_eval()` | `evidence/loop/books_eval_baseline.json` == `books_eval_after_notes.json` |
+
+해석과 정직 한계:
+- 원문 검색 p95 241 ms는 §2.1의 **API p95 ≤ 100 ms SLO 밖**이다 — 이 SLO는 콘솔 JSON 읽기 경로(/healthz,
+  /readyz, /api/history)에 대한 것이고, Book KB 검색은 새 경로다. SLO에 넣으려면 "검색 전용 SLO"로 별도
+  선언해야 하며, 현재는 실측만 기록한다. 22,857 청크를 §2.1 SLO 경로에 흡수하지 않은 것이(2-인덱스 분리)
+  콘솔 경로 지표가 불변인 이유다.
+- 캐시 미스(서버 재시작·ingest 후 첫 검색) 시 지연은 로드 1.3 s + 빌드 13.4 s + 첫 쿼리 norm 계산(~2 s)이
+  한 번에 온다 — 17 s 수준의 일시 지연이고, ThreadingHTTPServer의 다른 요청은 막지 않는다(단일 스레드
+  점유 아님). 동시 요청이 캐시 미스에 겹치면 각자 인덱스를 구성할 수 있다(잠금은 캐시 테이블 접근에만
+  적용) — 결과는 동일하고 마지막 캐시가 남으며, 이중 구성의 비용은 위 13.4 s가 상한이다.
+- ragloop 게이트(pass 5) RED는 이 레이어와 무관 — §RUNBOOK Delivery State의 2026-11-22 항목 참조.
+

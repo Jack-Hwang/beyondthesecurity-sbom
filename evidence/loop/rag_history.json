@@ -244,5 +244,92 @@
    ]
   },
   "code": "72b4d4b86169"
+ },
+ {
+  "pass": 5,
+  "tag": "books",
+  "at": "2026-11-22T01:35:43+00:00",
+  "variable": "books-kb",
+  "hypothesis": "book knowledge base does not disturb the retrieval baselines",
+  "decision": "rollback",
+  "gate": {
+   "pass": false,
+   "failed": [
+    "dev_recall: 1.000 -> 0.933",
+    "dev_mrr: 0.869 -> 0.802",
+    "dev_ndcg: 0.873 -> 0.828",
+    "dev_ood: 1.000 -> 0.800",
+    "case regression: 2 query(ies) passed at baseline but fail now: [rag_dev] 고쳤는데 새 문제가 더 생기면 원상복구 하나; [rag_dev] 축구 경기 결과를 알려줘"
+   ],
+   "undecidable": [],
+   "deltas": {
+    "golden_recall": 0.0,
+    "golden_mrr": 0.025,
+    "golden_ndcg": 0.006,
+    "golden_ood": 0.0,
+    "golden_found": 0.0,
+    "dev_recall": -0.067,
+    "dev_mrr": -0.067,
+    "dev_ndcg": -0.045,
+    "dev_ood": -0.2,
+    "dev_found": 0.067,
+    "test_recall": 0.0,
+    "test_mrr": 0.042,
+    "test_ndcg": 0.031,
+    "test_ood": 0.0,
+    "test_found": 0.084
+   },
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "golden_recall": 1.0,
+   "golden_mrr": 0.975,
+   "golden_ndcg": 0.95,
+   "golden_ood": 1.0,
+   "golden_found": 0.85,
+   "dev_recall": 0.933,
+   "dev_mrr": 0.802,
+   "dev_ndcg": 0.828,
+   "dev_ood": 0.8,
+   "dev_found": 1.0,
+   "test_recall": 0.917,
+   "test_mrr": 0.757,
+   "test_ndcg": 0.769,
+   "test_ood": 1.0,
+   "test_found": 0.917
+  },
+  "case_regressions": [
+   {
+    "set": "rag_dev",
+    "q": "고쳤는데 새 문제가 더 생기면 원상복구 하나"
+   },
+   {
+    "set": "rag_dev",
+    "q": "축구 경기 결과를 알려줘"
+   }
+  ],
+  "misses": {
+   "rag_golden": [],
+   "rag_dev": [
+    {
+     "q": "고쳤는데 새 문제가 더 생기면 원상복구 하나",
+     "why": "expected ['domain/remediation_patching.md'] not in top 5",
+     "top": "domain/architecture_decision_making.md"
+    },
+    {
+     "q": "축구 경기 결과를 알려줘",
+     "why": "ood answered",
+     "top": "lecture/rag_methods.md"
+    }
+   ],
+   "rag_test": [
+    {
+     "q": "서로 영향을 주고받는 파일을 이력으로 찾는 방법",
+     "why": "expected ['domain/legacy_architecture.md'] not in top 5",
+     "top": "domain/licenses.md"
+    }
+   ]
+  },
+  "code": "b00a422b5780"
  }
 ]

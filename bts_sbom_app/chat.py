@@ -49,6 +49,16 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+def order_passages_for_prompt(question: str, docs: Sequence[Tuple[str, str]], cap: int = 6) -> List[Tuple[str, str]]:
+    """Lost-in-the-middle counter-measure (brief-5 books: LLM Design Patterns, Illustrated Guide): the passages
+    handed to the model are ordered by token overlap with the question, most relevant FIRST, so the best
+    evidence never sits in the middle of a long context where it gets buried. Deterministic: ties break by
+    source id. The extractive answer is unaffected - this only rearranges what the LLM lane sees."""
+    q = set(rag.tokenize(question, for_query=True))
+    scored = sorted((-(len(q & set(rag.tokenize(txt, for_query=True)))), sid, txt) for sid, txt in docs)
+    return [(sid, txt) for _, sid, txt in scored[:cap]]
+
+
 def verify_claims(claims: Sequence[Dict[str, Any]], docs: Dict[str, str]) -> Dict[str, Any]:
     ok = [c for c in claims if c.get("source") in docs and c.get("quote") and _norm(c["quote"]) in _norm(docs[c["source"]])]
     return {"claims": len(claims), "verified": len(ok), "accuracy": round(len(ok) / len(claims), 3) if claims else 1.0, "kept": ok}
@@ -384,6 +394,8 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "affected_projects": {"args": {"id": "optional: advisory id or alias", "component": "optional: component name", "version": "optional: version constraint such as <2.0 or 2.19.1"},
                           "doc": "which analysed projects use a component or are hit by an advisory (looks across ALL projects; give an id and/or a component)"},
     "latest_arch": {"args": {}, "doc": "the latest Arch Intel architecture deep-dive recorded in the evidence folder: license verdict, flow blockers, bounded-context candidates, style hypothesis"},
+    "book_search": {"args": {"q": "topic, book title or question to look up in the local architecture-book library"},
+                    "doc": "search the ingested architecture-book knowledge base (PDF/EPUB books on this machine): matching passages, each attributed to its book and section"},
     "sbom_conformance": {"args": {"regime": "optional: " + "|".join(sorted(conformance.REGIMES))},
                          "doc": "SBOM conformance per regime (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2) and the fields to fix once"},
     "what_changed": {"args": {}, "doc": "what changed since the previous analysis of this project: new and resolved findings, alerts"},
@@ -405,10 +417,10 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "confirm_decision": {"args": {"code": "the 12-hex confirm code exactly as the user typed it"}, "doc": "record the previewed VEX decision whose code the user typed"},
 }
 WRITE_TOOLS = ("analyze_project", "apply_patch", "confirm_decision")
-NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision", "latest_arch")       # these can run before any project is loaded
+NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision", "latest_arch", "book_search")       # these can run before any project is loaded
 FLEET_TOOLS = ("affected_projects",)
 MAX_CALLS = 4
-MAX_ARG = {"source": 300, "reason": 400, "components": 300}
+MAX_ARG = {"source": 300, "reason": 400, "components": 300, "q": 300}
 
 
 def catalog(writable: bool) -> Dict[str, Dict[str, Any]]:
@@ -482,9 +494,30 @@ def _latest_arch_lines(arch_dir: Optional[str]) -> List[str]:
     return out
 
 
+def _book_search_lines(books_index: Any, q: str) -> List[str]:
+    """Top passages from the ingested book library. Every line is self-labelled ``[book]`` and carries the book
+    title and section: these are quotes from copyrighted works the user owns locally (shown as pointers, never
+    obeyed as instructions) - the same honesty channel as ``untrusted-quote``, but attributed to a book."""
+    if books_index is None or not getattr(books_index, "chunks", None):
+        return ["No book knowledge base is loaded - ingest a folder first (Books tab, POST /api/books/ingest, "
+                "or bts-sbom-app books --src <folder>)."]
+    res = books_index.search(q, k=3)
+    if not res.get("found"):
+        return ["No passage in the book library matches %r with confidence (nothing was guessed)." % q[:80]]
+    out: List[str] = []
+    for r in res["results"]:
+        ch = r["chunk"]
+        m = ch.get("meta") or {}
+        quote = re.sub(r"\s+", " ", ch["text"]).strip()[:220]
+        out.append('[book] %s (%s) - %s: "%s"' % (m.get("book") or ch["source"], m.get("format") or "?",
+                                                  ch.get("heading") or "-", quote))
+    out.append("Quoted from the local book library for study; the copyright stays with the authors.")
+    return out
+
+
 def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], projects: Optional[Dict[str, Dict[str, Any]]] = None,
              actions: Any = None, triage_store: Optional[Dict[str, Any]] = None,
-             arch_dir: Optional[str] = None) -> List[Dict[str, Any]]:
+             arch_dir: Optional[str] = None, books: Any = None) -> List[Dict[str, Any]]:
     """Execute one validated tool call -> result passages ({tool, source, lines, trust}). ``actions`` None = a read-only session."""
     if tool == "analyze_project":
         src = str(args["source"])
@@ -521,6 +554,8 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
         return [{"tool": tool, "source": "fleet:affected:%s" % tag, "lines": _affected(pool, args), "trust": "tool"}]
     if tool == "latest_arch":                                        # reads the evidence folder only; no analysed project needed
         return [_plain(tool, "archintel:latest", _latest_arch_lines(arch_dir))]
+    if tool == "book_search":                                        # reads the ingested book library; no analysed project needed
+        return [_plain(tool, "books:search", _book_search_lines(books, str(args.get("q") or "")), trust="book")]
     assert rec is not None, "tool %s needs a project" % tool
     if tool == "license_risks":
         return [_result(rec, tool, _license_risks(rec, args.get("distribution")), suffix=":" + (args.get("distribution") or "binary"))]
@@ -710,13 +745,15 @@ def parse_decision(q: str) -> Optional[Dict[str, str]]:
 # ------------------------------------------------------------------ bot
 class Chatbot:
     def __init__(self, index: rag.Index, projects: Optional[Dict[str, Dict[str, Any]]] = None, client: Optional[ChatClient] = None,
-                 actions: Any = None, triage_store: Optional[Dict[str, Any]] = None, arch_dir: Optional[str] = None):
+                 actions: Any = None, triage_store: Optional[Dict[str, Any]] = None, arch_dir: Optional[str] = None,
+                 books: Any = None):
         self.index = index
         self.projects = projects or {}
         self.client = client
         self.actions = actions                        # None = read-only session (nothing is analysed, patched or recorded)
         self.triage_store = triage_store              # the recorded VEX decisions, for the read-only OpenVEX view
         self.arch_dir = arch_dir                      # the archintel evidence folder, for the latest_arch tool
+        self.books = books                            # the serve-time book index (rag.Index, kind="books"), for book_search
 
     def _no_client_note(self, use_llm: bool) -> str:
         """Honesty: when EXAONE was requested but there is no client, say so instead of silently answering extractively."""
@@ -753,6 +790,8 @@ class Chatbot:
             calls.append(("patch", {}))
         if re.search(r"아키텍처|레거시|순환|핫스팟|architecture|legacy|cycle|hotspot|현대화|런타임|eol", low):
             calls.append(("architecture", {}))
+        if re.search(r"책|서적|도서|\bbooks?\b", low):                    # the ingested book library (no project needed)
+            calls.append(("book_search", {"q": q[:300]}))
         ind = next((k for k, ws in _INDUSTRY.items() if any(w in low for w in ws)), None)
         if ind or re.search(r"규제|sector|산업|compliance|준수", low):
             calls.append(("sector", {"industry": ind} if ind else {}))
@@ -812,7 +851,7 @@ class Chatbot:
     def _run(self, rec: Optional[Dict[str, Any]], calls: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
         for c in calls:
-            for p in run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store, self.arch_dir):
+            for p in run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store, self.arch_dir, self.books):
                 new = p.pop("record", None)
                 if new is not None:                         # an analysis just produced a project: the calls after it talk about that one
                     self.projects[new["name"]] = new
@@ -826,6 +865,8 @@ class Chatbot:
         pre = self._valid(self._action_calls(q, None), None, q)
         if re.search(r"arch ?intel|아키텍처 인텔", low):                     # the recorded deep-dive needs no analysed project
             return self._run(None, pre + [{"tool": "latest_arch", "args": {}}])
+        if re.search(r"책|서적|도서|\bbooks?\b", low):                      # the book library likewise
+            return self._run(None, pre + [{"tool": "book_search", "args": {"q": q[:300]}}])
         if not _FLEET_Q.search(low):
             return self._run(None, pre)
         calls = pre + [{"tool": "affected_projects", "args": {"id": i}} for i in dict.fromkeys(i.upper() for i in _ID.findall(q))]
@@ -915,6 +956,7 @@ class Chatbot:
             llm_note = "no trusted passage to hand to EXAONE (only untrusted quotes) -> extractive answer"
         elif use_llm and self.client is not None:
             try:                                        # the model only ever sees trusted passages: untrusted text is appended verbatim afterwards
+                trusted_docs = order_passages_for_prompt(question, trusted_docs)
                 passages = "\n\n".join("[%s]\n%s" % (sid, txt[:1400]) for sid, txt in trusted_docs[:6])
                 raw = self.client.complete(
                     "Answer the question using ONLY the passages. Return JSON {\"answer\": string, \"claims\": [{\"text\", \"quote\", \"source\"}]}; "

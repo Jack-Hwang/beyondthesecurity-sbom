@@ -28,7 +28,9 @@
   </div>
   <div class="body" style="grid-template-columns:1fr">
     <div class="view view-scan on" id="view-scan">
-      <div class="scan">
+      <div class="scan bts-shell">
+        <nav id="sideNav" class="bts-sidenav" aria-label="Sections"></nav>
+        <div class="bts-content">
         <h2>&#128275; Open-Source Security <span class="sub" style="font-size:13px;font-weight:400">&mdash; Vulnerabilities &middot; Licenses &middot; SBOM &middot; AI Auto-Patch</span></h2>
         <div class="lede">Scan a <b>Git repo</b> or a local path for open-source vulnerabilities (OSV.dev), licenses (lockfile &rarr; deps.dev &rarr; registry, with the source recorded),
           CycloneDX / SPDX / OpenVEX documents, industry reports and legacy-architecture findings &mdash; with verified upgrade plans and an approval-gated patch.</div>
@@ -48,20 +50,11 @@
           </span>
         </div>
 
-        <div class="rtabs" id="scanTabs">
-          <div class="rtab active" data-sv="git">&#127760; Scan &mdash; Git &middot; Lockfile &middot; Container</div>
-          <div class="rtab" data-sv="risk" style="color:var(--dcard-err)">&#128202; Findings</div>
-          <div class="rtab" data-sv="prioritize" style="color:#f59e0b">&#127919; Prioritize</div>
-          <div class="rtab" data-sv="graph-health" style="color:#818cf8">&#128376; Graph &amp; Health</div>
-          <div class="rtab" data-sv="compliance" style="color:#34d399">&#9989; Compliance</div>
-          <div class="rtab" data-sv="fix" style="color:#a78bfa">&#128295; Fix</div>
-          <div class="rtab" data-sv="oss">&#128220; OSS Scanner</div>
-          <div class="rtab" data-sv="archintel" style="color:#7dd3fc">&#129517; Arch Intel</div>
-          <div class="rtab" data-sv="more">&#9881;&#65039; CI/CD &middot; History</div>
-        </div>
+        <!-- The section navigation is the desktop-style sidebar (#sideNav), built by bts_console.js from
+             GROUPS/LABELS; the sidebar buttons carry the same .rtab[data-sv] contract the old top bar had. -->
         <div id="scanSubNav" style="display:none;gap:6px;flex-wrap:wrap;margin:-6px 0 12px" aria-label="Group sub-tabs"></div>
 
-        <!-- GIT REPO: landing pane, also hosts the console that shows the result of the last analysis -->
+        <!-- GIT REPO: landing pane; the analysis report itself opens on its own 📊 Report tab -->
         <div class="rpane on" data-sv="git">
           <div class="pathbox" id="scaRepoPanel">
             <label>&#127760; Analyze a Git repo or a local path <span class="sub">&mdash; clone/read &rarr; SBOM &rarr; OSV.dev CVEs + deps.dev licenses &rarr; safe-upgrade plan</span></label>
@@ -69,6 +62,7 @@
               <input id="scaGitUrl" value="" placeholder="https://github.com/org/repo.git   &mdash;or&mdash;   owner/repo   &mdash;or&mdash;   D:\path\to\project" spellcheck="false" style="flex:1;min-width:340px;font-family:ui-monospace,monospace">
               <label style="font-size:12px;margin:0"><input type="checkbox" id="scaOffline"> offline</label>
               <label style="font-size:12px;margin:0" title="Ask LG EXAONE for upgrade proposals (needs a configured key; otherwise rule-based proposals are used)"><input type="checkbox" id="scaLlm"> EXAONE</label>
+              <label style="font-size:12px;margin:0" title="Analyze 가 끝나면 같은 대상을 OSS Scanner로도 스캔합니다 (소스·의존성·바이너리 + 공개문·엑셀 성과물). 결과는 📜 OSS Scanner 탭에서"><input type="checkbox" id="scaOss"> OSS 성과물</label>
               <button class="run" id="scaDemoBtn" style="background:#333">&#127919; Demo repo</button>
               <button class="run" id="runScaReport">&#9654; Analyze</button>
             </div>
@@ -80,8 +74,16 @@
               <span class="sub" style="margin-left:auto">The clone is analysed in a temporary copy; the origin is never modified and nothing from it is executed.</span>
             </div>
             <div id="scaBanner"></div>
-            <div id="scaReportOut" style="margin-top:12px"></div>
+            <div class="bts-note">The full report of the selected project lives on its own <b>&#128202; Report</b> tab (sidebar) &mdash; it opens there automatically after an analysis.</div>
           </div>
+        </div>
+
+        <!-- REPORT: the dedicated report screen of the selected project (ScaApp renderer + header + governance cards) -->
+        <div class="rpane" data-sv="report">
+          <div id="reportBanner"></div>
+          <div id="reportHead"></div>
+          <div id="reportOut" style="margin-top:12px"></div>
+          <div id="govCards"></div>
         </div>
 
         <div class="rpane" data-sv="lock"><div class="pathbox">
@@ -137,6 +139,7 @@
         <div class="rpane" data-sv="fix-pr"><div id="paneFixPr"></div></div>
         <div class="rpane" data-sv="oss"><div id="paneOss"></div></div>
         <div class="rpane" data-sv="archintel"><div id="paneArchIntel"></div></div>
+        <div class="rpane" data-sv="books"><div id="paneBooks"></div></div>
         <div class="rpane" data-sv="more"><div id="paneHistory"></div></div>
         <div class="rpane" data-sv="fleet">
           <div class="bts-formbox">
@@ -152,25 +155,29 @@
           <div id="paneFleet"></div>
         </div>
 
-        <details class="bts-chat" id="chatBox" open>
-          <summary>&#128172; Ask about the selected project <span class="sub">&mdash; answers cite their source; nothing is answered from memory</span></summary>
-          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <input id="chatQ" placeholder="e.g. which fix clears the most advisories? / licenses? / architecture?" style="flex:1;min-width:300px">
-            <label style="font-size:12px;margin:0"><input type="checkbox" id="chatLlm"> EXAONE</label>
-            <button class="run" id="chatBtn">Ask</button>
-          </div>
-          <div id="chatOut" class="bts-chat-out"></div>
-        </details>
+        <!-- CHAT: its own tab in the desktop shell -->
+        <div class="rpane" data-sv="chat">
+          <details class="bts-chat" id="chatBox" open>
+            <summary>&#128172; Ask about the selected project <span class="sub">&mdash; answers cite their source; nothing is answered from memory</span></summary>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+              <input id="chatQ" placeholder="e.g. which fix clears the most advisories? / licenses? / architecture? / 책에서 fitness function 찾아줘" style="flex:1;min-width:300px">
+              <label style="font-size:12px;margin:0"><input type="checkbox" id="chatLlm"> EXAONE</label>
+              <button class="run" id="chatBtn">Ask</button>
+            </div>
+            <div id="chatOut" class="bts-chat-out"></div>
+          </details>
 
-        <details class="bts-chat" id="streamBox">
-          <summary>&#127922; 단계 스트림 질문 <span class="sub">&mdash; 7종 이벤트(step_start/tool_call/tool_result/awaiting_approval/handoff/final/error)를 그 순서대로 표시 · 승인은 사람이</span></summary>
-          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <input id="streamQ" placeholder="e.g. requests 패키지의 패치 계획을 보여줘" style="flex:1;min-width:300px">
-            <button class="run" id="streamBtn">스트림 질문</button>
-          </div>
-          <div id="streamTimeline" style="margin-top:10px;display:flex;flex-direction:column;gap:6px"></div>
-          <div id="streamGap" style="display:none;margin-top:8px;padding:8px 10px;border:1px solid #e6a23c;background:#fdf6ec;border-radius:6px;font-size:13px"></div>
-        </details>
+          <details class="bts-chat" id="streamBox">
+            <summary>&#127922; 단계 스트림 질문 <span class="sub">&mdash; 7종 이벤트(step_start/tool_call/tool_result/awaiting_approval/handoff/final/error)를 그 순서대로 표시 · 승인은 사람이</span></summary>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+              <input id="streamQ" placeholder="e.g. requests 패키지의 패치 계획을 보여줘" style="flex:1;min-width:300px">
+              <button class="run" id="streamBtn">스트림 질문</button>
+            </div>
+            <div id="streamTimeline" style="margin-top:10px;display:flex;flex-direction:column;gap:6px"></div>
+            <div id="streamGap" style="display:none;margin-top:8px;padding:8px 10px;border:1px solid #e6a23c;background:#fdf6ec;border-radius:6px;font-size:13px"></div>
+          </details>
+        </div>
+        </div><!-- /.bts-content -->
       </div>
     </div>
   </div>
@@ -179,10 +186,12 @@
 <script src="/static/sca_app.js"></script>
 <script src="/static/bts_ui.js"></script>
 <script src="/static/bts_governance.js"></script>
+<script src="/static/bts_report.js"></script>
 <script src="/static/bts_console.js"></script>
 <script src="/static/oss_scanner.js"></script>
 <script src="/static/arch_intel_render.js"></script>
 <script src="/static/arch_intel.js"></script>
+<script src="/static/bts_books.js"></script>
 <script src="/static/bts_stream.js"></script>
 </body>
 </html>

@@ -29,6 +29,35 @@ What exists today and what was actually checked, in this worktree, as of this ch
   (`docker run --rm -p 127.0.0.1:8811:8800 bts-sbom-app:gate`): `/readyz` returned 200 and the Docker HEALTHCHECK
   reached `healthy` (FailingStreak 0). The Dockerfile's `NOT BUILT YET` comment was updated accordingly, by the
   person who ran those commands.
+- **2026-11-22: Book KB (아키텍처 도서 지식 베이스, ADR-0021, BSA-AC-523..532) built and measured**: the user's own
+  local library — 30 files, 20 PDF + 10 EPUB, 422 MB, `C:\Users\Administrator\Documents\HBJ_2025하반기부터\아키텍처책모음` —
+  was ingested with `python -m bts_sbom_app books "<folder>"` (실측 130.5 s): **29 ok / 0 skipped / 1 duplicate**
+  (동일 사본 SHA-256 중복 1건), 270 섹션, 31.4 MB 텍스트, per-book stats in `evidence/books/registry.json`
+  (gitignored — 저작물 원문은 저장소 밖). Extraction found and fixed a real defect: the mingw64 poppler opens
+  non-ASCII paths through a non-Unicode argv (em-dash → `?`), so 5 ISO PDFs failed until `extract_pdf` routed such
+  paths through a temporary ASCII-named copy (`bts_sbom_app/books.py:extract_pdf`, measured before/after). The
+  serve-time second index measured 22,857 chunks, load 1.3 s + build 13.4 s (cached once per registry signature),
+  search p50 129.8 ms / p95 240.7 ms over 48 queries (`evidence/loop/books_index_measure.json`). 29 distilled notes
+  live in `knowledge_books/` (serve-time only). **RAG baselines unchanged by the book layer** — the raw chunks and
+  the notes are both excluded from `evals.build_index` (테스트 강제, `books_eval_baseline.json` == post-ingestion
+  측정). The chat answers from the library via the `book_search` tool and the Book KB tab serves registry, outline,
+  search and re-ingest.
+- **2026-11-22: `bts-sbom-app ragloop` pass 5 is RED — and the books layer is not the cause.** The gate compares
+  against pass 4 (brief1-era baseline: dev recall 1.000, dev mrr 0.869, dev ood 1.000) and fails on drift that was
+  introduced by the earlier round-1/brief-5 work (now commit `ec58c1b`): the `knowledge/lecture/*.md` corpus
+  additions plus the `rag.py` synonym-table extension. Evidence: the current metrics (dev recall 0.933,
+  mrr 0.802, ood 0.800) exactly equal the snapshot taken **before** any books-layer change
+  (`evidence/loop/books_eval_baseline.json`), the book chunks and notes are provably excluded from the eval corpus
+  (BSA-AC-529 test), and the OOD miss is traceable to a lecture chunk (e.g. `knowledge/lecture/rag_methods.md`
+  matching the "축구 경기 결과를 알려줘" out-of-domain query via "경기"). Re-baselining the gate is a separate
+  decision — it redefines what "regression" means for the pass-4 golden/dev/test sets.
+- **2026-11-22 (second release, book-library integration)**: the gate re-ran on the code that adds the MCP
+  stdio server (`python -m bts_sbom_app mcp`), the A2A-style `/api/agent-card`, the lost-in-the-middle passage
+  ordering and the 30 distilled book notes - verdict pass, Trivy CRITICAL 0, build 15.84 s warm, bench p95
+  `/healthz` 22.7 ms / `/readyz` 16.6 ms / `/api/history` 68.6 ms. The release container was started:
+  `/readyz` 200, `/api/agent-card` 200 **inside the container**, HEALTHCHECK `healthy` (FailingStreak 0).
+  RAG 6-metric baselines re-measured unchanged (recall 1.0 / mrr 0.975 / ndcg 0.95 / ood 1.0) - the books
+  integration stays outside the eval corpus by construction (ADR-0021).
 - **kind manifests for a single-node cluster were produced but NOT deployed** (`deploy/kind/`, brief 5 G1 산출만):
   `kubectl apply --dry-run=client --validate=false` parses all four documents; the cluster apply itself is blocked
   on `kind` not being installed here - the honest status lives in `deploy/kind/README.md`.

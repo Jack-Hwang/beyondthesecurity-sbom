@@ -60,3 +60,38 @@ table.bts-table td code{word-break:break-all}
 .bts-fields input,.bts-fields select,.bts-fields textarea{width:100%;max-width:640px;box-sizing:border-box;font:inherit}
 .bts-fields input[type=date]{width:auto}
 .bts-fields .bts-small{max-width:640px}
+
+/* Desktop-app shell: fixed left navigation + content column (the sidebar buttons keep the .rtab[data-sv]
+   contract of the old top bar, so activate()/subnav()/GROUPS work unchanged; these rules override the
+   platform's horizontal .rtab styling for the sidebar scope only - the pinned css/app.css stays untouched). */
+.bts-shell{display:flex;align-items:flex-start;gap:0}
+.bts-sidenav{position:sticky;top:8px;flex:0 0 196px;display:flex;flex-direction:column;gap:2px;background:#11151a;border:1px solid #262c33;border-radius:10px;padding:8px 6px;margin-right:18px}
+.bts-sidenav-brand{font-size:11px;font-weight:700;letter-spacing:.6px;color:#8b949e;text-transform:uppercase;padding:4px 10px 8px}
+.bts-sidenav .rtab{display:block;border-bottom:0;border-left:2px solid transparent;border-radius:6px;color:#adbac7;font-size:12.5px;padding:7px 10px;white-space:nowrap;cursor:pointer}
+.bts-sidenav .rtab:hover{background:#1c2128;color:#e6edf3}
+.bts-sidenav .rtab.active{background:#1f6feb33;border-left-color:#4493f8;color:#f0f6fc}
+.bts-content{flex:1;min-width:0}
+
+/* Report tab: header (identity + severity chips + downloads), then the ScaApp body, then the governance cards */
+.bts-reporthead{border:1px solid #d0d7de;border-radius:10px;padding:12px 16px;background:#fff;margin:4px 0 10px}
+.bts-reporthead-title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.bts-rh-name{font-size:19px;font-weight:800;color:#1f2328}
+.bts-rh-meta{font-size:11.5px;color:#57606a;word-break:break-all}
+.bts-rh-chips{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.bts-rh-actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+
+.bts-govcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:14px 0}
+.bts-govcard{border:1px solid #d0d7de;border-radius:10px;background:#fff;padding:12px 14px;min-width:0}
+.bts-gc-title{font-size:13px;font-weight:700;color:#1f2328}
+.bts-gc-sub{font-size:11px;color:#57606a;margin:2px 0 8px}
+.bts-gc-big{font-size:26px;font-weight:800;color:#1f2328;line-height:1.15}
+.bts-gc-big .bts-gc-unit{font-size:11px;font-weight:400;color:#57606a;margin-left:8px}
+.bts-gc-line{font-size:11.5px;color:#24292f;margin-top:4px;line-height:1.5;word-break:break-word}
+.bts-gc-actions{margin-top:10px}
+
+@media (max-width:900px){
+  .bts-shell{flex-direction:column}
+  .bts-sidenav{position:static;flex:none;flex-direction:row;flex-wrap:wrap;overflow-x:auto;width:100%;margin-right:0;margin-bottom:10px}
+  .bts-sidenav .rtab{border-left:0;border-bottom:2px solid transparent;border-radius:0}
+  .bts-sidenav .rtab.active{border-bottom-color:#4493f8;background:none}
+}

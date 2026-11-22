@@ -1,10 +1,10 @@
-// Test harness: runs the page's pure render / form functions (bts_ui.js, bts_governance.js, arch_intel_render.js) under Node, without a DOM or a network.
-// stdin: JSON [{"mod": "gov"|"ui"|"arc", "fn": "renderChanges", "args": [...]}, ...]   stdout: JSON list with one result per call.
+// Test harness: runs the page's pure render / form functions (bts_ui.js, bts_governance.js, arch_intel_render.js, bts_report.js) under Node, without a DOM or a network.
+// stdin: JSON [{"mod": "gov"|"ui"|"arc"|"rep", "fn": "renderChanges", "args": [...]}, ...]   stdout: JSON list with one result per call.
 'use strict';
 const path = require('path');
 const web = path.join(__dirname, '..', '..', '..', 'bts_sbom_app', 'web');
 const mods = { ui: require(path.join(web, 'bts_ui.js')), gov: require(path.join(web, 'bts_governance.js')),
-               arc: require(path.join(web, 'arch_intel_render.js')) };
+               arc: require(path.join(web, 'arch_intel_render.js')), rep: require(path.join(web, 'bts_report.js')) };
 let raw = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (c) => { raw += c; });
