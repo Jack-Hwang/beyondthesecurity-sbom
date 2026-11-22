@@ -148,3 +148,22 @@ def test_rea_informed_forbidden_obsolete_and_uniqueness_semantics():
     dupr = arch_map.layer_validate([], dup)
     assert dupr["obsolete_layers"] and "duplicate" in dupr["obsolete_layers"][0]
     assert arch_map.rules_example().count("forbidden") == 1                   # the format contract documents it
+
+
+def test_moniker_ambiguity_and_participation_exclusion():
+    """AC: BSA-AC-580 - VS ValidateMonikerAmbiguity + SupportsValidation adoption."""
+    rules = {"layers": {
+        "ui": {"match": ["web/*"], "may_depend_on": ["core"]},
+        "shared": {"match": ["web/shared/*"], "may_depend_on": ["core"]},     # overlaps ui on web/shared/*
+        "core": {"match": ["bts_sbom/*"], "may_depend_on": ["core"], "exclude": ["*/generated/*", "bts_sbom/vendor/*"]},
+    }}
+    edges = [("web/shared/util.py", "bts_sbom/core.py"),                      # ambiguous: matches ui AND shared
+             ("bts_sbom/core.py", "bts_sbom/vendor/embedded.py"),             # target excluded from participation
+             ("bts_sbom_app/api.py", "bts_sbom/core.py")]                     # services not declared -> unknown... (no services layer here)
+    rules["layers"]["app"] = {"match": ["bts_sbom_app/*"], "may_depend_on": ["core"]}
+    r = arch_map.layer_validate(edges, rules)
+    amb = r["ambiguous_monikers"]
+    assert amb and amb[0]["node"] == "web/shared/util.py" and set(amb[0]["layers"]) == {"ui", "shared"}
+    assert r["verdict"] == "fail" and any("ambiguous" in a["node"] for a in []) or amb     # ambiguity is the finding
+    assert r["excluded_nodes"] == ["bts_sbom/vendor/embedded.py"]              # participation opt-out honoured
+    assert r["checked"] == len([e for e in edges if "vendor" not in e[1]])     # excluded edges are not checked

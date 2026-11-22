@@ -155,23 +155,45 @@ def layer_validate(edges: Iterable[Tuple[str, str]], rules: Dict[str, Any]) -> D
 
     Rules JSON: {"layers": {"<name>": {"match": [<fnmatch on path>],
                                        "may_depend_on": [<layer names>],        (allow-list, deny-by-default)
-                                       "forbidden": [<fnmatch on imported node path>]}},   (deny-list, VS semantics)
+                                       "forbidden": [<fnmatch on imported node path>],  (deny-list, VS semantics)
+                                       "exclude": [<fnmatch on path>]}},        (participation opt-out, VS SupportsValidation=false)
                  "default": "deny"}
     Violations: illegal (target layer not allowed for the source layer, including unknown layers), bypassed
     (a direct edge skips an allowed intermediate that itself may reach the target), forbidden (an import
-    into a namespace the source layer declares forbidden).
+    into a namespace the source layer declares forbidden). Ambiguous monikers (VS:
+    ValidateMonikerAmbiguity) - node paths matching several layers - are reported instead of silently
+    resolved; validation proceeds on the first match.
     Unknown-layer edges are counted; layers whose match patterns hit zero nodes are reported obsolete
-    (VS: ValidateLayerHasNoOrObsoleteArtifacts)."""
+    (VS: ValidateLayerHasNoOrObsoleteArtifacts); excluded nodes (participation opt-out) are counted and
+    named, never checked."""
     layers = rules.get("layers") or {}
     names_in_order = list(layers.keys())
     allow = {name: set(spec.get("may_depend_on") or []) for name, spec in layers.items()}
     forbidden = {name: [p for p in (spec.get("forbidden") or [])] for name, spec in layers.items()}
+    exclude = [p for spec in layers.values() for p in (spec.get("exclude") or [])]
     node_layer: Dict[str, str] = {}
     illegal: List[Dict[str, Any]] = []
     bypassed: List[Dict[str, Any]] = []
     forbidden_hits: List[Dict[str, Any]] = []
+    ambiguous: List[Dict[str, Any]] = []
     unknown = 0
-    edge_list = sorted(set((a, b) for a, b in edges if a != b))
+    all_nodes = sorted({n for e in edges for n in e if n})
+    excluded = sorted({n for n in all_nodes if any(fnmatch.fnmatch(n, p) for p in exclude)})
+    edge_list = sorted(set((a, b) for a, b in edges if a != b and a not in excluded and b not in excluded))
+    # VS ValidateMonikerAmbiguity: a node matching several layer patterns is reported; first match wins
+    # for validation, but the ambiguity itself is a finding - never a silent choice.
+    for n in all_nodes:
+        if n in excluded:
+            continue
+        matching = [name for name in names_in_order
+                    if any(fnmatch.fnmatch(n, p) for p in (layers[name].get("match") or []))]
+        if len(matching) > 1:
+            ambiguous.append({"node": n, "layers": matching})
+    for a, b in edge_list:
+        if a not in node_layer:
+            node_layer[a] = _layer_of(a, rules) or "unknown"
+        if b not in node_layer:
+            node_layer[b] = _layer_of(b, rules) or "unknown"
     for a, b in edge_list:
         if a not in node_layer:
             node_layer[a] = _layer_of(a, rules) or "unknown"
@@ -215,14 +237,16 @@ def layer_validate(edges: Iterable[Tuple[str, str]], rules: Dict[str, Any]) -> D
     duplicate_names = len(stripped) != len(set(stripped))
     if duplicate_names:
         obsolete.insert(0, "duplicate layer names in the spec (VS: LayerNamesMustBeUnique)")
-    verdict = "pass" if not (illegal or bypassed or forbidden_hits or obsolete or duplicate_names) else "fail"
+    verdict = "pass" if not (illegal or bypassed or forbidden_hits or obsolete or duplicate_names or ambiguous) else "fail"
     if verdict == "pass" and edge_list and unknown == len(edge_list):
         verdict = "inconclusive"                        # every edge unmapped: the rules matched nothing - say so
     return {"schema": SCHEMA, "checked": len(edge_list), "unknown_layer_edges": unknown,
             "layers_declared": len(names_in_order), "violations": illegal, "bypassed": bypassed,
             "forbidden": forbidden_hits, "obsolete_layers": obsolete,
+            "ambiguous_monikers": ambiguous, "excluded_nodes": excluded,
             "vs_alignment": {"semantics": "ForbiddenNamespace / ForbiddenNamespaceDependencies / "
-                                          "ValidateLayerHasNoOrObsoleteArtifacts / LayerNamesMustBeUnique",
+                                          "ValidateLayerHasNoOrObsoleteArtifacts / LayerNamesMustBeUnique / "
+                                          "ValidateMonikerAmbiguity / SupportsValidation",
                              "source": "Microsoft.VisualStudio.Layer 18.11.12306.13 "
                                        "(REA: extracted from the VS 2026 LTSC 18.11 channel manifest)"},
             "verdict": verdict}
@@ -234,7 +258,8 @@ def rules_example() -> str:
     ForbiddenNamespaceDependencies, extracted by REA from Microsoft.VisualStudio.Layer 18.11)."""
     return json.dumps({
         "layers": {
-            "ui": {"match": ["web/*", "*/web/*"], "may_depend_on": ["services"], "forbidden": ["bts_sbom/*"]},
+            "ui": {"match": ["web/*", "*/web/*"], "may_depend_on": ["services"], "forbidden": ["bts_sbom/*"],
+                   "exclude": ["*/tests/*", "*/__pycache__/*"]},
             "services": {"match": ["bts_sbom_app/*", "*/services/*"], "may_depend_on": ["core", "services"]},
             "core": {"match": ["bts_sbom/*", "*/core/*"], "may_depend_on": ["core"]},
         },
