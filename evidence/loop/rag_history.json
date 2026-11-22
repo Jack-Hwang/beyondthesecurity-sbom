@@ -543,5 +543,135 @@
    ]
   },
   "code": "7ac344af94c0"
+ },
+ {
+  "pass": 9,
+  "tag": "license-kg",
+  "at": "2026-11-22T12:26:10+00:00",
+  "variable": "license-basics-split",
+  "hypothesis": "separate license basics file adds GPL grounding without touching the licenses.md chunk boundaries",
+  "decision": "rollback",
+  "gate": {
+   "pass": false,
+   "failed": [
+    "golden_mrr: 0.975 -> 0.950",
+    "dev_mrr: 0.869 -> 0.836",
+    "dev_found: 1.000 -> 0.933"
+   ],
+   "undecidable": [],
+   "deltas": {
+    "golden_recall": 0.0,
+    "golden_mrr": -0.025,
+    "golden_ndcg": -0.007,
+    "golden_ood": 0.0,
+    "golden_found": 0.0,
+    "dev_recall": 0.0,
+    "dev_mrr": -0.033,
+    "dev_ndcg": -0.016,
+    "dev_ood": 0.0,
+    "dev_found": -0.067,
+    "test_recall": 0.0,
+    "test_mrr": -0.007,
+    "test_ndcg": 0.002,
+    "test_ood": 0.0,
+    "test_found": 0.0
+   },
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "golden_recall": 1.0,
+   "golden_mrr": 0.95,
+   "golden_ndcg": 0.943,
+   "golden_ood": 1.0,
+   "golden_found": 0.85,
+   "dev_recall": 1.0,
+   "dev_mrr": 0.836,
+   "dev_ndcg": 0.869,
+   "dev_ood": 1.0,
+   "dev_found": 0.933,
+   "test_recall": 0.917,
+   "test_mrr": 0.75,
+   "test_ndcg": 0.771,
+   "test_ood": 1.0,
+   "test_found": 0.917
+  },
+  "case_regressions": [],
+  "misses": {
+   "rag_golden": [],
+   "rag_dev": [],
+   "rag_test": [
+    {
+     "q": "서로 영향을 주고받는 파일을 이력으로 찾는 방법",
+     "why": "expected ['domain/legacy_architecture.md'] not in top 5",
+     "top": "domain/licenses.md"
+    }
+   ]
+  },
+  "code": "4bff643d1f03"
+ },
+ {
+  "pass": 10,
+  "tag": "license-kg-final",
+  "at": "2026-11-22T12:33:48+00:00",
+  "variable": "license-basics-grounding",
+  "hypothesis": "deliberate trade-off: license basics knowledge stays for chat grounding quality (dev found -0.067, golden mrr -0.025 accepted as product cost); the LLM lane, not retrieval ranking, carries license explanations",
+  "decision": "rollback",
+  "gate": {
+   "pass": false,
+   "failed": [
+    "golden_mrr: 0.975 -> 0.950",
+    "dev_mrr: 0.869 -> 0.836",
+    "dev_found: 1.000 -> 0.933"
+   ],
+   "undecidable": [],
+   "deltas": {
+    "golden_recall": 0.0,
+    "golden_mrr": -0.025,
+    "golden_ndcg": -0.007,
+    "golden_ood": 0.0,
+    "golden_found": 0.0,
+    "dev_recall": 0.0,
+    "dev_mrr": -0.033,
+    "dev_ndcg": -0.016,
+    "dev_ood": 0.0,
+    "dev_found": -0.067,
+    "test_recall": 0.0,
+    "test_mrr": -0.007,
+    "test_ndcg": 0.002,
+    "test_ood": 0.0,
+    "test_found": 0.0
+   },
+   "delta_limit": 0.02
+  },
+  "metrics": {
+   "golden_recall": 1.0,
+   "golden_mrr": 0.95,
+   "golden_ndcg": 0.943,
+   "golden_ood": 1.0,
+   "golden_found": 0.85,
+   "dev_recall": 1.0,
+   "dev_mrr": 0.836,
+   "dev_ndcg": 0.869,
+   "dev_ood": 1.0,
+   "dev_found": 0.933,
+   "test_recall": 0.917,
+   "test_mrr": 0.75,
+   "test_ndcg": 0.771,
+   "test_ood": 1.0,
+   "test_found": 0.917
+  },
+  "case_regressions": [],
+  "misses": {
+   "rag_golden": [],
+   "rag_dev": [],
+   "rag_test": [
+    {
+     "q": "서로 영향을 주고받는 파일을 이력으로 찾는 방법",
+     "why": "expected ['domain/legacy_architecture.md'] not in top 5",
+     "top": "domain/licenses.md"
+    }
+   ]
+  },
+  "code": "2f6268b41588"
  }
 ]

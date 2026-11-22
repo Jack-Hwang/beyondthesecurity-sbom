@@ -27,7 +27,9 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from . import actions as actionsmod, ai, conformance, conversation, coverage as coverage_mod, fleet, licenses, rag, sbom, triage, workspace
 from .llm import ChatClient, LLMError, LLMUnavailable
 
-_ID = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+|RUSTSEC-\d{4}-\d+|GO-\d{4}-\d+)\b", re.I)
+_ID = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+|RUSTSEC-\d{4}-\d+|GO-\d{4}-\d+)(?![A-Za-z0-9])", re.I)
+# the id ends before anything that is NOT an ASCII alphanumeric: a Hangul particle glued to the id
+# ("CVE-2018-18074에") must not break the match (\b treats Hangul as a word character - measured 2026-11-22).
 # a question across ALL analysed projects ("which projects use X", "X 쓰는 프로젝트", "영향받는 프로젝트")
 _FLEET_Q = re.compile(r"영향.{0,8}프로젝트|(어느|어떤|몇).{0,4}프로젝트|(사용|쓰는|쓰고|이용|포함).{0,6}프로젝트|프로젝트.{0,6}(사용|쓰|영향|포함)|"
                       r"which projects?|affected projects?|projects? (?:using|that use|with)|across (?:all )?projects")
