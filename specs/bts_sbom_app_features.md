@@ -662,3 +662,19 @@ resources/read 본문 반환, 미지 URI는 isError+known 목록 — "툴=행동
 - BSA-AC-543 [Event] When the LLM answer lane's first attempt is rejected for citation accuracy below the 0.8 gate or for unparseable JSON, ask shall retry exactly once with the concrete failure text embedded in the system prompt, accept a passing retry as the cited answer, and fall back to the extractive answer with the rejected note after a second failure - never more than one retry (2 of 2 failure kinds, 1 of 1 retry budget).
 - BSA-AC-544 [Event] When more trusted passages exist than the prompt cap of 6 the LLM answer's llm_note shall report exactly "N of M trusted passages handed to the model (K trimmed by relevance, cap 6)" and report nothing when nothing was trimmed (1 of 1 notes, 1 of 1 quiet-loss prohibition).
 - BSA-AC-545 [Event] When an MCP client lists resources it shall receive exactly the tool catalog, agent card and book-notes-index entries, and resources/read shall return each uri's typed text body - the catalog containing the chat tool contracts, the card matching /api/agent-card with 7 skills, the notes index enumerating the knowledge_books files - while an unknown uri returns isError with the known list (3 of 3 resources, 1 of 1 unknown-uri refusal).
+
+### 챗봇·에이전트 고도화 — 다중 턴·복합질문·인젝션 가드 (2025-26 조사 라운드)
+
+웹 조사(2026 multi-turn playbook, Rasa, Parlant, arXiv 2507.00355/2511.15759, Haystack/NVIDIA 쿼리
+분해, Fiddler 가드레일 계층론)에서 도출한 3축을 결정론 우선 원칙으로 구현한다 (conversation.py; LLM은
+규칙이 못 정할 때만). (1) 대화 기억: 서버 State가 소유한 ConversationMemory(최근 3턴의 질문·도구·결과)
+가 요청을 넘어 살아있고, 후속형 질문(지시대명사 시작·그중/아까·필터만·주제어+조사 물음 "라이선스는?")은
+이전 질문을 문맥으로 합쳐 라우팅한다 — 문자열 결합일 뿐 의도 추측은 없고, 완전한 질문은 재작성하지 않는다.
+(2) 복합질문 분해: 명시 접속(그리고/및/쉼표/and)은 항상, 조사(와/과/랑)는 우변이 도구 의도로 시작할 때만
+분해("CVE-X와 관련된 프로젝트"는 분해 금지) — 파트별 도구를 돌리고 소스로 중복 병합한다. (3) 컨텍스트
+계층 인젝션 가드: 도구·검색 텍스트의 지시문 유사 패턴을 세어 결과에 attempts+주석으로 보고한다 — 구조적
+방어(validate_calls·신뢰 문서만 프롬프트·비신뢰 인용 표기)는 그대로고, 시도는 조용히 흡수되지 않는다.
+
+- BSA-AC-546 [Event] When a follow-up-shaped question arrives (demonstrative start, 그중/이중, bare severity filter, or topic+particle question like "라이선스는?") and the conversation memory holds a previous turn, the router shall see the previous question merged as context and the answer shall carry followup true, while a full standalone question is never rewritten and the memory window stays at 3 turns; the server's shared memory shall carry this across separate HTTP requests (4 of 4 follow-up shapes, 1 of 1 no-rewrite rule).
+- BSA-AC-547 [Event] When a question contains explicit coordination (그리고/및/쉼표/and) or a particle split whose right side opens with a tool intent, ask shall decompose it into up to 4 parts, run the tool router per part, merge results deduplicated by source, and report the parts in decomposed - while "CVE-X와 관련된 프로젝트" stays a single question and single-intent questions pass through unchanged (2 of 2 split rules, 1 of 1 no-split rule).
+- BSA-AC-548 [Event] When tool or retrieval text carries instruction-injection patterns (ignore previous instructions, system prompt, you are now, reveal prompt, system tags) the answer shall carry an injection guard annotation naming the attempt count and sources, and the result shall report attempts - the content stays quarantined by the existing structural defences and is never obeyed or silently dropped (6 of 6 pattern families, 1 of 1 visibility rule).

@@ -101,5 +101,7 @@ class StreamingChatbot(chatmod.Chatbot):
             not_passed=not_passed))
         self._emit("final", found=res.get("found"), answer_source=res.get("answer_source"),
                    tools=res.get("tools") or [], citation_accuracy=res.get("citation_accuracy"),
-                   llm_note=res.get("llm_note") or "")
+                   llm_note=res.get("llm_note") or "",
+                   followup=bool(res.get("followup")), decomposed=res.get("decomposed") or [],
+                   injection_attempts=(res.get("injection") or {}).get("attempts", 0))
         return res

@@ -87,3 +87,16 @@ junk≤0.03)이다. "측정이 판정한다" 원칙에 따라 검색 품질 변�
 - AC-544: 신뢰 문서가 6개를 넘으면 "N of M passages (K trimmed)"를 llm_note로 보고.
 - AC-545: resources/list 3건, resources/read 각 URI 본문 반환, 미지 URI는 isError+known 목록.
 - 기준선 재측정: evalrag/evalchat — chat 경로 변경은 LLM 레인만 건드리므로 결정론 지표 불변이어야 한다.
+
+## 챗봇·에이전트 고도화 — 웹 조사 라운드 (2025-26, AC-546~548)
+
+2025-26 문헌(2026 multi-turn playbook, Rasa, Parlant, arXiv 2507.00355 쿼리 분해·2511.15759 인젝션
+방어, Haystack/NVIDIA 분해, Fiddler 가드레일 계층론)에서 도출해 결정론 우선으로 구현한 3축:
+
+| 기법 | 조사 근거 | 상태 |
+|---|---|---|
+| 다중 턴 대화 기억 + 후속질문 해소 | 2026 multi-turn playbook·Rasa·Parlant | **신규 구현 (AC-546)** — 서버 State 공유 ConversationMemory(3턴), 후속형 질문은 이전 질문을 문맥으로 합쳐 라우팅, 완전한 질문은 재작성 금지 |
+| 복합질문 분해 → 도구 병합 | arXiv 2507.00355·Haystack·NVIDIA blueprint | **신규 구현 (AC-547)** — 명시 접속 항상 분해, 조사 분해는 우변 도구 의도로 검증("CVE-X와 관련된…" 미분해) |
+| 컨텍스트 계층 인젝션 가드 | Fiddler 가드레일 계층·arXiv 2511.15759 | **신규 구현 (AC-548)** — 도구·검색 텍스트 스캔, attempts+주석 보고, 구조적 방어(validate_calls·신뢰 프롬프트·비신뢰 표기)와 병행 |
+| 대화 요약 컴팩션 | 조사 공통 (sliding window+summarization) | **부분** — 3턴 슬라이딩 윈도우만; 장기 세션 요약은 수요 측정 후 |
+| 멀티턴 전용 평가 지표(대화 관련성 등) | 조사 공통 | **부분** — followup 플래그로 관측점만; 전용 골든셋은 다음 라운드 |

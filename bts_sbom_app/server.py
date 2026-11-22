@@ -47,7 +47,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import __version__, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, coverage, engine, events, evals, fleet, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, conversation, coverage, engine, events, evals, fleet, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 from .util import clip, read_json, write_json
@@ -110,6 +110,7 @@ class State:
                                                      api_version=str(saved.get("azure_api_version") or "") or None)
         self.triage_path = os.path.join(evidence, ".triage.json")
         self._books_cache: Optional[Tuple[Optional[Tuple[int, int]], Any]] = None   # ((mtime_ns, size) of registry.json, rag.Index)
+        self.chat_memory = conversation.ConversationMemory()   # multi-turn continuity: shared across requests, per server process
 
     def books_dir(self) -> str:
         """The book KB is stable state, not a run artifact: it lives at <root>/evidence/books (same root-based
@@ -191,7 +192,8 @@ class State:
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
         return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
                                projs, client, acts, self.triage(),
-                               arch_dir=os.path.join(self.evidence, "archintel"), books=self.books_index())
+                               arch_dir=os.path.join(self.evidence, "archintel"), books=self.books_index(),
+                               memory=self.chat_memory)
 
     def stream_bot(self, sink: Any) -> chat_stream.StreamingChatbot:
         """The same wiring as :meth:`bot`, as the observing subclass: the 7 chat-level events go to ``sink``."""
@@ -200,7 +202,7 @@ class State:
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
         return chat_stream.StreamingChatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
                                             projs, client, acts, self.triage(), arch_dir=os.path.join(self.evidence, "archintel"),
-                                            books=self.books_index(), sink=sink)
+                                            books=self.books_index(), memory=self.chat_memory, sink=sink)
 
     def triage(self) -> Dict[str, Any]:
         with self.lock:

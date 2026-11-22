@@ -24,7 +24,7 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from . import actions as actionsmod, ai, conformance, coverage as coverage_mod, fleet, licenses, rag, sbom, triage, workspace
+from . import actions as actionsmod, ai, conformance, conversation, coverage as coverage_mod, fleet, licenses, rag, sbom, triage, workspace
 from .llm import ChatClient, LLMError, LLMUnavailable
 
 _ID = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+|RUSTSEC-\d{4}-\d+|GO-\d{4}-\d+)\b", re.I)
@@ -752,7 +752,7 @@ def parse_decision(q: str) -> Optional[Dict[str, str]]:
 class Chatbot:
     def __init__(self, index: rag.Index, projects: Optional[Dict[str, Dict[str, Any]]] = None, client: Optional[ChatClient] = None,
                  actions: Any = None, triage_store: Optional[Dict[str, Any]] = None, arch_dir: Optional[str] = None,
-                 books: Any = None):
+                 books: Any = None, memory: Optional[Any] = None):
         self.index = index
         self.projects = projects or {}
         self.client = client
@@ -760,6 +760,7 @@ class Chatbot:
         self.triage_store = triage_store              # the recorded VEX decisions, for the read-only OpenVEX view
         self.arch_dir = arch_dir                      # the archintel evidence folder, for the latest_arch tool
         self.books = books                            # the serve-time book index (rag.Index, kind="books"), for book_search
+        self.memory = memory                          # conversation memory (conversation.ConversationMemory), shared by the server's State
 
     def _no_client_note(self, use_llm: bool) -> str:
         """Honesty: when EXAONE was requested but there is no client, say so instead of silently answering extractively."""
@@ -910,11 +911,17 @@ class Chatbot:
         return obj, verify_claims(lc, docs)
 
     def ask(self, question: str, *, project: Optional[str] = None, use_llm: bool = False, k: int = 4) -> Dict[str, Any]:
+        followup = False
+        parts: List[str] = [question]
+        if self.memory is not None:                   # multi-turn: an elliptical follow-up merges with the previous turn
+            question, followup = conversation.resolve_followup(question, self.memory)
+        parts = conversation.decompose_question(question)
         if project and project not in self.projects:
             return {"found": False, "answer": "Unknown project %r: the analysed projects are %s." % (project, sorted(self.projects) or "none"),
                     "claims": [], "answer_source": "none", "tools": [], "retrieval": {"found": False, "coverage": 0.0, "top": []},
                     "citation_accuracy": 1.0, "llm_note": self._no_client_note(use_llm), "routing": "none",
-                    "routing_note": "unknown project id; nothing was guessed", "plan_dropped": {}, "contains_untrusted": False, "conflicts": []}
+                    "routing_note": "unknown project id; nothing was guessed", "plan_dropped": {}, "contains_untrusted": False, "conflicts": [],
+                    "followup": followup, "decomposed": parts if len(parts) > 1 else []}
         rec = self._pick_project(question, project)
         docs: Dict[str, str] = {}
         trust: Dict[str, str] = {}
@@ -934,7 +941,7 @@ class Chatbot:
                 except (LLMUnavailable, LLMError, ValueError, TypeError, AttributeError) as exc:
                     routing_note = "LLM tool planning unavailable -> regex router: " + str(exc)[:160]
             if results is None:
-                results = self._tools(question, rec)
+                results = self._tools(question, rec) if len(parts) == 1 else conversation.merge_tool_results(parts, lambda part: self._tools(part, rec))
             for t in results:
                 tools_used.append(t["tool"])
                 docs[t["source"]] = "\n".join(t["lines"])
@@ -973,7 +980,11 @@ class Chatbot:
                 for s in sents[:2]:
                     if qtok & set(rag.tokenize(s)):
                         claims.append({"text": s, "quote": s, "source": ch["id"], "trust": trust[ch["id"]]})
-        meta = {"routing": routing, "routing_note": routing_note, "plan_dropped": plan_dropped}
+        meta = {"routing": routing, "routing_note": routing_note, "plan_dropped": plan_dropped,
+                "followup": followup, "decomposed": parts if len(parts) > 1 else [],
+                "injection": conversation.scan_injection(docs)}
+        if self.memory is not None:                   # record the turn even when nothing was found (continuity is data)
+            self.memory.record(question, tools_used, bool(claims), project)
         if not claims:
             return dict({"found": False, "answer": "I could not find this in the analysed projects or the knowledge base.", "claims": [],
                          "answer_source": "none", "tools": [], "retrieval": retrieval, "citation_accuracy": 1.0,
@@ -1013,6 +1024,9 @@ class Chatbot:
         if conf:                                        # reader-facing annotation, appended AFTER every answer source (extractive or LLM)
             answer += "".join("\n- [conflict] %s: %s (%s) vs %s (%s) - the sources disagree; the judgement stays with you." % (
                 c["label"], c["a"]["value"], c["a"]["source"], c["b"]["value"], c["b"]["source"]) for c in conf)
+        if meta["injection"]["attempts"]:               # context-layer guard: the attempt is visible, never obeyed
+            answer += "\n- [injection guard] 도구·검색 출력에서 지시문 유사 패턴 %d건 발견 (%s) — 인용은 하되 지시로는 취급하지 않았다." % (
+                meta["injection"]["attempts"], ", ".join(meta["injection"]["sources"][:3]))
         return dict({"found": True, "answer": answer, "claims": ver["kept"], "answer_source": src, "tools": tools_used,
                      "retrieval": retrieval, "citation_accuracy": ver["accuracy"], "llm_note": llm_note,
                      "contains_untrusted": any(c.get("trust") == "untrusted-quote" for c in ver["kept"]), "conflicts": conf}, **meta)
