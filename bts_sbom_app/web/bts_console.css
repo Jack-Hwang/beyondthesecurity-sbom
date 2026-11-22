@@ -8,25 +8,10 @@
 .bts-note.warn{border-color:#d4a72c;background:#fff8c5}
 .bts-note.bad{border-color:#cf222e;background:#ffebe9}
 .bts-note.ok{border-color:#2da44e;background:#dafbe1}
-.bts-h{font-size:14px;font-weight:700;margin:16px 0 8px;color:#1f2328}
-.bts-h .sub{font-weight:400;font-size:11.5px}
 
-.bts-cards{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}
-.bts-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 18px;min-width:112px;text-align:center}
-.bts-card .v{font-size:24px;font-weight:800;color:#e6edf3;line-height:1.2}
-.bts-card .l{font-size:10px;color:#9da7b3;margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
 
-.bts-bars{display:flex;flex-direction:column;gap:6px;max-width:520px;margin-bottom:14px}
-.bts-bar-row{display:grid;grid-template-columns:84px 1fr 46px;gap:8px;align-items:center;font-size:11.5px;color:#1f2328}
-.bts-bar-track{background:#e6e9ee;border-radius:4px;height:10px;overflow:hidden}
-.bts-bar-fill{height:100%;border-radius:4px}
 
 .bts-wrap{overflow-x:auto;margin:4px 0 12px}
-table.bts-table{border-collapse:collapse;width:100%;font-size:12px;background:#fff;color:#1f2328}
-table.bts-table th{background:#f3f5f8;text-align:left;padding:6px 9px;border:1px solid #d8dee4;font-weight:600;white-space:nowrap}
-table.bts-table td{padding:5px 9px;border:1px solid #e3e7ec;vertical-align:top;word-break:break-word}
-table.bts-table tr:hover td{background:#fafbfc}
-.bts-sev{display:inline-block;padding:1px 8px;border-radius:9px;color:#fff;font-size:10.5px;font-weight:700}
 .bts-pill{display:inline-block;padding:1px 8px;border-radius:9px;font-size:10.5px;font-weight:700;border:1px solid currentColor}
 .bts-pill.pass,.bts-pill.ok{color:#1a7f37}
 .bts-pill.gap,.bts-pill.bad{color:#cf222e}
@@ -42,3 +27,46 @@ details.bts-chat summary{cursor:pointer;font-weight:600;color:#1f2328}
 .bts-chat-out{margin-top:10px;font-size:12.5px;line-height:1.55;color:#1f2328;white-space:pre-wrap}
 .bts-chat-src{color:#57606a;font-size:11px;margin-top:6px}
 .bts-link{color:#0969da;cursor:pointer;background:none;border:0;padding:0;font:inherit;text-decoration:underline}
+
+/* group sub-tab chips: same values as the platform's view_consolidation.css section 4 (that file is not one of the six copied files) */
+#scanSubNav{align-items:center}
+.scan-subchip{padding:3px 12px;font-size:11px;font-weight:600;color:#9fb3c8;background:#141c26;border:1px solid #26323f;border-radius:999px;
+  cursor:pointer;transition:color .12s,border-color .12s,background .12s;white-space:nowrap}
+.scan-subchip:hover{color:#e2e8f0;border-color:#3d7dc8}
+.scan-subchip.on{color:#cfe4ff;background:#182a3d;border-color:#3d7dc8}
+
+/* panes built like the platform's: title row with a coloured action button, grey description, dark summary cards, flat table */
+.bts-ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.bts-pt{font-size:14px;font-weight:700}
+.bts-pt small{font-size:11px;font-weight:400;color:#4b5563;margin-left:6px}
+.bts-pd{font-size:11.5px;color:var(--dcard-muted);margin-bottom:12px}
+.bts-ps{font-size:12px;font-weight:700;margin:16px 0 8px}
+.bts-ps small{font-size:10px;font-weight:400;color:#4b5563;margin-left:6px}
+.bts-pcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px}
+.bts-pcard{border:1px solid;border-radius:6px;padding:10px;text-align:center}
+.bts-pcard .v{font-size:22px;font-weight:800;line-height:1.25;word-break:break-word}
+.bts-pcard .l{font-size:11px;margin-top:2px}
+.bts-ref{margin-top:10px;font-size:10.5px;color:#4b5563}
+.bts-p button.run:disabled{opacity:.55;cursor:not-allowed}
+.bts-p table.pt{width:100%;border-collapse:collapse;font-size:12px;color:#1f2328}
+.bts-p table.pt thead tr{color:var(--dcard-muted);border-bottom:1px solid #21262d}
+.bts-p table.pt th{padding:6px 8px;text-align:center;font-weight:600;white-space:nowrap}
+.bts-p table.pt td{padding:5px 8px;text-align:center;border-bottom:1px solid rgba(100,116,139,.28);vertical-align:top;word-break:break-word}
+.bts-p table.pt th.l,.bts-p table.pt td.l{text-align:left}
+.bts-p table.pt td.empty{text-align:center;color:#4b5563;padding:20px}
+.bts-p table.pt tbody tr:hover td{background:rgba(100,116,139,.08)}
+.bts-p table.pt code{font-size:11px}
+.bts-tint{display:inline-block;border:1px solid;border-radius:8px;padding:1px 9px;font-size:10.5px;font-weight:700}
+.bts-gcanvas{width:100%;height:480px;background:#0d1117;border:1px solid #21262d;border-radius:8px;position:relative;overflow:hidden}
+.bts-gcanvas .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#4b5563;font-size:13px}
+.bts-gcanvas svg{width:100%;height:100%;display:block}
+.bts-glegend{display:flex;gap:12px;margin-top:8px;font-size:11px;flex-wrap:wrap}
+.bts-ginfo{margin-top:10px;font-size:12px;color:#57606a}
+.bts-ta{width:100%;background:#0d1117;color:#e2e8f0;border:1px solid var(--dcard-border);border-radius:4px;padding:8px;font-family:monospace;font-size:12px;resize:vertical}
+.bts-p .pathbox{margin-bottom:14px}
+.bts-p .pathbox table.pt{color:#e6edf3}
+.bts-p .pathbox table.pt thead tr{color:#9da7b3;border-bottom-color:#30363d}
+.bts-p .pathbox table.pt td{border-bottom-color:rgba(255,255,255,.1)}
+.bts-p .pathbox table.pt td.empty{color:#8b949e}
+.bts-p .pathbox .bts-link{color:#58a6ff}
+.bts-p .pathbox table.pt tbody tr:hover td{background:rgba(255,255,255,.05)}

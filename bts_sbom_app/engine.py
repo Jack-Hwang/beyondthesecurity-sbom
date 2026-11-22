@@ -48,6 +48,58 @@ def core_info() -> Dict[str, str]:
     return {"version": str(getattr(m, "__version__", "unknown")), "path": os.path.dirname(os.path.dirname(os.path.abspath(m.__file__)))}
 
 
+def osv_db_status() -> Dict[str, Any]:
+    """State of the core's local OSV database: {path, exists, exact_entries, indexed_rows, imported_ecosystems, size_bytes}.
+
+    The core's ``stats()`` creates an empty database file when there is none, so it is only called when the file already exists:
+    asking for the status must not leave a new file behind.
+    """
+    _import_core()
+    import importlib
+    mod = importlib.import_module("bts_sbom._internal.osv_local_db")
+    path = str(mod.DB_PATH)
+    out: Dict[str, Any] = {"path": path, "exists": os.path.isfile(path), "exact_entries": 0, "indexed_rows": 0, "imported_ecosystems": []}
+    if out["exists"]:
+        st = mod.stats()
+        out.update(exact_entries=st.get("exact_entries", 0), indexed_rows=st.get("indexed_rows", 0),
+                   imported_ecosystems=st.get("imported_ecosystems", []), size_bytes=os.path.getsize(path))
+    return out
+
+
+def intel_endpoints() -> Dict[str, str]:
+    """The core's EPSS API and CISA KEV feed URLs. Only the URLs are taken from the core: its fetch helpers swallow
+    failures (``fetch_epss`` returns {} and ``enrich_cves`` returns epss 0.0 / kev False when the network is down), which
+    would make "no answer" look like "not exploited", so the requests are made by ``bts_sbom_app.intel`` instead."""
+    _import_core()
+    import importlib
+    mod = importlib.import_module("bts_sbom._internal.epss_kev")
+    return {"epss": str(mod.EPSS_API_URL), "kev": str(mod.KEV_FEED_URL)}
+
+
+def intel_tables() -> Tuple[Dict[str, Dict[str, float]], frozenset]:
+    """The core's curated offline EPSS scores and KEV ids (a small subset of the real data, used only when offline)."""
+    _import_core()
+    import importlib
+    mod = importlib.import_module("bts_sbom._internal.epss_offline")
+    return dict(mod.EPSS_OFFLINE), frozenset(mod.KEV_OFFLINE)
+
+
+def supply_analyzer(internal_names: Any = ()) -> Dict[str, Any]:
+    """The core's name-based supply-chain analyzer (typosquat, homoglyph, scoped-name shadowing, dependency confusion) plus what a
+    caller needs to report its limits: {analyzer, canon, seeds: {canonical ecosystem: size of its popular-name list}, version}.
+
+    The analyzer compares names with a small built-in list of popular packages (maven has its own constant); an ecosystem without a
+    list cannot be checked, and ``internal_names`` is the only way to make it assert dependency confusion.
+    """
+    _import_core()
+    import importlib
+    mod = importlib.import_module("bts_sbom.supply_chain")
+    an = mod.SupplyChainAnalyzer(internal_names=list(internal_names))
+    seeds = {eco: len(names) for eco, names in an.popular.items() if names}
+    seeds["maven"] = len(mod._POPULAR_MAVEN)
+    return {"analyzer": an, "canon": mod._canon_ecosystem, "seeds": seeds, "version": core_version()}
+
+
 def scan(path: str, *, offline: bool = False, scanner: Any = None) -> Dict[str, Any]:
     """Run the core OSV scan on a file or directory and return its native result dict."""
     if scanner is None:

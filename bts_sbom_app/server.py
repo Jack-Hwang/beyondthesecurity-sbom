@@ -8,7 +8,9 @@ POST /api/chat   {question, project?, use_llm?}  -> grounded answer with verifie
 GET  /api/projects                         -> names of the analysed projects (from the evidence folder)
 GET  /api/history                          -> one row per analysed project (counts, analysis time)
 GET  /api/engine                           -> core version, LLM state, evidence folder
-GET  /api/view/<project>                   -> console report + data of every pane
+GET  /api/view/<project>                   -> console report + data of every pane (with EPSS / KEV when a lookup was made)
+POST /api/intel  {project, offline?}       -> look up EPSS (FIRST.org) and CISA KEV for the project's CVEs; stored next to the evidence
+POST /api/supply-policy {internal_names}   -> package names that are INTERNAL (the only way to get a dependency-confusion finding)
 GET  /api/sbom/<project>?format=cdx|spdx|vex , GET /api/doc/<project>   -> downloads
 GET|POST /api/triage                       -> "ignore with reason" decisions (stored next to the evidence)
 GET  /api/health
@@ -26,9 +28,9 @@ import threading
 import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from . import __version__, chat as chatmod, console, engine, evals, pipeline, report, workspace
+from . import __version__, chat as chatmod, console, engine, evals, intel, pipeline, report, supply, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 
@@ -90,6 +92,22 @@ class State:
 
     def project(self, name: str) -> Optional[Tuple[str, Dict[str, Any]]]:
         return project_records(self.evidence).get(name)
+
+    def internal_names(self) -> List[str]:
+        with self.lock:
+            return supply.load_internal(supply.policy_path(self.evidence))
+
+    def set_internal_names(self, names: List[str]) -> None:
+        with self.lock:
+            supply.save_internal(supply.policy_path(self.evidence), names)
+
+    def intel_doc(self, name: str) -> Optional[Dict[str, Any]]:
+        with self.lock:
+            return intel.load(intel.sidecar_path(self.evidence, name))
+
+    def set_intel(self, name: str, doc: Dict[str, Any]) -> None:
+        with self.lock:
+            intel.save(intel.sidecar_path(self.evidence, name), doc)
 
 
 def _safe_source(src: str) -> Optional[str]:
@@ -177,6 +195,11 @@ def make_handler(st: State):
                     core = {"error": str(exc)}
                 return self._send(200, {"name": "BTS-SBOM", "workflow_version": __version__, "core": core, "llm": st.client.describe(),
                                         "evidence": st.evidence, "projects": len(project_records(st.evidence))})
+            if path == "/api/db/status":
+                try:
+                    return self._send(200, engine.osv_db_status())
+                except Exception as exc:                              # noqa: BLE001 - the page shows "status unavailable"
+                    return self._send(200, {"error": "%s: %s" % (type(exc).__name__, str(exc)[:160]), "exists": False})
             if path == "/api/projects":
                 return self._send(200, {"projects": sorted(load_projects(st.evidence))})
             if path == "/api/history":
@@ -195,7 +218,8 @@ def make_handler(st: State):
                         return self._send(404, {"error": "unknown project"})
                     folder, rec = hit
                     if prefix == "/api/view/":
-                        return self._send(200, console.build_view(rec, st.triage(), _mtime_iso(_record_file(folder))))
+                        return self._send(200, console.build_view(rec, st.triage(), _mtime_iso(_record_file(folder)), st.intel_doc(name),
+                                                                st.internal_names()))
                     base = os.path.basename(folder)
                     if prefix == "/api/doc/":
                         return self._send(200, report.project_md(rec), "text/markdown", {"Content-Disposition": 'attachment; filename="%s.md"' % base})
@@ -244,19 +268,39 @@ def make_handler(st: State):
                                                    approval_token=token.strip() if approved else None, offline=bool(b.get("offline")),
                                                    use_llm=bool(b.get("use_llm")), client=st.client if st.client.available else None,
                                                    cache_dir=os.path.join(st.root, "evidence", "cache"))
-                        keep = bool(patch and approved and (rec.get("patch") or {}).get("status") == "applied")
+                        # kept: an applied patch lives in its work copy, and so does a download the user asked to keep
+                        keep = bool(b.get("keep") or (patch and approved and (rec.get("patch") or {}).get("status") == "applied"))
                         final = {"state": "error" if rec.get("error") else "done", "source": src, "name": rec.get("name"),
                                  "error": rec.get("error"), "metrics": rec.get("metrics"), "artifacts": rec.get("artifacts"),
                                  "stage_errors": rec.get("stage_errors"), "work_copy": wdir if keep else None}
                     except Exception as exc:                          # noqa: BLE001
                         final = {"state": "error", "source": src, "error": "%s: %s" % (type(exc).__name__, str(exc)[:200])}
                     finally:
-                        if not keep:                                  # an applied patch lives in the work copy, so only that one is kept
+                        if not keep:
                             shutil.rmtree(wdir, onerror=workspace._force_remove)
                     st.jobs[jid] = final                              # published only after the clean-up: "done" implies the copy is gone
 
                 threading.Thread(target=work, daemon=True).start()
                 return self._send(202, {"job": jid})
+            if path == "/api/supply-policy":
+                names, bad = supply.valid_internal(b.get("internal_names"))
+                if bad:
+                    return self._send(400, {"error": bad})
+                st.set_internal_names(names)
+                return self._send(200, {"ok": True, "internal_names": names})
+            if path == "/api/intel":
+                name = b.get("project")
+                hit = st.project(name) if isinstance(name, str) else None
+                if hit is None:
+                    return self._send(404, {"error": "unknown project"})
+                # synchronous: a few requests (100 CVEs each) plus one catalog download; a failing source ends in a status, not an error
+                doc = intel.lookup(console.cve_ids(hit[1]), offline=bool(b.get("offline")))
+                # a lookup in which nothing answered must not replace an earlier good result (a dead network would erase it)
+                nothing = bool(doc["asked"]) and all(doc[k]["status"] == "unavailable" for k in ("epss", "kev"))
+                kept = nothing and st.intel_doc(name) is not None
+                if not kept:
+                    st.set_intel(name, doc)
+                return self._send(200, {"ok": True, "intel": intel.summarize(doc), "kept_previous": kept})
             if path == "/api/chat":
                 q = str(b.get("question") or "").strip()
                 if not q:

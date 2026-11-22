@@ -58,6 +58,7 @@ def test_record_becomes_a_console_report(ui):
     assert sorted(f["cve"] for f in rep["findings"]) == ["CVE-2020-1111", "CVE-2020-2222"]
     assert sorted(f["fixed"] for f in rep["findings"]) == ["2.20.0", "2.31.0"]
     assert rep["components"] == 1 and len(rep["packages"]) == 1
+    assert rep["packages"][0]["category"] == ui["rec"]["components"][0].get("license_category", "")      # the license-risk pane groups by it
     assert [(r["component"], r["safe_version"]) for r in rep["remediation"]] == [("requests", "2.31.0")]
 
 
@@ -187,3 +188,43 @@ def test_records_written_before_the_identifier_rename_still_load(ui, tmp_path):
         d.mkdir(parents=True)
         (d / (name + ".json")).write_text(json.dumps(dict(rec, name=name, schema=schema)), encoding="utf-8")
     assert sorted(cli.load_projects(str(ev))) == ["current", "earlier"]    # the unknown id stays out
+
+
+def _wait_job(base, jid):
+    for _ in range(100):
+        job = json.loads(_get(base + "/api/jobs/" + jid)[2])
+        if job["state"] != "running":
+            return job
+        time.sleep(0.1)
+    raise AssertionError("job did not finish")
+
+
+def test_local_osv_database_status_never_creates_the_database(ui, tmp_path, monkeypatch):
+    """AC: BSA-AC-101"""
+    import importlib
+    from bts_sbom_app import engine
+    engine._import_core()
+    mod = importlib.import_module("bts_sbom._internal.osv_local_db")
+    db = tmp_path / "osv.db"
+    monkeypatch.setattr(mod, "DB_PATH", str(db))
+    st = json.loads(_get(ui["base"] + "/api/db/status")[2])
+    assert st["exists"] is False and st["exact_entries"] == 0 and not db.exists()      # asking left no file behind
+    mod.init_db()
+    mod.store_exact("PyPI", "requests", "2.19.1", [{"id": "X-1"}])
+    st = json.loads(_get(ui["base"] + "/api/db/status")[2])
+    assert st["exists"] is True and st["exact_entries"] == 1 and st["path"] == str(db)
+
+
+def test_keep_the_download_leaves_the_work_copy_and_reports_its_path(ui, monkeypatch, tmp_path):
+    """AC: BSA-AC-102"""
+    def stub(source, **kw):
+        os.makedirs(os.path.join(kw["work_root"], "copy"))
+        return {"name": "stub", "error": None, "metrics": {}, "artifacts": {}, "stage_errors": {}, "patch": {"status": "not_requested"}}
+
+    monkeypatch.setattr(server.pipeline, "run_project", stub)
+    base, src = ui["base"], str(tmp_path)
+    plain = _wait_job(base, _post(base + "/api/scan", {"source": src})[1]["job"])
+    assert plain["work_copy"] is None                                      # not asked: nothing is left behind
+    kept = _wait_job(base, _post(base + "/api/scan", {"source": src, "keep": True})[1]["job"])
+    assert os.path.isdir(os.path.join(kept["work_copy"], "copy"))          # asked: the copy stays and its path is reported
+    shutil.rmtree(kept["work_copy"], ignore_errors=True)

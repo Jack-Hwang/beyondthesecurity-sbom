@@ -13,7 +13,11 @@ platform repository and are then re-copied (update `PLATFORM_ASSETS.sha256` at t
 | `sca_app.css` | `server/static/sca_app.css` | `21c3eac` | `693dcd5c9515406b` |
 | `sca_app.js` | `server/static/sca_app.js` | `41dafaa` | `77c8805e18f27ab0` |
 
-Everything else in this folder (`index.html`, `bts_console.js`) is new code written for BTS-SBOM.
+Everything else in this folder (`index.html`, `bts_console.js`, `bts_console.css`) is new code written for BTS-SBOM. To look like the
+platform, it reproduces some platform *values* by hand rather than by copying files: the pane layout (title row, grey description,
+dark summary cards, flat table) of the platform's `server/static/index.html` panes, and the sub-tab chip style of
+`server/static/css/views/view_consolidation.css` (section 4). Two title colours were darkened because the platform's pale green and
+lime are hard to read on the light page.
 
 Provenance and licence: the files come from the same authors (BTS) and the core's README describes the SCA stack as vendored
 from the platform under Apache-2.0. The platform repository's own licence file was not checked here - confirm it before

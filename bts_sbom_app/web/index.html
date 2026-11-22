@@ -16,23 +16,40 @@
 <body>
 <div class="app">
   <div class="titlebar">
-    <span class="brand">&#128752;&#65039; <b>BTS-SBOM</b></span>
-    <span class="sub">Open-source vulnerabilities &middot; licenses &middot; SBOM &middot; patch &middot; architecture</span>
+    <span class="brand" title="BTS-SBOM">&#128752;&#65039; <b>BTS</b></span>
+    <span class="sub">BTS-SBOM &middot; open-source vulnerabilities, licenses, SBOM</span>
     <div class="spacer"></div>
     <label class="sub" for="projSel">Project</label>
     <select id="projSel" title="Analysed projects found in the evidence folder"><option value="">(none analysed yet)</option></select>
+    <label class="sub" style="display:flex;align-items:center;gap:4px" title="Ask LG EXAONE for upgrade proposals (needs a configured key; otherwise rule-based proposals are used)"><input type="checkbox" id="scaLlm"> EXAONE</label>
+    <button class="run" id="helpBtn" style="background:#2a2a2a" title="About the data sources and the honesty model">? Help</button>
   </div>
-  <div class="body" style="grid-template-columns:1fr">
+  <div class="body">
+    <nav class="activity" aria-label="BTS-SBOM">
+      <div class="abtn active" data-view="scan" title="SCA - open-source vulnerabilities, licenses, SBOM"><span>&#128230;</span><small>SCA</small></div>
+    </nav>
     <div class="view view-scan on" id="view-scan">
+      <div class="menubar" id="scanMenubar"></div>
       <div class="scan">
         <h2>&#128275; Open-Source Security <span class="sub" style="font-size:13px;font-weight:400">&mdash; Vulnerabilities &middot; Licenses &middot; SBOM &middot; AI Auto-Patch</span></h2>
         <div class="lede">Scan a <b>Git repo</b> or a local path for open-source vulnerabilities (OSV.dev), licenses (lockfile &rarr; deps.dev &rarr; registry, with the source recorded),
           CycloneDX / SPDX / OpenVEX documents, industry reports and legacy-architecture findings &mdash; with verified upgrade plans and an approval-gated patch.</div>
 
-        <div id="engineBar" class="bts-bar">
-          <span>&#129504; Engine:</span>
-          <span id="engineTxt">checking&hellip;</span>
-          <button type="button" id="engineRefresh" class="bts-mini" title="Reload the engine state and the list of analysed projects">&#8635; Refresh</button>
+        <!-- Local data bar (same layout as the platform's "Intel DB" bar). The status is real: the core's local OSV database and
+             the LLM state. Importing an OSV dump is not offered by this service yet, so that control is shown disabled. -->
+        <div id="scaIntelBar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 2px;font-size:11.5px;color:#858585">
+          <span>&#129504; Local data:</span>
+          <span id="scaIntelChipTxt">checking&hellip;</span>
+          <button id="scaIntelRefreshBtn" title="Reload the state of the local OSV database, the engine and the list of analysed projects" style="padding:2px 10px;font-size:11px;border:1px solid #444;background:#222;color:#ccc;border-radius:4px;cursor:pointer">&#8635; Refresh</button>
+          <span class="sub" style="font-size:10.5px">CLI: <code>python run_bts_sbom_app.py scan &lt;source&gt;</code></span>
+          <span style="color:#444">|</span>
+          <select id="scaOsvEcoSelect" disabled title="OSV bulk advisory dump to import. Not offered by this service yet: the core can do it (bts_sbom._internal.osv_local_db.import_ecosystem_dump) but nothing here calls it." style="font-size:11px;background:#222;color:#ccc;border:1px solid #444;border-radius:4px;padding:1px 4px;opacity:.55">
+            <option value="PyPI">PyPI</option><option value="npm">npm</option><option value="Go">Go</option><option value="Maven">Maven</option>
+            <option value="RubyGems">RubyGems</option><option value="crates.io">crates.io</option><option value="NuGet">NuGet</option>
+            <option value="Packagist">Packagist</option><option value="Debian">Debian</option><option value="Alpine">Alpine</option>
+            <option value="Ubuntu">Ubuntu</option><option value="Rocky Linux">Rocky Linux</option><option value="AlmaLinux">AlmaLinux</option><option value="Wolfi">Wolfi</option>
+          </select>
+          <button id="scaOsvImportBtn" disabled title="Not offered by this service yet (see the ecosystem selector)." style="padding:2px 10px;font-size:11px;border:1px solid #444;background:#222;color:#ccc;border-radius:4px;cursor:not-allowed;opacity:.55">&#8679; Import OSV dump</button>
         </div>
 
         <div class="rtabs" id="scanTabs">
@@ -51,18 +68,22 @@
           <div class="pathbox" id="scaRepoPanel">
             <label>&#127760; Analyze a Git repo or a local path <span class="sub">&mdash; clone/read &rarr; SBOM &rarr; OSV.dev CVEs + deps.dev licenses &rarr; safe-upgrade plan</span></label>
             <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap" id="scaInputRow">
-              <input id="scaGitUrl" value="" placeholder="https://github.com/org/repo.git   &mdash;or&mdash;   owner/repo   &mdash;or&mdash;   D:\path\to\project" spellcheck="false" style="flex:1;min-width:340px;font-family:ui-monospace,monospace">
+              <input id="scaGitUrl" value="https://github.com/adeyosemanputra/pygoat.git" placeholder="https://github.com/org/repo.git   &mdash;or&mdash;   D:\path\to\project" spellcheck="false" style="flex:1;min-width:340px;font-family:ui-monospace,monospace">
               <label style="font-size:12px;margin:0"><input type="checkbox" id="scaOffline"> offline</label>
-              <label style="font-size:12px;margin:0" title="Ask LG EXAONE for upgrade proposals (needs a configured key; otherwise rule-based proposals are used)"><input type="checkbox" id="scaLlm"> EXAONE</label>
               <button class="run" id="scaDemoBtn" style="background:#333">&#127919; Demo repo</button>
               <button class="run" id="runScaReport">&#9654; Analyze</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap" id="scaDestRow">
+              <span class="sub">&#128229; Download to <b>(git URL only)</b>:</span>
+              <input id="scaDest" disabled placeholder="default: a temporary work copy, removed after the analysis unless you keep it" spellcheck="false" title="The destination is chosen by the service (a temporary folder); its path is shown after the analysis when you keep it." style="flex:1;min-width:280px;font-family:ui-monospace,monospace;font-size:12px">
+              <label style="font-size:12px;margin:0"><input type="checkbox" id="scaKeep"> keep the download</label>
             </div>
             <div class="ex" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <span>Try:</span>
               <span class="egchip" data-url="https://github.com/adeyosemanputra/pygoat.git">pygoat (Python)</span>
               <span class="egchip" data-url="https://github.com/snyk-labs/nodejs-goof.git">nodejs-goof (npm)</span>
               <span class="egchip" data-url="https://github.com/OWASP/NodeGoat.git">NodeGoat (npm)</span>
-              <span class="sub" style="margin-left:auto">The clone is analysed in a temporary copy; the origin is never modified and nothing from it is executed.</span>
+              <span class="sub" style="margin-left:auto">Paste a <b>repository</b> URL (&hellip;/org/repo[.git]) or a local path &mdash; the origin is never modified and nothing from it is executed. Online = real OSV.dev advisories.</span>
             </div>
             <div id="scaBanner"></div>
             <div id="scaReportOut" style="margin-top:12px"></div>
@@ -75,22 +96,101 @@
           <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="run" id="runLock" style="margin-left:auto">&#9654; Analyze path</button></div>
           <div class="ex">Give a path that exists on the machine running this service. Pasting or uploading file content is not supported. The result appears under <b>Git repo</b>.</div>
         </div></div>
-        <div class="rpane" data-sv="container"><div class="bts-note" id="paneContainer"></div></div>
+        <div class="rpane bts-p" data-sv="container" style="padding:16px;overflow-y:auto">
+          <div class="bts-ph"><div class="bts-pt" style="color:#22d3ee">&#128051; Container / Docker Image Scan</div></div>
+          <div class="bts-pd">Dockerfile 레이어 파싱 → OS 패키지(apt/yum) CVE 탐지 · 설정 취약점(root 실행, 특권 포트) 검사.</div>
+          <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px">
+            <div style="flex:1;min-width:240px">
+              <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Dockerfile 내용 붙여넣기:</div>
+              <textarea class="bts-ta" rows="8" disabled placeholder="FROM ubuntu:22.04&#10;RUN apt-get install -y curl openssl&#10;EXPOSE 8080"></textarea>
+            </div>
+            <div style="flex:0 0 200px">
+              <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">또는 이미지 ref:</div>
+              <input disabled placeholder="ubuntu:22.04" style="width:100%;font-family:monospace;font-size:12px">
+              <div style="margin-top:8px"><button class="run" type="button" disabled title="BTS-SBOM 은 컨테이너 이미지를 스캔하지 않습니다" style="width:100%;background:#0c4a6e;border-color:#0369a1;color:#7dd3fc">&#128051; Scan</button></div>
+            </div>
+          </div>
+          <div id="paneContainer" class="bts-ref" style="font-size:12px"><b>컨테이너 이미지 스캔은 BTS-SBOM 이 지원하지 않습니다.</b> 이미지를 만드는 저장소나 lockfile 을 <b>Git repo</b> / <b>Lockfile</b> 탭에서 분석하세요.</div>
+        </div>
 
-        <div class="rpane" data-sv="risk"><div id="paneRisk"></div></div>
-        <div class="rpane" data-sv="ssvc"><div id="paneSsvc"></div></div>
-        <div class="rpane" data-sv="epss"><div id="paneEpss"></div></div>
-        <div class="rpane" data-sv="exploit-mat"><div id="paneExploit"></div></div>
-        <div class="rpane" data-sv="dep-graph"><div id="paneDep"></div></div>
-        <div class="rpane" data-sv="arch"><div id="paneArch"></div></div>
-        <div class="rpane" data-sv="supply-chain"><div id="paneSupply"></div></div>
-        <div class="rpane" data-sv="ntia"><div id="paneSbom"></div></div>
-        <div class="rpane" data-sv="vex"><div id="paneVex"></div></div>
-        <div class="rpane" data-sv="license-risk"><div id="paneLic"></div></div>
-        <div class="rpane" data-sv="sectors"><div id="paneSectors"></div></div>
-        <div class="rpane" data-sv="fix-plan"><div id="paneFixPlan"></div></div>
-        <div class="rpane" data-sv="fix-pr"><div id="paneFixPr"></div></div>
-        <div class="rpane" data-sv="more"><div id="paneHistory"></div></div>
+        <div class="rpane" data-sv="risk">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+            <span style="font-size:15px;font-weight:700;color:var(--dcard-err)">&#128200; SCA 리스크 대시보드</span>
+            <button id="scaRiskRefresh" style="padding:4px 12px;font-size:11px;border:1px solid #991b1b;background:rgba(239,68,68,.08);color:var(--dcard-err);border-radius:4px;cursor:pointer">&#8635; Refresh</button>
+            <span id="scaRiskWhich" class="sub" style="font-size:11px"></span>
+          </div>
+          <div style="font-size:11.5px;color:#94a3b8;margin-bottom:14px">선택한 프로젝트의 최근 분석 결과를 집계해 CVSS 심각도 분포 · KEV(알려진 악용 취약점) · EPSS 상위 5개를 시각화합니다. KEV·EPSS 는 분석 직후와 Refresh 를 누를 때 CISA KEV 카탈로그와 FIRST.org 에서 조회합니다(Offline 이면 일부만 담은 내장 표). 조회하기 전이거나 실패하면 0 이 아니라 비워 둡니다.</div>
+
+          <div id="scaRiskCards" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+            <div style="background:#161b22;border:1px solid #7f1d1d;border-radius:8px;padding:12px 20px;min-width:120px;text-align:center">
+              <div id="scaRiskTotal" style="font-size:26px;font-weight:800;color:#e2e8f0">&mdash;</div>
+              <div style="font-size:10px;color:#94a3b8;margin-top:2px">총 취약점</div>
+            </div>
+            <div style="background:#161b22;border:1px solid #7f1d1d;border-radius:8px;padding:12px 20px;min-width:120px;text-align:center">
+              <div id="scaRiskCritical" style="font-size:26px;font-weight:800;color:var(--dcard-err)">&mdash;</div>
+              <div style="font-size:10px;color:#94a3b8;margin-top:2px">CRITICAL</div>
+            </div>
+            <div style="background:#161b22;border:1px solid #78350f;border-radius:8px;padding:12px 20px;min-width:120px;text-align:center">
+              <div id="scaRiskHigh" style="font-size:26px;font-weight:800;color:#fb923c">&mdash;</div>
+              <div style="font-size:10px;color:#94a3b8;margin-top:2px">HIGH</div>
+            </div>
+            <div style="background:#161b22;border:1px solid #78350f;border-radius:8px;padding:12px 20px;min-width:120px;text-align:center" title="CISA KEV: a count is shown only after a lookup; before it, or when the lookup failed, the card shows a dash (not zero).">
+              <div id="scaRiskKev" style="font-size:26px;font-weight:800;color:var(--dcard-warn)">&mdash;</div>
+              <div style="font-size:10px;color:#94a3b8;margin-top:2px">KEV 취약점</div>
+            </div>
+            <div style="background:#161b22;border:1px solid #365314;border-radius:8px;padding:12px 20px;min-width:120px;text-align:center" title="A risk grade is not computed by this service.">
+              <div style="display:flex;align-items:baseline;justify-content:center;gap:4px">
+                <div id="scaRiskGrade" style="font-size:26px;font-weight:800;color:#a3e635">&mdash;</div>
+                <div id="scaRiskScore" style="font-size:14px;color:var(--dcard-muted)"></div>
+              </div>
+              <div style="font-size:10px;color:#94a3b8;margin-top:2px">리스크 등급</div>
+            </div>
+          </div>
+
+          <div style="background:#161b22;border:1px solid #2a3040;border-radius:8px;padding:14px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:600;color:#e2e8f0;margin-bottom:10px">CVSS 심각도 분포</div>
+            <div id="scaSevBars" style="display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+
+          <details open style="margin-bottom:12px">
+            <summary style="font-size:12px;font-weight:600;color:var(--dcard-warn);cursor:pointer;margin-bottom:6px">&#9888; KEV (Known Exploited Vulnerabilities) &mdash; 실제 악용 확인된 취약점</summary>
+            <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead><tr style="color:#94a3b8;border-bottom:1px solid #1e293b">
+                <th style="padding:5px 8px;text-align:left">CVE</th>
+                <th style="padding:5px 8px;text-align:left">패키지</th>
+                <th style="padding:5px 8px;text-align:left">Severity</th>
+                <th style="padding:5px 8px;text-align:right">CVSS</th>
+              </tr></thead>
+              <tbody id="scaKevBody"></tbody>
+            </table></div>
+          </details>
+
+          <details open>
+            <summary style="font-size:12px;font-weight:600;color:var(--dcard-err);cursor:pointer;margin-bottom:6px">&#128293; EPSS Top-5 (악용 가능성 점수 상위)</summary>
+            <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead><tr style="color:#94a3b8;border-bottom:1px solid #1e293b">
+                <th style="padding:5px 8px;text-align:left">CVE</th>
+                <th style="padding:5px 8px;text-align:left">패키지</th>
+                <th style="padding:5px 8px;text-align:right">EPSS</th>
+                <th style="padding:5px 8px;text-align:left">Severity</th>
+              </tr></thead>
+              <tbody id="scaEpssBody"></tbody>
+            </table></div>
+          </details>
+        </div>
+        <div class="rpane bts-p" data-sv="ssvc" style="padding:16px;overflow-y:auto"><div id="paneSsvc"></div></div>
+        <div class="rpane bts-p" data-sv="epss" style="padding:16px;overflow-y:auto"><div id="paneEpss"></div></div>
+        <div class="rpane bts-p" data-sv="exploit-mat" style="padding:16px;overflow-y:auto"><div id="paneExploit"></div></div>
+        <div class="rpane bts-p" data-sv="dep-graph" style="padding:16px;overflow-y:auto"><div id="paneDep"></div></div>
+        <div class="rpane bts-p" data-sv="arch" style="padding:16px;overflow-y:auto"><div id="paneArch"></div></div>
+        <div class="rpane bts-p" data-sv="supply-chain" style="padding:16px;overflow-y:auto"><div id="paneSupply"></div></div>
+        <div class="rpane bts-p" data-sv="ntia" style="padding:16px;overflow-y:auto"><div id="paneSbom"></div></div>
+        <div class="rpane bts-p" data-sv="vex" style="padding:16px;overflow-y:auto"><div id="paneVex"></div></div>
+        <div class="rpane bts-p" data-sv="license-risk" style="padding:16px;overflow-y:auto"><div id="paneLic"></div></div>
+        <div class="rpane bts-p" data-sv="sectors" style="padding:16px;overflow-y:auto"><div id="paneSectors"></div></div>
+        <div class="rpane bts-p" data-sv="fix-plan" style="padding:16px;overflow-y:auto"><div id="paneFixPlan"></div></div>
+        <div class="rpane bts-p" data-sv="fix-pr" style="padding:16px;overflow-y:auto"><div id="paneFixPr"></div></div>
+        <div class="rpane bts-p" data-sv="more"><div id="paneHistory"></div></div>
 
         <details class="bts-chat" id="chatBox" open>
           <summary>&#128172; Ask about the selected project <span class="sub">&mdash; answers cite their source; nothing is answered from memory</span></summary>

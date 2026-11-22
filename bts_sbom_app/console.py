@@ -4,15 +4,16 @@
 from a record written by ``pipeline.persist`` and the extra pane data the page shows (architecture, industry reports, plans,
 patch, history). Pure functions, no I/O, so everything here is unit-testable.
 
-Honesty rule: a field BTS-SBOM does not compute (CISA KEV, EPSS, reachability, per-finding priority, VEX status) is LEFT OUT of
-the report - never filled with a default - so the renderer shows it as absent instead of as "not exploited" / "score 0".
+Honesty rule: a field BTS-SBOM does not compute (reachability, per-finding priority, VEX status) is LEFT OUT of the report - never
+filled with a default - so the renderer shows it as absent instead of as "not exploited" / "score 0". CISA KEV and EPSS are computed
+only when a lookup (``intel.py``) really answered for that finding; without one, or when the source failed, they are left out too.
 """
 from __future__ import annotations
 
 from collections import Counter
 from typing import Any, Dict, List, Optional
 
-from . import licenses
+from . import intel, licenses, supply
 
 SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
 TRIAGE_STATUSES = ("open", "accepted", "wontfix", "false-positive", "fixed")
@@ -132,7 +133,12 @@ def _licence_blocks(rec: Dict[str, Any]) -> Dict[str, Any]:
             "source_licenses": sl}
 
 
-def to_report(rec: Dict[str, Any], triage: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+def cve_ids(rec: Dict[str, Any]) -> List[str]:
+    """The CVE ids to look up for a project: the id each finding is labelled with (well-formed ones only, each once)."""
+    return intel.valid_ids(_ids(v)["cve"] for v in rec.get("vulns") or [])
+
+
+def to_report(rec: Dict[str, Any], triage: Optional[Dict[str, Dict[str, Any]]] = None, intel_doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     vulns = rec.get("vulns") or []
     comps = rec.get("components") or []
     eng = rec.get("engine") or {}
@@ -143,7 +149,7 @@ def to_report(rec: Dict[str, Any], triage: Optional[Dict[str, Dict[str, Any]]] =
     severity["vulnerable_packages"] = len({(str(v.get("package") or "").lower(), v.get("version")) for v in vulns})
     packages = [{"name": c.get("name"), "version": c.get("version"), "license": c.get("license") or "", "dep_license": c.get("license_raw") or "",
                  "dependency_type": c.get("relationship") or "unknown", "ecosystem": c.get("ecosystem"),
-                 "source_file": (c.get("files") or [""])[0],
+                 "source_file": (c.get("files") or [""])[0], "category": c.get("license_category") or "",
                  "obligations": {"gpl_warning": c.get("license_category") in _GPL_FAMILY}} for c in comps]
     rep: Dict[str, Any] = {
         "source": rec.get("source") or rec.get("name"), "name": rec.get("name"), "components": len(comps), "severity": severity,
@@ -159,6 +165,7 @@ def to_report(rec: Dict[str, Any], triage: Optional[Dict[str, Dict[str, Any]]] =
                 "empty_project": eng.get("data_status") == "empty_project"},
     }
     rep.update(_licence_blocks(rec))
+    intel.annotate(rep["findings"], intel_doc)
     return rep
 
 
@@ -183,13 +190,15 @@ def _sector(s: Dict[str, Any]) -> Dict[str, Any]:
                              for r in s.get("requirements") or []]}
 
 
-def build_view(rec: Dict[str, Any], triage: Optional[Dict[str, Dict[str, Any]]] = None, analysed_at: Optional[str] = None) -> Dict[str, Any]:
+def build_view(rec: Dict[str, Any], triage: Optional[Dict[str, Dict[str, Any]]] = None, analysed_at: Optional[str] = None,
+               intel_doc: Optional[Dict[str, Any]] = None, internal_names: Optional[List[str]] = None) -> Dict[str, Any]:
     """Everything the page needs for one project: the console report plus the data of the other panes."""
     arch = rec.get("arch") or {}
     g = arch.get("graph") or {}
     return {
         "project": rec.get("name"), "source": rec.get("source"), "analysed_at": analysed_at, "lineage": rec.get("lineage") or {},
-        "report": to_report(rec, triage),
+        "report": to_report(rec, triage, intel_doc), "intel": intel.summarize(intel_doc),
+        "supply": supply.annotate(supply.analyse(rec.get("components") or [], internal_names or []), triage),
         "engine": {k: (rec.get("engine") or {}).get(k) for k in ("core", "status", "data_status", "vulnerability_presence", "adjustments", "notes")},
         "metrics": rec.get("metrics") or {}, "stage_errors": rec.get("stage_errors") or {},
         "arch": {"stack": arch.get("stack"), "history": arch.get("history"), "notes": arch.get("notes") or [],
