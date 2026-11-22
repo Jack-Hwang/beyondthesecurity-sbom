@@ -44,3 +44,4 @@ evidence/arch_intel/arch_out.json
 /downloads/
 evidence/serve_8800.log
 evidence_e2e/
+evidence/reimpl_batch/*/
