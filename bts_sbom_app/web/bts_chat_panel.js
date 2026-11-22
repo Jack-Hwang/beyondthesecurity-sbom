@@ -325,6 +325,7 @@
 
     var fin = null;
     var done = false;
+    var pendingToken = null;
     function finish() {
       if (done) { return; }
       done = true;
@@ -332,6 +333,7 @@
       setBar();
       if (fin) {
         answerBox.innerHTML = answerHtml(fin);
+        if (pendingToken) { answerBox.appendChild(approveRow(pendingToken)); }   // the approval outlives the final render
         renderDiagramsIn(answerBox);                    // draw the turn's diagrams (ADR-0024)
         var summ = el('summary', { text: '활동 보기 (' + actBox.querySelectorAll('.bts-cd-act').length + ')' });
         var old = card.querySelector('summary');
@@ -398,7 +400,7 @@
           ((h.not_passed || []).length ? ' · 미충족 ' + (h.not_passed || []).join(', ') : ' · 제약 3종 통과')));
       } else if (ev === 'awaiting_approval') {
         actBox.appendChild(activityRow(ev, d.seq, d.note || ''));
-        if (d.token) { answerBox.appendChild(approveRow(d.token)); scrollEnd(); }
+        if (d.token) { pendingToken = d.token; scrollEnd(); }   // the approve row survives the final render (finish re-appends it)
       } else if (ev === 'error') {
         var en = d.envelope || {};
         actBox.appendChild(activityRow(ev, d.seq, en.error_type + ' (' + en.severity + ') - ' + (en.coverage_gap || '')));
