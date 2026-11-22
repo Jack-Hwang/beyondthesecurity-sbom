@@ -2,7 +2,7 @@
  "steps": [
   {
    "step": "analyze_project",
-   "q": "C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_actions_run_bvt79how\\proj 분석해줘",
+   "q": "C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_actions_run_d0wriwu4\\proj 분석해줘",
    "project": null,
    "ok": true,
    "detail": "- Project proj: 2 components, 7 vulnerabilities (CRITICAL 2, HIGH 1, MEDIUM 4), license resolved rate 1.0.\n- CVE-2020-1747 affects pyyaml 5.3, severity CRITICAL (CVSS 9.8), fixed in 5.3.1.\n- CVE-2020-14343 affects pyyaml 5.3, severity CRITICAL (CVSS 9.8), fixed in 5.4.\n- CVE-2018-18074 affects requests 2.19.1, severity HIGH (CVSS 7.5), fixed in 2.20.0.\n- Licenses: 2 of 2 components resolved; 0 pol"
@@ -19,14 +19,14 @@
    "q": "패치 승인 64a2aba63040b0e7",
    "project": "proj",
    "ok": true,
-   "detail": "- Patch applied in an isolated work copy: 2 component(s) upgraded; the re-scan reports 7 advisories fixed and 0 introduced.\n- Branch bts-sbom/auto-fix, commit ff64c1ad72, work copy C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_sbom_fix_vy906wyv\\proj_fix. The origin was not modified and nothing was pushed.\n- 수정과 패치 (Remediation and patching) / 승인 게이트 (approval)\n- 승인 없이는 파일을 하나도 바꾸지 않고 계획만 돌려준다("
+   "detail": "- Patch applied in an isolated work copy: 2 component(s) upgraded; the re-scan reports 7 advisories fixed and 0 introduced.\n- Branch bts-sbom/auto-fix, commit d3044fd3e3, work copy C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_sbom_fix_1to2315t\\proj_fix. The origin was not modified and nothing was pushed.\n- 수정과 패치 (Remediation and patching) / 승인 게이트 (approval)\n- 승인 없이는 파일을 하나도 바꾸지 않고 계획만 돌려준다("
   },
   {
    "step": "record_applied",
    "q": "(record)",
    "project": "proj",
    "ok": true,
-   "detail": "status=applied work_copy=C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_sbom_fix_vy906wyv\\proj_fix"
+   "detail": "status=applied work_copy=C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_sbom_fix_1to2315t\\proj_fix"
   },
   {
    "step": "confirm_decision",
