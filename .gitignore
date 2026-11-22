@@ -38,3 +38,4 @@ evidence/batch/runs/*/*/*.json
 evidence/.llm_config.json
 evidence/supply_chain/
 evidence/reimpl/
+evidence/arch_intel/arch_out.json

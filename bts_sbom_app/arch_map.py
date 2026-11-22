@@ -148,18 +148,28 @@ def _layer_of(node: str, rules: Dict[str, Any]) -> Optional[str]:
 
 
 def layer_validate(edges: Iterable[Tuple[str, str]], rules: Dict[str, Any]) -> Dict[str, Any]:
-    """Dependency-diagram validation over the measured import graph.
+    """Dependency-diagram validation over the measured import graph, semantics aligned with the REAL
+    Visual Studio layer model (REA of Microsoft.VisualStudio.Layer 18.11: layers carry ForbiddenNamespace /
+    ForbiddenNamespaceDependencies deny-rules, artifacts outside any layer do not participate, and the
+    ValidateLayerHasNoOrObsoleteArtifacts rule flags layers whose patterns match nothing).
 
-    Rules JSON: {"layers": {"<name>": {"match": [<fnmatch on path>], "may_depend_on": [<layer names>]}},
-                 "default": "deny"}  (deny-by-default is the only supported default - matching VS).
-    Violations: illegal (target layer not allowed for the source layer, including unknown layers) and
-    bypassed (an edge to a layer that IS allowed directly while an allowed intermediate neighbour is also
-    depended on and itself allowed to reach the target - the architecture wanted the hop through it)."""
+    Rules JSON: {"layers": {"<name>": {"match": [<fnmatch on path>],
+                                       "may_depend_on": [<layer names>],        (allow-list, deny-by-default)
+                                       "forbidden": [<fnmatch on imported node path>]}},   (deny-list, VS semantics)
+                 "default": "deny"}
+    Violations: illegal (target layer not allowed for the source layer, including unknown layers), bypassed
+    (a direct edge skips an allowed intermediate that itself may reach the target), forbidden (an import
+    into a namespace the source layer declares forbidden).
+    Unknown-layer edges are counted; layers whose match patterns hit zero nodes are reported obsolete
+    (VS: ValidateLayerHasNoOrObsoleteArtifacts)."""
     layers = rules.get("layers") or {}
+    names_in_order = list(layers.keys())
     allow = {name: set(spec.get("may_depend_on") or []) for name, spec in layers.items()}
+    forbidden = {name: [p for p in (spec.get("forbidden") or [])] for name, spec in layers.items()}
     node_layer: Dict[str, str] = {}
     illegal: List[Dict[str, Any]] = []
     bypassed: List[Dict[str, Any]] = []
+    forbidden_hits: List[Dict[str, Any]] = []
     unknown = 0
     edge_list = sorted(set((a, b) for a, b in edges if a != b))
     for a, b in edge_list:
@@ -174,6 +184,11 @@ def layer_validate(edges: Iterable[Tuple[str, str]], rules: Dict[str, Any]) -> D
         if la != lb and lb not in allow.get(la, set()):
             illegal.append({"edge": [a, b], "from_layer": la, "to_layer": lb,
                             "why": "the target layer is not in %s's may_depend_on" % la})
+        for pat in forbidden.get(la, []):                          # VS ForbiddenNamespace semantics
+            if fnmatch.fnmatch(b, pat):
+                forbidden_hits.append({"edge": [a, b], "layer": la, "forbidden": pat,
+                                       "why": "%s declares %s forbidden" % (la, pat)})
+                break
     # bypassed intermediate: a->c where a is allowed to c directly, a also depends on an allowed
     # intermediate b, and b is itself allowed to reach c - the declared path goes through b.
     out_by_layer: Dict[str, Set[str]] = {}
@@ -193,19 +208,33 @@ def layer_validate(edges: Iterable[Tuple[str, str]], rules: Dict[str, Any]) -> D
                 bypassed.append({"edge": [a, c], "through_layer": lb,
                                  "why": "%s may reach %s through %s - the direct edge bypasses the declared hop" % (la, lc, lb)})
                 break                                       # one bypass report per offending edge
-    verdict = "pass" if not illegal and not bypassed else "fail"
+    # VS ValidateLayerHasNoOrObsoleteArtifacts: a declared layer whose patterns matched no node is obsolete.
+    matched_layers = {v for v in node_layer.values()}
+    obsolete = [n for n in names_in_order if n not in matched_layers]
+    stripped = [n.strip() for n in names_in_order]                      # VS: LayerNamesMustBeUnique (display names)
+    duplicate_names = len(stripped) != len(set(stripped))
+    if duplicate_names:
+        obsolete.insert(0, "duplicate layer names in the spec (VS: LayerNamesMustBeUnique)")
+    verdict = "pass" if not (illegal or bypassed or forbidden_hits or obsolete or duplicate_names) else "fail"
     if verdict == "pass" and edge_list and unknown == len(edge_list):
         verdict = "inconclusive"                        # every edge unmapped: the rules matched nothing - say so
     return {"schema": SCHEMA, "checked": len(edge_list), "unknown_layer_edges": unknown,
-            "layers_declared": len(layers), "violations": illegal, "bypassed": bypassed,
+            "layers_declared": len(names_in_order), "violations": illegal, "bypassed": bypassed,
+            "forbidden": forbidden_hits, "obsolete_layers": obsolete,
+            "vs_alignment": {"semantics": "ForbiddenNamespace / ForbiddenNamespaceDependencies / "
+                                          "ValidateLayerHasNoOrObsoleteArtifacts / LayerNamesMustBeUnique",
+                             "source": "Microsoft.VisualStudio.Layer 18.11.12306.13 "
+                                       "(REA: extracted from the VS 2026 LTSC 18.11 channel manifest)"},
             "verdict": verdict}
 
 
 def rules_example() -> str:
-    """A documented example spec (also used by the CLI help and tests as the format contract)."""
+    """A documented example spec (also used by the CLI help and tests as the format contract). The
+    ``forbidden`` deny-list mirrors the REAL Visual Studio layer semantics (ForbiddenNamespace /
+    ForbiddenNamespaceDependencies, extracted by REA from Microsoft.VisualStudio.Layer 18.11)."""
     return json.dumps({
         "layers": {
-            "ui": {"match": ["web/*", "*/web/*"], "may_depend_on": ["services"]},
+            "ui": {"match": ["web/*", "*/web/*"], "may_depend_on": ["services"], "forbidden": ["bts_sbom/*"]},
             "services": {"match": ["bts_sbom_app/*", "*/services/*"], "may_depend_on": ["core", "services"]},
             "core": {"match": ["bts_sbom/*", "*/core/*"], "may_depend_on": ["core"]},
         },

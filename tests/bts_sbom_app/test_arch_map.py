@@ -89,7 +89,8 @@ def test_layer_validate_reports_illegal_bypassed_unknown_and_pass():
     assert r["verdict"] == "fail" and r["violations"], r
     assert any(v["from_layer"] == "core" and v["to_layer"] == "services" for v in r["violations"])
     assert r["unknown_layer_edges"] == 0
-    clean = arch_map.layer_validate([("bts_sbom_app/api.py", "bts_sbom_app/svc.py"),
+    clean = arch_map.layer_validate([("web/ui.py", "bts_sbom_app/api.py"),          # ui -> services: allowed
+                                     ("bts_sbom_app/api.py", "bts_sbom_app/svc.py"),
                                      ("bts_sbom_app/api.py", "bts_sbom/core.py"),
                                      ("bts_sbom/core.py", "bts_sbom/core.py")], rules)
     assert clean["verdict"] == "pass" and clean["violations"] == [] and clean["bypassed"] == []
@@ -122,6 +123,28 @@ def test_cli_arch_layer_violations_reported(tmp_path, make_repo, capsys):
     out = capsys.readouterr().out
     res = json.loads(out)
     vr = res["layer_validation"]
-    assert vr["verdict"] == "inconclusive" and vr["unknown_layer_edges"] >= 1   # rules matched nothing: said, not passed
+    assert vr["verdict"] == "fail" and vr["unknown_layer_edges"] >= 1           # unmapped edges counted, never mapped
+    assert vr["obsolete_layers"]                                               # VS: ValidateLayerHasNoOrObsoleteArtifacts
     assert vr["checked"] >= 1 and "violations" in vr and "bypassed" in vr
     _ = evals.repo_root, FakeScanner                                        # keep the imports honest for linters
+
+
+def test_rea_informed_forbidden_obsolete_and_uniqueness_semantics():
+    """AC: BSA-AC-579 - the REAL VS layer-model semantics (ForbiddenNamespace etc.), extracted by REA of
+    Microsoft.VisualStudio.Layer 18.11, enforced by our validator."""
+    rules = {"layers": {
+        "ui": {"match": ["web/*", "*/web/*"], "may_depend_on": ["services"], "forbidden": ["bts_sbom/*"]},
+        "services": {"match": ["bts_sbom_app/*"], "may_depend_on": ["core"]},
+        "ghost": {"match": ["no/such/path/*"], "may_depend_on": []},          # matches nothing -> obsolete
+    }}
+    edges = [("web/ui.py", "bts_sbom/core.py"),                               # ui -> core: FORBIDDEN by ui's deny-list
+             ("bts_sbom_app/api.py", "bts_sbom/core.py")]                     # services -> core: legal
+    r = arch_map.layer_validate(edges, rules)
+    assert r["verdict"] == "fail"
+    assert r["forbidden"] and r["forbidden"][0]["layer"] == "ui"              # the VS ForbiddenNamespace category
+    assert "ghost" in r["obsolete_layers"]                                    # VS: ValidateLayerHasNoOrObsoleteArtifacts
+    assert r["vs_alignment"]["source"].startswith("Microsoft.VisualStudio.Layer 18.11")
+    dup = {"layers": {"a": {"match": ["x/*"]}, "a ": {"match": ["y/*"]}}}
+    dupr = arch_map.layer_validate([], dup)
+    assert dupr["obsolete_layers"] and "duplicate" in dupr["obsolete_layers"][0]
+    assert arch_map.rules_example().count("forbidden") == 1                   # the format contract documents it

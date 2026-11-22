@@ -97,7 +97,9 @@
     <Node Id="bts_sbom_app/cvss.py" Label="bts_sbom_app/cvss.py" />
     <Node Id="bts_sbom_app/cvss4.py" Label="bts_sbom_app/cvss4.py" />
     <Node Id="bts_sbom_app/cvss4_data.py" Label="bts_sbom_app/cvss4_data.py" />
+    <Node Id="bts_sbom_app/decision.py" Label="bts_sbom_app/decision.py" />
     <Node Id="bts_sbom_app/deliver.py" Label="bts_sbom_app/deliver.py" />
+    <Node Id="bts_sbom_app/diagrams.py" Label="bts_sbom_app/diagrams.py" />
     <Node Id="bts_sbom_app/doclint.py" Label="bts_sbom_app/doclint.py" />
     <Node Id="bts_sbom_app/engine.py" Label="bts_sbom_app/engine.py" />
     <Node Id="bts_sbom_app/evals.py" Label="bts_sbom_app/evals.py" />
@@ -120,6 +122,7 @@
     <Node Id="bts_sbom_app/portfolio.py" Label="bts_sbom_app/portfolio.py" />
     <Node Id="bts_sbom_app/quality.py" Label="bts_sbom_app/quality.py" />
     <Node Id="bts_sbom_app/rag.py" Label="bts_sbom_app/rag.py" />
+    <Node Id="bts_sbom_app/reimpl.py" Label="bts_sbom_app/reimpl.py" />
     <Node Id="bts_sbom_app/remediate.py" Label="bts_sbom_app/remediate.py" />
     <Node Id="bts_sbom_app/report.py" Label="bts_sbom_app/report.py" />
     <Node Id="bts_sbom_app/resilience.py" Label="bts_sbom_app/resilience.py" />
@@ -149,6 +152,7 @@
     <Node Id="tests/bts_sbom_app/test_arch_map.py" Label="tests/bts_sbom_app/test_arch_map.py" />
     <Node Id="tests/bts_sbom_app/test_book_round2_improvements.py" Label="tests/bts_sbom_app/test_book_round2_improvements.py" />
     <Node Id="tests/bts_sbom_app/test_books.py" Label="tests/bts_sbom_app/test_books.py" />
+    <Node Id="tests/bts_sbom_app/test_books_inference_ui.py" Label="tests/bts_sbom_app/test_books_inference_ui.py" />
     <Node Id="tests/bts_sbom_app/test_changes_triage.py" Label="tests/bts_sbom_app/test_changes_triage.py" />
     <Node Id="tests/bts_sbom_app/test_chat_actions.py" Label="tests/bts_sbom_app/test_chat_actions.py" />
     <Node Id="tests/bts_sbom_app/test_chat_agent_upgrades.py" Label="tests/bts_sbom_app/test_chat_agent_upgrades.py" />
@@ -159,6 +163,8 @@
     <Node Id="tests/bts_sbom_app/test_council.py" Label="tests/bts_sbom_app/test_council.py" />
     <Node Id="tests/bts_sbom_app/test_coverage.py" Label="tests/bts_sbom_app/test_coverage.py" />
     <Node Id="tests/bts_sbom_app/test_cvss4.py" Label="tests/bts_sbom_app/test_cvss4.py" />
+    <Node Id="tests/bts_sbom_app/test_decision.py" Label="tests/bts_sbom_app/test_decision.py" />
+    <Node Id="tests/bts_sbom_app/test_diagrams.py" Label="tests/bts_sbom_app/test_diagrams.py" />
     <Node Id="tests/bts_sbom_app/test_doclint.py" Label="tests/bts_sbom_app/test_doclint.py" />
     <Node Id="tests/bts_sbom_app/test_engine_adjustments.py" Label="tests/bts_sbom_app/test_engine_adjustments.py" />
     <Node Id="tests/bts_sbom_app/test_engine_licenses.py" Label="tests/bts_sbom_app/test_engine_licenses.py" />
@@ -176,6 +182,7 @@
     <Node Id="tests/bts_sbom_app/test_patch_delivery.py" Label="tests/bts_sbom_app/test_patch_delivery.py" />
     <Node Id="tests/bts_sbom_app/test_portfolio.py" Label="tests/bts_sbom_app/test_portfolio.py" />
     <Node Id="tests/bts_sbom_app/test_quality_top10.py" Label="tests/bts_sbom_app/test_quality_top10.py" />
+    <Node Id="tests/bts_sbom_app/test_reimpl.py" Label="tests/bts_sbom_app/test_reimpl.py" />
     <Node Id="tests/bts_sbom_app/test_release_fixes.py" Label="tests/bts_sbom_app/test_release_fixes.py" />
     <Node Id="tests/bts_sbom_app/test_resilience.py" Label="tests/bts_sbom_app/test_resilience.py" />
     <Node Id="tests/bts_sbom_app/test_review_fixes.py" Label="tests/bts_sbom_app/test_review_fixes.py" />
@@ -286,7 +293,9 @@
     <Link Source="layer:app" Target="bts_sbom_app/cvss.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/cvss4.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/cvss4_data.py" Category="Contains" />
+    <Link Source="layer:app" Target="bts_sbom_app/decision.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/deliver.py" Category="Contains" />
+    <Link Source="layer:app" Target="bts_sbom_app/diagrams.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/doclint.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/engine.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/evals.py" Category="Contains" />
@@ -309,6 +318,7 @@
     <Link Source="layer:app" Target="bts_sbom_app/portfolio.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/quality.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/rag.py" Category="Contains" />
+    <Link Source="layer:app" Target="bts_sbom_app/reimpl.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/remediate.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/report.py" Category="Contains" />
     <Link Source="layer:app" Target="bts_sbom_app/resilience.py" Category="Contains" />
@@ -338,6 +348,7 @@
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_arch_map.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_book_round2_improvements.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_books.py" Category="Contains" />
+    <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_books_inference_ui.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_changes_triage.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_chat_actions.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_chat_agent_upgrades.py" Category="Contains" />
@@ -348,6 +359,8 @@
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_council.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_coverage.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_cvss4.py" Category="Contains" />
+    <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_decision.py" Category="Contains" />
+    <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_diagrams.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_doclint.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_engine_adjustments.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_engine_licenses.py" Category="Contains" />
@@ -365,6 +378,7 @@
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_patch_delivery.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_portfolio.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_quality_top10.py" Category="Contains" />
+    <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_reimpl.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_release_fixes.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_resilience.py" Category="Contains" />
     <Link Source="layer:unknown" Target="tests/bts_sbom_app/test_review_fixes.py" Category="Contains" />
@@ -613,6 +627,8 @@
     <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/conformance.py" Category="Legal" />
     <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/conversation.py" Category="Legal" />
     <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/coverage.py" Category="Legal" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/decision.py" Category="Legal" />
+    <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/diagrams.py" Category="Legal" />
     <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/fleet.py" Category="Legal" />
     <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/licenses.py" Category="Legal" />
     <Link Source="bts_sbom_app/chat.py" Target="bts_sbom_app/llm.py" Category="Legal" />
@@ -641,6 +657,7 @@
     <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/mcp_server.py" Category="Legal" />
     <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/pipeline.py" Category="Legal" />
     <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/rag.py" Category="Legal" />
+    <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/reimpl.py" Category="Legal" />
     <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/report.py" Category="Legal" />
     <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/server.py" Category="Legal" />
     <Link Source="bts_sbom_app/cli.py" Target="bts_sbom_app/util.py" Category="Legal" />
@@ -685,6 +702,11 @@
     <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/patch.py" Category="Legal" />
     <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/util.py" Category="Legal" />
     <Link Source="bts_sbom_app/deliver.py" Target="bts_sbom_app/workspace.py" Category="Legal" />
+    <Link Source="bts_sbom_app/diagrams.py" Target="bts_sbom_app/__init__.py" Category="Legal" />
+    <Link Source="bts_sbom_app/diagrams.py" Target="bts_sbom_app/arch_intel.py" Category="Legal" />
+    <Link Source="bts_sbom_app/diagrams.py" Target="bts_sbom_app/code_intel.py" Category="Legal" />
+    <Link Source="bts_sbom_app/diagrams.py" Target="bts_sbom_app/decision.py" Category="Legal" />
+    <Link Source="bts_sbom_app/diagrams.py" Target="bts_sbom_app/licenses.py" Category="Legal" />
     <Link Source="bts_sbom_app/doclint.py" Target="bts_sbom_app/util.py" Category="Legal" />
     <Link Source="bts_sbom_app/engine.py" Target="bts_sbom/__init__.py" Category="Legal" />
     <Link Source="bts_sbom_app/engine.py" Target="bts_sbom_app/__init__.py" Category="Legal" />
@@ -770,6 +792,10 @@
     <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/evals.py" Category="Legal" />
     <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/evals_chat.py" Category="Legal" />
     <Link Source="bts_sbom_app/quality.py" Target="bts_sbom_app/rag.py" Category="Legal" />
+    <Link Source="bts_sbom_app/reimpl.py" Target="bts_sbom_app/__init__.py" Category="Legal" />
+    <Link Source="bts_sbom_app/reimpl.py" Target="bts_sbom_app/ai.py" Category="Legal" />
+    <Link Source="bts_sbom_app/reimpl.py" Target="bts_sbom_app/arch_map.py" Category="Legal" />
+    <Link Source="bts_sbom_app/reimpl.py" Target="bts_sbom_app/binscan.py" Category="Legal" />
     <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/__init__.py" Category="Legal" />
     <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/engine.py" Category="Legal" />
     <Link Source="bts_sbom_app/remediate.py" Target="bts_sbom_app/osv.py" Category="Legal" />
@@ -795,6 +821,7 @@
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/console.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/conversation.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/coverage.py" Category="Legal" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/diagrams.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/engine.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/evals.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/events.py" Category="Legal" />
@@ -803,6 +830,7 @@
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/oss_api.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/pipeline.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/rag.py" Category="Legal" />
+    <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/reimpl.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/report.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/sbom.py" Category="Legal" />
     <Link Source="bts_sbom_app/server.py" Target="bts_sbom_app/selfcheck.py" Category="Legal" />
@@ -871,6 +899,10 @@
     <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/chat.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/evals.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_books.py" Target="bts_sbom_app/rag.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_books_inference_ui.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_books_inference_ui.py" Target="bts_sbom_app/books.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_books_inference_ui.py" Target="bts_sbom_app/books_api.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_books_inference_ui.py" Target="bts_sbom_app/rag.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/changes.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_changes_triage.py" Target="bts_sbom_app/cli.py" Category="Illegal" />
@@ -941,6 +973,15 @@
     <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/engine.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="bts_sbom_app/sbom.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_cvss4.py" Target="tests/bts_sbom_app/conftest.py" Category="Legal" />
+    <Link Source="tests/bts_sbom_app/test_decision.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_decision.py" Target="bts_sbom_app/decision.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_diagrams.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_diagrams.py" Target="bts_sbom_app/chat.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_diagrams.py" Target="bts_sbom_app/decision.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_diagrams.py" Target="bts_sbom_app/diagrams.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_diagrams.py" Target="bts_sbom_app/evals.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_diagrams.py" Target="bts_sbom_app/pipeline.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_diagrams.py" Target="bts_sbom_app/server.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_doclint.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_doclint.py" Target="bts_sbom_app/doclint.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_engine_adjustments.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
@@ -1044,6 +1085,11 @@
     <Link Source="tests/bts_sbom_app/test_portfolio.py" Target="bts_sbom_app/portfolio.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_quality_top10.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_quality_top10.py" Target="bts_sbom_app/quality.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_reimpl.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_reimpl.py" Target="bts_sbom_app/evals.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_reimpl.py" Target="bts_sbom_app/llm.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_reimpl.py" Target="bts_sbom_app/reimpl.py" Category="Illegal" />
+    <Link Source="tests/bts_sbom_app/test_reimpl.py" Target="bts_sbom_app/server.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/__init__.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/batch.py" Category="Illegal" />
     <Link Source="tests/bts_sbom_app/test_release_fixes.py" Target="bts_sbom_app/chat.py" Category="Illegal" />
