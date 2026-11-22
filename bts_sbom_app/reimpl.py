@@ -21,6 +21,7 @@ import ast
 import datetime
 import json
 import os
+import re as _re
 import shutil
 import subprocess
 import sys
@@ -40,8 +41,9 @@ HONESTY = ["without an LLM client only a deterministic scaffold is produced; imp
 
 
 def extract_interface(path: str) -> Dict[str, Any]:
-    """Public interface of one module: functions/classes with signatures and the docstring's first line as
-    the behaviour contract. Implementation bodies are deliberately NOT read into the result."""
+    """Public interface of one module: functions/classes with signatures and their FULL docstrings as the
+    behaviour contract (docstrings are contracts - they feed the spec, and the copy gate strips them from
+    both sides). Implementation bodies are deliberately NOT read into the result."""
     src = open(path, "r", encoding="utf-8", errors="replace").read()
     tree = ast.parse(src)
     funcs: List[Dict[str, Any]] = []
@@ -49,14 +51,14 @@ def extract_interface(path: str) -> Dict[str, Any]:
     for node in tree.body:                                         # top level only: the public surface
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_"):
             args = [a.arg for a in node.args.args if a.arg not in ("self", "cls")]
-            doc = ast.get_docstring(node) or ""
+            doc = (ast.get_docstring(node) or "").strip()
             funcs.append({"name": node.name, "args": args,
-                          "contract": doc.split("\n")[0][:160], "async": isinstance(node, ast.AsyncFunctionDef)})
+                          "contract": doc[:900], "async": isinstance(node, ast.AsyncFunctionDef)})
         elif isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
             methods = [n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
                        and not n.name.startswith("_")]
-            doc = ast.get_docstring(node) or ""
-            classes.append({"name": node.name, "methods": methods, "contract": doc.split("\n")[0][:160]})
+            doc = (ast.get_docstring(node) or "").strip()
+            classes.append({"name": node.name, "methods": methods, "contract": doc[:900]})
     deps: Set[str] = set()
     for node in tree.body:
         if isinstance(node, ast.Import):
@@ -68,7 +70,8 @@ def extract_interface(path: str) -> Dict[str, Any]:
 
 
 def spec_document(iface: Dict[str, Any], why: str) -> str:
-    """The spec the generator is allowed to see: requirements + contracts, no implementation text."""
+    """The spec the generator is allowed to see: requirements + FULL contracts + upstream behaviour
+    examples, no implementation text. Examples are behavioural facts (test data), not expression."""
     out = ["# Clean-room spec: %s" % iface["module"], "",
            "Why reimplementation: %s" % why, "",
            "## Requirements", "",
@@ -78,15 +81,47 @@ def spec_document(iface: Dict[str, Any], why: str) -> str:
     if iface["functions"]:
         out.append("## Function contracts")
         for f in iface["functions"]:
-            out.append("- `%s(%s)`%s: %s" % (f["name"], ", ".join(f["args"]), " [async]" if f["async"] else "",
-                                             f["contract"] or "(contract unspecified - keep total behaviour)"))
+            out.append("- `%s(%s)`%s:" % (f["name"], ", ".join(f["args"]), " [async]" if f["async"] else ""))
+            if f["contract"]:
+                for ln in f["contract"].split("\n"):
+                    out.append("  " + ln.strip())
+            else:
+                out.append("  (contract unspecified - keep total behaviour)")
     if iface["classes"]:
         out += ["", "## Class contracts"]
         for c in iface["classes"]:
             out.append("- `%s` methods %s: %s" % (c["name"], ", ".join(c["methods"]) or "(none)",
                                                   c["contract"] or "(contract unspecified)"))
+    examples = iface.get("examples") or []
+    if examples:
+        out += ["", "## Behaviour examples (from the legacy acceptance data - facts, not expression)"]
+        for ex in examples:
+            out.append("- %s" % ex)
     out += ["", "## Clean-room rule", "", "Write original code. Do not reproduce any existing implementation text.", ""]
     return "\n".join(out)
+
+
+def extract_examples(source_root: str, *, cap: int = 12) -> List[str]:
+    """Bounded behaviour examples from the legacy acceptance data (.json test data in the source root).
+    Generic shape: {category: [[arg..., expected], ...]} (the mimeparse convention) - rendered as short
+    fact lines. Never implementation text; this is what the upstream suite asserts."""
+    import glob
+    out: List[str] = []
+    for fp in sorted(glob.glob(os.path.join(source_root, "*.json"))):
+        try:
+            d = json.load(open(fp, "r", encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(d, dict):
+            continue
+        for cat, rows in d.items():
+            if not isinstance(rows, list):
+                continue
+            for row in rows[:4]:
+                out.append("%s: %s" % (cat, json.dumps(row, ensure_ascii=False)[:200]))
+            if len(out) >= cap:
+                return out[:cap]
+    return out[:cap]
 
 
 # ------------------------------------------------------------------ the measured gate: copy detection
@@ -304,7 +339,7 @@ def _emit(progress: Optional[Callable[[Dict[str, Any]], None]], event: str, **fi
 
 def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None, license_ok: bool = True,
            why: str = "compliance-risky license (clean-room reimplementation)", copy_threshold: float = COPY_THRESHOLD,
-           publish_dest: Optional[str] = None, allow_inplace: bool = False,
+           publish_dest: Optional[str] = None, allow_inplace: bool = False, attempts: int = 2,
            progress: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
     """The whole lane. Returns a verdict record; every stage is emitted through ``progress`` (SSE-ready)."""
     res: Dict[str, Any] = {"schema": SCHEMA, "tool": "bts-sbom-app reimpl", "version": __version__,
@@ -325,6 +360,7 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
 
     # wall 1: read the interface (bodies stay here, in the reader)
     iface = extract_interface(src_path)
+    iface["examples"] = extract_examples(source_root)
     original_src = open(src_path, "r", encoding="utf-8", errors="replace").read()
     res["interface"] = {"functions": [f["name"] for f in iface["functions"]],
                         "classes": [c["name"] for c in iface["classes"]], "imports": iface["imports"]}
@@ -352,6 +388,7 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
     tests = gen_tests(module_name, iface)
     verdict = None
     prior_fail = None
+    best: Optional[Dict[str, Any]] = None                 # the candidate with the fewest legacy failures
     attempt = 0
     while True:
         attempt += 1
@@ -407,12 +444,22 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
             if atr["ok"]:
                 verdict = "ok"
                 break
-            if generated_by == "scaffold" or attempt >= 2:
+            m = _re.search(r"FAILED \(failures=(\d+), errors=(\d+)\)", atr["tail"] or "")
+            failed_total = (int(m.group(1)) + int(m.group(2))) if m else 10 ** 6
+            if best is None or failed_total < best["failed"]:
+                best = {"attempt": attempt, "failed": failed_total, "code": code}
+            if generated_by == "scaffold" or attempt >= max(1, attempts):
+                if best is not None and best["failed"] < 10 ** 6 and best["attempt"] != attempt:
+                    io_wrap(code_path, best["code"])               # ship the measured best candidate
+                    shutil.copyfile(code_path, os.path.join(work, "%s.py" % module_name))
+                    res["best_attempt"] = best["attempt"]
+                    res["compatibility"] = "best of %d attempts: %d legacy failures remain" % (attempts, best["failed"])
                 res.update(verdict="compatibility_failed",
                            reason="the upstream legacy test suite failed - the reimplementation is not behaviour-compatible yet")
                 break
             prior_fail = atr["tail"][-800:]                        # loop engineering: the failures ride along
-            _emit(progress, "regenerating", reason="compatibility failure - one retry with the failures attached")
+            prior_fail = "legacy suite: %d failure(s). %s" % (failed_total, atr["tail"][-500:])
+            _emit(progress, "regenerating", failed=failed_total)
             continue
         verdict = "ok"
         break

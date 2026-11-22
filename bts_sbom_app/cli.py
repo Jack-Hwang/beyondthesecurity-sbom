@@ -127,6 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
     rj.add_argument("--llm-config", default=None)
     rj.add_argument("--publish-dest", default=None, help="copy the result to this folder when everything passes")
     rj.add_argument("--allow-inplace", action="store_true", help="allow publish_dest to equal the analysed source")
+    rj.add_argument("--attempts", type=int, default=2, help="clean-room candidates to try (best-of-N by the legacy oracle)")
     rj.add_argument("--why", default="compliance-risky license (clean-room reimplementation)")
     rj.add_argument("--json", action="store_true")
     c = sub.add_parser("chat", help="ask a grounded question (with --actions: analyse, patch with an approval token, record VEX decisions)")
@@ -303,7 +304,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         res = reimpl_mod.reimpl(a.source, a.component, out, client=client if (client is not None and client.available) else None,
                                 license_ok=True, why=a.why, publish_dest=a.publish_dest,
-                                allow_inplace=a.allow_inplace, progress=on_progress)
+                                allow_inplace=a.allow_inplace, attempts=max(1, min(a.attempts, 6)),
+                                progress=on_progress)
         _print(res, a.json, "reimpl %s: %s (%s)" % (a.component, res["verdict"], res.get("reason", "all stages passed")))
         return 0 if res["verdict"] == "ok" else 1
     if a.cmd == "evalrag":
