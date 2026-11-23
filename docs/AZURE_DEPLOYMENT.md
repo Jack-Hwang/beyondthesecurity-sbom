@@ -1,7 +1,9 @@
 # MS Azure 배포 검토 (Azure Deployment Review) — bts-sbom-app
 
-상태: **검토 완료·미배포** (2026-11-22, 사용자 요청 "우리 서비스를 ms azure에 올리고 싶다 — 검토 해봐").
-실제 배포는 `az login` 이후 deploy/azure/README.md 절차로 진행한다 — 이 문서는 검토와 준비물만 다룬다.
+상태: **배포 완료 — 라이브 (2026-11-23, 데모·약 2주 운영 후 삭제 예정)**.
+URL: https://bts-sbom.yellowdesert-36032bc5.koreacentral.azurecontainerapps.io — 실측 전문은 docs/RUNBOOK.md
+Delivery State "2026-11-23: FIRST AZURE DEPLOYMENT" 항목과 deploy/azure/README.md의 첫 배포 실측을 볼 것.
+이 문서의 나머지는 검토(2026-11-22) 시점의 근거를 그대로 보존한다.
 
 ## 0. 무엇을 올리나
 

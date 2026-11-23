@@ -1,6 +1,8 @@
 # Azure 배포 절차 (Container Apps) — bts-sbom-app
 
-상태: **검토·준비 완료, 미배포**. 배포 검토의 근거와 제약은 `docs/AZURE_DEPLOYMENT.md`를 먼저 읽을 것 —
+상태: **첫 배포 완료 (2026-11-23, 데모·약 2주)** — 앱 `bts-sbom` /
+https://bts-sbom.yellowdesert-36032bc5.koreacentral.azurecontainerapps.io. 아래 절차는 검토 시점의 계획이고,
+실제 배포에서 달라진 점은 문서 끝의 "첫 배포 실측"을 볼 것. 배포 검토의 근거와 제약은 `docs/AZURE_DEPLOYMENT.md`를 먼저 읽을 것 —
 특히 **무인증 서비스이므로 Easy Auth(AAD) 또는 internal ingress 없이는 공개 배포 금지**. 이 문서는 복붙형
 `az` CLI 절차다(2026-11-22 기준 명령어; az 버전에 따라 옵션명이 다를 수 있음). 모든 명령은 bash 기준.
 
@@ -95,3 +97,33 @@ az containerapp revision list --name bts-sbom -g $RG -o table   # 롤백 리허�
 배포 소요, probe 통과, evidence_writable(볼륨 UID) 결과, SSE 동작, Easy Auth 설정, 월 예상 비용 —
 `docs/AZURE_DEPLOYMENT.md`와 RUNBOOK Delivery State에 날짜와 함께 기록한다. 측정 못한 항목은 "미검증"으로
 남긴다 (규칙: 측정 안 된 수를 지우거나 희망으로 채우지 않는다).
+
+## 8. 첫 배포 실측 (2026-11-23 — 검토 절차와 실제가 어디서 갈렸는지)
+
+- **빌드**: `az acr build`(클라우드 빌드 — 로컬 docker 불필요) 2회 모두 **2분 14~16초**. 태그는
+  `0.5.0-uboot`, `/app/evidence` 픽스 후 `0.5.0-uboot2`.
+- **리소스 프로바이더**: 이 구독("Azure in Open")은 `Microsoft.ContainerRegistry`, `Microsoft.App`,
+  `Microsoft.Storage`, `Microsoft.Network`, `Microsoft.OperationalInsights`가 모두 미등록이었다 —
+  `az provider register` 후 각각 Registered 대기(수 분).
+- **ACR 인증의 갈림길**: `--registry-username/--registry-password`는 az가 ACR 로그인 서버 문자열에서 시크릿
+  이름을 자동 생성하는데(`btsbomacr1123azurecrio-`) 말단 `-`라 `ContainerAppInvalidSecretName`으로 실패한다.
+  통과한 경로는 **YAML `configuration.registries` + 명시적 `passwordSecretRef`**(deploy/azure/containerapp.yaml
+  구조). 대안으로 user-assigned 관리 ID + `AcrPull`이 있으나, 이 구독 CLI에서는 스코프형 role assignment 호출이
+  `MissingSubscription` 오류로 깨져 있어(az rest 포함) YAML이 유일하게 통과했다.
+- **볼륨 UID 미검증 항목의 답**: **문제 없었다.** Azure Files 마운트(storage key 인증)에서 UID 10001의 쓰기가
+  그대로 성공 — 첫 부팅 `/readyz` 200, `failed: []`.
+- **진짜 배포 버그(코드 수정 1건)**: LLM 호출 장부가 `<root>/evidence/.llm_ledger.json`(/app/evidence)로
+  쓰이는데 컨테이너의 /app은 UID 10001에 읽기 전용 → **모든 챗 턴이 `llm._bump` PermissionError로 503**.
+  Dockerfile에 `RUN mkdir -p /app/evidence && chown 10001:10001` 한 줄로 수선(장부는 일일 카운터라 컨테이너
+  임시 저장으로 충분; 영속 상태는 전부 evidence 볼륨에 있다).
+- **evidence 시딩**: Azure Files의 `evidence/`(subPath)에 u-boot·django-nV 프로젝트 기록 10파일 + 시딩된 OSV
+  DB(bts_sbom_osv_local.db, PyPI 153 레코드)를 업로드. `az storage directory create`는 --path를 지원하지
+  않으므로(이 az 버전) 디렉터리는 `--name "evidence/u-boot"` 전체경로로 만든다. 컨테이너 env에
+  `BTS_SBOM_OSV_DB_PATH=/tmp/evidence/bts_sbom_osv_local.db`를 추가해 nl2sql이 영속 DB를 보게 한다.
+- **라이브 검증**: /healthz 200(0.3s), /readyz 200, 페이지 렌더, SSE 챗(u-boot 개요 — LLM 라우팅·한국어),
+  nl2sql(success, PyPI 153), **원격 스캔**(OWASP/NodeGoat GitHub URL → 1,091 구성요소 / 311 취약점 / 라이선스
+  98.5% 해결, ~355초 at 0.5 vCPU, scale 0→1 재할당 중 일시 503은 정상 동작).
+- **2주 운영·철수**: 과제 검토 기간(약 2주) 후 `az group delete --name bts-sbom-rg --yes`로 rg·환경·ACR·
+  Files 전부 제거(잔여 과금 0). 그 전까지 월 예상 ≈ $3 + 스캔 사용분(스케일 0). 인증은 데모 목적으로
+  Easy Auth 미설정(무인증 external) — 앱 자체 일일 예산 80이 제3자 LLM 남용의 상한이며, 이 편차는 RUNBOOK
+  Delivery State에 기록되어 있다.

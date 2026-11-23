@@ -20,6 +20,11 @@ EXPOSE 8800
 # Non-root, numeric UID (no /etc/passwd entry needed): GET /readyz checks the evidence folder is writable, so it must
 # exist and be owned by this UID before the switch - /app itself stays owned by root (world-readable is enough to run it).
 RUN mkdir -p /tmp/evidence && chown -R 10001:10001 /tmp/evidence
+# The LLM call ledger resolves to <root>/evidence/.llm_ledger.json (/app/evidence) by design - independent of which
+# --evidence folder the service was started with. In the container /app is read-only for this UID, so that folder
+# must exist and be writable (the ledger is a per-day counter: ephemeral here, the durable state lives on the
+# evidence volume). MEASURED ON AZURE 2026-11-23: without this line every chat turn 503s at llm._bump.
+RUN mkdir -p /app/evidence && chown -R 10001:10001 /app/evidence
 USER 10001
 # urllib is stdlib (no curl in the image to keep it minimal); failure is "not ready", which docker reports as unhealthy,
 # not "process is down" - the process itself may be fine while a dependency (e.g. the evidence volume) is not.

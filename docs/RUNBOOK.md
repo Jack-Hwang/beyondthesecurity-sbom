@@ -53,6 +53,27 @@ What exists today and what was actually checked, in this worktree, as of this ch
   unauthenticated by design), `BTS_OSS_ALLOWED_HOSTS=<fqdn>` un-blocks the oss/arch/books Host checks behind
   ingress, zero code changes required. Deployment status: **검토 완료·미배포** (az login + first-deploy
   measurements pending; the README lists the volume-UID item as the must-verify unknown).
+- **2026-11-23: FIRST AZURE DEPLOYMENT — live on Azure Container Apps (demo, ~2 weeks)**. Target: resource group
+  `bts-sbom-rg` / environment `bts-sbom-env` (koreacentral) / app **`bts-sbom`** →
+  https://bts-sbom.yellowdesert-36032bc5.koreacentral.azurecontainerapps.io — image
+  `btsbomacr1123.azurecr.io/bts-sbom-app:0.5.0-uboot2` (ACR cloud build: 2 min 16 s per build, no local docker),
+  scale **0→1** (call-woken, demo economics; a full NodeGoat scan took ~355 s at 0.5 vCPU), evidence on
+  **Azure Files 2Gi** mounted at /tmp/evidence (subPath `evidence`) — **the volume-UID unknown did NOT bite**:
+  /readyz 200 with `failed: []` on the first boot. Measured live over the public URL: /healthz 200, /readyz 200,
+  console page served, SSE chat turn (planner → Korean answer over the u-boot record: 68 components / 43
+  advisories), nl2sql over the seeded OSV DB (PyPI 153 rows), and a full remote scan of OWASP/NodeGoat from its
+  GitHub URL (1,091 components, 311 advisories, license resolve 98.5 %). Seeded demo records: u-boot v2026.10 and
+  django-nV project records + the OSV DB were uploaded into the share's `evidence/` folder. Two real defects were
+  found and fixed by this deployment: ① the LLM call ledger resolves to `<root>/evidence/.llm_ledger.json`, and
+  /app is read-only for UID 10001 — every chat turn 503'd at `llm._bump` until the Dockerfile grew a writable
+  `/app/evidence` (image retagged `0.5.0-uboot2`); ② `az containerapp create --registry-username/password` derives
+  an invalid auto secret name from the ACR login server — the working path is a user-assigned managed identity +
+  AcrPull, or the YAML `configuration.registries` block with an explicit `passwordSecretRef` (this repo uses the
+  YAML path; deploy/azure/README.md documents both). **Contract deviation, deliberate and temporary**: this demo
+  instance is **public ingress without authentication** (Easy Auth was skipped for demo friction; the app's own
+  `BTS_SBOM_LLM_DAILY_BUDGET=80` caps any third-party LLM use). The localhost no-auth contract above still governs
+  the code; the Azure instance is a demo mirror that gets deleted after the review window
+  (`az group delete --name bts-sbom-rg --yes` removes everything including the registry and the Files share).
 - **2026-11-22: Code Intel — Understand(SciTools)의 함수 레벨 기능을 설치·의존 없이 자체 재구현** (ADR-0023,
   BSA-AC-553..557): AST 기반 콜그래프·순환 복잡도·데드코드·클론 검출이 `arch.analyze()["code"]`로 상주하고,
   콘솔 🔎 Code Intel 판 + Arch Intel Code Intel 섹션(결정론 콜그래프)으로 표시된다. Python-first이며 타 언어는
