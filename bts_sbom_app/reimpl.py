@@ -213,6 +213,90 @@ def llm_generate(spec: str, client: Any, prior_fail: Optional[str] = None) -> st
     return code
 
 
+# ------------------------------------------------------------------ pattern inference (book KB -> model fallback)
+
+
+def _queries_for(iface: Dict[str, Any]) -> List[str]:
+    """KB queries derived from the INTERFACE only (names + contract docstrings) - the original source is not
+    consulted here either, so the inference stays inside the clean-room walls."""
+    module = iface.get("module") or ""
+    names = [f["name"] for f in (iface.get("functions") or [])[:4]] + [c["name"] for c in (iface.get("classes") or [])[:3]]
+    docs = " ".join(((f.get("docstring") or "").strip()[:80]) for f in (iface.get("functions") or [])[:3])
+    out = []
+    if module:
+        out.append(module + " architecture pattern")
+    if names:
+        out.append(" ".join(names))
+    if docs:
+        out.append(docs)
+    return [q for q in out if q.strip()][:4]
+
+
+def infer_patterns(iface: Dict[str, Any], book_index: Any = None, client: Any = None) -> Dict[str, Any]:
+    """Two-tier pattern inference for the clean-room spec (AC-619): tier "book" queries the local architecture
+    book KB (raw passages + distilled-principle notes in one merged index); when the books do not cover the
+    module's domain, tier "model" asks the deployment model for recommended patterns from its own knowledge.
+    Returns {"tier": book|model|none, "queries", "patterns": [{name, guidance, ref}], "book_hits"} - the caller
+    passes this to reimpl(pattern_pack=...) and the spec carries it as a guidance section (the section rides the
+    spec channel only and is never an operand of the copy gate)."""
+    queries = _queries_for(iface)
+    hits: List[Dict[str, Any]] = []
+    if book_index is not None:
+        for q in queries:
+            try:
+                r = book_index.search(q, k=3)
+            except Exception:                                  # noqa: BLE001 - a query failing must not kill inference
+                continue
+            for it in r.get("results") or []:
+                ch = it.get("chunk") or {}
+                meta = ch.get("meta") or {}
+                hits.append({"name": (ch.get("heading") or ch.get("source") or "book")[:80],
+                             "guidance": (ch.get("text") or "")[:400],
+                             "ref": "%s · %s" % (meta.get("book") or ch.get("source") or "book", ch.get("heading") or "")})
+    seen: set = set()
+    patterns: List[Dict[str, Any]] = []
+    for h in hits:
+        if h["ref"] in seen:
+            continue
+        seen.add(h["ref"])
+        patterns.append(h)
+        if len(patterns) >= 3:
+            break
+    if patterns:
+        return {"tier": "book", "queries": queries, "patterns": patterns, "book_hits": len(hits)}
+    if client is not None:                                     # tier 2: the model's own architecture knowledge
+        try:
+            raw = client.complete(
+                "You are a software architect. Recommend 2-4 implementation/architecture patterns suitable for the "
+                "module described by this public contract excerpt. Return JSON {\"patterns\": [{\"name\": string, "
+                "\"guidance\": string}]} where guidance is 1-2 sentences of design advice, never code.",
+                "MODULE: %s\nPUBLIC SURFACE: %s" % (iface.get("module"), json.dumps(iface.get("functions") or [])),
+                max_tokens=2048, json_mode=True)
+            from . import ai
+            obj = ai._parse_json(raw)
+            pats = obj.get("patterns") or []
+            out = [{"name": str(p.get("name"))[:60], "guidance": str(p.get("guidance"))[:300], "ref": "model"}
+                   for p in pats if isinstance(p, dict) and p.get("name")][:4]
+            if out:
+                return {"tier": "model", "queries": queries, "patterns": out, "book_hits": 0}
+        except Exception:                                      # noqa: BLE001 - degrade to none, honestly
+            pass
+    return {"tier": "none", "queries": queries, "patterns": [], "book_hits": len(hits)}
+
+
+def patterns_section(pack: Dict[str, Any]) -> str:
+    """The spec's guidance section for an inferred pattern pack (empty string when there is nothing to add)."""
+    pats = pack.get("patterns") or []
+    if not pats:
+        return ""
+    lines = ["## Recommended architecture patterns",
+             "(tier: %s - design guidance only; behaviour is defined by the contracts above)" % pack.get("tier")]
+    for p in pats:
+        ref = " [ref: %s]" % p["ref"] if p.get("ref") else ""
+        lines.append("- **%s**: %s%s" % (p.get("name"), p.get("guidance"), ref))
+    return "\n".join(lines)
+
+
 # ------------------------------------------------------------------ tests (deterministic, self-runnable)
 
 
@@ -428,6 +512,8 @@ def _emit(progress: Optional[Callable[[Dict[str, Any]], None]], event: str, **fi
 def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None, license_ok: bool = True,
            why: str = "compliance-risky license (clean-room reimplementation)", copy_threshold: float = COPY_THRESHOLD,
            publish_dest: Optional[str] = None, allow_inplace: bool = False, attempts: int = 2,
+           pattern_pack: Optional[Dict[str, Any]] = None,
+           patterns_provider: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
            progress: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
     """The whole lane. Returns a verdict record; every stage is emitted through ``progress`` (SSE-ready)."""
     res: Dict[str, Any] = {"schema": SCHEMA, "tool": "bts-sbom-app reimpl", "version": __version__,
@@ -454,8 +540,25 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
                         "classes": [c["name"] for c in iface["classes"]], "imports": iface["imports"]}
     _emit(progress, "interface_ready", functions=iface["functions"], classes=iface["classes"])
 
-    # stage B: spec + diagram
+    # stage B: spec + diagram (pattern inference rides the SPEC channel only and is never an operand of the
+    # copy gate: a caller-computed pattern_pack, or a patterns_provider run on the interface, whichever is given)
+    pack: Optional[Dict[str, Any]] = None
+    if pattern_pack is not None:
+        pack = pattern_pack
+    elif patterns_provider is not None:
+        try:
+            pack = patterns_provider(iface)
+        except Exception as exc:                               # noqa: BLE001 - inference failure degrades honestly
+            res["pattern_error"] = str(exc)[:160]
+    if isinstance(pack, dict) and pack.get("patterns"):
+        res["patterns"] = {"tier": pack.get("tier"), "patterns": [
+            {"name": p.get("name"), "ref": p.get("ref")} for p in pack["patterns"]]}
+        _emit(progress, "patterns_ready", tier=pack.get("tier"), count=len(pack["patterns"]))
     spec = spec_document(iface, why)
+    if pack and res.get("patterns"):
+        section = patterns_section(pack)
+        if section:
+            spec = spec + "\n\n" + section
     dgml = arch_map.to_dgml("Reimplementation of %s" % component,
                             sorted({iface["module"], *iface["imports"]}),
                             [(iface["module"], d) for d in iface["imports"]])

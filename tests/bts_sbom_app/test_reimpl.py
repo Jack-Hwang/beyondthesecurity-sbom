@@ -256,3 +256,84 @@ def test_adopted_suite_skips_files_without_runnable_tests():
     atr = reimpl.run_adopted_tests(work, reimpl.discover_adopted_tests(src), module_name="thing", source_root=src)
     assert atr["ok"] and {s["file"] for s in atr["skipped"]} == {"test_util.py"}
     assert "SKIPPED" in atr["tail"]
+
+
+def _pattern_source(root):
+    src = os.path.join(root, "src")
+    os.makedirs(src, exist_ok=True)
+    code = "\n".join([
+        '"""Run check callables concurrently and join their outcomes."""',
+        "",
+        "def run_parallel(fns, max_workers=4):",
+        '    """Run fns concurrently, return [(name, ok)]."""',
+        "    return []",
+        "",
+        "def join(outcomes):",
+        '    """True when every outcome passed."""',
+        "    return all(ok for _, ok in outcomes)",
+    ]) + "\n"
+    with open(os.path.join(src, "conctest.py"), "w", encoding="utf-8") as fh:
+        fh.write(code)
+    return src
+
+
+class _StubBookIndex:
+    """A book-KB stub: answers only queries mentioning its domain words."""
+
+    def __init__(self, hit=True):
+        self.hit = hit
+
+    def search(self, q, k=3, **kw):
+        if not (self.hit and any(w in q.lower() for w in ("parallel", "test", "run", "concurrently"))):
+            return {"found": False, "results": []}
+        return {"found": True, "results": [{"chunk": {"id": "books/x.md:3", "source": "books/x.md",
+                                                      "heading": "Testing patterns",
+                                                      "text": "Run verifications concurrently and join them before asserting.",
+                                                      "meta": {"kind": "books", "book": "테스트 아키텍처"}}, "rrf": 0.9}]}
+
+
+def test_infer_patterns_prefers_the_book_tier(tmp_path):
+    """AC: BSA-AC-619. Tier 1: the merged book+notes index answers the interface-derived queries -> tier=book
+    with the book/section attribution carried on every pattern."""
+    from bts_sbom_app import reimpl
+    iface = {"module": "conctest", "imports": [], "functions": [
+        {"name": "run_parallel", "args": ["fns", "max_workers"], "docstring": "Run fns concurrently", "is_async": False},
+        {"name": "join", "args": ["outcomes"], "docstring": "all passed", "is_async": False}], "classes": []}
+    pack = reimpl.infer_patterns(iface, book_index=_StubBookIndex(hit=True), client=None)
+    assert pack["tier"] == "book" and pack["patterns"]
+    assert pack["patterns"][0]["ref"].startswith("테스트 아키텍처")
+
+
+def test_infer_patterns_falls_back_to_the_model_tier(tmp_path):
+    """AC: BSA-AC-619. Tier 2: an empty book KB falls through to the deployment model's own architecture
+    knowledge; without a client the tier is honestly none."""
+    import json as _json
+    from bts_sbom_app import reimpl
+    iface = {"module": "cryptoutil", "imports": [], "functions": [
+        {"name": "seal", "args": ["data"], "docstring": "encrypt and authenticate", "is_async": False}], "classes": []}
+
+    class ModelClient:
+        def complete(self, system, user, max_tokens=2048, json_mode=False):
+            return _json.dumps({"patterns": [{"name": "Provider Interface", "guidance": "separate key handling from sealing."}]})
+
+    pack = reimpl.infer_patterns(iface, book_index=_StubBookIndex(hit=False), client=ModelClient())
+    assert pack["tier"] == "model" and pack["patterns"][0]["name"] == "Provider Interface"
+    none = reimpl.infer_patterns(iface, book_index=_StubBookIndex(hit=False), client=None)
+    assert none["tier"] == "none" and none["patterns"] == []
+
+
+def test_pattern_pack_reaches_the_spec_and_the_record(tmp_path):
+    """AC: BSA-AC-619. reimpl(pattern_pack=...) appends the guidance section to the spec artifact and records the
+    provenance (tier + names) on the result; without a pack the spec has no such section (back-compat)."""
+    root = _tmp()
+    src = _make_source(root)
+    out = os.path.join(root, "reimpl")
+    pack = {"tier": "book", "queries": ["flatten"], "patterns": [{"name": "Pipes and Filters", "guidance": "join per row, then join rows.", "ref": "테스트 아키텍처 · Testing patterns"}]}
+    events: list = []
+    r = reimpl.reimpl(src, "flatten.py", out, client=None, license_ok=True, pattern_pack=pack, progress=events.append)
+    spec_text = open(r["artifacts"]["spec"], encoding="utf-8").read()
+    assert "Recommended architecture patterns" in spec_text and "Pipes and Filters" in spec_text
+    assert r["patterns"]["tier"] == "book" and r["patterns"]["patterns"][0]["name"] == "Pipes and Filters"
+    assert any(e["event"] == "patterns_ready" for e in events)
+    r2 = reimpl.reimpl(_make_source(_tmp()), "flatten.py", os.path.join(_tmp(), "out3"), client=None, license_ok=True)
+    assert "Recommended architecture patterns" not in open(r2["artifacts"]["spec"], encoding="utf-8").read()

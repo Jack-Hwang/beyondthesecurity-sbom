@@ -910,3 +910,17 @@ breaker 포함), 불채용 35개 패턴은 문서 자체의 미적용 사례로 
 
 - BSA-AC-617 [Event] When a handler raises an unexpected exception the response shall be a clean 500 JSON with a correlation id and no traceback while the full trace goes to the server log only, every response shall carry X-Correlation-ID, and dynamic API responses shall be Cache-Control no-store while served files get max-age (2 of 2 handler guards, 3 of 3 response surfaces).
 - BSA-AC-618 [Event] When background jobs exceed the single-replica concurrency cap the service shall refuse 429 with Retry-After, refuse 503 with Retry-After while draining on SIGTERM, and let the running job finish inside the platform grace period - the bulkhead/throttling/load-leveling trio of the architecture-center patterns applied with one semaphore (2 of 2 refusal shapes, 1 of 1 drain path).
+
+## 컴플라이언스 클린룸 재구현 — 책→AI 2단 패턴 추론 자동 주입 (2026-11-24, AC-619~620)
+
+패치로 끝나지 않는 라이선스(GPL-3.0/AGPL 계열)의 정답 경로는 코드 교체다. 교체 구현에 아키텍처 패턴을
+**2단으로 자동 추론해 명세에 주입**한다: Tier 1 = 로컬 책 KB(원문 청크+정제 노트 병합 인덱스, 인터페이스에서
+파생한 쿼리로 검색 — 원본 소스는 이 단계에서도 consult되지 않는다), Tier 2 = 책이 도메인을 못 덮으면 배포
+모델 지식 폴백. 패턴 섹션은 명세 채널만 흐르고 카피 게이트의 연산 대상이 아니며, 추론 실패는 tier=none으로
+정직 강하한다. 표면: /api/reimpl body의 patterns 필드(기본 on), 워크벤치 판 체크박스+patterns_ready 단계+
+판정 카드 표시, license_risks의 strong-copyleft 소견에 클린룸 안내 한 줄. 실물 E2E: u-boot 의존
+concurrencytest(GPL, sdist 0.1.12) — tier=book(GoF 등 책 3건)·LLM 실생성·카피 게이트 0.0·계약 테스트 2/0·
+판정 ok (evidence/copyleft_reimpl/).
+
+- BSA-AC-619 [Event] When the clean-room lane runs with pattern inference enabled it shall infer patterns two-tier - the merged book/notes index first with interface-derived queries (tier book, book/section attribution on every pattern), falling back to the deployment model's own knowledge when the books do not cover the domain (tier model), and honestly tier none when neither yields - and the chosen pack shall ride the spec as a guidance section and be recorded on the result with its provenance (3 of 3 tiers, 1 of 1 spec channel, copy gate untouched).
+- BSA-AC-620 [Event] When a strong-copyleft component is screened the license-risk view shall name the clean-room reimplementation path (a patch cannot fix a license) with the component names, the /api/reimpl route shall accept the patterns switch, and the workbench pane shall expose the switch, the patterns_ready stage and the inference provenance on the verdict card (2 of 2 surfaces, 1 of 1 route field, 1 of 1 pane stage).

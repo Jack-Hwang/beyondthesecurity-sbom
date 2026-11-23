@@ -863,9 +863,24 @@ def make_handler(st: State):
 
                     try:
                         client = st.client if (st.client.available and bool(b.get("use_llm"))) else None
+
+                        def patterns_provider(iface: Dict[str, Any]) -> Dict[str, Any]:
+                            """Two-tier inference (AC-619): the merged book+notes index first, the deployment
+                            model's own knowledge as the fallback tier when the books don't cover the domain."""
+                            if not bool(b.get("patterns", True)):
+                                return {"tier": "none", "queries": [], "patterns": [], "book_hits": 0}
+                            try:
+                                chunks = books.load_chunks(st.books_dir()) + books.load_notes(st.root)
+                                idx = rag.Index(chunks) if chunks else None
+                            except Exception:                  # noqa: BLE001 - no KB: tier "model" still stands
+                                idx = None
+                            return reimpl_mod.infer_patterns(iface, book_index=idx,
+                                                             client=client if client is not None else None)
+
                         final = reimpl_mod.reimpl(src, comp, out, client=client,
                                                   license_ok=bool(b.get("license_ok", True)),
                                                   why=str(b.get("why") or "compliance-risky license (clean-room reimplementation)"),
+                                                  patterns_provider=patterns_provider if client is not None else None,
                                                   progress=on_progress)
                     except Exception as exc:                   # noqa: BLE001 - the job reports, it never vanishes
                         final = {"verdict": "error", "reason": str(exc)[:200]}

@@ -112,3 +112,14 @@ def test_drain_rejects_new_jobs_with_503_and_retry_after(tmp_path):
         assert "draining" in body["error"]
     finally:
         httpd.shutdown()
+
+def test_licence_risks_names_the_clean_room_path_for_strong_copyleft(tmp_path):
+    """AC: BSA-AC-620. A patch cannot fix a license: the strong-copyleft screening names the clean-room
+    reimplementation path with the component names (the compliance trigger surface)."""
+    from bts_sbom_app.chat import _license_risks
+    rec = {"name": "proj", "components": [
+        {"name": "concurrencytest", "version": "0.1.2", "license": "GPL-3.0-only", "license_category": "strong-copyleft"},
+        {"name": "requests", "version": "2.31.0", "license": "Apache-2.0", "license_category": "permissive"}],
+        "license": {"project_license": "Apache-2.0"}}
+    body = chr(10).join(_license_risks(rec, None))
+    assert "clean-room reimplementation" in body and "concurrencytest@0.1.2" in body

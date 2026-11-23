@@ -498,8 +498,8 @@
 
   /* ---------- panes ---------- */
   /* ---------- 클린룸 재구현 워크벤치 (brief 6, /api/reimpl): 두 개의 벽 — 명세만 생성기로, 카피 게이트+원본 오라클 ---------- */
-  var REIMPL_STAGES = ['interface_ready', 'spec_ready', 'diagram_ready', 'code_ready', 'copy_gate', 'tests_running', 'tests_passed', 'adopted_tests_running', 'adopted_tests_passed'];
-  var REIMPL_LABEL = { interface_ready: '인터페이스', spec_ready: '명세', diagram_ready: 'DGML', code_ready: '코드 생성', copy_gate: '카피 게이트', tests_running: '계약 테스트', tests_passed: '계약 통과', adopted_tests_running: '원본 오라클', adopted_tests_passed: '원본 통과' };
+  var REIMPL_STAGES = ['interface_ready', 'patterns_ready', 'spec_ready', 'diagram_ready', 'code_ready', 'copy_gate', 'tests_running', 'tests_passed', 'adopted_tests_running', 'adopted_tests_passed'];
+  var REIMPL_LABEL = { interface_ready: '인터페이스', patterns_ready: '패턴 추론', spec_ready: '명세', diagram_ready: 'DGML', code_ready: '코드 생성', copy_gate: '카피 게이트', tests_running: '계약 테스트', tests_passed: '계약 통과', adopted_tests_running: '원본 오라클', adopted_tests_passed: '원본 통과' };
   var REIMPL_FAIL_AT = { copy_gate_failed: 'copy_gate', tests_failed: 'tests_running', adopted_tests_failed: 'adopted_tests_running', refused: 'interface_ready' };
   /* job SSE consumer shared by the reimpl pane and the scan step bar: the server streams bts-sbom.events.v1 frames */
   function watchJobEvents(jid, onEvent) {
@@ -534,6 +534,7 @@
       '<div class="bts-fields"><label for="riComponent">컴포넌트 (소스 안의 모듈 상대경로)</label>' +
       '<input id="riComponent" placeholder="예: tools/dtoc/src_scan.py" spellcheck="false"></div>' +
       '<div class="bts-actions"><label class="bts-cd-llm"><input type="checkbox" id="riLlm" checked> LLM 생성 (끄면 스캐폴드)</label>' +
+      '<label class="bts-cd-llm"><input type="checkbox" id="riPatterns" checked> 책·AI 패턴 주입 (책 KB 먼저, 없으면 모델)</label>' +
       '<button type="button" class="run" id="riRun">▶ 재구현 실행</button></div>' +
       '<div class="bts-small">벽 1에서 인터페이스(함수·클래스 시그니처+docstring)만 명세가 된다. 벽 2는 명세만 본다. ' +
       '생성 코드가 원본과 4행 shingle 5%를 넘게 겹치면 기각되고, 원본 테스트 오라클이 통과해야 발행 자격이 생긴다. 산출물: evidence/reimpl/&lt;jid&gt;/.</div></div>';
@@ -546,11 +547,13 @@
     var cls = v === 'ok' ? 'ok' : (v === 'refused' || v === 'rejected' ? 'warn' : 'bad');
     var h = heading('판정', esc(d.component || '') + ' · ' + esc(d.started || ''));
     var cg = d.copy_gate || {};
+    var pt = d.patterns;
     h += kv([['verdict', pill(v, cls)],
              ['copy overlap', (cg.overlap !== undefined ? cg.overlap : '—') + ' (게이트 ' + (cg.threshold !== undefined ? cg.threshold : (d.copy_threshold !== undefined ? d.copy_threshold : '—')) + ')'],
              ['생성 테스트', d.tests ? (d.tests.ok ? '통과' : '실패') : '—'],
              ['원본 오라클', d.adopted_tests ? (d.adopted_tests.ok ? '통과 (' + (d.adopted_tests.files || []).length + '개 파일)' : '실패') : '—'],
-             ['호환성', d.compatibility || '—']]);
+             ['호환성', d.compatibility || '—'],
+             ['패턴 주입', pt ? ('tier ' + pt.tier + ' · ' + (pt.patterns || []).map(function (p) { return p.name; }).join(', ')) : '—']]);
     if (d.reason) { h += note('<b>이유:</b> ' + esc(d.reason), v === 'ok' ? 'ok' : 'warn'); }
     if (d.published_to) { h += note('발행: <code>' + esc(d.published_to) + '</code>'); }
     return h;
@@ -569,7 +572,7 @@
       stages.innerHTML = REIMPL_STAGES.map(function (s) {
         return '<span class="bts-stage" id="ri-st-' + s + '">' + esc(REIMPL_LABEL[s] || s) + '</span>';
       }).join('');
-      api('/api/reimpl', { source: src, component: comp, use_llm: $('#riLlm').checked }).then(function (r) {
+      api('/api/reimpl', { source: src, component: comp, use_llm: $('#riLlm').checked, patterns: $('#riPatterns').checked }).then(function (r) {
         if (!r.ok || !(r.data || {}).job) { out.innerHTML = note('<b>실행 거부.</b> ' + esc((r.data || {}).error || ('HTTP ' + r.status)), 'bad'); return; }
         var jid = r.data.job;
         watchJobEvents(jid, function (ev, d) {
@@ -803,12 +806,28 @@
     });
     return out;
   }
+  /* measured compatibility (compat.py): the gate's verdict per plan; "partial" carries the coverage of the used API */
+  function compatPill(c) {
+    if (!c) { return '—'; }
+    var kind = { compatible: 'ok', partial: 'warn', review: 'warn', breaking: 'bad', unverified: 'muted', not_direct: 'muted' };
+    return pill(c.status + (c.coverage !== null && c.coverage !== undefined ? ' ' + Math.round(c.coverage * 100) + '%' : ''), kind[c.status] || 'muted');
+  }
+  /* items: [{component, compat: {findings}}] - the exact symbols and call sites behind a breaking/review verdict */
+  function compatEvidence(items) {
+    var rows = [];
+    (items || []).forEach(function (x) {
+      ((x.compat || {}).findings || []).slice(0, 6).forEach(function (f) { rows.push([x.component, pill(f.level, f.level === 'breaking' ? 'bad' : 'warn'), f.rule, f.detail]); });
+    });
+    if (!rows.length) { return ''; }
+    return heading('Compatibility findings', 'the project\'s own call sites against the target release') + table(['Component', 'Level', 'Rule', 'Detail'], rows, '') +
+      note('Static check: a behaviour change behind an unchanged signature is not detected. <b>Breaking</b> upgrades are held back when the patch is applied; unverified ones are not blocked and not claimed compatible.');
+  }
   function fixPlan(v) {
     var ps = (v.plans || []).filter(function (p) { return p.status === 'upgrade'; }), pr = v.proposals || {};
     var out = heading('Upgrade plan', 'lowest version that clears every advisory, re-checked against OSV');
-    out += table(['Component', 'From', 'To', 'Clears', 'Worst', 'Breaking risk', 'Verified clean'], ps.map(function (p) {
+    out += table(['Component', 'From', 'To', 'Clears', 'Worst', 'Breaking risk', 'Compat (measured)', 'Verified clean'], ps.map(function (p) {
       var ver = p.verification || {};
-      return [p.component, p.current_version, p.safe_version, p.cve_count, sevBadge(p.max_severity), p.major_bump ? pill(p.breaking_risk || 'major bump', 'warn') : '—',
+      return [p.component, p.current_version, p.safe_version, p.cve_count, sevBadge(p.max_severity), p.major_bump ? pill(p.breaking_risk || 'major bump', 'warn') : '—', compatPill(p.compat),
               ver.clean === true ? pill('yes', 'ok') : ver.clean === false ? pill('no', 'bad') : pill('not verified', 'muted')];
     }), 'No upgrade is needed or possible (see the findings for entries without a fixed version).');
     out += heading('Proposals', 'source: ' + (pr.source || 'none') + (pr.model ? ' (' + pr.model + ')' : ''));
@@ -821,12 +840,13 @@
     var out = heading('Patch', 'approval-gated; the origin is never modified');
     out += note('<b>How it works.</b> 1) Preview the plan: nothing is changed. 2) Review it and approve with its digest. 3) Manifests are edited in a temporary work copy, ' +
       'the project is re-scanned, and the edit is reverted if the findings in the edited files increase. Lockfiles are never edited; regeneration commands are listed instead. ' +
-      '<b>The patched code has not been built or tested.</b>');
+      'Before editing, each upgrade is checked against the API the project actually uses (breaking ones are held back). <b>The patched code has not been built; its tests are run only when explicitly requested.</b>');
     out += '<div class="bts-actions">' + btn('1 · Preview plan (changes nothing)', 'plan', 'job', S.busy ? ' disabled' : '') + '</div>';
     if (st === 'not_requested') { return out + note('No patch has been requested for this analysis yet.'); }
     if (st === 'not_approved') {
       out += heading('Plan to review', 'digest ' + (p.digest || ''));
-      out += table(['Component', 'From', 'To', 'Breaking risk'], (p.plans || []).map(function (x) { return [x.component, x.current_version, x.safe_version, x.breaking_risk || '—']; }), 'The plan is empty.');
+      out += table(['Component', 'From', 'To', 'Breaking risk', 'Compat (measured)'], (p.plans || []).map(function (x) { return [x.component, x.current_version, x.safe_version, x.breaking_risk || '—', compatPill(x.compat)]; }), 'The plan is empty.');
+      out += compatEvidence(p.plans);
       if ((p.plans || []).length) {
         out += '<label style="font-size:12px;display:block;margin:8px 0"><input type="checkbox" id="ackPlan"> I reviewed this plan (digest <code>' + esc(p.digest) + '</code>)</label>' +
           '<div class="bts-actions">' + btn('2 · Approve and apply on a work copy', 'apply', 'job', ' disabled') + '</div>';
@@ -835,15 +855,24 @@
     }
     var rounds = p.rounds || [];
     out += heading('Result', st);
-    out += kv([['Status', pill(st, st === 'applied' ? 'ok' : st === 'regression_reverted' || st === 'digest_mismatch' ? 'bad' : 'warn')], ['Components edited', p.applied_components],
+    out += kv([['Status', pill(st, st === 'applied' ? 'ok' : st === 'regression_reverted' || st === 'compat_runtime_reverted' || st === 'digest_mismatch' ? 'bad' : 'warn')], ['Components edited', p.applied_components],
                ['Findings before', (p.before || {}).vulns], ['After re-scan', (p.after || {}).vulns_rescan], ['Estimated after (plan)', (p.after || {}).vulns_estimated],
                ['Fixed, confirmed by re-scan', p.rescan_fixed_total], ['Branch / commit', (p.branch || '—') + ' / ' + String(p.commit || '—').slice(0, 10)],
                ['Work copy', (S.lastJob && S.lastJob.work_copy) || '—']]);
     if (p.note) { out += note(esc(p.note), 'warn'); }
     if (st === 'regression_reverted') { out += note('The edit made things worse in the edited files, so it was <b>reverted</b>.', 'bad'); }
     if (st === 'digest_mismatch') { out += note('The plan changed since it was reviewed. Preview it again.', 'bad'); }
+    if (st === 'compat_runtime_reverted') { out += note('The project\'s own tests regressed on the patched versions, so the patch was <b>reverted</b>.', 'bad'); }
+    if (p.compat && (p.compat.summary || {}).held) {
+      out += note('<b>' + p.compat.summary.held + ' upgrade(s) were held back</b> by the compatibility gate and stay vulnerable until the call sites or pins are adapted. The rest were applied.', 'warn');
+    }
+    if (p.compat_runtime) {
+      var rt = p.compat_runtime, ra = rt.after || {}, rb = rt.baseline || {};
+      out += kv([['Runtime differential', pill(ra.status || rb.status || 'unverified', ra.status === 'ok' ? 'ok' : ra.status === 'regression' ? 'bad' : 'muted')], ['Detail', ra.reason || rb.reason || '—']]);
+    }
+    if (p.compat) { out += compatEvidence((p.compat.plans || []).map(function (x) { return { component: x.component, compat: x }; })); }
     if ((p.regenerate || []).length) { out += heading('Regenerate lockfiles'); out += note('<code>' + (p.regenerate || []).map(esc).join('</code><br><code>') + '</code>'); }
-    out += table(['Round', 'Status', 'Applied', 'Blocked', 'Manual', 'Before', 'After'], rounds.map(function (r) { return [r.round, r.status, r.applied, r.blocked, r.manual, r.vulns_before, r.vulns_after]; }), 'No round ran.');
+    out += table(['Round', 'Status', 'Applied', 'Held', 'Blocked', 'Manual', 'Before', 'After'], rounds.map(function (r) { return [r.round, r.status, r.applied, r.held || 0, r.blocked, r.manual, r.vulns_before, r.vulns_after]; }), 'No round ran.');
     var d = p.diff || {};
     if (d.stat || d.patch) {
       out += heading('Changed files', 'work copy against the base commit');

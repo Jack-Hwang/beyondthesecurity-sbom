@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DirectedGraph xmlns="http://schemas.microsoft.com/vs/2009/dgml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Title="Reimplementation of concurrencytest.py" Kind="bts-sbom.arch-map.v1" Layout="Sugiyama" GraphDirection="TopToBottom">
+  <Nodes>
+    <Node Id="(root)" Label="(root)" Group="Expanded" />
+    <Node Id="atexit" Label="atexit" />
+    <Node Id="collections" Label="collections" />
+    <Node Id="concurrencytest" Label="concurrencytest" />
+    <Node Id="itertools" Label="itertools" />
+    <Node Id="multiprocessing" Label="multiprocessing" />
+    <Node Id="os" Label="os" />
+    <Node Id="subunit" Label="subunit" />
+    <Node Id="sys" Label="sys" />
+    <Node Id="testtools" Label="testtools" />
+    <Node Id="traceback" Label="traceback" />
+    <Node Id="typing" Label="typing" />
+    <Node Id="unittest" Label="unittest" />
+  </Nodes>
+  <Links>
+    <Link Source="(root)" Target="atexit" Category="Contains" />
+    <Link Source="(root)" Target="collections" Category="Contains" />
+    <Link Source="(root)" Target="concurrencytest" Category="Contains" />
+    <Link Source="(root)" Target="itertools" Category="Contains" />
+    <Link Source="(root)" Target="multiprocessing" Category="Contains" />
+    <Link Source="(root)" Target="os" Category="Contains" />
+    <Link Source="(root)" Target="subunit" Category="Contains" />
+    <Link Source="(root)" Target="sys" Category="Contains" />
+    <Link Source="(root)" Target="testtools" Category="Contains" />
+    <Link Source="(root)" Target="traceback" Category="Contains" />
+    <Link Source="(root)" Target="typing" Category="Contains" />
+    <Link Source="(root)" Target="unittest" Category="Contains" />
+    <Link Source="concurrencytest" Target="atexit" />
+    <Link Source="concurrencytest" Target="collections" />
+    <Link Source="concurrencytest" Target="itertools" />
+    <Link Source="concurrencytest" Target="multiprocessing" />
+    <Link Source="concurrencytest" Target="os" />
+    <Link Source="concurrencytest" Target="subunit" />
+    <Link Source="concurrencytest" Target="sys" />
+    <Link Source="concurrencytest" Target="testtools" />
+    <Link Source="concurrencytest" Target="traceback" />
+    <Link Source="concurrencytest" Target="typing" />
+    <Link Source="concurrencytest" Target="unittest" />
+  </Links>
+  <Categories>
+    <Category Id="Contains" Label="Contains" IsContainment="True" />
+    <Category Id="Hotspot" Label="Hotspot" Background="#FF5A2D" />
+    <Category Id="Cycle" Label="Cycle edge" Stroke="#FF2A00" StrokeDashArray="4 2" />
+  </Categories>
+</DirectedGraph>

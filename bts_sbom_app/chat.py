@@ -270,6 +270,13 @@ def _license_risks(rec: Dict[str, Any], dist: Optional[str]) -> List[str]:
                                                   ("; obligations: " + "; ".join(f["obligations"])) if f.get("obligations") else ""))
     if not pf:
         lines.append("No component needs a license decision under the default policy for a %s distribution." % dist)
+    strong = [f for f in pf if f.get("category") == "strong-copyleft" and f.get("components")]
+    if strong:
+        comps = ", ".join(name for f in strong for name in (f.get("components") or [])[:4])
+        lines.append("A patch cannot fix a license: for the strong-copyleft components (%s) the compliance path is a "
+                     "clean-room reimplementation - open the Clean-Room pane (🧬), give source+component, and the "
+                     "pattern-inference lane (architecture books first, then the model) builds the NEW code behind "
+                     "the copy gate and the upstream oracle." % comps)
     if unresolved:
         lines.append("Unresolved licenses (identify them by hand before shipping): %s." % ", ".join(c["name"] + "@" + str(c.get("version")) for c in unresolved[:8]))
     lines.append("This is a policy screening of the recorded licenses, not legal advice.")
