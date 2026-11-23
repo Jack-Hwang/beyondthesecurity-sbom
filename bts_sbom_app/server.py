@@ -97,6 +97,12 @@ class State:
         self.jobs: Dict[str, Dict[str, Any]] = {}
         self.buses: Dict[str, events.EventBus] = {}           # one EventBus per job id, same lifetime as the job's entry in self.jobs
         self.lock = threading.Lock()
+        # Bulkhead + Throttling + Queue-Based Load Leveling (Azure architecture-center patterns, AC-617): one
+        # background job at a time on this single replica (0.5 vCPU) - an excess POST is refused with 429 +
+        # Retry-After instead of fan-out starving the HTTP/SSE side.
+        self.max_jobs = max(1, int(os.environ.get("BTS_SBOM_MAX_JOBS", "1")))
+        self.jobs_sem = threading.BoundedSemaphore(self.max_jobs)
+        self.draining = False                                # SIGTERM: stop accepting new jobs, finish the running ones
         if cfg:
             os.environ["BTS_SBOM_LLM_CONFIG"] = cfg
         self.client = ChatClient.from_env(ledger=os.path.join(root, "evidence", ".llm_ledger.json"))
@@ -117,6 +123,22 @@ class State:
         """The book KB is stable state, not a run artifact: it lives at <root>/evidence/books (same root-based
         location as the LLM ledger), independent of which --evidence runs folder the service was started with."""
         return books.books_dir(os.path.join(self.root, "evidence"))
+
+    def acquire_job(self) -> Optional[str]:
+        """Bulkhead/Throttling gate for background jobs (Azure architecture-center patterns, AC-617). Returns the
+        release callable when a slot is free and the service is not draining, else None - the route answers
+        503+Retry-After (draining) or 429+Retry-After (cap reached) instead of fanning out job threads."""
+        if self.draining:
+            return None
+        return self.jobs_sem.release if self.jobs_sem.acquire(blocking=False) else None
+
+    def begin_drain(self, timeout: float = 25.0) -> None:
+        """SIGTERM graceful drain (background-jobs best practice: stop accepting new work, finish the running
+        items). Marks the state draining, waits up to ``timeout`` for the running job slots to free, then
+        returns - the caller exits; ACA's own grace period bounds the wait in production."""
+        self.draining = True
+        if self.jobs_sem.acquire(blocking=True, timeout=timeout):
+            self.jobs_sem.release()                          # everything finished: just confirming the slot is free
 
     def db_path(self) -> str:
         """The local OSV database for the nl2sql lane. Resolution: the BTS_SBOM_OSV_DB_PATH env first, then the
@@ -349,12 +371,16 @@ def make_handler(st: State):
         def log_message(self, *a: Any) -> None:
             pass
 
-        def _emit(self, code: int, body: bytes, ctype: str, headers: Optional[Dict[str, str]] = None) -> None:
+        def _emit(self, code: int, body: bytes, ctype: str, headers: Optional[Dict[str, str]] = None,
+                  cache: Optional[str] = None) -> None:
             self.send_response(code)
             self.send_header("Content-Type", ctype + "; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
+            # api-implementation best practice (AC-618): mutable API responses are never cached; served files
+            # (downloads, static assets) are immutable for the revision's lifetime, so a short max-age is safe
+            self.send_header("Cache-Control", cache or "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Correlation-ID", getattr(self, "_cid", "") or "-")
             if ctype == "text/html":
                 self.send_header("Content-Security-Policy", _CSP)
             for k, v in (headers or {}).items():
@@ -370,7 +396,7 @@ def make_handler(st: State):
             ctype = _CTYPES.get(os.path.splitext(path)[1], "application/octet-stream")
             try:
                 with open(path, "rb") as fh:
-                    self._emit(200, fh.read(), ctype)
+                    self._emit(200, fh.read(), ctype, cache="public, max-age=60")
             except OSError:
                 self._send(404, {"error": "not found"})
 
@@ -457,6 +483,20 @@ def make_handler(st: State):
                 bus.unsubscribe()
 
         def do_GET(self) -> None:                                    # noqa: N802
+            self._cid = uuid.uuid4().hex[:12]
+            try:
+                self._do_get()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass                                                 # the client went away mid-response: nothing to answer
+            except Exception:
+                import traceback
+                traceback.print_exc()                                # server log only - never the response body
+                try:
+                    self._send(500, {"error": "internal error", "correlation_id": self._cid})
+                except OSError:
+                    pass
+
+        def _do_get(self) -> None:
             u = urllib.parse.urlsplit(self.path)
             path, q = u.path, urllib.parse.parse_qs(u.query)
             if path in ("/", "/index.html"):
@@ -634,6 +674,20 @@ def make_handler(st: State):
             self._send(404, {"error": "not found"})
 
         def do_POST(self) -> None:                                   # noqa: N802
+            self._cid = uuid.uuid4().hex[:12]
+            try:
+                self._do_post()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass                                                 # the client went away mid-response: nothing to answer
+            except Exception:
+                import traceback
+                traceback.print_exc()                                # server log only - never the response body
+                try:
+                    self._send(500, {"error": "internal error", "correlation_id": self._cid})
+                except OSError:
+                    pass
+
+        def _do_post(self) -> None:
             try:
                 b = self._body()
             except _BadBody as exc:
@@ -671,6 +725,13 @@ def make_handler(st: State):
                 if approved and not (isinstance(token, str) and token.strip()):
                     return self._send(400, {"error": "approved needs approval_token: the digest of the plan you reviewed (from a patch run without approval)"})
                 jid = uuid.uuid4().hex[:10]
+                release = st.acquire_job()
+                if release is None:                                   # bulkhead/throttle: one job at a time, or draining
+                    if st.draining:
+                        return self._send(503, {"error": "the service is draining - new jobs are not accepted", "job": None},
+                                          headers={"Retry-After": "60"})
+                    return self._send(429, {"error": "another background job is running on this single-replica service - retry shortly",
+                                            "job": None}, headers={"Retry-After": "30"})
                 st.jobs[jid] = {"state": "running", "source": src}
                 bus = events.EventBus(jid)
                 _prune_buses(st.buses, MAX_BUSES - 1)
@@ -680,6 +741,12 @@ def make_handler(st: State):
                     bus.publish(event_type, name=name, **fields)
 
                 def work() -> None:
+                    try:
+                        _scan_work()
+                    finally:
+                        release()
+
+                def _scan_work() -> None:
                     wdir = tempfile.mkdtemp(prefix="bts_sbom_job_")
                     keep = False
                     final: Dict[str, Any]
@@ -764,12 +831,25 @@ def make_handler(st: State):
                 if not comp or comp.startswith("/") or ".." in comp:
                     return self._send(400, {"error": "component required (a module path inside the source, no traversal)"})
                 jid = uuid.uuid4().hex[:10]
+                release = st.acquire_job()
+                if release is None:
+                    if st.draining:
+                        return self._send(503, {"error": "the service is draining - new jobs are not accepted"},
+                                          headers={"Retry-After": "60"})
+                    return self._send(429, {"error": "another background job is running on this single-replica service - retry shortly"},
+                                      headers={"Retry-After": "30"})
                 st.jobs[jid] = {"state": "running", "kind": "reimpl", "source": src, "component": comp}
                 bus = events.EventBus(jid)
                 _prune_buses(st.buses, MAX_BUSES - 1)
                 st.buses[jid] = bus
 
                 def work() -> None:
+                    try:
+                        _reimpl_work()
+                    finally:
+                        release()
+
+                def _reimpl_work() -> None:
                     from . import reimpl as reimpl_mod
                     out = os.path.join(st.evidence, "reimpl", jid)
                     final: Dict[str, Any]
@@ -824,8 +904,21 @@ def serve(root: str, host: str, port: int, evidence: str, cfg: Optional[str] = N
     st = State(root, evidence, cfg, chat_actions)
     httpd = ThreadingHTTPServer((host, port), make_handler(st))
     print("BTS-SBOM serving on http://%s:%d (evidence: %s)" % (host, port, evidence), flush=True)
+
+    def _sigterm(signum: int, frame: Any) -> None:
+        # background-jobs best practice (AC-618): stop accepting NEW jobs, let the running one finish inside the
+        # platform's grace period, then exit. A full checkpoint/resume would be the production-grade version.
+        st.begin_drain(timeout=20.0)
+        threading.Thread(target=httpd.shutdown, daemon=True).start()
+
+    try:
+        import signal
+        signal.signal(signal.SIGTERM, _sigterm)                   # ACA's stop signal; local Ctrl-C keeps its hard interrupt
+    except (ValueError, OSError):                                 # not the main thread / restricted platform
+        pass
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         pass
+    httpd.server_close()
     return 0

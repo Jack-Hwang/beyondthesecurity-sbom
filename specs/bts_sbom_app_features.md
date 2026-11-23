@@ -896,3 +896,17 @@ compatibility_failed로 정직 기록. 드러난 격: 재구현이 UI가 전무�
 - BSA-AC-614 [Event] When a strong-copyleft PROJECT license is screened for a binary distribution the policy findings shall include the project's own source-offer duty regardless of the dependency list (absent for internal), and GET /api/policy/<project>?distribution= shall recompute the findings for binary|saas|internal and reject others with 400 (3 of 3 distributions, 1 of 1 rejection).
 - BSA-AC-615 [Event] When a tree contains setup.py files the scanner roster shall disclose them as unsupported manifests in the completeness block instead of reporting empty_project, while a truly empty tree still reports empty_project (2 of 2 tree shapes).
 - BSA-AC-616 [Event] When the adopted upstream suite runs in the isolated work folder the lane shall rebind the component's package-context import to the NEW flat module (never the origin), resolve the suite's own helper packages from the source tree, inject a main tail for a pytest-collected TestCase suite that has none, skip a file that would run zero tests as a recorded skip instead of a silent pass, and grade honestly (the same oracle fails the original behaviour) (5 of 5 reconciliations, 1 of 1 discrimination).
+
+## Azure 아키텍처 센터 전 카탈로그 적용 (2026-11-23, AC-617~618)
+
+Azure 아키텍처 센터의 세 축(아키텍처 스타일 6종·클라우드 디자인 패턴 44개·모범 사례 11문서 + WAF RE/PE 검사
+목록)을 전수 조사해 채점하고, 카탈로그가 실제로 요구하는 최소 집합을 코드로 적용했다. 결론: 우리는 "웹-큐-작업자의
+큐 제거판"이며 Retry·Circuit Breaker·Health Endpoint·Compute Consolidation은 이미 구현(resilience.py 호스트별
+breaker 포함), 불채용 35개 패턴은 문서 자체의 미적용 사례로 정당화. 적용: ① **최상위 예외 가드** — 미처리 예외가
+연결 절단(RemoteDisconnected, KeyError 라운드 실측) 대신 500 JSON(correlation_id 포함, traceback은 서버 로그에만)
+② **잡 동시성 상한**(BTS_SBOM_MAX_JOBS 기본 1) — 초과 시 429+Retry-After, 드레인 중 503+Retry-After
+③ **SIGTERM 드레인** — 새 잡 거절·진행 잡 완료 ④ **상관관계 ID** ⑤ **Cache-Control**(API no-store·파일 max-age)
+⑥ timeout 전수 감사(누락 0건). 전수 매핑: docs/AZURE_ARCHITECTURE_CENTER_APPLIED.md.
+
+- BSA-AC-617 [Event] When a handler raises an unexpected exception the response shall be a clean 500 JSON with a correlation id and no traceback while the full trace goes to the server log only, every response shall carry X-Correlation-ID, and dynamic API responses shall be Cache-Control no-store while served files get max-age (2 of 2 handler guards, 3 of 3 response surfaces).
+- BSA-AC-618 [Event] When background jobs exceed the single-replica concurrency cap the service shall refuse 429 with Retry-After, refuse 503 with Retry-After while draining on SIGTERM, and let the running job finish inside the platform grace period - the bulkhead/throttling/load-leveling trio of the architecture-center patterns applied with one semaphore (2 of 2 refusal shapes, 1 of 1 drain path).
