@@ -4,6 +4,8 @@
 URL: https://bts-sbom.yellowdesert-36032bc5.koreacentral.azurecontainerapps.io — 실측 전문은 docs/RUNBOOK.md
 Delivery State "2026-11-23: FIRST AZURE DEPLOYMENT" 항목과 deploy/azure/README.md의 첫 배포 실측을 볼 것.
 이 문서의 나머지는 검토(2026-11-22) 시점의 근거를 그대로 보존한다.
+아키텍처 스타일·Well-Architected 5 기둥 기준의 추론 리뷰는 docs/AZURE_ARCHITECTURE_REVIEW.md(2026-11-23,
+프로브 3종·진단 설정·적용 선언 적용 실측 포함)에 있다.
 
 ## 0. 무엇을 올리나
 
