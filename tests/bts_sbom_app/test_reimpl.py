@@ -168,3 +168,91 @@ def test_api_reimpl_job_runs_and_streams(tmp_path, make_repo):
         assert "interface_ready" in stream and "tests_passed" in stream          # every stage was streamed live
     finally:
         httpd.shutdown()
+
+
+def _u_boot_shaped_oracle(root):
+    """The u-boot dtoc shape, measured 2026-11-23 (test_src_scan.py): the suite imports the component through
+    its package, defines TestCase classes with NO main tail, and its helper package lives beside the source."""
+    src = os.path.join(root, "src")
+    os.makedirs(src, exist_ok=True)
+    original = 'def scan(rows):\n    """The ORIGINAL behaviour: deliberately not what the oracle expects."""\n    return {}\n'
+    with open(os.path.join(src, "src_scan.py"), "w", encoding="utf-8") as fh:
+        fh.write(original)
+    os.makedirs(os.path.join(root, "u_boot_pylib"), exist_ok=True)
+    with open(os.path.join(root, "u_boot_pylib", "__init__.py"), "w", encoding="utf-8") as fh:
+        fh.write("MARKER = 'helper'\n")
+    suite = "\n".join([
+        "import unittest",
+        "from dtoc import src_scan",
+        "from u_boot_pylib import MARKER",
+        "class TestSrcScan(unittest.TestCase):",
+        "    def test_marks(self):",
+        "        self.assertEqual(src_scan.scan(['a', '?b']), {'w': ['?b']})",
+        "    def test_helper(self):",
+        "        self.assertEqual(MARKER, 'helper')",
+    ]) + "\n"
+    with open(os.path.join(src, "test_src_scan.py"), "w", encoding="utf-8") as fh:
+        fh.write(suite)
+    return src
+
+
+def test_adopted_oracle_rebounds_package_imports_and_runs_mainless_suites():
+    """AC: BSA-AC-616. The oracle must grade the NEW module (package import rebound to the flat copy), a
+    pytest-collected TestCase suite without its own main tail must actually RUN its classes, and the suite's
+    helper package resolves from the source tree - all measured on u-boot tools/dtoc."""
+    root = _tmp()
+    src = _u_boot_shaped_oracle(root)
+    adopted = reimpl.discover_adopted_tests(src)
+    work = os.path.join(root, "work")
+    os.makedirs(work)
+    fresh = 'def scan(rows):\n    """NEW code: marks flagged rows."""\n    return {"w": [r for r in rows if r.startswith("?")]}\n'
+    with open(os.path.join(work, "src_scan.py"), "w", encoding="utf-8") as fh:
+        fh.write(fresh)
+    atr = reimpl.run_adopted_tests(work, adopted, module_name="src_scan", source_root=src)
+    assert atr["ok"], atr["tail"]
+    assert "Ran 2 tests" in atr["tail"] and not atr["skipped"]
+    copied = open(os.path.join(work, "test_src_scan.py"), encoding="utf-8").read()
+    assert "from dtoc import src_scan" not in copied            # the binding points at the NEW flat module
+    assert "unittest.main(argv" in copied                        # the injected runner tail (copy only)
+    assert "from dtoc import src_scan" in open(os.path.join(src, "test_src_scan.py"), encoding="utf-8").read()  # the ORIGIN is untouched
+    # and the same oracle graded against the ORIGINAL behaviour fails - the suite discriminates:
+    work2 = os.path.join(root, "work2")
+    os.makedirs(work2)
+    stale = 'def scan(rows):\n    return {}\n'
+    with open(os.path.join(work2, "src_scan.py"), "w", encoding="utf-8") as fh:
+        fh.write(stale)
+    atr2 = reimpl.run_adopted_tests(work2, adopted, module_name="src_scan", source_root=src)
+    assert not atr2["ok"]
+
+
+def test_adopted_suite_skips_files_without_runnable_tests():
+    """AC: BSA-AC-616. A test_-prefixed helper file (u_boot_pylib/test_util.py shape) that defines no TestCase
+    and calls no unittest.main would read as a silent 0-test pass - it is skipped and recorded instead."""
+    root = _tmp()
+    src = os.path.join(root, "src")
+    os.makedirs(src)
+    comp = 'def add(a, b):\n    """Add."""\n    return a + b\n'
+    with open(os.path.join(src, "thing.py"), "w", encoding="utf-8") as fh:
+        fh.write(comp)
+    with open(os.path.join(src, "test_util.py"), "w", encoding="utf-8") as fh:
+        fh.write("MODE = 'helper'\n")                          # a helper, not a test - the honest skip
+    suite = "\n".join([
+        "import unittest",
+        "from thing import add",
+        "class TestThing(unittest.TestCase):",
+        "    def test_add(self):",
+        "        self.assertEqual(add(2, 3), 5)",
+        "",
+        "if __name__ == '__main__':",
+        "    unittest.main()",
+    ]) + "\n"
+    with open(os.path.join(src, "test_thing.py"), "w", encoding="utf-8") as fh:
+        fh.write(suite)
+    work = os.path.join(root, "work")
+    os.makedirs(work)
+    fresh_thing = 'def add(a, b):\n    return a + b\n'
+    with open(os.path.join(work, "thing.py"), "w", encoding="utf-8") as fh:
+        fh.write(fresh_thing)
+    atr = reimpl.run_adopted_tests(work, reimpl.discover_adopted_tests(src), module_name="thing", source_root=src)
+    assert atr["ok"] and {s["file"] for s in atr["skipped"]} == {"test_util.py"}
+    assert "SKIPPED" in atr["tail"]

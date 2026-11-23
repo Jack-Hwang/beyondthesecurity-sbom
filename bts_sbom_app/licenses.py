@@ -302,6 +302,15 @@ def policy_findings(components: List[Dict[str, Any]], policy: Optional[Dict[str,
                         "components": sorted({c["name"] + "@" + c["version"] for c in gpl})[:25], "obligations": [],
                         "detail": "project license %s (%s) is combined with strong-copyleft dependencies; "
                                   "distribution would require the combined work to follow the copyleft terms" % (project_license, pc)})
+    if pc == "strong-copyleft" and dist == "binary":
+        # the PROJECT'S OWN duty (measured on u-boot: GPL-2.0-or-later project — the duty existed in law but was
+        # invisible in every surface, because component findings dominate the loop)
+        out.append({"category": "project-copyleft", "severity": "MEDIUM", "count": 1, "verdict": "review",
+                    "components": [], "obligations": ["offer the corresponding source of the project itself",
+                                                      "keep copyright and license notices"],
+                    "detail": "the project itself is licensed %s (%s): distributing it in binary form requires "
+                              "offering its corresponding source; this duty holds regardless of the dependency list"
+                              % (project_license, pc)})
     return out
 
 

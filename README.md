@@ -17,6 +17,23 @@ $ python -m bts_sbom selfsbom
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
 
+## What's new since 0.5.0 (unreleased) — u-boot clean-room E2E + workbench UI + honest banners
+
+- **u-boot v2026.10 real-world E2E** (`evidence/uboot_e2e/E2E.md`): scanned 68 components / 43 advisories
+  (CRITICAL certifi, urllib3, jinja2) out of a 388 MB C tree, project license GPL-2.0-or-later from SPDX-header
+  majority; clean-room lane really generated `tools/dtoc/src_scan.py` from the spec (copy gate 0.0, contract
+  tests 5/0) and graded the upstream oracle honestly (compatibility_failed: the suite's helper needs POSIX pty).
+- **Clean-Room workbench pane** (🧬 Clean-Room): POST /api/reimpl + job SSE rendered as a per-stage strip
+  (interface → spec → code → copy gate → contract tests → adopted oracle) with the verdict record.
+- **Live scan progress**: the step bar consumes the job's SSE stream (stage names + done counts) instead of only
+  ticking seconds; the honest "Unknown — not a pass" banner replaces a green pass on 0-component/unknown runs.
+- **The project's own copyleft duty**: a GPL project screened for binary distribution now yields the
+  source-offer finding (u-boot's duty was invisible before); the License Risk pane gains a distribution selector
+  (GET /api/policy/<project>?distribution=); setup.py manifests are disclosed, never silent.
+- **Adopted-oracle hardening**: package-context imports rebind to the NEW module, helper packages resolve from
+  the source tree, mainless TestCase suites get a runner tail injected, zero-test files are recorded skips, and
+  the generation budget covers reasoning deployments (16384).
+
 ## What's new since 0.5.0 (unreleased) — chat quality gates + the approval loop + supply-chain pane
 
 - **Chat 품질 TOP-10 스코어카드** (`python -m bts_sbom_app.evals_top10`, `evals/top10_report.md`): grounding F

@@ -2,6 +2,20 @@
 
 All notable changes to bts-sbom are documented here.
 
+## Unreleased - 2026-11-23b: u-boot real-world E2E + Clean-Room workbench UI + honest scanning surfaces
+
+- u-boot v2026.10 E2E measured end to end (evidence/uboot_e2e/E2E.md): scan 68 components / 43 advisories,
+  GPL-2.0-or-later via SPDX-header majority; clean-room lane generated dtoc/src_scan.py from the spec only
+  (copy gate 0.0, contract tests 5/0), oracle honestly compatibility_failed on the suite's POSIX-pty helper.
+- Clean-Room workbench pane (🧬): the two-wall lane with its SSE stage strip and verdict cards, previously
+  API/CLI only; dock chips/slash entries (라이선스 리스크·공급망 혼동, /reimpl, /license-risk).
+- Live scan progress from the job SSE stream; honest "Unknown — not a pass" banner for 0-component/unknown runs.
+- Project-copyleft duty finding for strong-copyleft projects under binary distribution + /api/policy
+  distribution selector; setup.py disclosed in the core manifest roster.
+- Adopted-oracle hardening (AC-616): package-import rebinding, helper resolution, mainless-suite injection,
+  zero-test skips, shim argv/result fixes, 16384-token generation budget for reasoning deployments.
+- Fixed: the db pane's first-render null binding killed the whole console init chain before loadHistory.
+
 ## Unreleased - 2026-11-23: Chat quality gates (TOP-10) + the approval loop as evidence + supply-chain pane + nl2sql lane
 
 - Chat quality TOP-10 scorecard (`python -m bts_sbom_app.evals_top10` -> evals/top10_report.md): grounding F

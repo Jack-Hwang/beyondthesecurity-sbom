@@ -1,7 +1,7 @@
 {
  "rounds": 26,
  "passed": 26,
- "wall_s": 28.0,
+ "wall_s": 284.8,
  "use_llm": true,
  "results": [
   {
@@ -13,10 +13,10 @@
     "overview",
     "component_lookup"
    ],
-   "answer_head": "django-nV 프로젝트는 구성요소 1개로 구성되어 있으며, 총 29개의 알려진 취약점이 있습니다(치명적 CRITICAL 4개, 높음 HIGH 8개, 보통 MEDIUM 10개, 낮음 LOW 7개). 라이선스 해결 비율은 1.0입니다. 구성요소는 Py",
+   "answer_head": "django-nV 프로젝트 개요: 컴포넌트 1개로, 총 29개의 취약점(심각 CRITICAL 4개, 높음 HIGH 8개, 보통 MEDIUM 10개, 낮음 LOW 7개)이 보고되어 있습니다. 라이선스 해결 비율은 1.0입니다. 포함된 컴포넌트는 djan",
    "routing": "llm",
    "answer_source": "exaone",
-   "s": 13.6,
+   "s": 14.4,
    "issues": []
   },
   {
@@ -27,10 +27,10 @@
    "tools": [
     "top_vulns"
    ],
-   "answer_head": "가장 심각한 취약점 Top 3: 1. CVE-2020-7471 — CRITICAL (CVSS 9.8) 2. CVE-2016-9013 — CRITICAL (CVSS 9.8) 3. CVE-2019-19844 — CRITICAL (CVSS 9.8)",
+   "answer_head": "가장 심각한 취약점 top 3: CVE-2020-7471, CVE-2016-9013, CVE-2019-19844",
    "routing": "llm",
    "answer_source": "exaone",
-   "s": 6.5,
+   "s": 7.5,
    "issues": []
   },
   {
@@ -41,10 +41,10 @@
    "tools": [
     "vuln_lookup"
    ],
-   "answer_head": "- CVE-2018-18074 is not present in the analysed findings of django-nV. - 취약점 분석 (Vulnerability analysis) / 데이터 출처 - 같은 취약점의 GHSA, CVE, PYSEC",
+   "answer_head": "제시된 자료들에는 CVE-2018-18074 취약점의 상세 정보가 포함되어 있지 않습니다.",
    "routing": "llm",
-   "answer_source": "tools",
-   "s": 1.5,
+   "answer_source": "exaone",
+   "s": 5.2,
    "issues": []
   },
   {
@@ -55,10 +55,10 @@
    "tools": [
     "component_lookup"
    ],
-   "answer_head": "- Component django 1.8.3 (PyPI): license BSD-3-Clause from registry:pypi, 29 known vulnerabilities, safe upgrade target 5.2.17. - CRITICAL 과",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "Component django 정보: 이름 django, 버전 1.8.3 (PyPI), 라이선스 BSD-3-Clause, 알려진 취약점 29건, 안전한 업그레이드 대상 버전 5.2.17.",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 7.7,
    "issues": []
   },
   {
@@ -67,13 +67,13 @@
    "fired": true,
    "found": true,
    "tools": [
-    "overview",
-    "license"
+    "license",
+    "component_lookup"
    ],
-   "answer_head": "- Project django-nV: 1 components, 29 vulnerabilities (CRITICAL 4, HIGH 8, MEDIUM 10, LOW 7), license resolved rate 1.0. - License resolutio",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "프로젝트 'django-nV'의 라이선스 현황: 구성요소 1개 중 1개가 해결(resolved)되었습니다. 구성요소 'django 1.8.3 (PyPI)'의 라이선스는 BSD-3-Clause (출처: registry:pypi)입니다. 라이선스 분류는 ",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 8.9,
    "issues": []
   },
   {
@@ -82,13 +82,12 @@
    "fired": true,
    "found": true,
    "tools": [
-    "license_risks",
-    "license"
+    "license_risks"
    ],
-   "answer_head": "- License risk view of django-nV for a binary distribution: 1 components, 0 with an unresolved license, 0 policy finding(s). - No component ",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "라이선스 리스크 요약: 바이너리 배포 관점에서 컴포넌트 1개, 미확인 라이선스 0건, 정책 소견 1건(MEDIUM). 프로젝트 자체가 GPL-2.0-only(강한 카피레프트)이므로 바이너리 배포 시 해당 소스 제공 의무와 저작권·라이선스 고지 유지 의",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 9.2,
    "issues": []
   },
   {
@@ -97,13 +96,12 @@
    "fired": true,
    "found": true,
    "tools": [
-    "overview",
     "patch"
    ],
-   "answer_head": "- Project django-nV: 1 components, 29 vulnerabilities (CRITICAL 4, HIGH 8, MEDIUM 10, LOW 7), license resolved rate 1.0. - Remediation plan ",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "현재 패치 현황: - Remediation plan: 1개의 업그레이드 플랜, 수정 버전이 없는 패키지 0개, OSV 검증에서 1개는 클린(verified)합니다. - 적용된 마지막 패치 실행: 2026-11-22T21:21:54에 기록되어 있으며 a",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 10.0,
    "issues": []
   },
   {
@@ -112,13 +110,12 @@
    "fired": true,
    "found": true,
    "tools": [
-    "proposals",
-    "patch"
+    "proposals"
    ],
-   "answer_head": "- [untrusted quote] Fix proposals for django-nV come from the LLM (gpt-5-mini); each one was validated against the analysed evidence before ",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "기록된 수정 제안(전달 대상) 목록: branch, folder, inplace, github. - [untrusted quote] Fix proposals for django-nV come from the LLM (gpt-5-mini); each o",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 6.9,
    "issues": []
   },
   {
@@ -127,13 +124,12 @@
    "fired": true,
    "found": true,
    "tools": [
-    "plan_patch",
-    "patch"
+    "plan_patch"
    ],
-   "answer_head": "- Patch plan for django-nV: 1 upgrade(s), 1 major version bump(s) (compatibility is not tested), 0 package(s) without a known fixed version.",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "다음은 django-nV에 대한 패치 계획 미리보기입니다:  Patch plan for django-nV for django: 1 upgrade(s), 1 major version bump(s) (compatibility is not tested), ",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 9.6,
    "issues": []
   },
   {
@@ -142,12 +138,13 @@
    "fired": true,
    "found": true,
    "tools": [
+    "overview",
     "architecture"
    ],
-   "answer_head": "- Architecture of django-nV: 77 files, 16808 LOC, 6 internal import edges, 0 dependency cycles. - Hotspot taskManager/views.py: 51 commits, ",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "아래는 제공된 자료로부터 추출한 아키텍처 분석 결과 요약입니다. - 전체 구조: 77개 파일, 16808 LOC, 내부 임포트 엣지 6개, 의존성 사이클 없음. - 핫스팟 파일: taskManager/views.py (51 커밋, 842 LOC, 점수",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 10.4,
    "issues": []
   },
   {
@@ -158,10 +155,10 @@
    "tools": [
     "what_changed"
    ],
-   "answer_head": "- Since the previous analysis of django-nV: verdict same, 0 new vulnerabilities, 0 resolved, 0 rescored, 0 components added, 0 removed, 0 al",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "변화 없음: 판단 동일, 새로운 취약점 0건, 해결 0건, 재평가 0건, 컴포넌트 추가 0건, 제거 0건, 알림 0건 (임계값 7.0).",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 6.4,
    "issues": []
   },
   {
@@ -172,10 +169,10 @@
    "tools": [
     "coverage"
    ],
-   "answer_head": "- Decision coverage of django-nV: 29 advisories across 1 components - 0 decided, 29 planned, 0 rejected, 0 expired, 0 unhandled (100.0% hand",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "Decision coverage: Django-nV에 대해 결정 커버리지는 총 29건의 권고사항으로, 1개 구성요소에 대해 0 decided, 29 planned, 0 rejected, 0 expired, 0 unhandled (100.0% handl",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 6.7,
    "issues": []
   },
   {
@@ -186,10 +183,10 @@
    "tools": [
     "nl2sql"
    ],
-   "answer_head": "- status: access_failure - sql: - - error: {\"errorCategory\": \"transient\", \"isRetryable\": true, \"message\": \"local daily budget reached (600 c",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.3,
+   "answer_head": "OSV 데이터베이스에서 확인된 생태계별 취약점 수: PyPI — 153건. 제공된 자료에는 PyPI 데이터만 포함되어 있습니다.",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 11.8,
    "issues": []
   },
   {
@@ -200,10 +197,10 @@
    "tools": [
     "nl2sql"
    ],
-   "answer_head": "- status: access_failure - sql: - - error: {\"errorCategory\": \"transient\", \"isRetryable\": true, \"message\": \"local daily budget reached (600 c",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "데이터베이스에 취약점은 총 153개입니다.",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 12.5,
    "issues": []
   },
   {
@@ -214,10 +211,10 @@
    "tools": [
     "nl2sql"
    ],
-   "answer_head": "- status: access_failure - sql: - - error: {\"errorCategory\": \"transient\", \"isRetryable\": true, \"message\": \"local daily budget reached (600 c",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "OSV DB에서 'requests' 패키지에 매핑된 취약점 목록(식별자 및 요약)은 다음과 같습니다:  1) GHSA-9hjg-9r4m-mvj7 — Requests vulnerable to .netrc credentials leak via malici",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 19.8,
    "issues": []
   },
   {
@@ -228,10 +225,10 @@
    "tools": [
     "sbom_conformance"
    ],
-   "answer_head": "- SBOM regime ntia-2021: verdict gaps, 6 pass, 0 partial, 1 gap of 7 elements. - SBOM regime cisa-2025-draft (draft): verdict gaps, 8 pass, ",
+   "answer_head": "다음은 SBOM conformance 검사 결과입니다: - ntia-2021: verdict gaps (6 pass, 0 partial, 1 gap of 7 elements) - cisa-2025-draft (draft): verdict gaps (8",
    "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_source": "exaone",
+   "s": 11.8,
    "issues": []
   },
   {
@@ -240,12 +237,13 @@
    "fired": true,
    "found": true,
    "tools": [
-    "sector"
+    "sector",
+    "component_lookup"
    ],
-   "answer_head": "- Sector finance (금융보안원 OSS 안내서 · KISA SW 공급망 가이드라인): verdict gaps, 3 pass, 1 gap, 0 not_evidence. - 산업별 규제와 SBOM (Industries and regulation",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "금융 산업 규제 관점 요약 리포트:  1) 규제·가이드라인: 금융보안원과 KISA의 SW 공급망 지침을 따르며, SBOM 검사 항목을 규제 준수 관점에서 확인해야 합니다.  2) 필수 점검 항목: 라이선스 인벤토리 완결성, CVE 매칭 범위(VEX),",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 14.2,
    "issues": []
   },
   {
@@ -254,14 +252,12 @@
    "fired": true,
    "found": true,
    "tools": [
-    "component_lookup",
-    "what_if_upgrade",
-    "patch"
+    "what_if_upgrade"
    ],
-   "answer_head": "- Component django 1.8.3 (PyPI): license BSD-3-Clause from registry:pypi, 29 known vulnerabilities, safe upgrade target 5.2.17. - Upgrading ",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.3,
+   "answer_head": "제공된 자료에 따르면 Django를 1.8.3에서 5.2.17로 업그레이드하면 보안 권고(advisories) 29건이 해결되며, 후보 빌드는 OSV에 대해 클린으로 검증되었다고 합니다. 다만 호환성(호환성 테스트)은 수행되지 않았다고 명시되어 있습니",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 6.6,
    "issues": []
   },
   {
@@ -272,10 +268,10 @@
    "tools": [
     "export_vex"
    ],
-   "answer_head": "- OpenVEX of django-nV: 29 statement(s) (affected 29); decisions: none recorded. - Written to evidence/runs\\django-nV\\django-nV.triaged.vex.",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.3,
+   "answer_head": "OpenVEX 내보내기 결과: OpenVEX of django-nV: 29 statement(s) (affected 29); decisions: none recorded. Written to evidence/runs\\django-nV\\django-nV",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 11.1,
    "issues": []
   },
   {
@@ -286,10 +282,10 @@
    "tools": [
     "affected_projects"
    ],
-   "answer_head": "- CVE-2018-18074 was not found in any of the 3 analysed projects (answers come from each project's last analysis). - - 프로젝트 헌법이 불변 원칙을 선언해 모",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.5,
+   "answer_head": "분석된 4개 프로젝트 중 어느 것도 CVE-2018-18074의 영향을 받지 않았습니다. - [untrusted quote] 프로젝트가 Django 1.8.3를 사용 중이며 다수의 치명적·높은 취약점(CVE 목록)이 보고되어 있어 즉각적인 프레임워크 ",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 11.7,
    "issues": []
   },
   {
@@ -300,10 +296,10 @@
    "tools": [
     "latest_arch"
    ],
-   "answer_head": "- Latest Arch Intel run 4fafd60e22 of C:\\firebaseprojects\\usertest\\django-nV (finished 2026-11-22T16:57:39, AI: exaone). - License verdict: ",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.3,
+   "answer_head": "최신 Arch Intel 결과(실행 4fafd60e22, 완료 2026-11-22T16:57:39): 라이선스 GPL-2.0-only(강한 카피레프트, 공지 유지 및 결합된 작업의 대응 소스 제공 의무), Flow blockers 8건(상세 항목들),",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 15.4,
    "issues": []
   },
   {
@@ -314,10 +310,10 @@
    "tools": [
     "book_search"
    ],
-   "answer_head": "- No passage in the book library matches '책에서 fitness function 찾아줘' with confidence (nothing was guessed).",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 1.0,
+   "answer_head": "죄송합니다. 제공된 책 목록에서 'fitness function'을 찾을 수 없습니다.",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 9.4,
    "issues": []
   },
   {
@@ -329,10 +325,10 @@
     "license_risks",
     "license"
    ],
-   "answer_head": "- License risk view of django-nV for a binary distribution: 1 components, 0 with an unresolved license, 0 policy finding(s). - No component ",
+   "answer_head": "GPL-2.0은 강한 카피레프트(strong-copyleft) 오픈소스 라이선스입니다. 배포(특히 바이너리 배포)를 할 때는 해당 프로젝트의 대응하는 소스(corresponding source)를 제공해야 하며, 저작권 및 라이선스 고지를 유지해야 합",
    "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.3,
+   "answer_source": "exaone",
+   "s": 15.5,
    "issues": []
   },
   {
@@ -343,10 +339,10 @@
    "tools": [
     "decide"
    ],
-   "answer_head": "- 의사결정 테이블 remediation-policy 평가: verdict=decided, 발화 규칙=R2. - 결정: [P1] patch now: upgrade to the fixed version this release window - 측정 팩트:",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.2,
+   "answer_head": "권고된 조치: patch now — 이번 릴리스 윈도우에 고정 버전으로 업그레이드하십시오. 우선순위: P1.",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 10.7,
    "issues": []
   },
   {
@@ -357,10 +353,10 @@
    "tools": [
     "draw_diagram"
    ],
-   "answer_head": "- 기록된 import 엣지가 없어 도메인 클러스터를 연결할 수 없습니다. - 다학제(기계·전기·소프트웨어) 프로젝트를 위한 시스템 엔지니어링 교과서. - 트리, N2 다이어그램)로 요구→기능→구성요소→인터페이스를 체계적으로 전개한다. - 다이어그램으",
+   "answer_head": "지금 주어진 자료만으로는 컴포넌트 다이어그램을 그릴 수 없습니다. 자료에 \"기록된 import 엣지가 없어 도메인 클러스터를 연결할 수 없습니다.\"라고 명시되어 있어(아래 인용 참조), 컴포넌트 간 인터페이스(임포트 엣지)가 기록되어야 N2/컴포넌트 ",
    "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.3,
+   "answer_source": "exaone",
+   "s": 20.0,
    "issues": []
   },
   {
@@ -369,15 +365,13 @@
    "fired": true,
    "found": true,
    "tools": [
-    "overview",
-    "top_vulns",
     "supply_chain",
     "draw_diagram"
    ],
-   "answer_head": "- Project django-nV: 1 components, 29 vulnerabilities (CRITICAL 4, HIGH 8, MEDIUM 10, LOW 7), license resolved rate 1.0. - CVE-2020-7471 aff",
-   "routing": "regex",
-   "answer_source": "tools",
-   "s": 0.3,
+   "answer_head": "예 — 측정 결과 이 프로젝트에서 타이포스쿼팅·네임스페이스 혼동·의존성 혼동 위험은 발견되지 않았습니다.",
+   "routing": "llm",
+   "answer_source": "exaone",
+   "s": 11.4,
    "issues": []
   }
  ]

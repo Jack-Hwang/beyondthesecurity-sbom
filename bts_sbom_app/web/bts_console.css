@@ -156,6 +156,13 @@ table.bts-table td code{word-break:break-all}
 .bts-cd-empty{color:#8b949e;font-size:12px;padding:10px 2px;line-height:1.5}
 .bts-skel{height:10px;border-radius:6px;margin:6px 0;background:linear-gradient(90deg,#8b949e22 25%,#8b949e44 37%,#8b949e22 63%);background-size:400% 100%;animation:bts-skel 1.2s ease infinite}
 @keyframes bts-skel{0%{background-position:100% 50%}100%{background-position:0 50%}}
+/* job stage strip (clean-room workbench, scan progress) */
+.bts-stages{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.bts-stage{background:#161b22;border:1px solid #30363d;color:#8b949e;border-radius:999px;padding:3px 10px;font-size:11px}
+.bts-stage.ok{color:#7ee2b8;border-color:#2ea04366}
+.bts-stage.fail{color:#f85149;border-color:#f8514966}
+/* honest pass banner: the pinned sca_app.js only styles pass/fail - an unknown must not look green */
+.sx-banner.warn{background:rgba(212,167,44,.15);border-left-color:#d4a72c;color:#9a6700;font-weight:700}
 @media (max-width:900px){ .bts-cd-msgs{max-height:32vh} }
 /* ---------- Diagrams (EA-17.2 catalog, ADR-0024): pane + mid-conversation blocks share the contract ---------- */
 .bts-diagram{border:1px solid #30363d;border-radius:10px;background:#0d1117;padding:10px 12px;margin:8px 0;overflow-x:auto}

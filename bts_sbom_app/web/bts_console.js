@@ -17,7 +17,7 @@
   var GROUPS = {
     'git': ['git', 'oss', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
     'graph-health': ['dep-graph', 'arch', 'code', 'db', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
-    'fix': ['fix-plan', 'fix-pr'], 'report': ['report'], 'archintel': ['archintel'], 'diagrams': ['diagrams'],
+    'fix': ['fix-plan', 'fix-pr', 'reimpl'], 'report': ['report'], 'archintel': ['archintel'], 'diagrams': ['diagrams'],
     'books': ['books'], 'more': ['more', 'fleet']
   };
   /* the Claude-client rail (CCD "Code 탭 화면 해부" + IF-B04): the sidebar is a SESSION list first and the
@@ -36,7 +36,7 @@
     'ssvc': '🎯 SSVC', 'epss': '📡 EPSS', 'exploit-mat': '🔥 Exploit Mat.', 'dep-graph': '🕸 Dep Graph',
     'arch': '🏛 Architecture', 'code': '🔎 Code Intel', 'db': '🗄 DB 질의', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
     'vex': '📋 VEX · Decisions', 'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
-    'fix-pr': '🔧 Patch', 'oss': '📜 OSS 결과', 'report': '📊 Report', 'archintel': '🏛 Arch Intel', 'diagrams': '🖼 Diagrams',
+    'fix-pr': '🔧 Patch', 'reimpl': '🧬 Clean-Room', 'oss': '📜 OSS 결과', 'report': '📊 Report', 'archintel': '🏛 Arch Intel', 'diagrams': '🖼 Diagrams',
     'books': '📚 Book KB', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
   };
   var SEVS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
@@ -163,12 +163,28 @@
     return api('/api/scan', body).then(function (r) {
       if (!r.ok) { setStep(1, (r.data && r.data.error) || ('HTTP ' + r.status), true); return null; }
       var id = r.data.job, t0 = Date.now();
+      /* live stage progress (the job's SSE stream): the polling loop alone only ticks seconds, which reads as
+         a hang on a big tree like u-boot (measured 2026-11-23: ~5 min of silent "running (N s)") */
+      var seen = {};
+      watchJobEvents(id, function (ev, d) {
+        if (d && d.name && (ev === 'step_start' || ev === 'step_end')) {
+          seen[d.name] = (ev === 'step_end') ? (d.ok === false ? 'fail' : 'ok') : 'run';
+          var done = Object.keys(seen).filter(function (k) { return seen[k] !== 'run'; }).length;
+          var cur = Object.keys(seen).filter(function (k) { return seen[k] === 'run'; }).pop();
+          setStep(3, label + ': ' + (cur ? ('stage ' + cur) : 'warming up') + ' · ' + done + ' stage(s) done · ' +
+            Math.round((Date.now() - t0) / 1000) + ' s');
+        } else if (ev === 'patch_gate' && d.state === 'awaiting_approval') {
+          setStep(3, label + ': patch plan awaits approval (digest ' + (d.digest || '') + ').');
+        }
+      });
       return new Promise(function (resolve) {
         (function poll() {
           api('/api/jobs/' + encodeURIComponent(id)).then(function (j) {
             var d = j.data || {};
             if (d.state === 'running') {
-              setStep(3, label + ': analysis engines are running (' + Math.round((Date.now() - t0) / 1000) + ' s).');
+              if (!Object.keys(seen).length) {                   // SSE owns the message once events arrive
+                setStep(3, label + ': analysis engines are running (' + Math.round((Date.now() - t0) / 1000) + ' s).');
+              }
               setTimeout(poll, 1500);
               return;
             }
@@ -330,6 +346,20 @@
       var n = e.firstChild;
       if (n && n.nodeType === 3 && n.nodeValue.indexOf('AutoGuard') >= 0) { n.nodeValue = n.nodeValue.replace('AutoGuard', 'BTS-SBOM'); }
     });
+    /* honest pass banner: a green "No known vulnerabilities detected" under a 0-component or unknown-presence
+       projection contradicts the warn banner above it (measured on a manifest-less C tree, 2026-11-23) */
+    var pass = $('.sx-banner.pass .sx-banner-msg', mount);
+    if (pass && S.view) {
+      var eng = S.view.engine || {};
+      var comp = ((S.view.report || {}).components) || 0;
+      if (eng.vulnerability_presence !== 'none' || comp === 0) {
+        var why = comp === 0 ? '구성요소 0 — 쿼리할 매니페스트 구성요소가 없다(결과는 unknown, 통과가 아니다)'
+                             : '쿼리 상태 ' + (eng.vulnerability_presence || 'unknown') + ' — 모든 구성요소가 답을 받은 것이 아니다';
+        pass.innerHTML = 'Unknown — not a pass: ' + esc(why);
+        var box = pass.closest('.sx-banner');
+        if (box) { box.classList.remove('pass'); box.classList.add('warn'); }
+      }
+    }
   }
   function watchBrand() {
     var mount = $('#reportOut');
@@ -426,42 +456,144 @@
     var pane = $('#paneDb');
     if (!pane || pane.dataset.dbBound) { return; }
     pane.dataset.dbBound = '1';
-    pane.querySelector('#dbQBtn').addEventListener('click', function () {
-      var q = $('#dbQ').value.trim(), out = $('#paneDbOut');
-      if (!q) { out.innerHTML = note('질문을 입력하라.', 'warn'); return; }
-      out.innerHTML = note('질의 실행 중…', 'warn');
-      api('/api/db/query', { q: q }).then(function (r) {
-        var d = r.data || {};
-        if (!r.ok) { out.innerHTML = note('<b>질의 실패.</b> ' + esc(d.error || ('HTTP ' + r.status)), 'bad'); return; }
-        var h = heading('질의 결과', 'status: ' + (d.status || '?') + (d.truncated ? ' · 잘림' : '') +
-          ' · source: ' + esc(d.source || '?') + ' · attempts: ' + esc(d.attempts));
-        h += kv([['SQL', H('<code>' + esc(d.sql || '—') + '</code>')]]);
-        var rows = d.rows || [];
-        if (rows.length) {
-          var cols = Object.keys(rows[0]);
-          h += table(cols, rows.slice(0, 50).map(function (row) { return cols.map(function (k) { return row[k]; }); }),
-            '행 없음.');
-          if (rows.length > 50) { h += note('앞 50행만 표시 (전체 ' + rows.length + '행).', 'warn'); }
-        } else if (d.status === 'empty_result') {
-          h += note('조건에 맞는 행이 없다 — 빈 결과는 오류가 아니다.', 'warn');
-        }
-        if (d.error) { h += note('<b>질의 오류.</b> ' + esc(d.error.message || ''), 'bad'); }
-        if (d.clarification_needed) { h += note('명확화 필요: ' + esc(d.clarification_needed), 'warn'); }
-        out.innerHTML = h;
-      });
-    });
-    pane.querySelector('#dbSchemaBtn').addEventListener('click', function () {
-      api('/api/db/schema').then(function (r) {
-        var d = r.data || {};
-        if (!r.ok) { $('#paneDbOut').innerHTML = note(esc(d.error || '조회 실패'), 'bad'); return; }
-        var rows = Object.keys(d.tables || {}).map(function (k) { return [k, d.tables[k]]; });
-        $('#paneDbOut').innerHTML = heading('스키마 요약', esc(d.db || '')) +
-          table(['테이블', '행 수'], rows, '테이블 없음.');
-      });
+    /* delegated clicks: renderPanes rewrites this pane's innerHTML on every project switch, so the buttons are
+       bound on the persistent container, never on the per-render elements (a null querySelector here used to
+       kill the whole init chain before loadHistory ran - measured 2026-11-23). */
+    pane.addEventListener('click', function (e) {
+      var out = $('#paneDbOut');
+      if (e.target && e.target.id === 'dbQBtn') {
+        var q = $('#dbQ') ? $('#dbQ').value.trim() : '';
+        if (!q) { out.innerHTML = note('질문을 입력하라.', 'warn'); return; }
+        out.innerHTML = note('질의 실행 중…', 'warn');
+        api('/api/db/query', { q: q }).then(function (r) {
+          var d = r.data || {};
+          if (!r.ok) { out.innerHTML = note('<b>질의 실패.</b> ' + esc(d.error || ('HTTP ' + r.status)), 'bad'); return; }
+          var h = heading('질의 결과', 'status: ' + (d.status || '?') + (d.truncated ? ' · 잘림' : '') +
+            ' · source: ' + esc(d.source || '?') + ' · attempts: ' + esc(d.attempts));
+          h += kv([['SQL', H('<code>' + esc(d.sql || '—') + '</code>')]]);
+          var rows = d.rows || [];
+          if (rows.length) {
+            var cols = Object.keys(rows[0]);
+            h += table(cols, rows.slice(0, 50).map(function (row) { return cols.map(function (k) { return row[k]; }); }),
+              '행 없음.');
+            if (rows.length > 50) { h += note('앞 50행만 표시 (전체 ' + rows.length + '행).', 'warn'); }
+          } else if (d.status === 'empty_result') {
+            h += note('조건에 맞는 행이 없다 — 빈 결과는 오류가 아니다.', 'warn');
+          }
+          if (d.error) { h += note('<b>질의 오류.</b> ' + esc(d.error.message || ''), 'bad'); }
+          if (d.clarification_needed) { h += note('명확화 필요: ' + esc(d.clarification_needed), 'warn'); }
+          out.innerHTML = h;
+        });
+      } else if (e.target && e.target.id === 'dbSchemaBtn') {
+        api('/api/db/schema').then(function (r) {
+          var d = r.data || {};
+          if (!r.ok) { out.innerHTML = note(esc(d.error || '조회 실패'), 'bad'); return; }
+          var rows = Object.keys(d.tables || {}).map(function (k) { return [k, d.tables[k]]; });
+          out.innerHTML = heading('스키마 요약', esc(d.db || '')) +
+            table(['테이블', '행 수'], rows, '테이블 없음.');
+        });
+      }
     });
   }
 
   /* ---------- panes ---------- */
+  /* ---------- 클린룸 재구현 워크벤치 (brief 6, /api/reimpl): 두 개의 벽 — 명세만 생성기로, 카피 게이트+원본 오라클 ---------- */
+  var REIMPL_STAGES = ['interface_ready', 'spec_ready', 'diagram_ready', 'code_ready', 'copy_gate', 'tests_running', 'tests_passed', 'adopted_tests_running', 'adopted_tests_passed'];
+  var REIMPL_LABEL = { interface_ready: '인터페이스', spec_ready: '명세', diagram_ready: 'DGML', code_ready: '코드 생성', copy_gate: '카피 게이트', tests_running: '계약 테스트', tests_passed: '계약 통과', adopted_tests_running: '원본 오라클', adopted_tests_passed: '원본 통과' };
+  var REIMPL_FAIL_AT = { copy_gate_failed: 'copy_gate', tests_failed: 'tests_running', adopted_tests_failed: 'adopted_tests_running', refused: 'interface_ready' };
+  /* job SSE consumer shared by the reimpl pane and the scan step bar: the server streams bts-sbom.events.v1 frames */
+  function watchJobEvents(jid, onEvent) {
+    fetch('/api/jobs/' + encodeURIComponent(jid) + '/events').then(function (res) {
+      if (!res.ok || !res.body) { throw new Error('HTTP ' + res.status); }
+      var reader = res.body.getReader(), dec = new TextDecoder(), buf = '';
+      function pump() {
+        return reader.read().then(function (chunk) {
+          if (chunk.done) { return; }
+          buf += dec.decode(chunk.value, { stream: true });
+          var parts = buf.split('\n\n');
+          buf = parts.pop();
+          parts.forEach(function (block) {
+            var lines = block.split('\n'), ev = '', datas = [];
+            lines.forEach(function (ln) {
+              if (ln.indexOf('event: ') === 0) { ev = ln.slice(7); }
+              else if (ln.indexOf('data: ') === 0) { datas.push(ln.slice(6)); }
+            });
+            if (ev && datas.length) { try { onEvent(ev, JSON.parse(datas.join('\n'))); } catch (e) { /* malformed frame: skip, keep the stream */ } }
+          });
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function () { /* the stream ends when the job ends */ });
+  }
+  function reimplPane(v) {
+    var src = (v && v.source) || '';
+    var out = heading('클린룸 재구현 (Clean-Room)', '두 개의 벽: 본문은 절대 생성기로 가지 않는다 — 카피 게이트(4행 shingle ≤5%) + 원본 테스트 오라클');
+    out += '<div class="bts-formbox"><div class="bts-fields"><label for="riSource">소스 (로컬 경로 / git URL)</label>' +
+      '<input id="riSource" placeholder="C:/path/to/repo 또는 https://github.com/owner/repo" spellcheck="false" value="' + esc(src) + '"></div>' +
+      '<div class="bts-fields"><label for="riComponent">컴포넌트 (소스 안의 모듈 상대경로)</label>' +
+      '<input id="riComponent" placeholder="예: tools/dtoc/src_scan.py" spellcheck="false"></div>' +
+      '<div class="bts-actions"><label class="bts-cd-llm"><input type="checkbox" id="riLlm" checked> LLM 생성 (끄면 스캐폴드)</label>' +
+      '<button type="button" class="run" id="riRun">▶ 재구현 실행</button></div>' +
+      '<div class="bts-small">벽 1에서 인터페이스(함수·클래스 시그니처+docstring)만 명세가 된다. 벽 2는 명세만 본다. ' +
+      '생성 코드가 원본과 4행 shingle 5%를 넘게 겹치면 기각되고, 원본 테스트 오라클이 통과해야 발행 자격이 생긴다. 산출물: evidence/reimpl/&lt;jid&gt;/.</div></div>';
+    out += '<div id="riStages" class="bts-stages"></div>';
+    out += '<div id="riOut"></div>';
+    return out;
+  }
+  function reimplVerdict(d) {
+    var v = d.verdict || '?';
+    var cls = v === 'ok' ? 'ok' : (v === 'refused' || v === 'rejected' ? 'warn' : 'bad');
+    var h = heading('판정', esc(d.component || '') + ' · ' + esc(d.started || ''));
+    var cg = d.copy_gate || {};
+    h += kv([['verdict', pill(v, cls)],
+             ['copy overlap', (cg.overlap !== undefined ? cg.overlap : '—') + ' (게이트 ' + (cg.threshold !== undefined ? cg.threshold : (d.copy_threshold !== undefined ? d.copy_threshold : '—')) + ')'],
+             ['생성 테스트', d.tests ? (d.tests.ok ? '통과' : '실패') : '—'],
+             ['원본 오라클', d.adopted_tests ? (d.adopted_tests.ok ? '통과 (' + (d.adopted_tests.files || []).length + '개 파일)' : '실패') : '—'],
+             ['호환성', d.compatibility || '—']]);
+    if (d.reason) { h += note('<b>이유:</b> ' + esc(d.reason), v === 'ok' ? 'ok' : 'warn'); }
+    if (d.published_to) { h += note('발행: <code>' + esc(d.published_to) + '</code>'); }
+    return h;
+  }
+  function bindReimplPane() {
+    var pane = $('#paneReimpl');
+    if (!pane || pane.dataset.riBound) { return; }
+    pane.dataset.riBound = '1';
+    /* delegated like bindDbPane: the pane's innerHTML is rewritten on project switches, the binding is not */
+    pane.addEventListener('click', function (e) {
+      if (!e.target || e.target.id !== 'riRun') { return; }
+      var src = $('#riSource').value.trim(), comp = $('#riComponent').value.trim();
+      var out = $('#riOut'), stages = $('#riStages');
+      if (!src || !comp) { out.innerHTML = note('소스와 컴포넌트 경로를 입력하라.', 'warn'); return; }
+      out.innerHTML = '<div class="bts-skel" style="width:70%"></div><div class="bts-skel" style="width:50%"></div>' + note('레인 실행 중 — 두 개의 벽을 통과하는 중…', 'warn');
+      stages.innerHTML = REIMPL_STAGES.map(function (s) {
+        return '<span class="bts-stage" id="ri-st-' + s + '">' + esc(REIMPL_LABEL[s] || s) + '</span>';
+      }).join('');
+      api('/api/reimpl', { source: src, component: comp, use_llm: $('#riLlm').checked }).then(function (r) {
+        if (!r.ok || !(r.data || {}).job) { out.innerHTML = note('<b>실행 거부.</b> ' + esc((r.data || {}).error || ('HTTP ' + r.status)), 'bad'); return; }
+        var jid = r.data.job;
+        watchJobEvents(jid, function (ev, d) {
+          if (ev === 'step_end' && d.name) {
+            var at = REIMPL_FAIL_AT[d.name] || d.name;
+            var el = document.getElementById('ri-st-' + at);
+            if (el) { el.classList.add(d.ok === false ? 'fail' : 'ok'); }
+          } else if (ev === 'final') {
+            api('/api/jobs/' + encodeURIComponent(jid)).then(function (jr) {
+              var d = jr.data || {};
+              out.innerHTML = reimplVerdict(d);
+              if (d.verdict === 'ok') {
+                REIMPL_STAGES.forEach(function (s) {
+                  var e = document.getElementById('ri-st-' + s);
+                  if (e && !e.classList.contains('fail')) { e.classList.add('ok'); }
+                });
+              }
+            });
+          }
+        });
+      });
+    });
+  }
+
   /* ---------- panes ---------- */
   function risk(v) {
     var rep = v.report, s = rep.severity, f = rep.findings.slice();
@@ -618,12 +750,41 @@
         return [c.name, c.version, c.license || '<span class="sub">(unresolved)</span>', licBadge(c.category), c.source || '—'];
       }), 'No component was recorded.');
     }
-    out += heading('Policy findings', 'default policy: distribution = binary');
-    out += table(['Category', 'Severity', 'Components', 'Affected'], (l.policy || []).map(function (p) {
-      return [p.category, sevBadge(p.severity), p.count, (p.components || []).slice(0, 6).join(', ') + ((p.components || []).length > 6 ? ' …' : '')];
-    }), 'No license policy finding.');
+    out += '<div style="display:flex;gap:8px;align-items:center;margin:10px 0 2px;flex-wrap:wrap">' +
+      '<b style="font-size:12.5px">Policy findings</b>' +
+      '<select id="distSel" title="배포 모델을 바꾸면 정책 소견이 다시 계산된다" style="background:var(--dcard-bg,#161b22);border:1px solid #30363d;border-radius:6px;color:#e6edf3;font:inherit;font-size:12px;padding:3px 8px">' +
+      '<option value="binary">배포: binary</option><option value="saas">배포: saas</option><option value="internal">배포: internal</option></select>' +
+      '<span class="sub">기본값 binary — 소견은 /api/policy 로 재계산된다</span></div>';
+    out += '<div id="policyOut">' + policyBlock(l.policy || []) + '</div>';
     if ((l.unresolved || []).length) { out += heading('Unresolved', 'left unresolved on purpose, never guessed'); out += note(esc(l.unresolved.join(', '))); }
     return out;
+  }
+  function policyBlock(fs) {
+    if (!fs.length) { return note('No license policy finding.'); }
+    var h = table(['Category', 'Severity', 'Count', 'Affected / 의무'], fs.map(function (p) {
+      var right = (p.components || []).length ? (p.components.slice(0, 6).join(', ') + ((p.components || []).length > 6 ? ' …' : ''))
+                                              : (p.obligations || []).join('; ');
+      return [p.category, sevBadge(p.severity), p.count, right];
+    }));
+    h += fs.filter(function (p) { return p.detail; }).map(function (p) {
+      return note('<b>' + esc(p.category) + ':</b> ' + esc(p.detail));
+    }).join('');
+    return h;
+  }
+  function bindLicPane() {
+    var pane = document.querySelector('.rpane[data-sv="license-risk"]');
+    if (!pane || pane.dataset.licBound) { return; }
+    pane.dataset.licBound = '1';
+    pane.addEventListener('change', function (e) {
+      if (!e.target || e.target.id !== 'distSel' || !S.project) { return; }
+      var out = pane.querySelector('#policyOut');
+      if (out) { out.innerHTML = note('재계산 중…', 'warn'); }
+      api('/api/policy/' + encodeURIComponent(S.project) + '?distribution=' + encodeURIComponent(e.target.value)).then(function (r) {
+        var d = r.data || {};
+        if (!r.ok) { if (out) { out.innerHTML = note('<b>재계산 실패.</b> ' + esc(d.error || ('HTTP ' + r.status)), 'bad'); } return; }
+        if (out) { out.innerHTML = policyBlock(d.findings || []); }
+      });
+    });
   }
   function sectors(v) {
     var s = v.sectors || {}, keys = Object.keys(s);
@@ -726,11 +887,13 @@
     $('#paneSsvc').innerHTML = unavailable('SSVC', 'CISA SSVC decisions need exploitation, automatable and mission-impact inputs that this workflow does not collect.');
     $('#paneEpss').innerHTML = unavailable('EPSS', 'No EPSS feed is wired into this workflow, so a finding has no score (it is absent, not zero).');
     $('#paneExploit').innerHTML = unavailable('Exploit maturity', 'It needs exploit-database and CISA KEV matching, which this workflow does not do.');
-    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneCode: codeIntel, paneDb: dbIntel, paneSupply: supplyChain, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
+    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneCode: codeIntel, paneDb: dbIntel, paneSupply: supplyChain, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr, paneReimpl: reimplPane };
     Object.keys(map).forEach(function (id) { $('#' + id).innerHTML = v ? map[id](v) : needProject(); });
     renderHistory();
     renderGovernance();
     bindDbPane();
+    bindReimplPane();
+    bindLicPane();
   }
   function renderAll() {
     renderConsole();

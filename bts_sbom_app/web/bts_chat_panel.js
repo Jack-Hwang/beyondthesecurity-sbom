@@ -41,7 +41,9 @@
     ['아키텍처', '아키텍처 분석 결과 보여줘'],
     ['Code Intel', '코드 인텔 결과에서 복잡도와 데드코드 요약해줘'],
     ['책 검색', '책에서 fitness function 찾아줘'],
-    ['DB 질의', 'OSV 데이터베이스에서 생태계별 취약점 수 알려줘']
+    ['DB 질의', 'OSV 데이터베이스에서 생태계별 취약점 수 알려줘'],
+    ['라이선스 리스크', '이 프로젝트를 바이너리로 배포하면 라이선스 리스크는 뭐가 있어?'],
+    ['공급망 혼동', '이 프로젝트에 타이포스쿼팅 같은 공급망 혼동 위험은 없어?']
   ];
 
   /* ---------- IF-A04 slash commands + IF-B04 다음 단계 (CCD 명세, ADR-0028) ---------- */
@@ -50,11 +52,12 @@
     ['scan', '스캔 판 열기 (/scan <대상>은 입력까지 채워 ▶ Analyze까지 실행)'],
     ['oss', '📜 OSS 결과 판'], ['report', '📊 리포트 판'], ['risk', '📊 Findings 판'], ['prioritize', '🎯 SSVC 판'],
     ['arch', '🏛 Arch Intel 판'], ['code', '🔎 Code Intel 판'], ['diagrams', '🗺 Diagrams 판'], ['books', '📚 Book KB 판'],
-    ['compliance', '✅ SBOM checks 판'], ['vex', '📋 VEX·결정 판'], ['fix', '🔧 Fix Plan 판'], ['history', '⚙️ CI/CD·이력 판'], ['fleet', '🗂 Fleet 판']
+    ['compliance', '✅ SBOM checks 판'], ['vex', '📋 VEX·결정 판'], ['fix', '🔧 Fix Plan 판'], ['history', '⚙️ CI/CD·이력 판'], ['fleet', '🗂 Fleet 판'],
+    ['reimpl', '🧬 Clean-Room 재구현 워크벤치 판'], ['license-risk', '⚖ License Risk 판']
   ];
   var SLASH_GO = { scan: 'git', oss: 'oss', report: 'report', risk: 'risk', findings: 'risk', prioritize: 'ssvc',
                    arch: 'archintel', code: 'code', diagrams: 'diagrams', books: 'books', compliance: 'ntia',
-                   vex: 'vex', fix: 'fix-plan', history: 'more', fleet: 'fleet' };
+                   vex: 'vex', fix: 'fix-plan', history: 'more', fleet: 'fleet', reimpl: 'reimpl', 'license-risk': 'license-risk' };
   function openPanel(sv, noteText) {
     document.dispatchEvent(new CustomEvent('bts:activate', { detail: sv }));
     if (noteText) {
@@ -105,7 +108,8 @@
     latest_arch: ['archintel', '🏛 Arch Intel 판 보기'], book_search: ['books', '📚 Book KB 판 보기'],
     sbom_conformance: ['conformance', '📐 SBOM conformance 판 보기'], what_changed: ['changes', '🔔 What changed 판 보기'],
     coverage: ['ntia', '✅ SBOM checks 판 보기'], license_risks: ['license-risk', '⚖ License Risk 판 보기'],
-    draw_diagram: ['diagrams', '🗺 Diagrams 판 보기'], overview: ['report', '📊 Report 판 보기']
+    draw_diagram: ['diagrams', '🗺 Diagrams 판 보기'], overview: ['report', '📊 Report 판 보기'],
+    supply_chain: ['supply-chain', '⛓ Supply Chain 판 보기'], nl2sql: ['db', '🗄 DB 질의 판 보기']
   };
 
   /* ---------- DOM ---------- */

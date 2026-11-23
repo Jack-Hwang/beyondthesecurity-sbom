@@ -25,7 +25,7 @@ import re as _re
 import shutil
 import subprocess
 import sys
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from . import __version__, arch_map
 from .binscan import _LICENSE_STRINGS
@@ -204,7 +204,7 @@ def llm_generate(spec: str, client: Any, prior_fail: Optional[str] = None) -> st
                    "were:\n%s\n\nFix exactly those behaviours while keeping the rest of the contract." % prior_fail[:800])
     raw = client.complete(
         system + "\n\nRespond with ONLY valid JSON, no prose, no code fences.",
-        "SPEC:\n" + spec, max_tokens=4096, json_mode=True)
+        "SPEC:\n" + spec, max_tokens=16384, json_mode=True)   # reasoning deployments burn budget before the code
     from . import ai
     obj = ai._parse_json(raw)
     code = obj.get("code")
@@ -286,8 +286,11 @@ LEGACY_SHIM = (
     "    r = _orig(self, suite)\n"
     "    if not r.wasSuccessful():\n"
     "        sys.exit(1)\n"
+    "    return r\n"                                 # an injected main tail reads testRunner.run's result
     "unittest.TextTestRunner.run = _run\n"
-    "runpy.run_path(sys.argv[1], run_name='__main__')\n"
+    "_target = sys.argv[1]\n"
+    "sys.argv = [_target]\n"                             # a bare unittest.main() would parse the file path as a test name
+    "runpy.run_path(_target, run_name='__main__')\n"
 )
 
 
@@ -308,24 +311,90 @@ def discover_adopted_tests(source_root: str) -> Dict[str, List[str]]:
     return {"tests": tests, "data": data}
 
 
-def run_adopted_tests(work: str, adopted: Dict[str, List[str]]) -> Dict[str, Any]:
+def _reconcile_adopted_test(text: str, module_name: str) -> Tuple[str, Dict[str, Any]]:
+    """Prepare one copied upstream test for the isolated work folder (the ORIGIN file is never touched).
+
+    1. Component-import reconciliation: u-boot-style suites import the component through its package
+       (``from dtoc import src_scan``) - that binding must point at the NEW flat module, never back at the
+       original package, or the oracle would grade the original code.
+    2. Runner-tail injection: a suite collected by pytest (TestCase classes, no ``unittest.main`` call) would
+       execute ZERO tests under runpy and read as a silent pass - append a main tail so the classes actually run.
+    Returns (text, notes) where notes reports what was done, honestly."""
+    notes: Dict[str, Any] = {}
+    out_lines = []
+    for line in text.splitlines(True):
+        m = _re.match(r"^(\s*)from\s+([\w.]+)\s+import\s+(.+)$", line)
+        if m and m.group(2).split(".")[-1] != module_name:
+            names = [n.strip(" ()\t") for n in m.group(3).split(",")]
+            if module_name in names:
+                line = "%simport %s\n" % (m.group(1), module_name)
+                notes["rebound"] = True
+        m2 = _re.match(r"^(\s*)import\s+([\w.]+)\s*$", line)
+        if m2 and m2.group(2).endswith("." + module_name) and m2.group(2).split(".")[-1] == module_name:
+            line = "%simport %s\n" % (m2.group(1), module_name)
+            notes["rebound"] = True
+        out_lines.append(line)
+    text = "".join(out_lines)
+    has_cases = bool(_re.search(r"class\s+\w+\(.*(TestCase|unittest\.TestCase)", text))
+    calls_main = bool(_re.search(r"unittest\.main\s*\(", text))
+    if has_cases and not calls_main:
+        # argv[0] is the program name in unittest.main; with no further names the whole module runs
+        text += "\n\nif __name__ == \"__main__\":\n    unittest.main(argv=[\"reimpl-oracle\"], verbosity=2)\n"
+        notes["main_injected"] = True
+    if not has_cases and not calls_main:
+        notes["no_runnable_tests"] = True          # pytest-style functions or a helper module: runs zero tests
+    return text, notes
+
+
+def run_adopted_tests(work: str, adopted: Dict[str, List[str]], module_name: str = "",
+                      source_root: str = "") -> Dict[str, Any]:
     """Run the upstream (legacy) test suite inside the work folder under the compatibility shim. The
-    shim's exit code is the verdict: legacy runners often print results without exiting non-zero."""
+    shim's exit code is the verdict: legacy runners often print results without exiting non-zero.
+
+    The component's package-context imports are rebound to the NEW flat module (the oracle grades the
+    reimplementation), test-only helper packages resolve from the source tree (PYTHONPATH), and a pytest-collected
+    TestCase suite without its own main tail gets one injected - all measured on u-boot 2026-11-23, where
+    ``test_src_scan.py`` has 18 TestCase methods, no main tail, and imports ``from dtoc import src_scan``.
+    A file that would run zero tests is recorded as skipped instead of reading as a pass."""
     work = os.path.abspath(work)
     for src in adopted.get("tests", []) + adopted.get("data", []):
         shutil.copyfile(src, os.path.join(work, os.path.basename(src)))
     tails: List[str] = []
     all_ok = True
+    ran_any = False
+    skipped: List[Dict[str, str]] = []
+    env = dict(os.environ)
+    parent = os.path.dirname(os.path.abspath(source_root)) if source_root else ""
+    if parent and os.path.isdir(parent):
+        env["PYTHONPATH"] = parent + os.pathsep + env.get("PYTHONPATH", "")   # test-only helpers (u_boot_pylib), never the component
     for src in adopted.get("tests", []):
-        p = subprocess.run([sys.executable, "-X", "utf8", "-c", LEGACY_SHIM, os.path.basename(src)],
-                           capture_output=True, text=True, encoding="utf-8", timeout=TEST_TIMEOUT, cwd=work)
+        base = os.path.basename(src)
+        dst = os.path.join(work, base)
+        try:
+            text = open(src, "r", encoding="utf-8", errors="replace").read()
+            fixed, notes = _reconcile_adopted_test(text, module_name) if module_name else (text, {})
+            if notes:
+                io_wrap(dst, fixed)                    # write the reconciled COPY (the origin stays untouched)
+        except (OSError, UnicodeError):
+            notes = {}
+        p = subprocess.run([sys.executable, "-X", "utf8", "-c", LEGACY_SHIM, base],
+                           capture_output=True, text=True, encoding="utf-8", timeout=TEST_TIMEOUT, cwd=work, env=env)
         tail = ((p.stdout or "") + (p.stderr or "")).strip()[-3000:]   # the FULL failure list rides to the retry
-        tails.append("%s -> %s" % (os.path.basename(src), "OK" if p.returncode == 0 else "FAILED"))
+        m = _re.search(r"Ran (\d+) test", tail)
+        ran = int(m.group(1)) if m else 0
+        if notes.get("no_runnable_tests") or (p.returncode == 0 and ran == 0):
+            skipped.append({"file": base, "why": "no runnable unittest cases in this file"})
+            tails.append("%s -> SKIPPED (no runnable tests)" % base)
+            continue
+        ran_any = ran_any or ran > 0
+        tails.append("%s -> %s" % (base, "OK" if p.returncode == 0 else "FAILED"))
         tails.append(tail)
         if p.returncode != 0:
             all_ok = False
+    if adopted.get("tests") and not ran_any:
+        all_ok = False                                  # a suite that never ran a test cannot grade anything
     return {"ran": True, "ok": all_ok, "files": [os.path.basename(x) for x in adopted.get("tests", [])],
-            "tail": "\n".join(tails)[-3500:]}
+            "skipped": skipped, "tail": "\n".join(tails)[-3500:]}
 
 
 def _run_py(test_file: str, work: str) -> Dict[str, Any]:
@@ -465,7 +534,7 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
         if adopted.get("tests"):
             res["adopted_tests"] = {"files": [os.path.basename(x) for x in adopted["tests"]]}
             _emit(progress, "adopted_tests_running", files=len(adopted["tests"]))
-            atr = run_adopted_tests(work, adopted)
+            atr = run_adopted_tests(work, adopted, module_name=module_name, source_root=source_root)
             res["adopted_tests"].update(ok=atr["ok"], tail=atr["tail"])
             _emit(progress, "adopted_tests_passed" if atr["ok"] else "adopted_tests_failed", tail=atr["tail"][:200])
             if atr["ok"]:

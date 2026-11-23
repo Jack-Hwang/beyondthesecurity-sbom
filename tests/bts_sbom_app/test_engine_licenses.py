@@ -174,3 +174,17 @@ def test_extra_registries_switch_isolates_the_fallbacks(tmp_path, world):
     comps = [{"name": "body", "version": "5.1.0", "ecosystem": "npm"}, {"name": "org.example:lib", "version": "1.0", "ecosystem": "Maven"}]
     st = licenses.resolve(comps, str(tmp_path), online=True, extra_registries=False)
     assert st["resolved"] == 0 and not any("repo1.maven.org" in u for u in world.calls)
+
+
+def test_setup_py_disclosure_surfaces_through_the_engine(tmp_path):
+    """AC: BSA-AC-615. The roster disclosure reaches the engine's normalized scan status: a setup.py-only tree is
+    unsupported_manifest, never empty_project (u-boot's tools ship several)."""
+    from bts_sbom_app import engine
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    stub = 'from setuptools import setup\nsetup(name="x")\n'
+    (proj / "setup.py").write_text(stub, encoding="utf-8")
+    native = engine.scan(str(proj), offline=True)
+    comp = native["completeness"]["parse"]
+    assert comp["unsupported"] and comp["unsupported"][0]["path"].endswith("setup.py")
+    assert not comp["parsed_sources"]

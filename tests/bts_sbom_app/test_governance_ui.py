@@ -141,7 +141,7 @@ def test_page_loads_the_governance_scripts_in_order_and_every_id_the_scripts_rea
         assert 'class="rpane" data-sv="%s"' % sv in page
     src = open(os.path.join(WEB, "bts_console.js"), encoding="utf-8").read()
     read = {x for x in re.findall(r"""['"]#([A-Za-z][\w-]*)['"]""", src) if not re.fullmatch(r"[0-9a-fA-F]{3,8}", x)}      # '#e6edf3' is a colour
-    assert read - ids - {"scaWorkflow", "ackPlan", "sxSbomFmt", "railSessions", "chatDockBar", "chatDockQ", "dbQ", "dbQBtn", "dbSchemaBtn", "paneDbOut"} == set()   # every '#id' the glue reads exists (10 are built at run time: step bar, patch checkbox, sca_app.js select, rail session list, the chat dock's bar/input, the db pane's input/buttons/out)
+    assert read - ids - {"scaWorkflow", "ackPlan", "sxSbomFmt", "railSessions", "chatDockBar", "chatDockQ", "dbQ", "dbQBtn", "dbSchemaBtn", "paneDbOut", "riSource", "riComponent", "riRun", "riLlm", "riStages", "riOut", "distSel", "policyOut"} == set()   # every '#id' the glue reads exists (18 are built at run time: step bar, patch checkbox, sca_app.js select, rail session list, the chat dock's bar/input, the db pane's input/buttons/out, the clean-room workbench's form/stages/out, the licence pane's selector/out)
     for api in ("/api/conformance/", "/api/changes/", "/api/vex/", "/api/fleet", "/api/affected", "/api/triage"):
         assert api in src or api in open(os.path.join(WEB, "bts_governance.js"), encoding="utf-8").read()
     assert "not yet written into the OpenVEX" not in src                                   # decisions now reach the document; the old claim must be gone
@@ -440,3 +440,18 @@ def test_absent_fields_are_dashes_and_never_a_default_zero():
     assert "Statements by status" in vex and text(row_with(vex, "<td>—</td>")).split().count("—") >= 3
     fleet_rows = render("renderFleet", ok({"projects": 1, "ranking": [{"project": "p"}]}), {})
     assert text(row_with(fleet_rows, 'data-name="p"')).split()[:2] == ["1", "p"] and text(row_with(fleet_rows, 'data-name="p"')).count("—") >= 7        # 7 of 7 missing cells
+
+
+def test_clean_room_workbench_wiring_and_honest_scan_progress_are_wired():
+    """AC: BSA-AC-611, BSA-AC-612, BSA-AC-613. The clean-room workbench pane, its stage strip and the scan job's
+    live stage messaging are wired in the console glue; the pinned report banner is rewritten to an honest
+    unknown whenever the projection is not an authoritative pass."""
+    src = open(os.path.join(WEB, "bts_console.js"), encoding="utf-8").read()
+    page = open(os.path.join(WEB, "index.html"), encoding="utf-8").read()
+    assert 'data-sv="reimpl"' in page and 'id="paneReimpl"' in page
+    assert "REIMPL_STAGES" in src and "copy_gate" in src and "adopted_tests_passed" in src      # the stage strip
+    assert "REIMPL_FAIL_AT" in src and "copy_gate_failed" in src                                 # failures map onto stages
+    assert "watchJobEvents(id" in src and "'/api/jobs/'" in src                                  # the scan step bar consumes SSE
+    assert "analysis engines are running" in src                                                 # the no-event fallback stays
+    assert "Unknown — not a pass" in src and "vulnerability_presence" in src                     # the honest banner
+    assert ".sx-banner.warn" in open(os.path.join(WEB, "bts_console.css"), encoding="utf-8").read()

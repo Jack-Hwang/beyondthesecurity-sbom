@@ -879,3 +879,20 @@ loop.gate Δ≥−0.02 회귀 규칙을 지표별로 부착. ④ **HITL 액션 �
 - BSA-AC-608 [Event] When the scorecard reports tool-call accuracy and over-refusal it shall gate read accuracy >= 0.95 and over-refusal <= 5% from the live suite artifact (planner lane) while documenting the regex floor beside them, prove the write lane 1.0 by dropping every forged authorising value with no write tool offered read-only, and render evals/top10_report.md with per-metric gates and loop.gate deltas (5 of 5 metrics, 1 of 1 report).
 - BSA-AC-609 [Event] When the action runner walks the approval chain over real HTTP the positive direction shall apply the tokened plan in an isolated work copy with the record saved applied and the decision reaching .triage.json through its confirm code, and the flag-less server shall refuse the same sentence read-only - recorded replayably in evidence/chat_actions/report.json (7 of 7 steps).
 - BSA-AC-610 [Event] When the console has nothing to show yet the chat dock shall explain a fresh conversation and animate thinking with skeletons, a failed stream shall offer a retry button resending the same question, the governance cards shall load as skeletons, and an empty report tab shall say what would fill it (4 of 4 states).
+
+## u-boot 실전 E2E: 스캔 → 클린룸 워크벤치 UI → 발견 기반 고도화 (2026-11-23)
+
+u-boot v2026.10(388MB, GPL-2.0-or-later)을 실제 표적으로 전 E2E를 실측하고, 드러난 격을 메운 라운드. 실측:
+스캔 68 구성요소·43 취약점(CRITICAL 2: certifi/urllib3/jinja2 — docs·build Python 의존), 프로젝트 라이선스
+GPL-2.0-or-later(SPDX 헤더 다수결), 정책 소견 3종. 재구현은 dtoc/src_scan.py(stdlib-only)로 실 LLM 생성
+(copy gate 0.0, 계약 테스트 5/0), 원본 오라클은 u_boot_pylib의 pty 의존으로 Windows에서 임포트 실패 —
+compatibility_failed로 정직 기록. 드러난 격: 재구현이 UI가 전무했다, 스캔 진행이 초 시계뿐이었다, 0구성요소에
+녹색 통과 배너가 떴다, GPL 프로젝트 자신의 배포 의무가 어느 표면에도 없었다, setup.py가 침묵했다, adopted 테스트가
+패키지 임포트+main 꼬리 없음+헬퍼 의존으로 실제로 안 돌았다.
+
+- BSA-AC-611 [Event] When the user opens the Clean-Room pane and submits source and component the UI shall POST /api/reimpl, consume the job's SSE stream into a per-stage strip (interface, spec, diagram, code, copy gate, contract tests, adopted oracle) with failure names mapped onto their stage, and render the verdict record (copy overlap, contract tests, adopted oracle, compatibility) from the final job (9 of 9 stages, 1 of 1 verdict shape).
+- BSA-AC-612 [Event] When a scan job runs the step bar shall consume the job's SSE stream and show the live stage name with a per-stage done count instead of only elapsed seconds, falling back to the ticker when no event has arrived (2 of 2 message owners, 1 of 1 fallback).
+- BSA-AC-613 [Event] When the projected report has no authoritative pass (0 components or vulnerability presence not none) the pinned green pass banner shall be rewritten to "Unknown — not a pass" with the reason and restyled as a warning after render (2 of 2 non-authoritative shapes).
+- BSA-AC-614 [Event] When a strong-copyleft PROJECT license is screened for a binary distribution the policy findings shall include the project's own source-offer duty regardless of the dependency list (absent for internal), and GET /api/policy/<project>?distribution= shall recompute the findings for binary|saas|internal and reject others with 400 (3 of 3 distributions, 1 of 1 rejection).
+- BSA-AC-615 [Event] When a tree contains setup.py files the scanner roster shall disclose them as unsupported manifests in the completeness block instead of reporting empty_project, while a truly empty tree still reports empty_project (2 of 2 tree shapes).
+- BSA-AC-616 [Event] When the adopted upstream suite runs in the isolated work folder the lane shall rebind the component's package-context import to the NEW flat module (never the origin), resolve the suite's own helper packages from the source tree, inject a main tail for a pytest-collected TestCase suite that has none, skip a file that would run zero tests as a recorded skip instead of a silent pass, and grade honestly (the same oracle fails the original behaviour) (5 of 5 reconciliations, 1 of 1 discrimination).
