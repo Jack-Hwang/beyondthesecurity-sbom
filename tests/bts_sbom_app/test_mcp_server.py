@@ -63,10 +63,16 @@ def test_engine_status_and_project_overview_delegate_to_real_state(s):
 
 def test_book_search_finds_real_book_passages_with_provenance(s):
     """AC: BSA-AC-534"""
+    if not booksmod.load_registry(s._books_dir):          # evidence/books holds the user's own (copyrighted) books: gitignored, absent on CI
+        pytest.skip("no local book knowledge base (evidence/books); build it with `bts-sbom-app books --src <folder>`")
     res = json.loads(_rpc(s, method="tools/call", params={"name": "book_search", "arguments": {"q": "JSON-RPC tools/list"}})["result"]["content"][0]["text"])
     assert res["found"] is True and res["results"]
     top = res["results"][0]
     assert top["book"] and top["snippet"] and len(top["snippet"]) <= 240   # book provenance travels with every hit
+
+
+def test_book_search_miss_says_so_honestly(s):
+    """AC: BSA-AC-534"""
     empty = json.loads(_rpc(s, method="tools/call", params={"name": "book_search", "arguments": {"q": "zzz-nonexistent-topic-qqq"}})["result"]["content"][0]["text"])
     assert empty["found"] is False and empty["note"]                        # a miss says so honestly
 

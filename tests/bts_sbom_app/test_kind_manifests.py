@@ -43,6 +43,9 @@ def test_manifest_parses_with_kubectl_dry_run():
     kubectl = next((k for k in KUBECTL_CANDIDATES if shutil.which(k) or os.path.exists(k)), None)
     if not kubectl:
         pytest.skip("kubectl not on this host")
+    probe = subprocess.run([kubectl, "api-resources", "--request-timeout=5s"], capture_output=True, text=True, timeout=30)
+    if probe.returncode != 0:                 # kubectl is installed (CI runners have it) but no cluster answers
+        pytest.skip("no reachable cluster: `kubectl apply --dry-run=client` still needs API discovery")
     p = subprocess.run([kubectl, "apply", "--dry-run=client", "--validate=false", "-f", MANIFEST],
                        capture_output=True, text=True, timeout=60)
     assert p.returncode == 0, p.stderr
