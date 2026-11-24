@@ -2,6 +2,44 @@
 
 All notable changes to bts-sbom are documented here.
 
+## 0.5.0 - 2026-11-22: Clean-room reimplementation lane + book KB + MCP server + architecture tools
+
+- Clean-room reimplementation workbench (`bts-sbom-app reimpl` / POST /api/reimpl): interface spec ->
+  NEW code generated behind a two-wall process (the generator never sees the original source) ->
+  measured copy gate (line-shingle overlap, docstrings excluded as spec-derived) -> generated contract
+  tests + the upstream legacy suite as behaviour oracle under a legacy-runtime shim -> best-of-N
+  candidates by measured compatibility -> publish. Live SSE events for every stage.
+- Book knowledge base (two-tier extraction: stdlib EPUB spine parsing + pdftotext with honest skips;
+  serve-time-only raw index + distilled notes; eval-corpus isolation measured, ADR-0021) with a
+  book_search chat tool, /api/books registry|outline|search|ingest and a Book KB tab.
+- MCP server over stdio JSON-RPC 2.0 (`python -m bts_sbom_app mcp`): tools/list, tools/call,
+  resources/list, resources/read; tools delegate to the real modules.
+- A2A-style agent card at GET /api/agent-card: 7 skills with their real gates, honest securitySchemes.
+- Chat upgrades: multi-turn conversation memory with deterministic follow-up resolution, compound-
+  question decomposition, lost-in-the-middle passage reordering, upstream-oracle compatibility loop for
+  generated code, 7-event chat-level SSE with HITL approval, and the REAL Visual Studio layer-model
+  semantics (ForbiddenNamespace, obsolete layers, unique names, moniker ambiguity, participation
+  opt-out) adopted from the Visual Studio layer-model semantics.
+- DGML export of the measured import graph (Visual Studio Code Maps interop) with directory groups,
+  hotspot/cycle categories and a layer-validation map; supply-chain gate (docker build -> Trivy
+  CRITICAL gate -> CycloneDX SBOM -> own-repo SBOM -> /healthz bench) measured end to end.
+- Batch experiment dataset: 64 legacy PyPI packages run through the lane (146 dataset rows; latest-run
+  verdicts ok 31 / compatibility_failed 1 / tests_failed 0 of 32 laned) with the full analysis in
+  evidence/reimpl_batch/ANALYSIS.md.
+
+## 0.3.0 - 2026-11-21: Arch Intel - license verdict + AI architecture deep-dive, deterministic insights
+
+* **New: the Arch Intel screen** (`/api/arch/*`, pipeline `bts_sbom_app/arch_intel.py`, pure renderer
+  `web/arch_intel_render.js`). An open-source tree (local folder or GitHub repo) is measured - never executed -
+  and reported as a license verdict (distribution-mode checklist, compatibility matrix, notice obligations),
+  a deterministic structure view (stack, import graph, clusters, hotspots, entry points) and an EXAONE AI lane
+  that sees metadata only. Mermaid diagrams render from vendored mermaid@11.12.2 with the raw source kept in a
+  hidden pre as the fallback. Clean-room guardrails are testable invariants (ADR-0014).
+* **New: deterministic architecture insights** (`bts_sbom_app/arch_flow.py`) - flow blockers, bounded-context
+  candidates, a style hypothesis, antipattern signals and a modularity summary, each derived only from the
+  measured structure and each carrying an honesty note: a heuristic, never a verdict.
+* **New: the chat `latest_arch` tool** - the latest recorded Arch Intel run summarised from the evidence folder.
+
 ## 0.2.0 - 2026-11-17: console-encoding fix, version-metadata consistency, green CI
 
 * **Fix: `bts-sbom --help` (and every sub-command help) crashed with

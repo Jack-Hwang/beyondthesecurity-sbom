@@ -17,12 +17,21 @@ GET  /api/sbom/<project>?format=cdx|spdx|vex , GET /api/doc/<project>   -> downl
 GET|POST /api/triage                       -> "ignore with reason" decisions (stored next to the evidence; optional justification, expires, scope, by)
 GET  /api/vex/<project>                    -> OpenVEX with the triage decisions applied (fail-closed, see triage.py)
 GET  /api/coverage/<project>               -> decision coverage graph: verdict per advisory, the worklist, the decision lineage and chains
+GET  /api/policy/<project>?distribution=   -> license-policy findings recomputed for binary|saas|internal (includes the project's own copyleft duty)
 GET  /api/selfcheck/<project>              -> FOSSLight-style self-check sheet (CSV download): OSS name/version/license per component
 GET  /api/conformance/<project>            -> SBOM conformance matrix (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2, vulnerability readiness)
 GET  /api/changes/<project>                -> what changed since the previous analysis (alerts, new / resolved findings)
 GET  /api/fleet , /api/affected?cve=&component=&version=   -> portfolio roll-up, projects hit by an advisory / using a component
 GET  /api/health
+GET  /api/jobs/<id>/events                 -> the same job as Server-Sent Events (bts-sbom.events.v1, see events.py): job_start,
+                                           step_start/step_end per pipeline stage, patch_gate (when a patch was requested),
+                                           then exactly one of final/error. ``Last-Event-ID`` (or ``?after=``) resumes after
+                                           a drop; periodic heartbeat comment lines keep a quiet connection alive.
+GET  /healthz                              -> the process is alive (always 200, no checks)
+GET  /readyz                               -> the process can actually serve: evidence folder writable, core importable,
+                                           knowledge corpus present. 503 with just the failed check names if not (4-1 probes).
 *    /api/oss/...                          -> the OSS Scanner screen (oss_api.py: scan folder / archive / URL, results, reports, notice, compare)
+*    /api/arch/...                         -> the Arch Intel screen (arch_api.py: license verdict + AI architecture deep-dive of one source tree)
 Binds to 127.0.0.1 by default. There is no authentication: do not expose it beyond localhost without a reverse proxy.
 Scan sources are restricted to https/ssh/file git URLs, owner/repo shorthands and EXISTING local folders.
 """
@@ -37,16 +46,34 @@ import threading
 import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from . import __version__, actions as actionsmod, chat as chatmod, conformance, console, coverage, engine, evals, fleet, oss_api, pipeline, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, conversation, coverage, engine, events, evals, fleet, licenses, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
-from .util import read_json, write_json
+from .util import clip, read_json, write_json
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 _CTYPES = {".html": "text/html", ".js": "application/javascript", ".css": "text/css"}
 _SBOM_FILES = {"cdx": ".cdx.json", "spdx": ".spdx.json", "vex": ".vex.json"}
+# Seconds a GET /api/jobs/<id>/events connection waits for a new event before writing a heartbeat comment line.
+# A module-level name (read fresh on every wait, never captured as a default argument) so tests can shrink it.
+EVENTS_HEARTBEAT_SECONDS = 15.0
+_READYZ_PROBE_NAME = ".readyz_probe"
+MAX_BUSES = 64                                                # event buses kept in memory; the oldest CLOSED ones are dropped first
+
+
+def _prune_buses(buses: Dict[str, "events.EventBus"], keep: int) -> int:
+    """Drop the oldest closed buses until at most ``keep`` remain. A bus that is still open (its job is running) is never dropped,
+    so the cap can be exceeded by running jobs only. Returns how many were dropped."""
+    dropped = 0
+    for jid in list(buses):
+        if len(buses) <= keep:
+            break
+        bus = buses.get(jid)
+        if bus is not None and bus.closed and buses.pop(jid, None) is not None:
+            dropped += 1
+    return dropped
 # The page loads only its own files; everything it renders from analysed data is escaped, and this policy is the second line of defence.
 _CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
         "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
@@ -68,20 +95,85 @@ class State:
         self.root, self.evidence = root, evidence
         self.chat_actions = chat_actions                     # /api/chat may analyse, patch (approved) and record decisions only when the service was started so
         self.jobs: Dict[str, Dict[str, Any]] = {}
+        self.buses: Dict[str, events.EventBus] = {}           # one EventBus per job id, same lifetime as the job's entry in self.jobs
         self.lock = threading.Lock()
+        # Bulkhead + Throttling + Queue-Based Load Leveling (Azure architecture-center patterns, AC-617): one
+        # background job at a time on this single replica (0.5 vCPU) - an excess POST is refused with 429 +
+        # Retry-After instead of fan-out starving the HTTP/SSE side.
+        self.max_jobs = max(1, int(os.environ.get("BTS_SBOM_MAX_JOBS", "1")))
+        self.jobs_sem = threading.BoundedSemaphore(self.max_jobs)
+        self.draining = False                                # SIGTERM: stop accepting new jobs, finish the running ones
         if cfg:
             os.environ["BTS_SBOM_LLM_CONFIG"] = cfg
         self.client = ChatClient.from_env(ledger=os.path.join(root, "evidence", ".llm_ledger.json"))
         self.startup_client = self.client                    # a disconnect falls back to what the process was started with
         if not self.client.available:                        # the key entered in the web console survives a restart (evidence/.llm_config.json);
             saved = self.saved_llm_config()                  # an explicit startup configuration (env / --llm-config) still wins over the saved file
-            if saved.get("api_key"):
-                self.client = ChatClient.from_config(str(saved.get("api_key")), str(saved.get("base_url") or ""),
-                                                     str(saved.get("model") or ""), ledger=os.path.join(root, "evidence", ".llm_ledger.json"))
+            key = str(saved.get("api_key") or saved.get("azure_api_key") or "")   # the file may hold the Azure shape the
+            if key:                                                               # console/earlier versions wrote (user-test 2026-11-22)
+                base = str(saved.get("base_url") or saved.get("azure_base_url") or "")
+                model = str(saved.get("model") or saved.get("azure_deployment") or saved.get("azure_model") or "")
+                self.client = ChatClient.from_config(key, base, model, ledger=os.path.join(root, "evidence", ".llm_ledger.json"),
+                                                     api_version=str(saved.get("azure_api_version") or "") or None)
         self.triage_path = os.path.join(evidence, ".triage.json")
+        self._books_cache: Optional[Tuple[Optional[Tuple[int, int]], Any]] = None   # ((mtime_ns, size) of registry.json, rag.Index)
+        self.chat_memory = conversation.ConversationMemory()   # multi-turn continuity: shared across requests, per server process
+
+    def books_dir(self) -> str:
+        """The book KB is stable state, not a run artifact: it lives at <root>/evidence/books (same root-based
+        location as the LLM ledger), independent of which --evidence runs folder the service was started with."""
+        return books.books_dir(os.path.join(self.root, "evidence"))
+
+    def acquire_job(self) -> Optional[str]:
+        """Bulkhead/Throttling gate for background jobs (Azure architecture-center patterns, AC-617). Returns the
+        release callable when a slot is free and the service is not draining, else None - the route answers
+        503+Retry-After (draining) or 429+Retry-After (cap reached) instead of fanning out job threads."""
+        if self.draining:
+            return None
+        return self.jobs_sem.release if self.jobs_sem.acquire(blocking=False) else None
+
+    def begin_drain(self, timeout: float = 25.0) -> None:
+        """SIGTERM graceful drain (background-jobs best practice: stop accepting new work, finish the running
+        items). Marks the state draining, waits up to ``timeout`` for the running job slots to free, then
+        returns - the caller exits; ACA's own grace period bounds the wait in production."""
+        self.draining = True
+        if self.jobs_sem.acquire(blocking=True, timeout=timeout):
+            self.jobs_sem.release()                          # everything finished: just confirming the slot is free
+
+    def db_path(self) -> str:
+        """The local OSV database for the nl2sql lane. Resolution: the BTS_SBOM_OSV_DB_PATH env first, then the
+        repo-root default the scanner writes to (bts_sbom/_internal/osv_local_db.py:42 uses cwd - the service
+        resolves against self.root so the DB is found no matter where the server was launched from)."""
+        return os.environ.get("BTS_SBOM_OSV_DB_PATH") or os.path.join(self.root, "bts_sbom_osv_local.db")
+
+    def books_index(self):
+        """The serve-time index over the ingested books (kind="books"), built once and reused across chat requests
+        (``State.bot`` rebuilds the main index per request; the book corpus is far too large for that - ADR-0021).
+        Invalidated by the registry.json signature, so an ingest job is picked up without a server restart.
+        An empty (no registry) index is still a valid ``rag.Index``: every reader answers honestly on it."""
+        path = os.path.join(self.books_dir(), "registry.json")
+        try:
+            sig = (os.stat(path).st_mtime_ns, os.stat(path).st_size)
+        except OSError:
+            sig = None
+        with self.lock:
+            if sig is not None and self._books_cache and self._books_cache[0] == sig:
+                return self._books_cache[1]
+        idx = rag.Index(books.load_chunks(self.books_dir())) if sig is not None else rag.Index(())
+        with self.lock:
+            self._books_cache = (sig, idx)
+        return idx
+
+    def reset_books_cache(self) -> None:
+        with self.lock:
+            self._books_cache = None
 
     def _llm_config_path(self) -> str:
-        return os.path.join(self.evidence, ".llm_config.json")
+        """The saved console key is stable state, not a run artifact: it lives at <root>/evidence/.llm_config.json
+        (the same root-based location as the LLM ledger), so a server started with the default --evidence runs
+        folder still finds the key the user chose to keep. Bug found in the user test 2026-11-22: the lookup used
+        the --evidence runs folder and silently disconnected every restart that did not pass --evidence evidence."""
+        return os.path.join(self.root, "evidence", ".llm_config.json")
 
     def saved_llm_config(self) -> Dict[str, Any]:
         """The key the user entered in the web console and chose to keep (evidence/.llm_config.json, plain text - the evidence folder is local)."""
@@ -98,7 +190,7 @@ class State:
         with self.lock:
             self.client = c
             if remember:
-                os.makedirs(self.evidence, exist_ok=True)
+                os.makedirs(os.path.dirname(self._llm_config_path()), exist_ok=True)
                 write_json(self._llm_config_path(), {"api_key": key, **({"base_url": base} if base else {}), **({"model": model} if model else {})})
         return self.llm_status()
 
@@ -127,7 +219,19 @@ class State:
         projs = load_projects(self.evidence)
         client = self.client if self.client.available else None
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
-        return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs)), projs, client, acts, self.triage())
+        return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
+                               projs, client, acts, self.triage(),
+                               arch_dir=os.path.join(self.evidence, "archintel"), books=self.books_index(),
+                               memory=self.chat_memory, db_path=self.db_path())
+
+    def stream_bot(self, sink: Any) -> chat_stream.StreamingChatbot:
+        """The same wiring as :meth:`bot`, as the observing subclass: the 7 chat-level events go to ``sink``."""
+        projs = load_projects(self.evidence)
+        client = self.client if self.client.available else None
+        acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
+        return chat_stream.StreamingChatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
+                                            projs, client, acts, self.triage(), arch_dir=os.path.join(self.evidence, "archintel"), db_path=self.db_path(),
+                                            books=self.books_index(), memory=self.chat_memory, sink=sink)
 
     def triage(self) -> Dict[str, Any]:
         with self.lock:
@@ -175,8 +279,78 @@ def _mtime_iso(path: str) -> Optional[str]:
         return None
 
 
+def agent_card(st: "State") -> Dict[str, Any]:
+    """A2A-style agent card (Building Agentic AI Systems, brief-5 books): machine-readable discovery of THIS
+    agent's skills, gates and endpoints. A card declares capability, not state - readiness is /readyz, and the
+    honesty rules apply here too (securitySchemes says plainly that there is none on localhost)."""
+    return {
+        "name": "bts-sbom", "version": __version__,
+        "description": "Open-source vulnerability / license / SBOM analyzer with an approval-gated patch loop, "
+                       "a deterministic license council, a grounded chatbot and a book knowledge base.",
+        "url": "http://127.0.0.1", "protocolVersion": "bts-sbom.card.v1",
+        "capabilities": {"streaming": True, "pushNotifications": False, "stateTransitionHistory": False},
+        "securitySchemes": {"none": {"type": "none", "description": "localhost only, no authentication - do not expose beyond loopback (docs/RUNBOOK.md)"}},
+        "handoffSchema": "bts-sbom.handoff.v1",
+        "skills": [
+            {"id": "scan", "name": "Analyze a source", "gate": "none",
+             "description": "git URL / owner-repo / local folder -> components, CVEs, licenses, SBOM, VEX, architecture; the record feeds every other skill.",
+             "inputModes": ["git-url", "owner-repo", "local-path", "archive"], "outputModes": ["project-record", "sse-job-events"]},
+            {"id": "patch", "name": "Propose and apply upgrades", "gate": "approval-token",
+             "description": "plan -> 16-hex approval token -> apply in an isolated work copy with regression check; the token must be text the USER typed.",
+             "inputModes": ["plan-preview", "approval-token"], "outputModes": ["patch-result", "sse-job-events"]},
+            {"id": "license_council", "name": "Multi-member license verdict", "gate": "deterministic-aggregation",
+             "description": "3 independent LLM members + deterministic verdict code; member failures surface as a recoverable/fatal error envelope (handoff.v1).",
+             "inputModes": ["license-text"], "outputModes": ["verdict", "error-envelope"]},
+            {"id": "chat", "name": "Grounded chatbot", "gate": "citation-verification",
+             "description": "tool-routed answers with verified claims; untrusted quotes are marked verbatim; streams 7 chat-level event kinds.",
+             "inputModes": ["text"], "outputModes": ["answer-claims", "sse-chat-events"]},
+            {"id": "book_search", "name": "Book knowledge base", "gate": "serve-time-index",
+             "description": "search the ingested local book library (deterministic extraction, distilled notes; ADR-0021).",
+             "inputModes": ["text-query"], "outputModes": ["passages"]},
+            {"id": "nl2sql", "name": "Read-only text-to-SQL", "gate": "3-layer-safety",
+             "description": "natural-language questions over the local OSV mirror; tokenizer validator + read-only connection + 4-state executor.",
+             "inputModes": ["text-query"], "outputModes": ["rows-or-4-state"]},
+            {"id": "supply_chain_gate", "name": "Self supply-chain gate", "gate": "trivy-critical-0",
+             "description": "build -> Trivy CRITICAL gate -> CycloneDX SBOM -> own-repo SBOM -> serving bench (scripts/supply_chain_gate.py).",
+             "inputModes": ["none"], "outputModes": ["gate-report"]},
+        ],
+        "endpoints": {"/api/chat": "POST answer", "/api/chat/stream": "POST sse-7-events", "/api/scan": "POST job",
+                      "/api/jobs/<id>/events": "GET sse-job-events", "/api/books/search": "GET passages",
+                      "/api/books/ingest": "POST job", "/api/oss/scan": "POST oss-scan-job",
+                      "mcp": "stdio via: python -m bts_sbom_app mcp"},
+    }
+
+
 def _record_file(folder: str) -> str:
     return os.path.join(folder, os.path.basename(folder) + ".json")
+
+
+def readyz_checks(st: "State") -> List[str]:
+    """Names of the readiness probes that fail right now (empty list = ready). Each probe reports only its own name:
+    paths, exception text and other internals never reach the caller (this answers an unauthenticated GET)."""
+    failed: List[str] = []
+    try:
+        os.makedirs(st.evidence, exist_ok=True)
+        # A name unique to this call/thread: concurrent /readyz requests (the Docker HEALTHCHECK and a human curious
+        # at the same moment, say) must never race on the same probe file and have one's os.remove fail because the
+        # other already deleted it.
+        probe = os.path.join(st.evidence, "%s.%d.%d" % (_READYZ_PROBE_NAME, os.getpid(), threading.get_ident()))
+        with open(probe, "w", encoding="utf-8") as fh:
+            fh.write("ok")
+        os.remove(probe)
+    except OSError:
+        failed.append("evidence_writable")
+    try:
+        engine.core_version()
+    except Exception:                                             # noqa: BLE001 - readiness probe: name only, never the exception
+        failed.append("core_import")
+    try:
+        kdir = os.path.join(evals.repo_root(), "knowledge")
+        if not (os.path.isdir(kdir) and os.listdir(kdir)):
+            failed.append("knowledge_corpus")
+    except OSError:
+        failed.append("knowledge_corpus")
+    return failed
 
 
 def _history_row(name: str, folder: str, rec: Dict[str, Any]) -> Dict[str, Any]:
@@ -197,12 +371,16 @@ def make_handler(st: State):
         def log_message(self, *a: Any) -> None:
             pass
 
-        def _emit(self, code: int, body: bytes, ctype: str, headers: Optional[Dict[str, str]] = None) -> None:
+        def _emit(self, code: int, body: bytes, ctype: str, headers: Optional[Dict[str, str]] = None,
+                  cache: Optional[str] = None) -> None:
             self.send_response(code)
             self.send_header("Content-Type", ctype + "; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
+            # api-implementation best practice (AC-618): mutable API responses are never cached; served files
+            # (downloads, static assets) are immutable for the revision's lifetime, so a short max-age is safe
+            self.send_header("Cache-Control", cache or "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Correlation-ID", getattr(self, "_cid", "") or "-")
             if ctype == "text/html":
                 self.send_header("Content-Security-Policy", _CSP)
             for k, v in (headers or {}).items():
@@ -218,7 +396,7 @@ def make_handler(st: State):
             ctype = _CTYPES.get(os.path.splitext(path)[1], "application/octet-stream")
             try:
                 with open(path, "rb") as fh:
-                    self._emit(200, fh.read(), ctype)
+                    self._emit(200, fh.read(), ctype, cache="public, max-age=60")
             except OSError:
                 self._send(404, {"error": "not found"})
 
@@ -250,7 +428,75 @@ def make_handler(st: State):
                 self._send(code, obj, ctype, headers)
             return True
 
+        def _arch(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
+            """The Arch Intel screen's API (arch_api.py); False when the path is not one of its routes."""
+            hit = arch_api.route(method, path, q, body, self.headers, st, bind=tuple(self.server.server_address[:2]))
+            if hit is None:
+                return False
+            code, obj, ctype, headers = hit
+            if isinstance(obj, (bytes, bytearray)):
+                self._emit(code, bytes(obj), ctype, headers)
+            else:
+                self._send(code, obj, ctype, headers)
+            return True
+
+        def _books(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
+            """The Book KB screen's API (books_api.py); False when the path is not one of its routes."""
+            hit = books_api.route(method, path, q, body, self.headers, st, bind=tuple(self.server.server_address[:2]))
+            if hit is None:
+                return False
+            code, obj, ctype, headers = hit
+            if isinstance(obj, (bytes, bytearray)):
+                self._emit(code, bytes(obj), ctype, headers)
+            else:
+                self._send(code, obj, ctype, headers)
+            return True
+
+        def _serve_events(self, jid: str, q: Dict[str, Any]) -> None:
+            """GET /api/jobs/<jid>/events as text/event-stream. Unknown job -> plain 404 JSON (never a stream).
+            Resumes after ``Last-Event-ID`` (header takes precedence over ``?after=``); heartbeats keep an idle
+            connection open; the stream ends for good right after a final/error event."""
+            bus = st.buses.get(jid)
+            if bus is None:
+                return self._send(404, {"error": "unknown job"})
+            try:
+                after = int(self.headers.get("Last-Event-ID") or (q.get("after") or ["0"])[0])
+            except (TypeError, ValueError):
+                after = 0
+            try:
+                bus.subscribe()
+            except events.TooManySubscribers:
+                return self._send(503, {"error": "too many event subscribers for this job (max %d)" % events.EventBus.MAX_SUBSCRIBERS})
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                for item in bus.iter_events(after_seq=after, timeout=EVENTS_HEARTBEAT_SECONDS):
+                    chunk = b": heartbeat\n\n" if item is None else events.format_sse(item).encode("utf-8")
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass                                               # the reader went away mid-stream: nothing left to do
+            finally:
+                bus.unsubscribe()
+
         def do_GET(self) -> None:                                    # noqa: N802
+            self._cid = uuid.uuid4().hex[:12]
+            try:
+                self._do_get()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass                                                 # the client went away mid-response: nothing to answer
+            except Exception:
+                import traceback
+                traceback.print_exc()                                # server log only - never the response body
+                try:
+                    self._send(500, {"error": "internal error", "correlation_id": self._cid})
+                except OSError:
+                    pass
+
+        def _do_get(self) -> None:
             u = urllib.parse.urlsplit(self.path)
             path, q = u.path, urllib.parse.parse_qs(u.query)
             if path in ("/", "/index.html"):
@@ -259,6 +505,11 @@ def make_handler(st: State):
                 files = static_files()
                 rel = urllib.parse.unquote(path[len("/static/"):])
                 return self._file(files[rel]) if rel in files else self._send(404, {"error": "not found"})
+            if path == "/healthz":
+                return self._send(200, {"ok": True})
+            if path == "/readyz":
+                failed = readyz_checks(st)
+                return self._send(503 if failed else 200, {"ready": not failed, "failed": failed})
             if path == "/api/health":
                 return self._send(200, {"ok": True, "llm": st.client.describe()})
             if path == "/api/llm":
@@ -270,6 +521,8 @@ def make_handler(st: State):
                     core = {"error": str(exc)}
                 return self._send(200, {"name": "BTS-SBOM", "workflow_version": __version__, "core": core, "llm": st.client.describe(),
                                         "evidence": st.evidence, "projects": len(project_records(st.evidence))})
+            if path == "/api/agent-card":
+                return self._send(200, agent_card(st))
             if path == "/api/projects":
                 return self._send(200, {"projects": sorted(load_projects(st.evidence))})
             if path == "/api/history":
@@ -291,7 +544,7 @@ def make_handler(st: State):
                                                           version=(q.get("version") or [None])[0]))
                 except ValueError as exc:
                     return self._send(400, {"error": str(exc)})
-            for prefix in ("/api/conformance/", "/api/changes/", "/api/vex/", "/api/coverage/"):
+            for prefix in ("/api/conformance/", "/api/changes/", "/api/vex/", "/api/coverage/", "/api/policy/"):
                 if path.startswith(prefix):
                     hit = st.project(urllib.parse.unquote(path[len(prefix):]))
                     if hit is None:
@@ -299,15 +552,98 @@ def make_handler(st: State):
                     folder, rec = hit
                     if prefix == "/api/coverage/":
                         return self._send(200, coverage.build(rec, st.triage()))
+                    if prefix == "/api/policy/":
+                        # license-policy findings recomputed for a distribution model (the pane's selector);
+                        # includes the project's OWN copyleft duty (u-boot measured 2026-11-23)
+                        dist = (q.get("distribution") or ["binary"])[0]
+                        if dist not in ("binary", "saas", "internal"):
+                            return self._send(400, {"error": "distribution must be binary|saas|internal"})
+                        lic = rec.get("license") or {}
+                        return self._send(200, {"project": rec["name"], "distribution": dist,
+                                                "project_license": lic.get("project_license"),
+                                                "findings": licenses.policy_findings(rec.get("components") or [],
+                                                                                     {"distribution": dist},
+                                                                                     lic.get("project_license") or "")})
                     if prefix == "/api/vex/":
                         return self._send(200, sbom.openvex(rec["name"], rec.get("vulns") or [], triage=st.triage()), "application/json")
                     if prefix == "/api/changes/":
                         return self._send(200, rec.get("changes") or {"note": "no earlier analysis of this project was recorded"})
                     doc, note = conformance.load_document(_record_file(folder))
                     return self._send(200 if doc else 404, conformance.evaluate(doc) if doc else {"error": note})
+            if path.startswith("/api/arch/jobs/") and path.endswith("/events"):
+                jid = path[len("/api/arch/jobs/"):-len("/events")].strip("/")
+                return arch_api.serve_events(st, self, jid, q)
+            if path.startswith("/api/jobs/") and path.endswith("/events"):
+                jid = path[len("/api/jobs/"):-len("/events")].strip("/")
+                return self._serve_events(jid, q)
             if path.startswith("/api/jobs/"):
                 j = st.jobs.get(path.rsplit("/", 1)[-1])
                 return self._send(200 if j else 404, j or {"error": "unknown job"})
+            if path.startswith("/api/db/schema"):
+                dbp = st.db_path()
+                if not os.path.exists(dbp):
+                    return self._send(404, {"error": "the local OSV database is not present - build it with the scanner or set BTS_SBOM_OSV_DB_PATH"})
+                from . import nl2sql as nl2sql_mod
+                import sqlite3 as _sq
+                conn = _sq.connect("file:%s?mode=ro" % dbp.replace("\\", "/"), uri=True)
+                try:
+                    tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+                    out = {}
+                    for tb in tables:
+                        out[tb] = conn.execute("SELECT COUNT(*) FROM %s" % tb).fetchone()[0]
+                finally:
+                    conn.close()
+                return self._send(200, {"db": dbp, "tables": out})
+            if path.startswith("/api/code-metrics/"):
+                hit = st.project(urllib.parse.unquote(path[len("/api/code-metrics/"):]))
+                if hit is None:
+                    return self._send(404, {"error": "unknown project"})
+                folder, rec = hit
+                fns = ((rec.get("arch") or {}).get("code") or {}).get("functions") or []
+                if not fns:
+                    return self._send(404, {"error": "this project has no function-level analysis (Python-only lane)"})
+                head = "name,file,line,complexity,nesting,loc,sloc,fan_in,fan_out"
+                rows = "\n".join(",".join(str(f.get(k)) for k in
+                                          ("name", "file", "line", "complexity", "nesting", "loc", "sloc", "fan_in", "fan_out"))
+                                 for f in fns)
+                return self._send(200, head + "\n" + rows, "text/csv",
+                                  {"Content-Disposition": 'attachment; filename="%s-code-metrics.csv"' % rec.get("name", "project")})
+            if path.startswith("/api/code-butterfly/"):
+                hit = st.project(urllib.parse.unquote(path[len("/api/code-butterfly/"):]))
+                if hit is None:
+                    return self._send(404, {"error": "unknown project"})
+                folder, rec = hit
+                code = (rec.get("arch") or {}).get("code") or {}
+                fname = (q.get("function") or [""])[0].strip()
+                if not fname:
+                    return self._send(400, {"error": "function required (?function=<name>)"})
+                try:
+                    from . import code_intel as _ci
+                    bf = _ci.butterfly(code, fname)
+                except ImportError:
+                    bf = None
+                if bf is None:
+                    return self._send(404, {"error": "unknown function %r in this project's code intel" % fname})
+                return self._send(200, bf)
+            if path == "/api/diagrams":                              # the EA-17.2 catalog (ADR-0024): no project needed
+                from . import diagrams as _dg
+                return self._send(200, {"catalog": _dg.catalog_doc()})
+            if path.startswith("/api/diagrams/"):
+                from . import diagrams as _dg
+                kind = urllib.parse.unquote(path[len("/api/diagrams/"):]).strip().lower()
+                if kind not in _dg.CATALOG:
+                    return self._send(404, {"error": "unknown diagram kind %r (GET /api/diagrams lists the catalog)" % kind})
+                rec = None
+                pname = (q.get("project") or [""])[0]
+                if pname:
+                    hit = st.project(urllib.parse.unquote(pname))
+                    if hit is None:
+                        return self._send(404, {"error": "unknown project"})
+                    rec = hit[1]
+                arch_dir = os.path.join(st.evidence, "archintel")
+                doc = _dg.latest_arch_doc(arch_dir) if _dg.CATALOG[kind].get("arch_doc") else None
+                d = _dg.build(kind, rec, doc, target=(q.get("target") or [""])[0], spec=(q.get("spec") or [""])[0][:400])
+                return self._send(200, d)
             for prefix in ("/api/view/", "/api/sbom/", "/api/doc/"):
                 if path.startswith(prefix):
                     name = urllib.parse.unquote(path[len(prefix):])
@@ -331,14 +667,43 @@ def make_handler(st: State):
                     return self._send(200, doc, "application/json", {"Content-Disposition": 'attachment; filename="%s.%s.json"' % (base, fmt)})
             if self._oss("GET", path, q, {}):
                 return
+            if self._arch("GET", path, q, {}):
+                return
+            if self._books("GET", path, q, {}):
+                return
             self._send(404, {"error": "not found"})
 
         def do_POST(self) -> None:                                   # noqa: N802
+            self._cid = uuid.uuid4().hex[:12]
+            try:
+                self._do_post()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass                                                 # the client went away mid-response: nothing to answer
+            except Exception:
+                import traceback
+                traceback.print_exc()                                # server log only - never the response body
+                try:
+                    self._send(500, {"error": "internal error", "correlation_id": self._cid})
+                except OSError:
+                    pass
+
+        def _do_post(self) -> None:
             try:
                 b = self._body()
             except _BadBody as exc:
                 return self._send(exc.code, {"error": str(exc)})
             path = urllib.parse.urlsplit(self.path).path
+            if path.startswith("/api/db/query"):
+                dbp = st.db_path()
+                if not os.path.exists(dbp):
+                    return self._send(404, {"error": "the local OSV database is not present - build it with the scanner or set BTS_SBOM_OSV_DB_PATH"})
+                question = (b.get("q") or "").strip()
+                if not question:
+                    return self._send(400, {"error": "q required"})
+                from . import nl2sql as nl2sql_mod
+                client = st.client if st.client.available else None
+                res = nl2sql_mod.answer(question, db_path=dbp, client=client)
+                return self._send(200, res)
             if path == "/api/triage":
                 key, status, note = b.get("check_id"), b.get("status"), b.get("note")
                 bad = console.valid_triage(key, status, note) or triagemod.check_extras(b.get("justification"), b.get("expires"), b.get("scope"), b.get("by"))
@@ -360,26 +725,69 @@ def make_handler(st: State):
                 if approved and not (isinstance(token, str) and token.strip()):
                     return self._send(400, {"error": "approved needs approval_token: the digest of the plan you reviewed (from a patch run without approval)"})
                 jid = uuid.uuid4().hex[:10]
+                release = st.acquire_job()
+                if release is None:                                   # bulkhead/throttle: one job at a time, or draining
+                    if st.draining:
+                        return self._send(503, {"error": "the service is draining - new jobs are not accepted", "job": None},
+                                          headers={"Retry-After": "60"})
+                    return self._send(429, {"error": "another background job is running on this single-replica service - retry shortly",
+                                            "job": None}, headers={"Retry-After": "30"})
                 st.jobs[jid] = {"state": "running", "source": src}
+                bus = events.EventBus(jid)
+                _prune_buses(st.buses, MAX_BUSES - 1)
+                st.buses[jid] = bus                                   # registered before the thread starts: an immediate GET .../events never 404s
+
+                def on_progress(event_type: str, name: str, **fields: Any) -> None:
+                    bus.publish(event_type, name=name, **fields)
 
                 def work() -> None:
+                    try:
+                        _scan_work()
+                    finally:
+                        release()
+
+                def _scan_work() -> None:
                     wdir = tempfile.mkdtemp(prefix="bts_sbom_job_")
                     keep = False
                     final: Dict[str, Any]
                     try:
+                        bus.publish("job_start", source=src)
+                    except Exception:                                 # noqa: BLE001 - the job must run even if its own telemetry cannot
+                        pass
+                    try:
                         rec = pipeline.run_project(src, work_root=wdir, out_dir=st.evidence, patch=patch, approved=approved,
                                                    approval_token=token.strip() if approved else None, offline=bool(b.get("offline")),
                                                    use_llm=bool(b.get("use_llm")), client=st.client if st.client.available else None,
-                                                   cache_dir=os.path.join(st.root, "evidence", "cache"))
+                                                   cache_dir=os.path.join(st.root, "evidence", "cache"), progress=on_progress)
                         keep = bool(patch and approved and (rec.get("patch") or {}).get("status") == "applied")
                         final = {"state": "error" if rec.get("error") else "done", "source": src, "name": rec.get("name"),
                                  "error": rec.get("error"), "metrics": rec.get("metrics"), "artifacts": rec.get("artifacts"),
                                  "stage_errors": rec.get("stage_errors"), "work_copy": wdir if keep else None}
+                        try:
+                            pstatus = (rec.get("patch") or {}).get("status")
+                            if patch and pstatus:                     # one patch_gate event, only when a patch was actually requested
+                                if pstatus == "not_approved":
+                                    bus.publish("patch_gate", state="awaiting_approval", digest=rec["patch"].get("digest"))
+                                elif pstatus != "not_requested":
+                                    bus.publish("patch_gate", state="approved")
+                            if rec.get("error"):
+                                bus.publish("error", error_type="analysis_error", severity="high", retryable=False,
+                                            recovery_hint=clip(rec["error"], 200))
+                            else:
+                                bus.publish("final", state="done")
+                        except Exception:                             # noqa: BLE001 - telemetry must never mask the real result below
+                            pass
                     except Exception as exc:                          # noqa: BLE001
                         final = {"state": "error", "source": src, "error": "%s: %s" % (type(exc).__name__, str(exc)[:200])}
+                        try:
+                            bus.publish("error", error_type=type(exc).__name__, severity="high", retryable=False,
+                                        recovery_hint=clip(str(exc), 200))
+                        except Exception:                             # noqa: BLE001
+                            pass
                     finally:
                         if not keep:                                  # an applied patch lives in the work copy, so only that one is kept
                             shutil.rmtree(wdir, onerror=workspace._force_remove)
+                        bus.close()                                    # safety net: idempotent if final/error already closed it
                     st.jobs[jid] = final                              # published only after the clean-up: "done" implies the copy is gone
 
                 threading.Thread(target=work, daemon=True).start()
@@ -389,6 +797,103 @@ def make_handler(st: State):
                 if not q:
                     return self._send(400, {"error": "question required"})
                 return self._send(200, st.bot().ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm"))))
+            if path == "/api/chat/stream":
+                q = str(b.get("question") or "").strip()
+                if not q:
+                    return self._send(400, {"error": "question required"})
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+
+                def sink(ev: Dict[str, Any]) -> None:      # live flush per event; a gone reader must not fail the turn
+                    try:
+                        self.wfile.write(chat_stream.format_stream_sse(ev).encode("utf-8"))
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError, OSError):
+                        pass
+
+                try:
+                    st.stream_bot(sink).ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
+                except Exception:                          # noqa: BLE001 - the bot already emitted its fatal error envelope
+                    pass
+                return
+            if path == "/api/reimpl":
+                # the clean-room lane (brief 6): source -> interface spec + diagram -> NEW code -> copy gate ->
+                # generated tests. Artifacts land under evidence/reimpl/<job>; publish is CLI-only (an HTTP
+                # caller must not choose filesystem destinations). Live via the job's SSE stream.
+                src = str(b.get("source") or "")
+                bad = _safe_source(src)
+                if bad:
+                    return self._send(400, {"error": bad})
+                comp = str(b.get("component") or "").strip()
+                if not comp or comp.startswith("/") or ".." in comp:
+                    return self._send(400, {"error": "component required (a module path inside the source, no traversal)"})
+                jid = uuid.uuid4().hex[:10]
+                release = st.acquire_job()
+                if release is None:
+                    if st.draining:
+                        return self._send(503, {"error": "the service is draining - new jobs are not accepted"},
+                                          headers={"Retry-After": "60"})
+                    return self._send(429, {"error": "another background job is running on this single-replica service - retry shortly"},
+                                      headers={"Retry-After": "30"})
+                st.jobs[jid] = {"state": "running", "kind": "reimpl", "source": src, "component": comp}
+                bus = events.EventBus(jid)
+                _prune_buses(st.buses, MAX_BUSES - 1)
+                st.buses[jid] = bus
+
+                def work() -> None:
+                    try:
+                        _reimpl_work()
+                    finally:
+                        release()
+
+                def _reimpl_work() -> None:
+                    from . import reimpl as reimpl_mod
+                    out = os.path.join(st.evidence, "reimpl", jid)
+                    final: Dict[str, Any]
+
+                    def on_progress(ev: Dict[str, Any]) -> None:
+                        try:
+                            ok = not ev["event"].endswith("_failed") and ev["event"] not in ("refused", "copy_gate_failed", "publish_refused")
+                            bus.publish("step_end", name=ev["event"], ok=ok, seconds=0.0)
+                        except Exception:                      # noqa: BLE001 - telemetry never kills the lane
+                            pass
+
+                    try:
+                        client = st.client if (st.client.available and bool(b.get("use_llm"))) else None
+
+                        def patterns_provider(iface: Dict[str, Any]) -> Dict[str, Any]:
+                            """Two-tier inference (AC-619): the merged book+notes index first, the deployment
+                            model's own knowledge as the fallback tier when the books don't cover the domain."""
+                            if not bool(b.get("patterns", True)):
+                                return {"tier": "none", "queries": [], "patterns": [], "book_hits": 0}
+                            try:
+                                chunks = books.load_chunks(st.books_dir()) + books.load_notes(st.root)
+                                idx = rag.Index(chunks) if chunks else None
+                            except Exception:                  # noqa: BLE001 - no KB: tier "model" still stands
+                                idx = None
+                            return reimpl_mod.infer_patterns(iface, book_index=idx,
+                                                             client=client if client is not None else None)
+
+                        final = reimpl_mod.reimpl(src, comp, out, client=client,
+                                                  license_ok=bool(b.get("license_ok", True)),
+                                                  why=str(b.get("why") or "compliance-risky license (clean-room reimplementation)"),
+                                                  patterns_provider=patterns_provider if client is not None else None,
+                                                  progress=on_progress)
+                    except Exception as exc:                   # noqa: BLE001 - the job reports, it never vanishes
+                        final = {"verdict": "error", "reason": str(exc)[:200]}
+                    try:
+                        bus.publish("final", state=final.get("verdict", "error"))
+                    except Exception:                          # noqa: BLE001
+                        pass
+                    st.jobs[jid] = dict(final, state=("done" if final.get("verdict") == "ok" else "error"),
+                                        kind="reimpl", source=src, component=comp)
+                    bus.close()
+
+                threading.Thread(target=work, daemon=True).start()
+                return self._send(202, {"job": jid})
             if path == "/api/llm":
                 key = str(b.get("api_key") or "").strip()
                 base = str(b.get("base_url") or "").strip()
@@ -401,6 +906,10 @@ def make_handler(st: State):
                 return self._send(200, {"ok": True, "llm": st.clear_llm()})
             if self._oss("POST", path, {}, b):
                 return
+            if self._arch("POST", path, {}, b):
+                return
+            if self._books("POST", path, {}, b):
+                return
             self._send(404, {"error": "not found"})
 
     return H
@@ -410,8 +919,21 @@ def serve(root: str, host: str, port: int, evidence: str, cfg: Optional[str] = N
     st = State(root, evidence, cfg, chat_actions)
     httpd = ThreadingHTTPServer((host, port), make_handler(st))
     print("BTS-SBOM serving on http://%s:%d (evidence: %s)" % (host, port, evidence), flush=True)
+
+    def _sigterm(signum: int, frame: Any) -> None:
+        # background-jobs best practice (AC-618): stop accepting NEW jobs, let the running one finish inside the
+        # platform's grace period, then exit. A full checkpoint/resume would be the production-grade version.
+        st.begin_drain(timeout=20.0)
+        threading.Thread(target=httpd.shutdown, daemon=True).start()
+
+    try:
+        import signal
+        signal.signal(signal.SIGTERM, _sigterm)                   # ACA's stop signal; local Ctrl-C keeps its hard interrupt
+    except (ValueError, OSError):                                 # not the main thread / restricted platform
+        pass
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         pass
+    httpd.server_close()
     return 0

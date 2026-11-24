@@ -13,7 +13,7 @@ standard library (Python >= 3.10). The package can prove it:
 
 ```console
 $ python -m bts_sbom selfsbom
-{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.2.0", "dependsOn": [] }],
+{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.5.0", "dependsOn": [] }],
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
 
@@ -45,6 +45,75 @@ library only, binds to localhost and shows what BTS-SBOM did not compute as abse
 
 _The screenshots show a demo workspace of three small projects pinned to old dependency versions (captured 2026-11-21). The advisories are real
 [OSV.dev](https://osv.dev) results for those versions at that time; the project names and the decisions in the VEX screenshot are illustrative._
+
+## What's new since 0.5.0 (unreleased) — u-boot clean-room E2E + workbench UI + honest banners
+
+- **u-boot v2026.10 real-world E2E** (`evidence/uboot_e2e/E2E.md`): scanned 68 components / 43 advisories
+  (CRITICAL certifi, urllib3, jinja2) out of a 388 MB C tree, project license GPL-2.0-or-later from SPDX-header
+  majority; clean-room lane really generated `tools/dtoc/src_scan.py` from the spec (copy gate 0.0, contract
+  tests 5/0) and graded the upstream oracle honestly (compatibility_failed: the suite's helper needs POSIX pty).
+- **Clean-Room workbench pane** (🧬 Clean-Room): POST /api/reimpl + job SSE rendered as a per-stage strip
+  (interface → spec → code → copy gate → contract tests → adopted oracle) with the verdict record.
+- **Live scan progress**: the step bar consumes the job's SSE stream (stage names + done counts) instead of only
+  ticking seconds; the honest "Unknown — not a pass" banner replaces a green pass on 0-component/unknown runs.
+- **The project's own copyleft duty**: a GPL project screened for binary distribution now yields the
+  source-offer finding (u-boot's duty was invisible before); the License Risk pane gains a distribution selector
+  (GET /api/policy/<project>?distribution=); setup.py manifests are disclosed, never silent.
+- **Adopted-oracle hardening**: package-context imports rebind to the NEW module, helper packages resolve from
+  the source tree, mainless TestCase suites get a runner tail injected, zero-test files are recorded skips, and
+  the generation budget covers reasoning deployments (16384).
+
+## What's new since 0.5.0 (unreleased) — chat quality gates + the approval loop + supply-chain pane
+
+- **Chat 품질 TOP-10 스코어카드** (`python -m bts_sbom_app.evals_top10`, `evals/top10_report.md`): grounding F
+  (claim support × source coverage), completeness of procedure answers, tool-call accuracy from the live suite
+  log, forged-write blocking, and the over-refusal rate - each with its gate and a per-metric loop.gate delta
+  (>= -0.02). No LLM judge: grounding is quote-in-document computation.
+- **HITL approval chain as replayable evidence** (`scripts/chat_actions_run.py`,
+  `evidence/chat_actions/report.json`): analyse -> plan + 16-hex token -> approve -> applied in an isolated work
+  copy -> record -> VEX decision preview -> 12-hex confirm code -> .triage.json, plus the flag-off server
+  refusing read-only. 7 of 7 steps over real HTTP.
+- **Supply-chain substitution risks wired in**: the core analyzer (typosquatting, npm namespace confusion,
+  dependency confusion) now runs in the pipeline, answers the `supply_chain` chat tool, and renders in the
+  ⛓ Supply Chain pane.
+- **NL2SQL chat lane + DB query pane** (AC-602..604): natural-language questions over the local OSV database
+  (`POST /api/db/query`, `GET /api/db/schema`, 🗄 DB 질의 pane, dock chip), seeded from scan evidence
+  (`scripts/seed_osv_local_db.py`).
+- **Console UI states**: fresh-conversation hint and thinking skeletons in the chat dock, a retry button after a
+  failed stream, skeleton loaders on the governance cards, and an honest empty state for the report tab.
+
+## What's new in 0.5.0 — clean-room reimplementation + architecture tools
+
+The headline of this release: the toolkit no longer only *scans* — it can now **re-implement** a
+compliance-risky legacy component from its measured architecture, prove the result, and publish it:
+
+- **Clean-room reimplementation workbench** (`bts-sbom-app reimpl <source> --component <module>` /
+  `POST /api/reimpl`): interface spec -> NEW code generated behind a two-wall process (the generator
+  never sees the original source) -> measured copy gate (line-shingle overlap with docstrings excluded
+  as spec-derived) -> generated contract tests **plus the upstream legacy test suite** adopted as the
+  behaviour oracle (run under a legacy-runtime shim for 2008-era runners) -> best-of-N candidates by
+  measured compatibility -> publish. Every stage streams live (`adopted_tests_passed`, `copy_gate`,
+  `published`, ...). Batch-verified on 64 real legacy PyPI packages (dataset: 146 rows, 32 packages
+  through the lane, 31/32 behaviour-compatible in the latest run; full analysis in
+  `evidence/reimpl_batch/ANALYSIS.md`).
+- **Architecture tools**: DGML export of the measured import graph
+  (`arch --dgml`, opens in VS Code Maps) with directory groups, hotspot/cycle categories and a
+  layer-validation map (`arch --dgml-layers`); layer validation with declarative deny-list semantics —
+  ForbiddenNamespace deny-lists, obsolete layers, unique names, moniker ambiguity, participation
+  opt-out — and VS's own error message wording.
+- **Book knowledge base**: two-tier extraction of local PDF/EPUB libraries (stdlib EPUB spine parsing,
+  pdftotext subprocess with honest skips, SHA-256 dedupe; serve-time-only raw index + distilled notes;
+  eval-corpus isolation measured, ADR-0021). `book_search` chat tool, `/api/books/*`, Book KB tab.
+- **MCP server** (`python -m bts_sbom_app mcp`): Model Context Protocol over stdio JSON-RPC 2.0 —
+  tools/list, tools/call, resources/list, resources/read; the tools delegate to the real modules.
+- **A2A-style agent card** (`GET /api/agent-card`): 7 skills with their real gates, honest
+  securitySchemes, and the MCP surface.
+- **Chatbot upgrades**: multi-turn conversation memory with deterministic follow-up resolution
+  ("그중 HIGH만 보여줘" now routes with the previous turn), compound-question decomposition,
+  lost-in-the-middle passage reordering, 7-event chat-level SSE with a HITL approval gate, and the
+  VS error-message wording for layer findings.
+- **Ops**: supply-chain gate measured end to end (docker build -> Trivy CRITICAL gate -> CycloneDX SBOM
+  -> own-repo SBOM -> /healthz bench), RUNBOOK/capacity docs updated with the measured delivery state.
 
 ## Quickstart
 

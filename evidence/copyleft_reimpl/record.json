@@ -1,0 +1,75 @@
+{
+ "schema": "bts-sbom.reimpl.v1",
+ "tool": "bts-sbom-app reimpl",
+ "version": "0.5.0",
+ "source": "C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\conct_e2e\\concurrencytest-0.1.12",
+ "component": "concurrencytest.py",
+ "started": "2026-11-24T08:19:35+09:00",
+ "copy_threshold": 0.05,
+ "stages": [],
+ "interface": {
+  "functions": [
+   "fork_for_tests",
+   "partition_tests",
+   "partition_tests_by_class"
+  ],
+  "classes": [
+   "ConcurrentTestSuite"
+  ],
+  "imports": [
+   "subunit",
+   "atexit",
+   "traceback",
+   "multiprocessing",
+   "os",
+   "typing",
+   "testtools",
+   "collections",
+   "sys",
+   "itertools",
+   "unittest"
+  ]
+ },
+ "patterns": {
+  "tier": "book",
+  "patterns": [
+   {
+    "name": "Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (E",
+    "ref": "Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (Erich Gamma, Richard Helm, Ralph Johnson etc.) · Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (Erich Gamma, Richard Helm, Ralph Johnson etc.) / Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (Erich Gamma, Richard Helm, Ralph Johnson etc.)"
+   },
+   {
+    "name": "Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1) / Architec",
+    "ref": "Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1) · Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1) / Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1)"
+   },
+   {
+    "name": "OAuth 2.0: an access token is a bearer token, so reuse BearerAuthMiddleware # wi",
+    "ref": "Building Agentic AI Systems Build connected agent systems with MCP, A2A, agent loops, harness engineering, and cloud… (Anjanava Biswas, Wrick Talukdar) · OAuth 2.0: an access token is a bearer token, so reuse BearerAuthMiddleware # with a validator that verifies the token's signature and scope async def validate_token(token: str) -> bool:"
+   }
+  ]
+ },
+ "artifacts": {
+  "spec": "evidence/copyleft_reimpl/concurrencytest\\spec.md",
+  "dgml": "evidence/copyleft_reimpl/concurrencytest\\dependencies.dgml",
+  "code": "evidence/copyleft_reimpl/concurrencytest\\concurrencytest.py"
+ },
+ "generated_by": "llm",
+ "attempts": 1,
+ "copy_gate": {
+  "overlap": 0.0,
+  "threshold": 0.05,
+  "license_strings": [],
+  "passed": true
+ },
+ "tests": {
+  "ran": true,
+  "ok": true,
+  "code": 0,
+  "tail": "tests: 2 run, 0 failed",
+  "timeout": false
+ },
+ "verdict": "ok",
+ "honesty": [
+  "without an LLM client only a deterministic scaffold is produced; implementation bodies need the LLM lane",
+  "import-table style evidence: the generated code passing tests proves the contracts hold, not that behaviour is byte-identical"
+ ]
+}

@@ -1,0 +1,153 @@
+[
+  {
+    "feature": "개요 요약",
+    "tool": "overview",
+    "q": "django-nV 프로젝트 개요를 요약해줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "취약점 top",
+    "tool": "top_vulns",
+    "q": "가장 심각한 취약점 top 3 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "취약점 조회",
+    "tool": "vuln_lookup",
+    "q": "CVE-2018-18074 취약점 상세 알려줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "컴포넌트 조회",
+    "tool": "component_lookup",
+    "q": "django 컴포넌트 정보 알려줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "라이선스 현황",
+    "tool": "license",
+    "q": "라이선스 현황 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "라이선스 리스크",
+    "tool": "license_risks",
+    "q": "라이선스 리스크 관점에서 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "패치 현황",
+    "tool": "patch",
+    "q": "패치 현황 알려줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "수정 제안",
+    "tool": "proposals",
+    "q": "기록된 수정 제안(proposals) 목록을 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "패치 계획",
+    "tool": "plan_patch",
+    "q": "django-nV 패치 계획 미리보기 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "아키텍처",
+    "tool": "architecture",
+    "q": "아키텍처 분석 결과 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "변경 감지",
+    "tool": "what_changed",
+    "q": "지난 분석 이후 무엇이 바뀌었어?",
+    "project": "django-nV"
+  },
+  {
+    "feature": "결정 커버리지",
+    "tool": "coverage",
+    "q": "결정 커버리지 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "DB 생태계별 집계",
+    "tool": "nl2sql",
+    "q": "OSV 데이터베이스에서 생태계별 취약점 수 알려줘"
+  },
+  {
+    "feature": "DB 총 개수",
+    "tool": "nl2sql",
+    "q": "데이터베이스에 취약점이 총 몇 개야?"
+  },
+  {
+    "feature": "DB 패키지 취약점",
+    "tool": "nl2sql",
+    "q": "OSV DB에서 requests 패키지의 취약점 목록 보여줘"
+  },
+  {
+    "feature": "SBOM 규합",
+    "tool": "sbom_conformance",
+    "q": "SBOM conformance 검사 결과 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "산업 리포트",
+    "tool": "sector",
+    "q": "금융 산업 규제 관점 리포트 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "업그레이드 시뮬레이션",
+    "tool": "what_if_upgrade",
+    "q": "django를 5.2.17로 업그레이드하면 어때? 시뮬레이션 결과 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "VEX 내보내기",
+    "tool": "export_vex",
+    "q": "OpenVEX 내보내기 결과 보여줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "플릿 영향 분석",
+    "tool": "affected_projects",
+    "q": "CVE-2018-18074에 영향받는 프로젝트가 어디야?"
+  },
+  {
+    "feature": "Arch Intel",
+    "tool": "latest_arch",
+    "q": "최신 아키텍처 인텔 결과 보여줘"
+  },
+  {
+    "feature": "책 검색",
+    "tool": "book_search",
+    "q": "책에서 fitness function 찾아줘"
+  },
+  {
+    "feature": "라이선스 지식",
+    "q": "GPL 2.0 라이선스가 뭐야? 의무 설명해줘",
+    "project": "django-nV",
+    "panel": "licenses",
+    "note": "knowledge lane: verified by found=true (no tool fires)"
+  },
+  {
+    "feature": "의사결정 테이블",
+    "tool": "decide",
+    "q": "의사결정 테이블로 이 프로젝트의 조치를 판단해줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "다이어그램",
+    "tool": "draw_diagram",
+    "q": "이 프로젝트를 component 다이어그램으로 그려줘",
+    "project": "django-nV"
+  },
+  {
+    "feature": "공급망 대체 위험",
+    "tool": "supply_chain",
+    "q": "이 프로젝트에 타이포스쿼팅 같은 공급망 혼동 위험은 없어?",
+    "project": "django-nV"
+  }
+]

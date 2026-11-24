@@ -1,11 +1,13 @@
-"""Command line: scan | patch | arch | batch | loop | evalrag | evalchat | contextpack | chat | serve."""
+"""Command line: scan | patch | arch | batch | loop | evalrag | evalchat | contextpack | chat | books | serve."""
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import sys
 import tempfile
+import time
 from typing import Any, Dict, List, Optional
 
 from . import __version__, arch as archmod, batch, chat as chatmod, evals, loop, pipeline, rag, report, workspace
@@ -85,6 +87,10 @@ def build_parser() -> argparse.ArgumentParser:
     _common(p); _patch_args(p)
     a = sub.add_parser("arch", help="legacy architecture analysis")
     a.add_argument("source"); a.add_argument("--ref"); a.add_argument("--depth", type=int, default=200)
+    a.add_argument("--dgml", default=None, help="write the import graph as a Visual Studio Code Map (.dgml)")
+    a.add_argument("--dgml-layers", default=None, help="write the layer validation map (.dgml): violations red, bypassed amber")
+    a.add_argument("--validate-dgml", default=None, help="read an existing .dgml code map and validate it against --layers rules")
+    a.add_argument("--layers", default=None, help="layer rules JSON: deny-by-default may_depend_on allow-lists (see arch_map.rules_example)")
     _common(a)
     b = sub.add_parser("batch", help="analyse many sources")
     b.add_argument("sources_json"); b.add_argument("--tag", default="batch"); b.add_argument("--jobs", type=int, default=1)
@@ -110,6 +116,21 @@ def build_parser() -> argparse.ArgumentParser:
     rl = sub.add_parser("ragloop", help="retrieval-only loop pass over the golden/dev/test sets")
     rl.add_argument("--variable", required=True); rl.add_argument("--hypothesis", default=""); rl.add_argument("--tag", default="rag")
     rl.add_argument("--json", action="store_true")
+    bk = sub.add_parser("books", help="build the book knowledge base from a local folder of PDF/EPUB books")
+    bk.add_argument("src"); bk.add_argument("--out", default=None, help="output folder (default: <root>/evidence/books)")
+    bk.add_argument("--json", action="store_true")
+    mc = sub.add_parser("mcp", help="serve the Model Context Protocol over stdio (JSON-RPC 2.0: tools/list, tools/call)")
+    mc.add_argument("--evidence", default=None)
+    rj = sub.add_parser("reimpl", help="clean-room reimplementation workbench: interface spec -> NEW code -> tests -> publish (brief 6)")
+    rj.add_argument("source"); rj.add_argument("--component", required=True, help="module file inside the source, e.g. pkg/legacy.py")
+    rj.add_argument("--out", default=None, help="artifact folder (default: <root>/evidence/reimpl/<component>)")
+    rj.add_argument("--llm", action="store_true", help="use the LLM lane for implementation bodies (else deterministic scaffold)")
+    rj.add_argument("--llm-config", default=None)
+    rj.add_argument("--publish-dest", default=None, help="copy the result to this folder when everything passes")
+    rj.add_argument("--allow-inplace", action="store_true", help="allow publish_dest to equal the analysed source")
+    rj.add_argument("--attempts", type=int, default=2, help="clean-room candidates to try (best-of-N by the legacy oracle)")
+    rj.add_argument("--why", default="compliance-risky license (clean-room reimplementation)")
+    rj.add_argument("--json", action="store_true")
     c = sub.add_parser("chat", help="ask a grounded question (with --actions: analyse, patch with an approval token, record VEX decisions)")
     c.add_argument("question", nargs="?", default=None); c.add_argument("--evidence", default=None); c.add_argument("--project", default=None)
     c.add_argument("--llm", action="store_true"); c.add_argument("--llm-config", default=None); c.add_argument("--json", action="store_true")
@@ -197,7 +218,49 @@ def main(argv: Optional[List[str]] = None) -> int:
             _print(ws, a.json, "ERROR: " + ws["error"])
             return 2
         res = archmod.analyze(ws["path"], online=a.arch_online)
+        edges, _gi = archmod.import_graph(ws["path"], archmod.collect_files(ws["path"], 4000))
+        from . import arch_map
         txt = ["Architecture of %s" % a.source, "files %s, LOC %s" % (res["stack"]["files"], res["stack"]["loc"]), "graph: %s" % kv({k: v for k, v in res["graph"].items() if k in ("import_edges", "cycle_count", "tangle_ratio", "max_depth")})]
+        hotspots = [h["file"] for h in (res.get("hotspots") or [])[:8]]
+        cycle_nodes = set()
+        for scc in archmod.sccs({n for e in edges for n in e}, set(edges)):
+            if len(scc) > 1:
+                cycle_nodes.update(scc)
+        cycle_edges = [(x, y) for x, y in edges if x in cycle_nodes and y in cycle_nodes]
+        if a.dgml:
+            xml = arch_map.to_dgml("Architecture of %s" % a.source, sorted({n for e in edges for n in e}), edges,
+                                   hotspots=hotspots, cycle_edges=cycle_edges)
+            os.makedirs(os.path.dirname(a.dgml) or ".", exist_ok=True)
+            with io.open(a.dgml, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(xml)
+            txt.append("dgml: %s (nodes %d, links %d, hotspots %d, cycle links %d) - opens in Visual Studio Code Maps" % (
+                a.dgml, len(set(n for e in edges for n in e)), len([1 for x, y in edges if x != y]),
+                len(hotspots), len(cycle_edges)))
+        if a.layers:
+            rules = json.load(io.open(a.layers, encoding="utf-8"))
+            vr = arch_map.layer_validate(edges, rules)
+            res["layer_validation"] = vr
+            txt.append("layer validation: %s - illegal %d, bypassed %d, unknown-layer edges %d (checked %d)" % (
+                vr["verdict"], len(vr["violations"]), len(vr["bypassed"]), vr["unknown_layer_edges"], vr["checked"]))
+        if a.validate_dgml:
+            cmap = arch_map.read_dgml(a.validate_dgml)
+            rules = json.load(io.open(a.layers, encoding="utf-8")) if a.layers else {}
+            vr = arch_map.layer_validate(cmap["edges"], rules)
+            vr["map_source"] = a.validate_dgml
+            vr["groups"] = cmap.get("groups", [])
+            res["layer_validation"] = vr
+            txt.append("dgml validation: %s - %d edges across %d nodes, groups %s" % (
+                vr["verdict"], vr["checked"], len(cmap["nodes"]), ",".join(cmap["groups"]) or "-"))
+        if a.dgml_layers:
+            if not a.layers:
+                print("ERROR: --dgml-layers needs --layers rules.json", file=sys.stderr)
+                return 2
+            rules = json.load(io.open(a.layers, encoding="utf-8"))
+            lmap = arch_map.to_layer_dgml("Layer validation of %s" % a.source, sorted({n for e in edges for n in e}), edges, rules)
+            os.makedirs(os.path.dirname(a.dgml_layers) or ".", exist_ok=True)
+            with io.open(a.dgml_layers, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(lmap)
+            txt.append("layer map: %s - violations styled red, bypassed amber (opens in any DGML viewer)" % a.dgml_layers)
         txt += ["hotspot %s score %s" % (h["file"], h["score"]) for h in res["hotspots"][:5]] + ["%s %s: %s" % (m["kind"], m["target"], m["why"]) for m in res["modernization"]]
         _print(res, a.json, "\n".join(txt))
         return 0
@@ -217,6 +280,44 @@ def main(argv: Optional[List[str]] = None) -> int:
                               client=client, rag_eval=rag_e, chat_eval=chat_e, jobs=a.jobs, hyp_client=client, work_root=a.work)
         _print(entry, a.json, "pass %s [%s] decision=%s gate=%s\nfailed=%s undecidable=%s\nnext=%s" % (entry["pass"], a.variable, entry["decision"], entry["gate"]["pass"], entry["gate"]["failed"], entry["gate"].get("undecidable", []), [h["variable"] for h in entry["next"]["items"]]))
         return 0 if entry["decision"] != "rollback" else 1
+    if a.cmd == "books":
+        from . import books as booksmod
+        out = a.out or os.path.join(a.root, "evidence", "books")
+        t0 = time.time()
+        reg = booksmod.build(a.src, out)
+        t = reg.get("totals") or {}
+        took = round(time.time() - t0, 1)
+        txt = ["books: %s -> %s (%ss)" % (a.src, out, took),
+               "files %s: ok %s, skipped %s, duplicates %s | sections %s, chars %s | pdftotext: %s" % (
+                   t.get("files"), t.get("ok"), t.get("skipped"), t.get("duplicates"), t.get("sections"), t.get("chars"),
+                   reg.get("pdftotext") or "NOT FOUND (pdfs skipped)")]
+        for b in reg.get("books", []):
+            if b.get("status") != "ok":
+                why = b.get("reason") or ("duplicate of %s" % b.get("duplicate_of") or "?") if (b.get("reason") or b.get("duplicate_of")) else b.get("status")
+                txt.append("  %s: %s (%s)" % (b.get("file"), b.get("status"), why))
+        _print(reg, a.json, "\n".join(txt))
+        return 0
+    if a.cmd == "mcp":
+        from . import mcp_server
+        # stdout carries ONLY protocol messages (a stray line corrupts the MCP session); the banner goes to stderr
+        print("bts-sbom MCP server: protocol %s, tools: %s" % (mcp_server.PROTOCOL_VERSION,
+                                                               ", ".join(t["name"] for t in mcp_server.TOOL_DEFS)), file=sys.stderr)
+        return mcp_server.serve_stdio(mcp_server.Session(a.root, a.evidence), sys.stdin, sys.stdout)
+    if a.cmd == "reimpl":
+        from . import reimpl as reimpl_mod
+        client = _client(a.root, not a.llm, a.llm_config) if a.llm else None
+        out = a.out or os.path.join(a.root, "evidence", "reimpl", os.path.splitext(os.path.basename(a.component))[0])
+
+        def on_progress(ev: Dict[str, Any]) -> None:
+            fields = " ".join("%s=%s" % (k, str(v)[:60]) for k, v in ev.items() if k not in ("event", "ts"))
+            print("  [%s] %s" % (ev["event"], fields), flush=True)
+
+        res = reimpl_mod.reimpl(a.source, a.component, out, client=client if (client is not None and client.available) else None,
+                                license_ok=True, why=a.why, publish_dest=a.publish_dest,
+                                allow_inplace=a.allow_inplace, attempts=max(1, min(a.attempts, 6)),
+                                progress=on_progress)
+        _print(res, a.json, "reimpl %s: %s (%s)" % (a.component, res["verdict"], res.get("reason", "all stages passed")))
+        return 0 if res["verdict"] == "ok" else 1
     if a.cmd == "evalrag":
         r = evals.rag_eval(a.root, a.golden)
         c = evals.chat_eval(a.root)

@@ -53,5 +53,7 @@ jobs:
         run: python -m pytest -q -p no:cacheprovider tests/bts_sbom_app
       - name: Spec lint (EARS shape + AC <-> test traceability)
         run: python -m bts_sbom_app.speclint
+      - name: Doc lint (ADR, governance, runbook, enforcement map)
+        run: python -m bts_sbom_app.doclint --strict
       - name: Retrieval + chatbot grounding eval (no network, no LLM)
         run: python -I -X utf8 run_bts_sbom_app.py evalrag

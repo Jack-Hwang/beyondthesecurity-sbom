@@ -110,6 +110,7 @@ class ChatActions:
         scoped = dict(rec, plans=copy.deepcopy(plans))                # the loop sees only the approved plans ...
         out = pipeline._patch_loop(scoped, ws["path"], approved=True, token=token, rounds=1, offline=self.offline,     # ... and runs ONE round
                                    scanner=self.scanner, verify_rounds=3)
+        out["at"] = datetime.datetime.now().isoformat(timespec="seconds")   # when this approved run happened (the display labels stale statuses)
         out["work_copy"] = ws["path"] if out.get("status") == "applied" else None
         if out.get("status") != "applied":
             shutil.rmtree(work if not self.work_root else ws["path"], onerror=workspace._force_remove)

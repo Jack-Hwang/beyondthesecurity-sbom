@@ -2,7 +2,106 @@
 
 All notable changes to bts-sbom are documented here.
 
+## Unreleased - 2026-11-23b: u-boot real-world E2E + Clean-Room workbench UI + honest scanning surfaces
+
+- u-boot v2026.10 E2E measured end to end (evidence/uboot_e2e/E2E.md): scan 68 components / 43 advisories,
+  GPL-2.0-or-later via SPDX-header majority; clean-room lane generated dtoc/src_scan.py from the spec only
+  (copy gate 0.0, contract tests 5/0), oracle honestly compatibility_failed on the suite's POSIX-pty helper.
+- Clean-Room workbench pane (🧬): the two-wall lane with its SSE stage strip and verdict cards, previously
+  API/CLI only; dock chips/slash entries (라이선스 리스크·공급망 혼동, /reimpl, /license-risk).
+- Live scan progress from the job SSE stream; honest "Unknown — not a pass" banner for 0-component/unknown runs.
+- Project-copyleft duty finding for strong-copyleft projects under binary distribution + /api/policy
+  distribution selector; setup.py disclosed in the core manifest roster.
+- Adopted-oracle hardening (AC-616): package-import rebinding, helper resolution, mainless-suite injection,
+  zero-test skips, shim argv/result fixes, 16384-token generation budget for reasoning deployments.
+- Fixed: the db pane's first-render null binding killed the whole console init chain before loadHistory.
+
+## Unreleased - 2026-11-23: Chat quality gates (TOP-10) + the approval loop as evidence + supply-chain pane + nl2sql lane
+
+- Chat quality TOP-10 scorecard (`python -m bts_sbom_app.evals_top10` -> evals/top10_report.md): grounding F
+  >= 0.90, completeness >= 0.90, read tool-call accuracy >= 0.95 (gated from the live suite log, regex floor
+  documented beside it), write lane = 1.0 (every forged token/code/source/reason dropped, write tools never
+  offered read-only), over-refusal <= 5% - each metric with its gate and a loop.gate delta (>= -0.02).
+- HITL action runner (`scripts/chat_actions_run.py` -> evidence/chat_actions/report.json): the approval chain
+  replayed end to end over real HTTP - analyse, plan + token, approve, applied in an isolated work copy, record,
+  decision preview, confirm code, .triage.json, and the flag-less server refusing read-only (7/7 steps).
+- Supply-chain substitution risks wired in: pipeline stage (typosquatting / namespace confusion / dependency
+  confusion), `supply_chain` chat tool, and the Supply Chain pane renderer (was: honest placeholder).
+- NL2SQL chat lane + DB query pane: nl2sql chat tool (read-only SELECT, 4-state honest results),
+  POST /api/db/query + GET /api/db/schema, the DB pane, and scan-evidence seeding (scripts/seed_osv_local_db.py).
+- Console UI states: dock fresh-conversation hint, thinking skeletons, stream-failure retry button, governance
+  card skeletons, honest empty report tab; the db pane recovered its missing rpane div (+ the static
+  GROUPS<->page pin that keeps it that way).
+
+## 0.5.0 - 2026-11-22: Clean-room reimplementation lane + book KB + MCP server + architecture tools
+
+- Clean-room reimplementation workbench (`bts-sbom-app reimpl` / POST /api/reimpl): interface spec ->
+  NEW code generated behind a two-wall process (the generator never sees the original source) ->
+  measured copy gate (line-shingle overlap, docstrings excluded as spec-derived) -> generated contract
+  tests + the upstream legacy suite as behaviour oracle under a legacy-runtime shim -> best-of-N
+  candidates by measured compatibility -> publish. Live SSE events for every stage.
+- Book knowledge base (two-tier extraction: stdlib EPUB spine parsing + pdftotext with honest skips;
+  serve-time-only raw index + distilled notes; eval-corpus isolation measured, ADR-0021) with a
+  book_search chat tool, /api/books registry|outline|search|ingest and a Book KB tab.
+- MCP server over stdio JSON-RPC 2.0 (`python -m bts_sbom_app mcp`): tools/list, tools/call,
+  resources/list, resources/read; tools delegate to the real modules.
+- A2A-style agent card at GET /api/agent-card: 7 skills with their real gates, honest securitySchemes.
+- Chat upgrades: multi-turn conversation memory with deterministic follow-up resolution, compound-
+  question decomposition, lost-in-the-middle passage reordering, upstream-oracle compatibility loop for
+  generated code, 7-event chat-level SSE with HITL approval, and the REAL Visual Studio layer-model
+  semantics (ForbiddenNamespace, obsolete layers, unique names, moniker ambiguity, participation
+  opt-out) adopted from the Visual Studio layer-model semantics.
+- DGML export of the measured import graph (Visual Studio Code Maps interop) with directory groups,
+  hotspot/cycle categories and a layer-validation map; supply-chain gate (docker build -> Trivy
+  CRITICAL gate -> CycloneDX SBOM -> own-repo SBOM -> /healthz bench) measured end to end.
+- Batch experiment dataset: 64 legacy PyPI packages run through the lane (146 dataset rows; latest-run
+  verdicts ok 31 / compatibility_failed 1 / tests_failed 0 of 32 laned) with the full analysis in
+  evidence/reimpl_batch/ANALYSIS.md.
+
+## 0.3.0 - 2026-11-21
+
+### Arch Intel: license verdict + AI architecture deep-dive (`bts_sbom_app/arch_intel.py`, `bts_sbom_app/arch_api.py`, web pane)
+
+One input (a local folder or a git URL) -> license verdict (category, obligations, per-distribution verdict,
+GPL/AGPL notice checklist incl. AGPL §13, pairwise compatibility matrix) -> deterministic architecture facts
+(entry points, import graph, hotspots, cycles) -> an EXAONE architecture lane that follows the ai.propose contract
+(prompt-hash cache, four validation layers, honest deterministic fallback) -> component / sequence / activity
+diagrams generated deterministically from the VALIDATED analysis -> bounded, syntax-highlighted code excerpts
+anchoring the architecture in real files. Served under `/api/arch/...` (scan, jobs, SSE events, result, report
+download, history) behind the same Host/CSRF guards as the OSS screen, and rendered in a new "Arch Intel" tab
+(`web/arch_intel_render.js` pure renderers under the Node harness + `web/arch_intel.js` wiring).
+Specs: BSA-AC-443..460. ADR-0014 documents the clean-room guardrails (the LLM prompt carries metadata only;
+code-shaped model output is dropped; the analysed tree is never executed) and the vendored Mermaid asset
+(`web/vendor/mermaid.min.js`, NOTICE.md, lazy-loaded, source-text fallback).
+
 ## Unreleased
+
+### Course methodologies applied (`bts_sbom_app/`, docs) - offline-measured, not run on GitHub or in Docker
+
+Chosen from the AI-application course material (weeks 1-4 plus the governance and portfolio guides) after checking what `main` and
+`rel/v0.2.0` already had; all additive (no existing return value, status code or CLI argument changed). Specs: BSA-AC-301..400.
+
+* **Circuit breaker and honest no-answer outcomes** (`resilience.py`, `net.fetch_json` / `fetch_text`): per-host breaker (3 consecutive
+  failed calls -> open for 60 s -> one probe), four outcome states, `Retry-After` honoured (cap 30 s), `net.STATS` gains `short_circuited` /
+  `empty` / `partial`. `http_json` / `http_text` keep their return values. `BTS_SBOM_BREAKER_THRESHOLD=0` switches it off. The existing
+  callers (`licenses.py`, `osv.py`, `arch.py`) still use the unchanged wrappers, so they do not yet report the four states separately.
+* **Patch regression quadrants and independent review** (`impact.py`, `review.py`, `pipeline._patch_loop`): direct / upstream / downstream /
+  shared classification; a quadrant without data is `unverified`, never `ok`. From `_patch_loop` the fleet half of "shared" is always
+  `unverified` (no fleet access there). The reviewer is advisory and takes artifacts only.
+* **Scan progress events (SSE)** (`events.py`, `GET /api/jobs/<id>/events`, `run_project(progress=...)`), **`/healthz` and `/readyz`**,
+  Dockerfile hardening (numeric non-root user, HEALTHCHECK) and `docs/RUNBOOK.md`. `docker build` was NOT run (no daemon in the build
+  environment); the Dockerfile is only checked by static policy tests.
+* **Design-rationale and governance pack**: `docs/adr/` (0007-0013, each with rejected alternatives), `docs/governance/` (AI impact
+  assessment - a self-assessment, not legal advice -, model card, origin lineage, data contract), `docs/ENFORCEMENT_MAP.md`, and
+  `python -m bts_sbom_app.doclint [--strict]` (new CI step).
+* **Traceability and evidence**: `bts-sbom-app trace` (AC x module x test; `docs/TRACEABILITY.md`), `portfolio export`, `proof`
+  (PASS / FAIL / NOT RUN; NOT RUN is never PASS; evidence sidecar). EARS State-pattern ACs go from 0 to 5.
+* **Fixes found by an independent review of the above** (BSA-AC-358..360, 441, 442): a failed license lookup (outage or an open
+  circuit) is no longer cached as "no license" for a week (`licenses.resolve` reports `lookup_unavailable`; before this the breaker
+  could have turned a short blip into 7 days of missing licenses); a late failure of a call that began before the breaker opened can no
+  longer reopen it under the half-open probe; `portfolio export` and the enforcement-map check refuse paths that leave the repository
+  (symlinks, `..`, absolute paths); the in-memory event buses are capped at 64 (closed ones go first).
+
 
 ### `bts_sbom_app/`
 

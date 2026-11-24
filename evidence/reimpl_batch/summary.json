@@ -1,0 +1,25 @@
+{
+ "packages": 1,
+ "ok": 1,
+ "compatibility_failed": 0,
+ "skipped_or_error": 0,
+ "rows": [
+  {
+   "package": "humanize",
+   "started": "2026-11-22T21:07:02",
+   "version": "0.1",
+   "sdist_bytes": 5430,
+   "component": "time.py",
+   "license": "unknown",
+   "verdict": "ok",
+   "reason": "",
+   "generated_by": "scaffold",
+   "attempts": 1,
+   "copy_overlap": 0.0,
+   "tests_ok": true,
+   "adopted": null,
+   "compatibility": null,
+   "elapsed_s": 1.0
+  }
+ ]
+}

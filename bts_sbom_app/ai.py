@@ -37,28 +37,39 @@ SYSTEM = ("You are a software supply-chain and legacy-modernization engineer. Us
 
 
 def evidence(rec: Dict[str, Any]) -> Dict[str, Any]:
-    vul = sorted(rec.get("vulns") or [], key=lambda v: (-_SEV.get(v["severity"], 0), -(v.get("cvss") or 0), v["package"]))[:12]
-    plans = (rec.get("plans") or [])[:12]
+    all_vul = sorted(rec.get("vulns") or [], key=lambda v: (-_SEV.get(v["severity"], 0), -(v.get("cvss") or 0), v["package"]))
+    all_plans = rec.get("plans") or []
+    all_comps = rec.get("components") or []
+    unresolved = [c["name"] for c in all_comps if not c.get("license")]
+    lic = rec.get("license") or {}
+    policy = lic.get("policy") or []
     arch = rec.get("arch") or {}
     g = arch.get("graph") or {}
-    lic = rec.get("license") or {}
+    hotspots = arch.get("hotspots") or []
+    cycles = g.get("cycles") or []
+    eol = [r for r in (arch.get("runtime_eol") or []) if r.get("status") == "eol"]
+    candidates = [c for c in (arch.get("clusters") or []) if c.get("extraction_candidate")]
+    # trim accounting (the lecture's trim log): every list is capped for the prompt and the number of DROPPED rows is
+    # carried in the evidence itself, so an over-trimmed context is visible instead of silently lost.
+    trimmed = {"vulns": max(0, len(all_vul) - 12), "plans": max(0, len(all_plans) - 12), "unresolved_licenses": max(0, len(unresolved) - 12),
+               "policy": max(0, len(policy) - 4), "hotspots": max(0, len(hotspots) - 5), "cycles": max(0, len(cycles) - 3),
+               "runtime_eol": max(0, len(eol) - 4), "extraction_candidates": max(0, len(candidates) - 4)}
     return {"project": rec.get("name"),
-            "totals": {"components": len(rec.get("components") or []), "vulns": len(rec.get("vulns") or [])},
+            "totals": {"components": len(all_comps), "vulns": len(all_vul)},
+            "trimmed": trimmed,
             "vulns": [{"id": v["id"], "package": v["package"], "version": v["version"], "severity": v["severity"],
-                       "cvss": v.get("cvss"), "fixed_version": v.get("fixed_version")} for v in vul],
+                       "cvss": v.get("cvss"), "fixed_version": v.get("fixed_version")} for v in all_vul[:12]],
             "plans": [{"component": p["component"], "from": p["current_version"], "to": p.get("safe_version"),
                        "status": p["status"], "major_bump": p.get("major_bump"),
-                       "verified_clean": p["verification"].get("clean")} for p in plans],
-            "license": {"unresolved": [c["name"] for c in rec.get("components") or [] if not c.get("license")][:12],
+                       "verified_clean": p["verification"].get("clean")} for p in all_plans[:12]],
+            "license": {"unresolved": unresolved[:12],
                         "policy": [{"category": f["category"], "verdict": f["verdict"], "components": f["components"][:6]}
-                                   for f in (lic.get("policy") or [])[:4]],
+                                   for f in policy[:4]],
                         "project_license": lic.get("project_license") or None},
-            "architecture": {"hotspots": [h["file"] for h in (arch.get("hotspots") or [])[:5]],
-                             "cycles": [c[:4] for c in (g.get("cycles") or [])[:3]],
-                             "runtime_eol": ["%s %s" % (r["product"], r["cycle"]) for r in (arch.get("runtime_eol") or [])
-                                             if r.get("status") == "eol"][:4],
-                             "extraction_candidates": [c["domain"] for c in (arch.get("clusters") or [])
-                                                       if c.get("extraction_candidate")][:4]}}
+            "architecture": {"hotspots": [h["file"] for h in hotspots[:5]],
+                             "cycles": [c[:4] for c in cycles[:3]],
+                             "runtime_eol": ["%s %s" % (r["product"], r["cycle"]) for r in eol[:4]],
+                             "extraction_candidates": [c["domain"] for c in candidates[:4]]}}
 
 
 def allowed_refs(ev: Dict[str, Any], rec: Dict[str, Any]) -> Set[str]:

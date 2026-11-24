@@ -12,11 +12,13 @@ import os
 import sys
 from typing import Any, Dict, Optional, Tuple
 
-from . import binscan, changes, conformance, coverage, fleet, sbom, selfcheck, srcscan, triage
+from . import binscan, changes, conformance, coverage, fleet, portfolio, sbom, selfcheck, srcscan, traceability, triage
 from .llm import ChatClient
 from .util import console_text, read_json, write_json
 
-COMMANDS = ("conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck")
+COMMANDS = ("conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck",
+            "trace", "portfolio", "proof")
+PROOF_COMMAND_NAMES = ("pytest", "speclint", "doclint", "evalrag")
 
 
 def add_commands(sub: Any) -> None:
@@ -67,6 +69,21 @@ def add_commands(sub: Any) -> None:
     sc.add_argument("project", help="project record file, or a project name in the evidence folder")
     sc.add_argument("--out", default=None, help="write the CSV here (default: print)")
     ev(sc)
+    tr = sub.add_parser("trace", help="AC | EARS pattern | spec section (module) | test traceability matrix")
+    tr.add_argument("--format", default="md", choices=("md", "json"))
+    tr.add_argument("--out", default=None, help="write the rendered matrix here (default: print)")
+    tr.add_argument("--root", default=argparse.SUPPRESS, help="repository root to read specs/ and tests/ from (default: --root of the command)")
+    pf = sub.add_parser("portfolio", help="week-7 portfolio package: export paths/sizes/hashes of the project's own files (writes nothing new)")
+    pf_sub = pf.add_subparsers(dest="portfolio_cmd", required=True)
+    pfe = pf_sub.add_parser("export", help="write portfolio-manifest.json + README.md under --out")
+    pfe.add_argument("--out", required=True, help="folder to write portfolio-manifest.json and README.md into")
+    pfe.add_argument("--root", default=argparse.SUPPRESS, help="repository root to collect the portfolio from (default: --root of the command)")
+    pfe.add_argument("--json", action="store_true")
+    pr = sub.add_parser("proof", help="run pytest / speclint / doclint (if present) / evalrag and record PASS/FAIL/NOT RUN evidence "
+                                      "(NOT RUN is never counted as PASS)")
+    pr.add_argument("--out", default=None, help="evidence sidecar folder (default: <repo>/evidence/proof)")
+    pr.add_argument("--only", default=None, choices=PROOF_COMMAND_NAMES, help="run just this one command")
+    pr.add_argument("--json", action="store_true")
 
 
 def _evidence(a: argparse.Namespace) -> str:
@@ -217,6 +234,37 @@ def run(a: argparse.Namespace) -> int:
         else:
             _say(selfcheck.build(rec), a.json, csv_text)
         return 0
+    if a.cmd == "trace":
+        try:
+            result = traceability.build(a.root)
+        except ValueError as exc:
+            print("ERROR: %s" % exc, file=sys.stderr)
+            return 2
+        text = traceability.render_md(result) if a.format == "md" else traceability.render_json(result)
+        if a.out:
+            with open(a.out, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(text)
+            print(console_text("traceability matrix (%s) written to %s (%d AC)" % (a.format, a.out, result["summary"]["ac_count"])))
+        else:
+            sys.stdout.write(text if text.endswith("\n") else text + "\n")
+        return 0
+    if a.cmd == "portfolio":
+        if a.portfolio_cmd == "export":
+            manifest = portfolio.export(a.root, a.out)
+            kinds = {p["n"]: p["status"] for p in manifest["packages"]}
+            _say(manifest, a.json, "portfolio exported to %s: %s" % (
+                a.out, ", ".join("#%d=%s" % (n, kinds[n]) for n in sorted(kinds))))
+            return 0
+        return 2
+    if a.cmd == "proof":
+        try:
+            doc = portfolio.proof(a.root, out_dir=a.out, only=a.only)
+        except ValueError as exc:
+            print("ERROR: %s" % exc, file=sys.stderr)
+            return 2
+        _say(doc, a.json, "proof %s: PASS=%d FAIL=%d NOT RUN=%d" % (
+            doc["status"], doc["counts"]["PASS"], doc["counts"]["FAIL"], doc["counts"]["NOT RUN"]))
+        return 0 if doc["status"] == "pass" else 1
     return 2
 
 

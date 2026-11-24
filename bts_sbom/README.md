@@ -13,7 +13,7 @@ standard library (Python >= 3.10). The package can prove it:
 
 ```console
 $ python -m bts_sbom selfsbom
-{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.2.0", "dependsOn": [] }],
+{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.5.0", "dependsOn": [] }],
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
 

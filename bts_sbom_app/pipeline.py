@@ -12,8 +12,9 @@ import shutil
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from . import ai, arch as archmod, changes as changesmod, conformance, deliver as delivermod, engine, licenses, patch as patchmod, remediate, sbom, sectors, workspace
+from . import ai, arch as archmod, changes as changesmod, conformance, deliver as delivermod, engine, impact as impactmod, licenses, patch as patchmod, remediate, review as reviewmod, sbom, sectors, workspace
 from .llm import ChatClient
+from bts_sbom.supply_chain import SupplyChainAnalyzer
 from .util import safe_name, tree_hash, write_json
 
 PROJECT_SCHEMA = "bts-sbom.project.v1"
@@ -23,20 +24,41 @@ PROJECT_SCHEMAS_ACCEPTED = (PROJECT_SCHEMA, "sbomplus.project.v1")
 
 
 class _Stages:
-    def __init__(self, rec: Dict[str, Any]):
+    """``progress``, when given, is called ``progress("step_start", name)`` before a stage and
+    ``progress("step_end", name, ok=..., seconds=..., error=...)`` after it (``error`` is ``None`` on success).
+    A callback that raises never breaks the analysis: the first such failure is recorded once in
+    ``rec["stage_errors"]["progress_callback"]`` (a later one is not reported again - the signal is "the
+    callback is unreliable", not a per-stage count) and the stage's own outcome is unaffected."""
+
+    def __init__(self, rec: Dict[str, Any], progress: Optional[Callable[..., None]] = None):
         self.rec = rec
+        self.progress = progress
         rec["timings"] = {}
         rec["stage_errors"] = {}
 
+    def _notify(self, *args: Any, **kwargs: Any) -> None:
+        if self.progress is None:
+            return
+        try:
+            self.progress(*args, **kwargs)
+        except Exception as exc:                                   # noqa: BLE001 - a progress callback must never break the analysis
+            if "progress_callback" not in self.rec["stage_errors"]:
+                self.rec["stage_errors"]["progress_callback"] = "%s: %s" % (type(exc).__name__, str(exc)[:240])
+
     def run(self, name: str, fn: Callable[[], Any], default: Any = None) -> Any:
         t = time.time()
+        self._notify("step_start", name)
+        ok, error = True, None
         try:
             return fn()
         except Exception as exc:                                   # noqa: BLE001 - recorded, never swallowed silently
-            self.rec["stage_errors"][name] = "%s: %s" % (type(exc).__name__, str(exc)[:240])
+            ok, error = False, "%s: %s" % (type(exc).__name__, str(exc)[:240])
+            self.rec["stage_errors"][name] = error
             return default
         finally:
-            self.rec["timings"][name] = round(time.time() - t, 2)
+            seconds = round(time.time() - t, 2)
+            self.rec["timings"][name] = seconds
+            self._notify("step_end", name, ok=ok, seconds=seconds, error=error)
 
 
 def _ids(vulns: List[Dict[str, Any]]) -> set:
@@ -53,12 +75,13 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
                 deliver_target: str = "branch", deliver_kw: Optional[Dict[str, Any]] = None, use_llm: bool = True,
                 client: Optional[ChatClient] = None, industries: Optional[List[str]] = None, policy: Optional[Dict[str, Any]] = None,
                 cache_dir: Optional[str] = None, lang: str = "ko", arch_online: bool = False, scanner: Any = None,
-                run_arch: bool = True, run_proposals: bool = True, engine_opts: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                run_arch: bool = True, run_proposals: bool = True, engine_opts: Optional[Dict[str, Any]] = None,
+                progress: Optional[Callable[..., None]] = None) -> Dict[str, Any]:
     t0 = time.time()
     rec: Dict[str, Any] = {"schema": PROJECT_SCHEMA, "name": name or safe_name(os.path.basename(src.rstrip("/\\")) or "project"),
                            "source": src, "ref": ref or "", "components": [], "vulns": [], "plans": [], "license": {}, "arch": {},
                            "sectors": {}, "patch": {}, "proposals": {}, "sbom_check": {}, "engine": {"core": ""}, "error": None}
-    S = _Stages(rec)
+    S = _Stages(rec, progress=progress)
     try:
         kind = workspace.normalize_source(src)
     except ValueError:
@@ -116,6 +139,8 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
 
     S.run("sbom", build_sboms)
 
+    rec["supply_chain"] = S.run("supply_chain", lambda: SupplyChainAnalyzer().analyze(rec["components"]), [])
+
     if run_arch:
         rec["arch"] = S.run("arch", lambda: archmod.analyze(path, online=arch_online), {})
 
@@ -160,6 +185,9 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
     seen_plan_sets: List[tuple] = []
     applied_total = 0
     last: Dict[str, Any] = {}
+    last_after: Optional[Dict[str, Any]] = None                    # the last post-patch re-scan (components + vulns), for impact analysis
+    all_changed_files: set = set()
+    apply_status_by_key: Dict[tuple, str] = {}                     # (ecosystem, canon(component), from_version) -> patch.apply() result status
     for rnd in range(1, rounds + 1):
         key = tuple(sorted((p["component"], p["safe_version"]) for p in cur_plans if p["status"] == "upgrade"))
         if key in seen_plan_sets:                                  # spinning guard: identical plan twice = no progress possible
@@ -171,6 +199,10 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
                  "blocked": sum(1 for r in pr["results"] if r["status"] == "blocked"), "manual": sum(1 for r in pr["results"] if r["status"] == "manual"),
                  "results": pr["results"][:60], "regenerate": pr.get("regenerate", [])}
         last = pr
+        for r in pr["results"]:
+            eco = str(r.get("ecosystem") or "")
+            k = (eco.lower(), engine._canon(eco, str(r.get("component") or "")), str(r.get("from") or ""))
+            apply_status_by_key[k] = r.get("status")
         out["rounds"].append(entry)
         if pr["status"] == "digest_mismatch":
             out["status"] = "digest_mismatch"
@@ -185,11 +217,13 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
             break
         applied_total += entry["applied"]
         after = engine.analyze(path, offline=offline, scanner=scanner, **(engine_opts or {}))
+        last_after = after
         b, a = _ids(cur_vulns), _ids(after["vulns"])
         # Regression is judged on the findings attributable to the files we EDITED. A lockfile we deliberately did not touch still
         # pins the old versions, so comparing grand totals blamed the patch for findings it cannot influence (measured: a
         # package.json-only npm patch of 134 packages was reverted because ONE new advisory appeared at an upgraded version).
         edited = set(pr.get("changed_files") or [])
+        all_changed_files |= edited
 
         def scoped(vs: List[Dict[str, Any]]) -> set:
             return {(v["id"], v["package"].lower(), v["version"]) for v in vs if any(f in edited for f in v["files"])}
@@ -231,6 +265,45 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
                     "vulns_estimated": max(0, len(rec["vulns"]) - len(est))}
     if base and out["status"] == "applied":
         out["diff"] = patchmod.diff(path, base)
+
+    # ---------------------------------------------------------------- impact (4-quadrant regression) + independent review
+    # Added once the patch status is decided (every path past the "not_approved" early return above, e.g. applied,
+    # regression_reverted, blocked, digest_mismatch, nothing_applied, spinning_stopped). A failure here is recorded,
+    # never swallowed, and never changes any field set above.
+    plans_for_impact: List[Dict[str, Any]] = []
+    for p in rec.get("plans") or []:
+        pc = dict(p)
+        eco = str(p.get("ecosystem") or "")
+        k = (eco.lower(), engine._canon(eco, str(p.get("component") or "")), str(p.get("current_version") or ""))
+        if k in apply_status_by_key:
+            pc["apply_status"] = apply_status_by_key[k]
+        plans_for_impact.append(pc)
+
+    impact_result: Optional[Dict[str, Any]] = None
+    try:
+        impact_result = impactmod.classify(
+            rec.get("components"), rec.get("vulns"),
+            (last_after or {}).get("components") if last_after is not None else None,
+            (last_after or {}).get("vulns") if last_after is not None else None,
+            sorted(all_changed_files), plans_for_impact,
+            regenerate=out.get("regenerate") or [], fleet=None)       # fleet is unreachable from here (see ADR-0012): shared/fleet stays unverified
+        out["impact"] = impact_result
+    except Exception as exc:                                          # noqa: BLE001 - recorded, never swallowed silently
+        out["impact"] = {"error": "%s: %s" % (type(exc).__name__, str(exc)[:240])}
+
+    try:
+        diff_text = (out.get("diff") or {}).get("patch") or ""
+        lines_changed = sum(1 for ln in diff_text.splitlines()
+                            if (ln.startswith("+") or ln.startswith("-")) and not ln.startswith(("+++", "---")))
+        out["review"] = reviewmod.review(
+            plan_digest=last.get("digest") or "", changed_files=sorted(all_changed_files),
+            planned_manifests=sorted({f for p in (rec.get("plans") or []) for f in (p.get("files") or [])}),
+            diff_stats={"lines_changed": lines_changed},
+            impact=impact_result if impact_result is not None else out.get("impact"),
+            plan_summary=remediate.summary(rec.get("plans") or []))
+    except Exception as exc:                                          # noqa: BLE001 - recorded, never swallowed silently
+        out["review"] = {"error": "%s: %s" % (type(exc).__name__, str(exc)[:240])}
+
     return out
 
 

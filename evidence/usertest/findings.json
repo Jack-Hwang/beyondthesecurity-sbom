@@ -1,0 +1,708 @@
+{
+ "rounds": 100,
+ "base": "http://127.0.0.1:8822",
+ "wall_s": 38.6,
+ "passed": 100,
+ "results": [
+  {
+   "i": 1,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 2,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 3,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 4,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 5,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.6
+  },
+  {
+   "i": 6,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 7,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 8,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 9,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 10,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.6
+  },
+  {
+   "i": 11,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 12,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 13,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 14,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 15,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.7
+  },
+  {
+   "i": 16,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 17,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 18,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 19,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 20,
+   "kind": "heavy",
+   "ok": true,
+   "issues": [],
+   "s": 3.9
+  },
+  {
+   "i": 21,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 22,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 23,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 24,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 25,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.7
+  },
+  {
+   "i": 26,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 27,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 28,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 29,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 30,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.8
+  },
+  {
+   "i": 31,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 32,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 33,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 34,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 35,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.6
+  },
+  {
+   "i": 36,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 37,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 38,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 39,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 40,
+   "kind": "heavy",
+   "ok": true,
+   "issues": [],
+   "s": 3.9
+  },
+  {
+   "i": 41,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 42,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 43,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 44,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 45,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.7
+  },
+  {
+   "i": 46,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 47,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 48,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 49,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 50,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.7
+  },
+  {
+   "i": 51,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 52,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 53,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 54,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.2
+  },
+  {
+   "i": 55,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.8
+  },
+  {
+   "i": 56,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 57,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.2
+  },
+  {
+   "i": 58,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 59,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 60,
+   "kind": "heavy",
+   "ok": true,
+   "issues": [],
+   "s": 3.9
+  },
+  {
+   "i": 61,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 62,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 63,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 64,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 65,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.9
+  },
+  {
+   "i": 66,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 67,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 68,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 69,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 70,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.7
+  },
+  {
+   "i": 71,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 72,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 73,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 74,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 75,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.7
+  },
+  {
+   "i": 76,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 77,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 78,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 79,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 80,
+   "kind": "heavy",
+   "ok": true,
+   "issues": [],
+   "s": 3.9
+  },
+  {
+   "i": 81,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 82,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 83,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 84,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 85,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.6
+  },
+  {
+   "i": 86,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 87,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 88,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 89,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 90,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.7
+  },
+  {
+   "i": 91,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 92,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 93,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 94,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 95,
+   "kind": "medium",
+   "ok": true,
+   "issues": [],
+   "s": 0.7
+  },
+  {
+   "i": 96,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 97,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 98,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 99,
+   "kind": "light",
+   "ok": true,
+   "issues": [],
+   "s": 0.1
+  },
+  {
+   "i": 100,
+   "kind": "heavy",
+   "ok": true,
+   "issues": [],
+   "s": 3.9
+  }
+ ]
+}

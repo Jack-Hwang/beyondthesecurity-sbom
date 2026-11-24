@@ -20,20 +20,23 @@ passage with ``trust="untrusted-quote"`` - it can be quoted, never obeyed, and t
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from . import actions as actionsmod, ai, conformance, coverage as coverage_mod, fleet, licenses, rag, sbom, triage, workspace
+from . import actions as actionsmod, ai, conformance, conversation, coverage as coverage_mod, fleet, licenses, rag, sbom, triage, workspace
 from .llm import ChatClient, LLMError, LLMUnavailable
 
-_ID = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+|RUSTSEC-\d{4}-\d+|GO-\d{4}-\d+)\b", re.I)
+_ID = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+|RUSTSEC-\d{4}-\d+|GO-\d{4}-\d+)(?![A-Za-z0-9])", re.I)
+# the id ends before anything that is NOT an ASCII alphanumeric: a Hangul particle glued to the id
+# ("CVE-2018-18074에") must not break the match (\b treats Hangul as a word character - measured 2026-11-22).
 # a question across ALL analysed projects ("which projects use X", "X 쓰는 프로젝트", "영향받는 프로젝트")
 _FLEET_Q = re.compile(r"영향.{0,8}프로젝트|(어느|어떤|몇).{0,4}프로젝트|(사용|쓰는|쓰고|이용|포함).{0,6}프로젝트|프로젝트.{0,6}(사용|쓰|영향|포함)|"
                       r"which projects?|affected projects?|projects? (?:using|that use|with)|across (?:all )?projects")
 # a source the user typed: URL, github shorthand, or an absolute / relative / drive path (bare owner/repo is left to the LLM planner: "and/or" matches it)
 _SRC = re.compile(r"(?:https?://|ssh://|git@|file://)[^\s\"']+|github\.com/[\w.-]+/[\w.-]+|github:[\w.-]+/[\w.-]+|(?:[A-Za-z]:[\\/]|\.{1,2}[\\/]|~[\\/]|/)[^\s\"']+")
 _PATCH_ACT = re.compile(r"(패치|수정|업그레이드|고쳐|고치|patch|fix|upgrade).{0,14}(해|적용|진행|apply|하자|it\b)|apply.{0,12}patch|patch it")
-_PLAN_ASK = re.compile(r"승인 ?토큰|approval token|패치 ?계획|patch plan")
+_PLAN_ASK = re.compile(r"승인 ?토큰|approval token|패치 ?계획|patch plan|수정 ?계획|업그레이드 ?계획|remediation plan|계획을 ?세워")
 _APPROVE = re.compile(r"승인|approve|apply|적용|진행|go ahead")
 _CONFIRM = re.compile(r"확정|confirm|기록해|record it")
 _STATUS_WORDS = (("false-positive", r"오탐|false.?positive|영향 ?없|해당 ?없|not.?affected"), ("accepted", r"위험.{0,3}수용|수용|accept"),
@@ -46,6 +49,22 @@ _INDUSTRY = {"finance": ("금융", "finance", "financial", "은행"), "medical":
 
 def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
+
+
+def order_passages_for_prompt(question: str, docs: Sequence[Tuple[str, str]], cap: int = 6) -> List[Tuple[str, str]]:
+    """Lost-in-the-middle counter-measure (brief-5 books: LLM Design Patterns, Illustrated Guide): the passages
+    handed to the model are ordered by token overlap with the question, most relevant FIRST, so the best
+    evidence never sits in the middle of a long context where it gets buried. Deterministic: ties break by
+    source id. The extractive answer is unaffected - this only rearranges what the LLM lane sees."""
+    q = set(rag.tokenize(question, for_query=True))
+    scored = sorted((-(len(q & set(rag.tokenize(txt, for_query=True)))), sid, txt) for sid, txt in docs)
+    return [(sid, txt) for _, sid, txt in scored[:cap]]
+
+
+def passage_trim_note(total: int, cap: int = 6) -> str:
+    """Honest trim accounting (harness engineering: a quiet loss is a lie): "" when nothing was trimmed."""
+    trimmed = max(0, int(total) - cap)
+    return "%d of %d trusted passages handed to the model (%d trimmed by relevance, cap %d)" % (cap, total, trimmed, cap) if trimmed else ""
 
 
 def verify_claims(claims: Sequence[Dict[str, Any]], docs: Dict[str, str]) -> Dict[str, Any]:
@@ -131,8 +150,10 @@ def _patch(rec: Dict[str, Any]) -> List[str]:
         rec["name"], len(ups), len(plans) - len(ups), sum(1 for p in ups if p["verification"].get("clean") is True))]
     pa = rec.get("patch") or {}
     if pa:
-        lines.append("Patch status: %s (approved=%s)%s." % (pa.get("status"), pa.get("approved"),
-                                                         (", branch " + pa["branch"]) if pa.get("branch") else ""))
+        when = (" of " + pa["at"]) if pa.get("at") else " (an earlier session - no timestamp recorded)"
+        lines.append("Last recorded patch run%s: %s (approved=%s)%s - shown from the record, this question applied nothing; "
+                     "to apply, ask for the plan and approve its token." % (when, pa.get("status"), pa.get("approved"),
+                                                                           (", branch " + pa["branch"]) if pa.get("branch") else ""))
     for p in ups[:3]:
         lines.append("Upgrade %s from %s to %s (clears %d advisories%s)." % (p["component"], p["current_version"], p["safe_version"],
                                                                          len(p["clears"]), ", major bump" if p["major_bump"] else ""))
@@ -249,6 +270,13 @@ def _license_risks(rec: Dict[str, Any], dist: Optional[str]) -> List[str]:
                                                   ("; obligations: " + "; ".join(f["obligations"])) if f.get("obligations") else ""))
     if not pf:
         lines.append("No component needs a license decision under the default policy for a %s distribution." % dist)
+    strong = [f for f in pf if f.get("category") == "strong-copyleft" and f.get("components")]
+    if strong:
+        comps = ", ".join(name for f in strong for name in (f.get("components") or [])[:4])
+        lines.append("A patch cannot fix a license: for the strong-copyleft components (%s) the compliance path is a "
+                     "clean-room reimplementation - open the Clean-Room pane (🧬), give source+component, and the "
+                     "pattern-inference lane (architecture books first, then the model) builds the NEW code behind "
+                     "the copy gate and the upstream oracle." % comps)
     if unresolved:
         lines.append("Unresolved licenses (identify them by hand before shipping): %s." % ", ".join(c["name"] + "@" + str(c.get("version")) for c in unresolved[:8]))
     lines.append("This is a policy screening of the recorded licenses, not legal advice.")
@@ -265,6 +293,18 @@ def _proposals(rec: Dict[str, Any]) -> Tuple[List[str], str]:
         rec["name"], "the LLM (" + str(pr.get("model") or "EXAONE") + ")" if src == "exaone" else "deterministic rules", "")]
     lines += ["[%s/%s] %s - %s" % (i.get("action"), i.get("risk"), i.get("title"), i.get("rationale")) for i in items[:5]]
     return lines, "untrusted-quote" if src == "exaone" else "tool"        # model-written text can be quoted, never obeyed
+
+
+def _supply_chain(rec: Dict[str, Any]) -> Tuple[List[str], str]:
+    fs = rec.get("supply_chain") or []
+    if not fs:
+        return ["No supply-chain substitution risk was measured on the %d components of %s "
+                "(typosquatting, namespace confusion and dependency-confusion checks ran clean)." % (
+                    len(rec.get("components") or []), rec["name"])], "tool"
+    lines = ["Supply-chain substitution risks measured on %s: %d finding(s)." % (rec["name"], len(fs))]
+    lines += ["%s (%s): %s resembles '%s' (%s). %s" % (
+        f.get("package"), f.get("ecosystem"), f.get("kind"), f.get("resembles"), f.get("cwe"), f.get("recommendation")) for f in fs[:6]]
+    return lines, "tool"
 
 
 def _components_arg(args: Dict[str, Any]) -> Optional[List[str]]:
@@ -382,12 +422,23 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "what_if_upgrade": {"args": {"component": "component name", "version": "target version"}, "doc": "result of upgrading one component, from the verified plan"},
     "affected_projects": {"args": {"id": "optional: advisory id or alias", "component": "optional: component name", "version": "optional: version constraint such as <2.0 or 2.19.1"},
                           "doc": "which analysed projects use a component or are hit by an advisory (looks across ALL projects; give an id and/or a component)"},
+    "latest_arch": {"args": {}, "doc": "the latest Arch Intel architecture deep-dive recorded in the evidence folder: license verdict, flow blockers, bounded-context candidates, style hypothesis"},
+    "draw_diagram": {"args": {"kind": "diagram kind; kind=catalog lists them all (e.g. class|component|sequence|state|erd|dfd|decision|archimate|mindmap|call|butterfly|custom)",
+                              "target": "optional: function/class/scenario the diagram zooms into", "spec": "optional: custom flowchart, copied VERBATIM from the question's arrows, e.g. A -> B -> C"},
+                     "doc": "draw a diagram of this project from measured data (the EA-17.2 style catalog; kind=catalog lists every kind). Returns Mermaid the UI renders"},
+    "decide": {"args": {"facts": "optional: comma-separated k=v facts overriding the measured ones, e.g. severity=critical,license_category=copyleft,distribution=binary"},
+               "doc": "run the built-in decision table (DMN-style inference) over the project's measured facts: which rule fires, what action, and the trace"},
+    "nl2sql": {"args": {"q": "natural-language question over the local OSV database (e.g. 생태계별 취약점 수 / django의 취약점 목록 / 전체 취약점 개수)"},
+               "doc": "ask the local OSV database in natural language - read-only SELECT, capped rows, 4-state result"},
+    "book_search": {"args": {"q": "topic, book title or question to look up in the local architecture-book library"},
+                    "doc": "search the ingested architecture-book knowledge base (PDF/EPUB books on this machine): matching passages, each attributed to its book and section"},
     "sbom_conformance": {"args": {"regime": "optional: " + "|".join(sorted(conformance.REGIMES))},
                          "doc": "SBOM conformance per regime (NTIA 2021, CISA 2025 draft, EU CRA, BSI TR-03183-2) and the fields to fix once"},
     "what_changed": {"args": {}, "doc": "what changed since the previous analysis of this project: new and resolved findings, alerts"},
     "coverage": {"args": {}, "doc": "decision coverage: which advisories a standing decision or a verified plan already handles, the unhandled worklist, and the lineage of every recorded decision"},
     "license_risks": {"args": {"distribution": "optional: " + "|".join(_DIST)}, "doc": "license policy screening for a distribution model: copyleft / unknown components, obligations, unresolved licenses"},
     "proposals": {"args": {}, "doc": "the fix proposals recorded for this project (LLM-written ones were validated against the evidence)"},
+    "supply_chain": {"args": {}, "doc": "supply-chain substitution risks measured on the components: typosquatting, namespace confusion, dependency confusion (kind, resemblance, CWE, recommendation)"},
     "plan_patch": {"args": {"components": "optional: comma-separated component names"}, "doc": "preview of the patch plan and its approval token; changes nothing"},
     "export_vex": {"args": {}, "doc": "OpenVEX of this project with the recorded VEX decisions applied"},
     "record_decision": {"args": {"id": "advisory id", "status": "|".join(actionsmod.DECISION_STATUSES),
@@ -403,10 +454,11 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "confirm_decision": {"args": {"code": "the 12-hex confirm code exactly as the user typed it"}, "doc": "record the previewed VEX decision whose code the user typed"},
 }
 WRITE_TOOLS = ("analyze_project", "apply_patch", "confirm_decision")
-NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision")       # these can run before any project is loaded
+NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision", "latest_arch", "book_search", "nl2sql",
+                    "draw_diagram", "decide")                   # these can run before any project is loaded
 FLEET_TOOLS = ("affected_projects",)
 MAX_CALLS = 4
-MAX_ARG = {"source": 300, "reason": 400, "components": 300}
+MAX_ARG = {"source": 300, "reason": 400, "components": 300, "q": 300, "spec": 400, "target": 120, "facts": 240}
 
 
 def catalog(writable: bool) -> Dict[str, Dict[str, Any]]:
@@ -422,8 +474,168 @@ def _plain(tool: str, source: str, lines: List[str], trust: str = "tool") -> Dic
     return {"tool": tool, "source": source, "lines": lines, "trust": trust}
 
 
+def _latest_arch_lines(arch_dir: Optional[str]) -> List[str]:
+    """The latest recorded Arch Intel run, summarised from the evidence folder (nothing is re-analysed, no network).
+    Honest when nothing has been recorded yet."""
+    if not arch_dir:
+        return ["No Arch Intel store is reachable from this session - run an Arch Intel scan first (the Arch Intel tab)."]
+    from .arch_intel import load_result                    # local import: chat must not pull the arch pipeline at load time
+    best: Optional[Tuple[str, Dict[str, Any], str]] = None
+    try:
+        names = sorted(os.listdir(arch_dir))
+    except OSError:
+        names = []
+    for n in names:
+        doc = load_result(os.path.join(arch_dir, n))
+        if not doc:
+            continue
+        fin = str((doc.get("meta") or {}).get("finished") or "")
+        if best is None or fin >= best[0]:
+            best = (fin, doc, n)
+    if best is None:
+        return ["No Arch Intel run has been recorded yet - run a scan on the Arch Intel tab first, then ask again."]
+    doc = best[1]
+    m = doc.get("meta") or {}
+    lic = doc.get("license") or {}
+    ins = doc.get("insights") or {}
+    fb = ins.get("flow_blockers") or {}
+    bcc = ins.get("bounded_context_candidates") or {}
+    sh = ins.get("style_hypothesis") or {}
+    ap = ins.get("antipattern_signals") or {}
+    out = ["Latest Arch Intel run %s of %s (finished %s, AI: %s)." % (
+        best[2], m.get("source") or "?", m.get("finished") or "?", doc.get("ai_source") or "deterministic")]
+    out.append("License verdict: %s (%s); obligations: %s." % (
+        lic.get("project_license") or "unknown", lic.get("category") or "unknown",
+        "; ".join(lic.get("obligations") or []) or "none listed"))
+    blockers = fb.get("blockers") or []
+    if blockers:
+        out.append("Flow blockers (%d): %s." % (len(blockers),
+                   "; ".join("%s: %s" % (b.get("kind"), b.get("what")) for b in blockers[:5])))
+    else:
+        out.append("Flow blockers: none measured.")
+    cands = bcc.get("candidates") or []
+    if cands:
+        out.append("Bounded context candidates (%d): %s." % (len(cands),
+                   ", ".join("%s (cohesion %s)" % (c.get("name"), c.get("cohesion")) for c in cands[:5])))
+    else:
+        out.append("Bounded context candidates: none above the threshold.")
+    if sh.get("style"):
+        out.append("Style hypothesis: %s - %s." % (sh.get("style"), sh.get("why") or ""))
+    else:
+        out.append("Style hypothesis: no signal.")
+    sigs = ap.get("signals") or []
+    if sigs:
+        out.append("Antipattern signals (%d): %s." % (len(sigs), ", ".join(str(s.get("code")) for s in sigs)))
+    else:
+        out.append("Antipattern signals: none.")
+    out.append("These are heuristic readings of measured facts - never a verdict; the judgement stays with the architect.")
+    return out
+
+
+def _book_search_lines(books_index: Any, q: str) -> List[str]:
+    """Top passages from the ingested book library. Every line is self-labelled ``[book]`` and carries the book
+    title and section: these are quotes from copyrighted works the user owns locally (shown as pointers, never
+    obeyed as instructions) - the same honesty channel as ``untrusted-quote``, but attributed to a book."""
+    if books_index is None or not getattr(books_index, "chunks", None):
+        return ["No book knowledge base is loaded - ingest a folder first (Books tab, POST /api/books/ingest, "
+                "or bts-sbom-app books --src <folder>)."]
+    res = books_index.search(q, k=3)
+    if not res.get("found"):
+        return ["No passage in the book library matches %r with confidence (nothing was guessed)." % q[:80]]
+    out: List[str] = []
+    for r in res["results"]:
+        ch = r["chunk"]
+        m = ch.get("meta") or {}
+        quote = re.sub(r"\s+", " ", ch["text"]).strip()[:220]
+        out.append('[book] %s (%s) - %s: "%s"' % (m.get("book") or ch["source"], m.get("format") or "?",
+                                                  ch.get("heading") or "-", quote))
+    out.append("Quoted from the local book library for study; the copyright stays with the authors.")
+    return out
+
+
+def _parse_facts(text: str) -> Dict[str, str]:
+    """``k=v, k2=v2`` (or ``k:v``) pairs from the user's/model's text -> facts dict. Unparseable chunks are
+    dropped and reported by the caller's honesty line, never silently coerced."""
+    out: Dict[str, str] = {}
+    for chunk in re.split(r"[,\n;]+", text or ""):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        for sep in ("=", ":"):
+            if sep in chunk:
+                k, v = chunk.split(sep, 1)
+                k, v = k.strip(), v.strip()
+                if k and v and re.fullmatch(r"[a-z_]{1,30}", k.lower().replace("-", "_")):
+                    out[k.lower().replace("-", "_")] = v[:80]
+                break
+    return out
+
+
+_DIAGRAM_KINDS: Tuple[Tuple[str, str], ...] = (                 # kind -> trigger words (checked in this order)
+    ("call", (r"콜\s*그래프", r"호출\s*그래프", r"call\s*graph")),
+    ("butterfly", (r"버터플라이", r"butterfly")),
+    ("cluster", (r"클러스터\s*콜", r"cluster\s*call")),
+    ("sequence", (r"시퀀스", r"sequence")),
+    ("state", (r"상태\s*머신", r"상태\s*다이어그램", r"state\s*(machine|diagram)")),
+    ("activity", (r"액티비티", r"활동\s*다이어그램", r"activity")),
+    ("usecase", (r"유스케이스", r"use\s*case")),
+    ("erd", (r"\berd\b", r"er\s*다이어그램", r"데이터\s*모델", r"관계\s*스키마")),
+    ("dfd", (r"데이터\s*흐름", r"\bdfd\b", r"data\s*flow")),
+    ("decision", (r"\bdmn\b", r"의사결정\s*다이어그램", r"결정\s*다이어그램")),
+    ("archimate", (r"아키타메이트", r"archimate", r"계층\s*뷰")),
+    ("mindmap", (r"마인드\s*맵", r"mind\s*map")),
+    ("kanban", (r"칸반", r"kanban")),
+    ("dashboard", (r"대시보드", r"dashboard")),
+    ("requirements", (r"요구사항\s*다이어그램", r"requirement\s*diagram")),
+    ("maintenance", (r"유지보수\s*다이어그램", r"변경\s*다이어그램", r"maintenance\s*diagram")),
+    ("timing", (r"타이밍", r"타임라인", r"timing", r"gantt")),
+    ("bpmn", (r"\bbpmn\b", r"비즈니스\s*프로세스\s*다이어그램")),
+    ("logical", (r"레이어\s*(검증|다이어그램)", r"논리\s*다이어그램", r"layer\s*diagram")),
+    ("object", (r"오브젝트\s*다이어그램", r"인스턴스\s*다이어그램", r"object\s*diagram")),
+    ("composite", (r"컴포지트", r"composite\s*structure")),
+    ("communication", (r"커뮤니케이션\s*다이어그램", r"communication\s*diagram")),
+    ("interaction", (r"인터랙션\s*오버뷰", r"interaction\s*overview")),
+    ("business", (r"비즈니스\s*모델링\s*다이어그램", r"business\s*modeling")),
+    ("package", (r"패키지\s*다이어그램", r"package\s*diagram")),
+    ("deployment", (r"배포\s*다이어그램", r"deployment\s*diagram")),
+    ("class", (r"클래스\s*다이어그램", r"class\s*diagram", r"클래스\s*구조")),
+    ("component", (r"컴포넌트\s*다이어그램", r"component\s*diagram")),
+    ("flowchart", (r"플로우\s*차트", r"flow\s*chart", r"파이프라인\s*다이어그램")),
+    ("bdd", (r"블록\s*정의\s*다이어그램", r"block\s*definition", r"\bbdd\b")),
+    ("ibd", (r"내부\s*블록\s*다이어그램", r"internal\s*block", r"\bibd\b")),
+    ("parametric", (r"파라메트릭", r"parametric")),
+    ("robustness", (r"러스트니스", r"로버스트니스", r"robustness")),
+    ("custom", (r"custom\s*diagram", r"커스텀\s*다이어그램")),
+)
+
+_ARROW_CHAIN = re.compile(r"((?:[\w가-힣.\-/:]{1,40})(?:\s*(?:->|-->|→)\s*[\w가-힣.\-/:]{1,40})+)")
+
+
+def _diagram_kind(q: str) -> str:
+    """Trigger words -> catalog kind; arrows without a named kind -> custom (draw what was typed);
+    nothing recognisable -> 'catalog' (the honest answer is the list, not a guess)."""
+    low = q.lower()
+    for kind, words in _DIAGRAM_KINDS:
+        if any(re.search(w, low) for w in words):
+            return kind
+    from . import diagrams as diagramsmod                        # an exact catalog id typed by the model wins too
+    for k in diagramsmod.CATALOG:
+        if re.search(r"(?<![A-Za-z0-9_-])%s(?![A-Za-z0-9_-])" % re.escape(k), low):
+            return k
+    if _ARROW_CHAIN.search(q):
+        return "custom"
+    return "catalog"
+
+
+def _arrow_spec(q: str) -> str:
+    """Every arrow chain in the question, one per line, verbatim node names (the custom diagram's source)."""
+    chains = [m.group(1).strip() for m in _ARROW_CHAIN.finditer(q)]
+    return "\n".join(chains[:8])
+
+
 def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], projects: Optional[Dict[str, Dict[str, Any]]] = None,
-             actions: Any = None, triage_store: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+             actions: Any = None, triage_store: Optional[Dict[str, Any]] = None,
+             arch_dir: Optional[str] = None, books: Any = None, client: Any = None, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """Execute one validated tool call -> result passages ({tool, source, lines, trust}). ``actions`` None = a read-only session."""
     if tool == "analyze_project":
         src = str(args["source"])
@@ -458,11 +670,63 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
         pool = projects if projects else ({rec["name"]: rec} if rec else {})
         tag = ":".join(str(args[k]).lower() for k in ("id", "component", "version") if args.get(k))
         return [{"tool": tool, "source": "fleet:affected:%s" % tag, "lines": _affected(pool, args), "trust": "tool"}]
+    if tool == "latest_arch":                                        # reads the evidence folder only; no analysed project needed
+        return [_plain(tool, "archintel:latest", _latest_arch_lines(arch_dir))]
+    if tool == "draw_diagram":                                       # EA-17.2 catalog; kind=catalog needs no project
+        from . import diagrams as diagramsmod
+        kind = str(args.get("kind") or "").strip().lower()
+        if kind == "catalog":
+            return [_plain(tool, "diagrams:catalog", diagramsmod.catalog_lines())]
+        out = diagramsmod.draw_for_chat(kind, rec, arch_dir, target=args.get("target"), spec=args.get("spec"))
+        res = _plain(tool, "diagrams:%s" % kind.lower(), [out["note"]] if out["note"] else ["그릴 내용이 없습니다."])
+        if out.get("diagram"):
+            res["diagrams"] = [out["diagram"]]                       # the UI renders it under the answer
+        return [res]
+    if tool == "decide":                                             # DMN-style inference over measured facts
+        from . import decision as dmn
+        from . import diagrams as diagramsmod
+        facts = diagramsmod.facts_from_record(rec, _parse_facts(str(args.get("facts") or "")))
+        table = dmn.remediation_policy()
+        res_eval = dmn.evaluate(table, facts)
+        lines = ["의사결정 테이블 %s 평가: verdict=%s, 발화 규칙=%s." % (
+            table.name, res_eval["verdict"], ",".join(res_eval["matched"]) or "없음")]
+        if res_eval["outputs"]:
+            lines.append("결정: [%s] %s" % (res_eval["outputs"].get("priority", "?"), res_eval["outputs"].get("action", "")))
+        if res_eval["verdict"] == "none":
+            lines.append("발화 없음: 팩트가 부족하다 (%s 제공, 필요 %s). 기본값은 임의로 채우지 않는다." % (
+                ", ".join(sorted(facts)) or "없음", ", ".join(sorted(table.inputs))))
+        lines.append("측정 팩트: %s." % (", ".join("%s=%s" % (k, facts[k]) for k in sorted(facts)) or "없음 (명시적 팩트만 제공)"))
+        lines.extend(dmn.table_lines(table))
+        out = {"tool": tool, "source": "decision:%s:%s" % (table.name, res_eval["verdict"]), "lines": lines, "trust": "tool"}
+        d = diagramsmod.build("decision", rec, None)
+        if d.get("mermaid"):
+            out["diagrams"] = [{"name": d["title"], "mermaid": d["mermaid"], "note": ""}]
+        return [out]
+    if tool == "book_search":                                        # reads the ingested book library; no analysed project needed
+        return [_plain(tool, "books:search", _book_search_lines(books, str(args.get("q") or "")), trust="book")]
+    if tool == "nl2sql":                                             # asks the local OSV database; 4-state honest result
+        from . import nl2sql as nl2sql_mod
+        if not db_path or not os.path.exists(db_path):
+            return [_plain(tool, "db:access", ["The local OSV database is not present on this machine - "
+                                               "build it first (bts_sbom osvscanner) and check BTS_SBOM_OSV_DB_PATH."], trust="tool")]
+        res = nl2sql_mod.answer(str(args.get("q") or ""), db_path=db_path, client=client)
+        lines = ["status: %s%s" % (res.get("status"), " (truncated)" if res.get("truncated") else ""),
+                 "sql: %s" % (res.get("sql") or "-")]
+        for row in (res.get("rows") or [])[:12]:
+            lines.append("row: " + " | ".join(str(v) for v in (row if isinstance(row, (list, tuple)) else [row])))
+        if res.get("error"):
+            lines.append("error: %s" % json.dumps(res["error"], ensure_ascii=False))
+        if res.get("clarification_needed"):
+            lines.append("clarification needed: %s" % res["clarification_needed"])
+        return [_plain(tool, "db:nl2sql", lines, trust="tool")]
     assert rec is not None, "tool %s needs a project" % tool
     if tool == "license_risks":
         return [_result(rec, tool, _license_risks(rec, args.get("distribution")), suffix=":" + (args.get("distribution") or "binary"))]
     if tool == "proposals":
         lines, trust = _proposals(rec)
+        return [_result(rec, tool, lines, trust=trust)]
+    if tool == "supply_chain":
+        lines, trust = _supply_chain(rec)
         return [_result(rec, tool, lines, trust=trust)]
     if tool == "plan_patch":
         comps = _components_arg(args)
@@ -557,6 +821,10 @@ def validate_calls(calls: Any, rec: Optional[Dict[str, Any]], question: Optional
         elif c["tool"] == "sbom_conformance" and "regime" in args:
             args["regime"] = args["regime"].lower()
             bad = args["regime"] not in conformance.REGIMES
+        elif c["tool"] == "draw_diagram" and "kind" in args:
+            from . import diagrams as diagramsmod
+            args["kind"] = args["kind"].strip().lower()
+            bad = bad or (args["kind"] not in diagramsmod.CATALOG and args["kind"] != "catalog")
         elif c["tool"] == "affected_projects":
             bad = not (args.get("id") or args.get("component"))      # at least one thing to look for
             if args.get("id"):
@@ -647,12 +915,18 @@ def parse_decision(q: str) -> Optional[Dict[str, str]]:
 # ------------------------------------------------------------------ bot
 class Chatbot:
     def __init__(self, index: rag.Index, projects: Optional[Dict[str, Dict[str, Any]]] = None, client: Optional[ChatClient] = None,
-                 actions: Any = None, triage_store: Optional[Dict[str, Any]] = None):
+                 actions: Any = None, triage_store: Optional[Dict[str, Any]] = None, arch_dir: Optional[str] = None,
+                 books: Any = None, memory: Optional[Any] = None, db_path: Optional[str] = None):
         self.index = index
         self.projects = projects or {}
         self.client = client
+        self.db_path = db_path                        # the local OSV database path, for the nl2sql tool
         self.actions = actions                        # None = read-only session (nothing is analysed, patched or recorded)
         self.triage_store = triage_store              # the recorded VEX decisions, for the read-only OpenVEX view
+        self.arch_dir = arch_dir                      # the archintel evidence folder, for the latest_arch tool
+        self.books = books
+        self.db_path = db_path                        # the local OSV database path, for the nl2sql tool                            # the serve-time book index (rag.Index, kind="books"), for book_search
+        self.memory = memory                          # conversation memory (conversation.ConversationMemory), shared by the server's State
 
     def _no_client_note(self, use_llm: bool) -> str:
         """Honesty: when EXAONE was requested but there is no client, say so instead of silently answering extractively."""
@@ -677,7 +951,7 @@ class Chatbot:
         ids = list(dict.fromkeys(i.upper() for i in _ID.findall(q)))
         for i in ids:
             calls.append(("vuln_lookup", {"id": i}))
-        names = [c["name"] for c in rec.get("components") or [] if len(c["name"]) >= 3 and re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(c["name"].lower()), low)]
+        names = [c["name"] for c in rec.get("components") or [] if len(c["name"]) >= 3 and re.search(r"(?<![A-Za-z0-9_-])%s(?![A-Za-z0-9_-])" % re.escape(c["name"].lower()), low)]
         for n in list(dict.fromkeys(names))[:2]:
             calls.append(("component_lookup", {"name": n}))
         if re.search(r"취약|vulnerab|cve|critical|심각|위험", low) and not ids:
@@ -685,10 +959,22 @@ class Chatbot:
             calls.append(("top_vulns", {}))
         if re.search(r"라이선스|license|copyleft|gpl|spdx", low):
             calls.append(("license", {}))
+        if re.search(r"타이포스쿼팅|스쿼팅|혼동|typosquat|confusion|공급망|supply.?chain", low):
+            calls.append(("supply_chain", {}))
+        what_if = next((n for n in names if re.search(r"(어때|어떨까|시뮬레이션|영향|hypothetical)", low)
+                        and re.search(re.escape(n.lower()) + r"[^\d]{0,20}\d+(\.\d+){1,3}", low)), None)
+        if what_if:
+            ver = re.search(re.escape(what_if.lower()) + r"[^\d]{0,20}(\d+(\.\d+){1,3})", low)
+            if ver:
+                calls.append(("what_if_upgrade", {"component": what_if, "version": ver.group(1)}))
         if re.search(r"패치|수정|업그레이드|patch|fix|upgrade|remediat", low):
             calls.append(("patch", {}))
         if re.search(r"아키텍처|레거시|순환|핫스팟|architecture|legacy|cycle|hotspot|현대화|런타임|eol", low):
             calls.append(("architecture", {}))
+        if re.search(r"(?<!해결)(?<!대책)(?<!방책)책|서적|도서|\bbooks?\b", low):   # the ingested book library (no project needed)
+            calls.append(("book_search", {"q": q[:300]}))
+        if re.search(r"\bsql\b|쿼리|데이터베이스|osv ?(데이터|db)|\bdb\b", low) and not ids:
+            calls.append(("nl2sql", {"q": q[:300]}))
         ind = next((k for k, ws in _INDUSTRY.items() if any(w in low for w in ws)), None)
         if ind or re.search(r"규제|sector|산업|compliance|준수", low):
             calls.append(("sector", {"industry": ind} if ind else {}))
@@ -704,7 +990,7 @@ class Chatbot:
         acts = self._action_calls(q, rec)
         if any(t == "apply_patch" for t, _ in acts) or _PATCH_ACT.search(low):      # asked to DO it: the preview / result already says what the generic plan tool would
             calls = [c for c in calls if c[0] != "patch"]
-        calls = acts + calls
+        calls = acts + calls + self._diagram_calls(q)
         if re.search(r"요약|개요|overview|summary|현황|상태", low) and not any(c[0] == "overview" for c in calls):
             calls.insert(0, ("overview", {}))
         return self._run(rec, self._valid(calls, rec, q))
@@ -713,6 +999,28 @@ class Chatbot:
         """Regex-built calls go through the same validator as the model's: the gates are not a property of the LLM path."""
         ok, _ = validate_calls([{"tool": t, "args": a} for t, a in calls], rec, q)
         return ok
+
+    def _diagram_calls(self, q: str) -> List[Tuple[str, Dict[str, Any]]]:
+        """다이어그램·추론 라우팅 (LLM 플래너의 결정론적 폴백): '그려줘/다이어그램/draw' -> draw_diagram,
+        결정 테이블 물음 -> decide. 종류는 트리거 단어에서 온다; 모르면 kind=catalog로 목록을 보여준다."""
+        low = q.lower()
+        out: List[Tuple[str, Dict[str, Any]]] = []
+        if re.search(r"다이어그램|도식|그려|그려줘|그림|draw|diagram", low):
+            kind = _diagram_kind(q)
+            call: Dict[str, Any] = {"kind": kind}
+            if kind == "custom":
+                spec = _arrow_spec(q)
+                if spec:
+                    call["spec"] = spec
+            m = re.search(r"(?:target|타깃|대상)\s*[:：]\s*([\w.\-]{2,60})", q, re.I)
+            if m and kind in ("butterfly", "composite", "sequence"):
+                call["target"] = m.group(1)
+            out.append(("draw_diagram", call))
+        if re.search(r"\bdmn\b|결정\s*테이블|decision\s*table|추론\s*엔진|정책\s*판단|어떤\s*행동을\s*해야", low) \
+                and not re.search(r"다이어그램|도식|그려|draw", low):
+            mf = re.search(r"(?:팩트|facts?)\s*[:=]\s*([^\n]{1,200})", q, re.I)
+            out.append(("decide", {"facts": mf.group(1).strip()} if mf else {}))
+        return out
 
     def _action_calls(self, q: str, rec: Optional[Dict[str, Any]]) -> List[Tuple[str, Dict[str, Any]]]:
         """Regex routes of the license / proposal / patch / VEX / analysis tools (the deterministic fallback of the planner)."""
@@ -726,7 +1034,7 @@ class Chatbot:
             calls.append(("confirm_decision", {"code": m12.group(1)}))
         if rec is None:
             return calls
-        pcomps = [p["component"] for p in actionsmod.plan_selection(rec) if re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(p["component"].lower()), low)]
+        pcomps = [p["component"] for p in actionsmod.plan_selection(rec) if re.search(r"(?<![A-Za-z0-9_-])%s(?![A-Za-z0-9_-])" % re.escape(p["component"].lower()), low)]
         carg = {"components": ",".join(dict.fromkeys(pcomps))} if pcomps else {}
         m16 = re.search(r"\b([0-9a-f]{16})\b", low)
         if m16 and _APPROVE.search(low):
@@ -739,7 +1047,7 @@ class Chatbot:
         if re.search(r"의무|obligation|saas|배포|distribution|copyleft|gpl|충돌|conflict|판정|리스크|위험", low) and re.search(r"라이선스|license|copyleft|gpl", low):
             dist = "saas" if re.search(r"saas|서비스형|클라우드 서비스", low) else ("internal" if re.search(r"internal|사내|내부", low) else None)
             calls.append(("license_risks", {"distribution": dist} if dist else {}))
-        if re.search(r"proposals?|제안(?!서)|(수정|패치|업그레이드|취약|보안|fix).{0,10}(추천|recommend)|(추천|recommend).{0,10}(수정|패치|업그레이드|fix)", low):
+        if re.search(r"proposals?\b|제안(?!서)|(?:수정|패치|업그레이드|취약|보안|fix).{0,10}(추천|recommend)|(추천|recommend).{0,10}(수정|패치|업그레이드|fix)", low):
             calls.append(("proposals", {}))
         if re.search(r"\bvex\b|openvex|내보내|export", low):
             calls.append(("export_vex", {}))
@@ -748,7 +1056,7 @@ class Chatbot:
     def _run(self, rec: Optional[Dict[str, Any]], calls: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
         for c in calls:
-            for p in run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store):
+            for p in run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store, self.arch_dir, self.books, self.client, self.db_path):
                 new = p.pop("record", None)
                 if new is not None:                         # an analysis just produced a project: the calls after it talk about that one
                     self.projects[new["name"]] = new
@@ -760,27 +1068,69 @@ class Chatbot:
         """Regex route for a question that names no project: one across all of them (which projects use X?), or a request to analyse a source."""
         low = q.lower()
         pre = self._valid(self._action_calls(q, None), None, q)
+        if re.search(r"arch ?intel|아키텍처 인텔", low):                     # the recorded deep-dive needs no analysed project
+            return self._run(None, pre + [{"tool": "latest_arch", "args": {}}])
+        if re.search(r"(?<!해결)(?<!대책)(?<!방책)책|서적|도서|\bbooks?\b", low):   # the book library likewise (해결책 is not a book)
+            return self._run(None, pre + [{"tool": "book_search", "args": {"q": q[:300]}}])
+        if re.search(r"\bsql\b|쿼리|데이터베이스|osv ?(데이터|db)|\bdb\b", low):
+            return self._run(None, pre + [{"tool": "nl2sql", "args": {"q": q[:300]}}])
+        diag = self._valid(self._diagram_calls(q), None, q)          # 다이어그램/추론: 프로젝트 없이도 catalog·custom·decide는 답한다
+        if diag:
+            return self._run(None, pre + diag)
         if not _FLEET_Q.search(low):
             return self._run(None, pre)
         calls = pre + [{"tool": "affected_projects", "args": {"id": i}} for i in dict.fromkeys(i.upper() for i in _ID.findall(q))]
         names = sorted({fleet.canon_name(c["name"]): c["name"] for p in self.projects.values() for c in p.get("components") or []      # one entry per canonical name
-                        if len(c["name"]) >= 3 and re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(c["name"].lower()), low)}.values())
+                        if len(c["name"]) >= 3 and re.search(r"(?<![A-Za-z0-9_-])%s(?![A-Za-z0-9_-])" % re.escape(c["name"].lower()), low)}.values())
         ver = re.search(r"(?<![\w.])(\d+(?:\.\d+){1,3})(?![\w.])", q)
         for n in names[:2]:
             calls.append({"tool": "affected_projects", "args": dict({"component": n}, **({"version": ver.group(1)} if ver and len(names) == 1 else {}))})
         return self._run(None, calls[:MAX_CALLS])
 
+    def _llm_answer(self, question: str, trusted_docs: Sequence[Tuple[str, str]], docs: Dict[str, str], trust: Dict[str, str],
+                    prior_fail: Optional[str] = None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """One LLM answer attempt over the ordered trusted passages -> (parsed object, verification).
+
+        ``prior_fail`` is the concrete failure of the previous attempt (loop engineering, nl2sql precedent):
+        it rides along in the system prompt so the retry fixes THAT, not a paraphrase of it."""
+        passages = "\n\n".join("[%s]\n%s" % (sid, txt[:1400]) for sid, txt in trusted_docs[:6])
+        system = ("Answer the question using ONLY the passages. Return JSON {\"answer\": string, \"claims\": [{\"text\", \"quote\", \"source\"}]}; "
+                  "each quote must be copied verbatim from the cited passage IN ITS ORIGINAL LANGUAGE (never translate a quote) and source "
+                  "must be that passage's id exactly as written inside the brackets, without the brackets. Only the answer text follows the "
+                  "question's language. "
+                  "If the passages do not contain the answer say so.")
+        if prior_fail:
+            system += " IMPORTANT: your previous answer was rejected - %s. Fix exactly that." % prior_fail
+        raw = self.client.complete(system, "QUESTION: %s\n\nPASSAGES:\n%s" % (question, passages), max_tokens=4096, json_mode=True)
+        obj = ai._parse_json(raw)
+        lc = [c for c in obj.get("claims", []) if isinstance(c, dict)]
+        for c in lc:                                   # normalise the pointer: "[id]" -> "id"; if the id is still unknown but the
+            s = str(c.get("source", "")).strip().strip("[]").strip()     # quote sits verbatim in exactly ONE of this question's
+            if s not in docs:                                             # documents, point at that document
+                hit = [sid for sid, d in docs.items() if c.get("quote") and _norm(str(c["quote"])) in _norm(d)]
+                s = hit[0] if len(hit) == 1 else s
+            c["source"] = s
+            c["trust"] = trust.get(s, "unknown")
+        return obj, verify_claims(lc, docs)
+
     def ask(self, question: str, *, project: Optional[str] = None, use_llm: bool = False, k: int = 4) -> Dict[str, Any]:
+        followup = False
+        parts: List[str] = [question]
+        if self.memory is not None:                   # multi-turn: an elliptical follow-up merges with the previous turn
+            question, followup = conversation.resolve_followup(question, self.memory)
+        parts = conversation.decompose_question(question)
         if project and project not in self.projects:
             return {"found": False, "answer": "Unknown project %r: the analysed projects are %s." % (project, sorted(self.projects) or "none"),
                     "claims": [], "answer_source": "none", "tools": [], "retrieval": {"found": False, "coverage": 0.0, "top": []},
                     "citation_accuracy": 1.0, "llm_note": self._no_client_note(use_llm), "routing": "none",
-                    "routing_note": "unknown project id; nothing was guessed", "plan_dropped": {}, "contains_untrusted": False}
+                    "routing_note": "unknown project id; nothing was guessed", "plan_dropped": {}, "contains_untrusted": False, "conflicts": [],
+                    "followup": followup, "decomposed": parts if len(parts) > 1 else []}
         rec = self._pick_project(question, project)
         docs: Dict[str, str] = {}
         trust: Dict[str, str] = {}
         claims: List[Dict[str, Any]] = []
         tools_used: List[str] = []
+        diagrams: List[Dict[str, Any]] = []
         routing, routing_note, plan_dropped = "regex", "", {}
         if rec is not None:
             results: Optional[List[Dict[str, Any]]] = None
@@ -795,9 +1145,15 @@ class Chatbot:
                 except (LLMUnavailable, LLMError, ValueError, TypeError, AttributeError) as exc:
                     routing_note = "LLM tool planning unavailable -> regex router: " + str(exc)[:160]
             if results is None:
-                results = self._tools(question, rec)
+                results = self._tools(question, rec) if len(parts) == 1 else conversation.merge_tool_results(parts, lambda part: self._tools(part, rec))
+            else:                                            # llm plan ran: still union the deterministic diagram/decide keywords -
+                have = {t["tool"] for t in results}          # a "그려줘/다이어그램" question must always draw even when the planner mis-selected (measured 2026-11-23: plan said ['decide'] only)
+                extra = [c for c in self._valid(self._diagram_calls(question), rec, question) if c["tool"] not in have]
+                if extra:
+                    results += self._run(rec, extra)         # the union contributes EXECUTED results, never bare call dicts
             for t in results:
                 tools_used.append(t["tool"])
+                diagrams.extend(t.get("diagrams") or [])
                 docs[t["source"]] = "\n".join(t["lines"])
                 trust[t["source"]] = t["trust"]
                 claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"]} for ln in t["lines"])
@@ -813,6 +1169,7 @@ class Chatbot:
                     routing_note = "LLM tool planning unavailable -> regex router: " + str(exc)[:160]
             for t in (unscoped if unscoped is not None else self._fleet_tools(question)):
                 tools_used.append(t["tool"])
+                diagrams.extend(t.get("diagrams") or [])
                 docs[t["source"]] = "\n".join(t["lines"])
                 trust[t["source"]] = t["trust"]
                 claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"]} for ln in t["lines"])
@@ -820,6 +1177,9 @@ class Chatbot:
         res = self.index.search(question, k=k, filters=flt)
         retrieval = {"found": res["found"], "coverage": res["coverage"],
                      "top": [{"source": r["chunk"]["source"], "heading": r["chunk"]["heading"], "rrf": r["rrf"]} for r in res["results"][:k]]}
+        # conflict annotation (the lecture's 상충 로그): two top chunks from different sources answering the same
+        # measured label with different numbers are shown side by side, never silently resolved (rule: escalate).
+        conf = rag.conflicts(res["results"][:2]) if res["found"] else []
         if res["found"]:
             qtok = set(rag.tokenize(question, for_query=True))
             for r in res["results"][:2]:
@@ -831,11 +1191,16 @@ class Chatbot:
                 for s in sents[:2]:
                     if qtok & set(rag.tokenize(s)):
                         claims.append({"text": s, "quote": s, "source": ch["id"], "trust": trust[ch["id"]]})
-        meta = {"routing": routing, "routing_note": routing_note, "plan_dropped": plan_dropped}
+        meta = {"routing": routing, "routing_note": routing_note, "plan_dropped": plan_dropped,
+                "followup": followup, "decomposed": parts if len(parts) > 1 else [],
+                "injection": conversation.scan_injection(docs)}
+        if self.memory is not None:                   # record the turn even when nothing was found (continuity is data)
+            self.memory.record(question, tools_used, bool(claims), project)
         if not claims:
             return dict({"found": False, "answer": "I could not find this in the analysed projects or the knowledge base.", "claims": [],
                          "answer_source": "none", "tools": [], "retrieval": retrieval, "citation_accuracy": 1.0,
-                         "llm_note": self._no_client_note(use_llm), "contains_untrusted": False}, **meta)
+                         "llm_note": self._no_client_note(use_llm), "contains_untrusted": False, "conflicts": [],
+                         "diagrams": diagrams[:3]}, **meta)
         ver = verify_claims(claims, docs)
         answer = "\n".join(("- [untrusted quote] " if c.get("trust") == "untrusted-quote" else "- ") + c["text"] for c in ver["kept"])
         src = "tools" if tools_used else "rag"
@@ -846,31 +1211,35 @@ class Chatbot:
             llm_note = "no trusted passage to hand to EXAONE (only untrusted quotes) -> extractive answer"
         elif use_llm and self.client is not None:
             try:                                        # the model only ever sees trusted passages: untrusted text is appended verbatim afterwards
-                passages = "\n\n".join("[%s]\n%s" % (sid, txt[:1400]) for sid, txt in trusted_docs[:6])
-                raw = self.client.complete(
-                    "Answer the question using ONLY the passages. Return JSON {\"answer\": string, \"claims\": [{\"text\", \"quote\", \"source\"}]}; "
-                    "each quote must be copied verbatim from the cited passage IN ITS ORIGINAL LANGUAGE (never translate a quote) and source "
-                    "must be that passage's id exactly as written inside the brackets, without the brackets. Only the answer text follows the "
-                    "question's language. "
-                    "If the passages do not contain the answer say so.",
-                    "QUESTION: %s\n\nPASSAGES:\n%s" % (question, passages), max_tokens=4096, json_mode=True)
-                obj = ai._parse_json(raw)
-                lc = [c for c in obj.get("claims", []) if isinstance(c, dict)]
-                for c in lc:                                   # normalise the pointer: "[id]" -> "id"; if the id is still unknown but the
-                    s = str(c.get("source", "")).strip().strip("[]").strip()     # quote sits verbatim in exactly ONE of this question's
-                    if s not in docs:                                             # documents, point at that document
-                        hit = [sid for sid, d in docs.items() if c.get("quote") and _norm(str(c["quote"])) in _norm(d)]
-                        s = hit[0] if len(hit) == 1 else s
-                    c["source"] = s
-                    c["trust"] = trust.get(s, "unknown")
-                v2 = verify_claims(lc, docs)
-                if v2["kept"] and isinstance(obj.get("answer"), str) and v2["accuracy"] >= 0.8:
-                    answer = obj["answer"] + "".join("\n- [untrusted quote] " + c["text"] for c in untrusted_claims)
-                    ver, src = dict(v2, kept=v2["kept"] + untrusted_claims), "exaone"
-                else:
-                    llm_note = "EXAONE answer rejected (citation accuracy %s) -> extractive answer" % v2["accuracy"]
-            except (LLMUnavailable, LLMError, ValueError, TypeError, AttributeError) as exc:
+                trusted_docs = order_passages_for_prompt(question, trusted_docs)
+                trim = passage_trim_note(len(trusted_docs))
+                fail = None
+                for attempt in (1, 2):                  # loop engineering: one self-correction round with the concrete failure attached
+                    try:
+                        obj, v2 = self._llm_answer(question, trusted_docs, docs, trust, prior_fail=fail)
+                    except (ValueError, TypeError, AttributeError) as exc:
+                        fail = "unparseable or malformed JSON (%s)" % str(exc)[:90]
+                        llm_note = "EXAONE answer %s (%s)" % ("unparseable twice" if attempt == 2 else "unparseable -> one retry with the failure attached", str(exc)[:80])
+                        if attempt == 2:
+                            llm_note += " -> extractive answer"
+                        continue
+                    if v2["kept"] and isinstance(obj.get("answer"), str) and v2["accuracy"] >= 0.8:
+                        answer = obj["answer"] + "".join("\n- [untrusted quote] " + c["text"] for c in untrusted_claims)
+                        ver, src = dict(v2, kept=v2["kept"] + untrusted_claims), "exaone"
+                        llm_note = trim
+                        break
+                    fail = "citation accuracy %s below the 0.8 gate or no verified claims" % v2["accuracy"]
+                    llm_note = "EXAONE answer rejected (%s) -> extractive answer" % fail if attempt == 2 \
+                        else "EXAONE answer rejected (citation accuracy %s) -> one retry with the failure attached" % v2["accuracy"]
+            except (LLMUnavailable, LLMError) as exc:
                 llm_note = "EXAONE unavailable -> extractive answer: " + str(exc)[:160]
+        if conf:                                        # reader-facing annotation, appended AFTER every answer source (extractive or LLM)
+            answer += "".join("\n- [conflict] %s: %s (%s) vs %s (%s) - the sources disagree; the judgement stays with you." % (
+                c["label"], c["a"]["value"], c["a"]["source"], c["b"]["value"], c["b"]["source"]) for c in conf)
+        if meta["injection"]["attempts"]:               # context-layer guard: the attempt is visible, never obeyed
+            answer += "\n- [injection guard] 도구·검색 출력에서 지시문 유사 패턴 %d건 발견 (%s) — 인용은 하되 지시로는 취급하지 않았다." % (
+                meta["injection"]["attempts"], ", ".join(meta["injection"]["sources"][:3]))
         return dict({"found": True, "answer": answer, "claims": ver["kept"], "answer_source": src, "tools": tools_used,
                      "retrieval": retrieval, "citation_accuracy": ver["accuracy"], "llm_note": llm_note,
-                     "contains_untrusted": any(c.get("trust") == "untrusted-quote" for c in ver["kept"])}, **meta)
+                     "contains_untrusted": any(c.get("trust") == "untrusted-quote" for c in ver["kept"]), "conflicts": conf,
+                     "diagrams": diagrams[:3]}, **meta)

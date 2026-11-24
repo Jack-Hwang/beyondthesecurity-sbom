@@ -25,9 +25,35 @@ evidence/.llm_ledger.json
 evidence/runs/
 bts_sbom_work_*/
 
+# extracted text of the user's own PDF/EPUB books (copyrighted works - rebuild with `bts-sbom-app books --src <folder>`)
+evidence/books/
+
 # bulky per-project machine records of analysed third-party repositories (regenerate with `bts-sbom-app batch`);
 # summaries, loop history and the human-readable reports stay tracked
 evidence/batch/runs/*/*/*.json
 
 # optional pinned snapshot of the core used for a reproducible loop pass (git archive of a tag, see docs/WORKFLOW.md)
 .deps/
+.zcode/
+evidence/.llm_config.json
+evidence/supply_chain/
+evidence/reimpl/
+evidence/arch_intel/arch_out.json
+
+# REA/round artefacts that must never ship: downloaded vendor binaries and runtime logs
+/downloads/
+evidence/serve_8800.log
+evidence_e2e/
+evidence/reimpl_batch/*/
+evidence/reimpl_batch/*.log
+evidence/legacy_oss/
+evidence/serve_*.log
+
+# consolidated one-off scripts and session scratch (kept on disk, never shipped)
+_attic/
+evidence/arch_intel/dgml_validation_out.json
+
+# chat action runner scratch (report.json is the artifact)
+evidence/chat_actions/proj/
+evidence/chat_actions/.triage.json
+evidence/chat_actions/.pending_decisions.json

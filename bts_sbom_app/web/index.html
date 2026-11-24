@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BTS-SBOM</title>
 <!-- tokens.css, app.css, light_theme_overrides.css, view_scan.css, sca_app.css and sca_app.js are copied unmodified from the BTS
-     platform (see NOTICE.md). Only this page, bts_console.css, bts_ui.js, bts_governance.js and bts_console.js are written for BTS-SBOM. -->
+     platform (see NOTICE.md). This page, bts_console.css, bts_ui.js, bts_governance.js, bts_console.js, oss_scanner.js/.css,
+     arch_intel_render.js, arch_intel.js and arch_intel.css are written for BTS-SBOM; web/vendor/mermaid.min.js is a vendored
+     third-party asset (NOTICE.md). -->
 <link rel="stylesheet" href="/static/css/tokens.css">
 <link rel="stylesheet" href="/static/css/app.css">
 <link rel="stylesheet" href="/static/css/light_theme_overrides.css">
@@ -13,6 +15,7 @@
 <link rel="stylesheet" href="/static/sca_app.css">
 <link rel="stylesheet" href="/static/bts_console.css">
 <link rel="stylesheet" href="/static/oss_scanner.css">
+<link rel="stylesheet" href="/static/arch_intel.css">
 </head>
 <body>
 <div class="app">
@@ -25,7 +28,9 @@
   </div>
   <div class="body" style="grid-template-columns:1fr">
     <div class="view view-scan on" id="view-scan">
-      <div class="scan">
+      <div class="scan bts-shell">
+        <nav id="sideNav" class="bts-sidenav" aria-label="Sections"></nav>
+        <div class="bts-content">
         <h2>&#128275; Open-Source Security <span class="sub" style="font-size:13px;font-weight:400">&mdash; Vulnerabilities &middot; Licenses &middot; SBOM &middot; AI Auto-Patch</span></h2>
         <div class="lede">Scan a <b>Git repo</b> or a local path for open-source vulnerabilities (OSV.dev), licenses (lockfile &rarr; deps.dev &rarr; registry, with the source recorded),
           CycloneDX / SPDX / OpenVEX documents, industry reports and legacy-architecture findings &mdash; with verified upgrade plans and an approval-gated patch.</div>
@@ -45,29 +50,27 @@
           </span>
         </div>
 
-        <div class="rtabs" id="scanTabs">
-          <div class="rtab active" data-sv="git">&#127760; Scan &mdash; Git &middot; Lockfile &middot; Container</div>
-          <div class="rtab" data-sv="risk" style="color:var(--dcard-err)">&#128202; Findings</div>
-          <div class="rtab" data-sv="prioritize" style="color:#f59e0b">&#127919; Prioritize</div>
-          <div class="rtab" data-sv="graph-health" style="color:#818cf8">&#128376; Graph &amp; Health</div>
-          <div class="rtab" data-sv="compliance" style="color:#34d399">&#9989; Compliance</div>
-          <div class="rtab" data-sv="fix" style="color:#a78bfa">&#128295; Fix</div>
-          <div class="rtab" data-sv="oss">&#128220; OSS Scanner</div>
-          <div class="rtab" data-sv="more">&#9881;&#65039; CI/CD &middot; History</div>
-        </div>
+        <!-- The section navigation is the desktop-style sidebar (#sideNav), built by bts_console.js from
+             GROUPS/LABELS; the sidebar buttons carry the same .rtab[data-sv] contract the old top bar had. -->
         <div id="scanSubNav" style="display:none;gap:6px;flex-wrap:wrap;margin:-6px 0 12px" aria-label="Group sub-tabs"></div>
 
-        <!-- GIT REPO: landing pane, also hosts the console that shows the result of the last analysis -->
+        <!-- GIT REPO + OSS SCANNER: the unified landing pane. One form, one ▶ Analyze: the main SBOM/CVE pipeline
+             AND the OSS scan (source/dependency/binary) run on the same target; oss_scanner.js fills the mode
+             checkboxes (#scaOssModes), the exclude row (#scaOssExcludes) and the Previous-scans list
+             (#ossHistoryLanding), and renders the scan results on the 📜 OSS 결과 sub-tab (#paneOss). -->
         <div class="rpane on" data-sv="git">
           <div class="pathbox" id="scaRepoPanel">
-            <label>&#127760; Analyze a Git repo or a local path <span class="sub">&mdash; clone/read &rarr; SBOM &rarr; OSV.dev CVEs + deps.dev licenses &rarr; safe-upgrade plan</span></label>
+            <label>&#127760; Analyze a Git repo, a local folder or an archive <span class="sub">&mdash; clone/read &rarr; SBOM &rarr; OSV.dev CVEs + deps.dev licenses &rarr; safe-upgrade plan &rarr; OSS 스캔(공개문·엑셀 성과물)</span></label>
             <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap" id="scaInputRow">
-              <input id="scaGitUrl" value="" placeholder="https://github.com/org/repo.git   &mdash;or&mdash;   owner/repo   &mdash;or&mdash;   D:\path\to\project" spellcheck="false" style="flex:1;min-width:340px;font-family:ui-monospace,monospace">
-              <label style="font-size:12px;margin:0"><input type="checkbox" id="scaOffline"> offline</label>
-              <label style="font-size:12px;margin:0" title="Ask LG EXAONE for upgrade proposals (needs a configured key; otherwise rule-based proposals are used)"><input type="checkbox" id="scaLlm"> EXAONE</label>
+              <input id="scaGitUrl" value="" placeholder="https://github.com/org/repo.git   &mdash;or&mdash;   owner/repo   &mdash;or&mdash;   D:\path\to\project   &mdash;or&mdash;   project.zip / .tar.gz / .jar / .whl / .rpm" spellcheck="false" style="flex:1;min-width:340px;font-family:ui-monospace,monospace">
+              <input id="ossBranch" placeholder="branch / tag (git URLs)" spellcheck="false" style="width:170px">
+              <label style="font-size:12px;margin:0;white-space:nowrap"><input type="checkbox" id="scaOffline"> offline</label>
+              <label style="font-size:12px;margin:0;white-space:nowrap" title="Ask LG EXAONE for upgrade proposals (needs a configured key; otherwise rule-based proposals are used)"><input type="checkbox" id="scaLlm"> EXAONE</label>
               <button class="run" id="scaDemoBtn" style="background:#333">&#127919; Demo repo</button>
               <button class="run" id="runScaReport">&#9654; Analyze</button>
             </div>
+            <div id="scaOssModes" style="margin-top:8px"></div>
+            <div id="scaOssExcludes" style="margin-top:6px"></div>
             <div class="ex" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <span>Try:</span>
               <span class="egchip" data-url="https://github.com/adeyosemanputra/pygoat.git">pygoat (Python)</span>
@@ -75,9 +78,20 @@
               <span class="egchip" data-url="https://github.com/OWASP/NodeGoat.git">NodeGoat (npm)</span>
               <span class="sub" style="margin-left:auto">The clone is analysed in a temporary copy; the origin is never modified and nothing from it is executed.</span>
             </div>
+            <div class="ex">Archives are extracted with size and path limits; git URLs are cloned with hooks disabled; nothing from the analysed material is executed. Reports are written only to the evidence folder.</div>
             <div id="scaBanner"></div>
-            <div id="scaReportOut" style="margin-top:12px"></div>
+            <h3 style="margin-top:16px;margin-bottom:6px">Previous scans</h3>
+            <div id="ossHistoryLanding" class="oss-history"></div>
+            <div class="bts-note">One <b>&#9654; Analyze</b> runs both engines: the SBOM/CVE report opens on its own <b>&#128202; Report</b> tab, and the OSS deliverables (license risk, source / dependency / binary lists, OSS notice, exports) land on the <b>&#128220; OSS 결과</b> sub-tab of this Scan section.</div>
           </div>
+        </div>
+
+        <!-- REPORT: the dedicated report screen of the selected project (ScaApp renderer + header + governance cards) -->
+        <div class="rpane" data-sv="report">
+          <div id="reportBanner"></div>
+          <div id="reportHead"></div>
+          <div id="reportOut" style="margin-top:12px"></div>
+          <div id="govCards"></div>
         </div>
 
         <div class="rpane" data-sv="lock"><div class="pathbox">
@@ -94,6 +108,8 @@
         <div class="rpane" data-sv="exploit-mat"><div id="paneExploit"></div></div>
         <div class="rpane" data-sv="dep-graph"><div id="paneDep"></div></div>
         <div class="rpane" data-sv="arch"><div id="paneArch"></div></div>
+        <div class="rpane" data-sv="code"><div id="paneCode"></div></div>
+        <div class="rpane" data-sv="db"><div id="paneDb"></div></div>
         <div class="rpane" data-sv="supply-chain"><div id="paneSupply"></div></div>
         <div class="rpane" data-sv="changes"><div id="paneChanges"></div></div>
         <div class="rpane" data-sv="ntia"><div id="paneSbom"></div></div>
@@ -131,7 +147,26 @@
         <div class="rpane" data-sv="sectors"><div id="paneSectors"></div></div>
         <div class="rpane" data-sv="fix-plan"><div id="paneFixPlan"></div></div>
         <div class="rpane" data-sv="fix-pr"><div id="paneFixPr"></div></div>
+        <div class="rpane" data-sv="reimpl"><div id="paneReimpl"></div></div>
         <div class="rpane" data-sv="oss"><div id="paneOss"></div></div>
+        <div class="rpane" data-sv="archintel"><div id="paneArchIntel"></div></div>
+        <!-- DIAGRAMS: the EA-17.2 diagram catalog (ADR-0024) drawn from measured data; the chat draws the same kinds mid-conversation -->
+        <div class="rpane" data-sv="diagrams">
+          <div class="bts-formbox">
+            <div class="bts-h">🖼 Diagrams <span class="sub">&mdash; EA 17.2 카탈로그(REA 재현)를 분석 기록의 측정값으로 그린다; 채팅에서도 같은 종류를 대화 중에 그릴 수 있다</span></div>
+            <div class="bts-fields">
+              <label for="dgKind">Kind</label>
+              <select id="dgKind"></select>
+              <label for="dgTarget">Target</label>
+              <input id="dgTarget" spellcheck="false" placeholder="butterfly/composite/sequence 대상 (선택)">
+              <label for="dgSpec">Spec</label>
+              <input id="dgSpec" spellcheck="false" placeholder="custom: A -&gt; B -&gt; C (선택)">
+            </div>
+            <div class="bts-actions"><button type="button" class="run" id="dgDraw">✏️ Draw</button></div>
+          </div>
+          <div id="paneDiagrams"></div>
+        </div>
+        <div class="rpane" data-sv="books"><div id="paneBooks"></div></div>
         <div class="rpane" data-sv="more"><div id="paneHistory"></div></div>
         <div class="rpane" data-sv="fleet">
           <div class="bts-formbox">
@@ -147,15 +182,11 @@
           <div id="paneFleet"></div>
         </div>
 
-        <details class="bts-chat" id="chatBox" open>
-          <summary>&#128172; Ask about the selected project <span class="sub">&mdash; answers cite their source; nothing is answered from memory</span></summary>
-          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <input id="chatQ" placeholder="e.g. which fix clears the most advisories? / licenses? / architecture?" style="flex:1;min-width:300px">
-            <label style="font-size:12px;margin:0"><input type="checkbox" id="chatLlm"> EXAONE</label>
-            <button class="run" id="chatBtn">Ask</button>
-          </div>
-          <div id="chatOut" class="bts-chat-out"></div>
-        </details>
+        <!-- The chat surface (bts_chat_panel.js) rides at the end of the content column on every tab - the
+             Claude-client main conversation window (Code 탭 해부 zone 2): it ships OPEN, the feature panels
+             above are artifacts the conversation and the rail open on demand. -->
+        <div id="chatDock" class="bts-chatdock open"></div>
+        </div><!-- /.bts-content -->
       </div>
     </div>
   </div>
@@ -164,7 +195,12 @@
 <script src="/static/sca_app.js"></script>
 <script src="/static/bts_ui.js"></script>
 <script src="/static/bts_governance.js"></script>
+<script src="/static/bts_report.js"></script>
 <script src="/static/bts_console.js"></script>
+<script src="/static/bts_chat_panel.js"></script>
 <script src="/static/oss_scanner.js"></script>
+<script src="/static/arch_intel_render.js"></script>
+<script src="/static/arch_intel.js"></script>
+<script src="/static/bts_books.js"></script>
 </body>
 </html>

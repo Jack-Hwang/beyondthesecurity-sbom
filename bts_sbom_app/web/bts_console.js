@@ -15,16 +15,29 @@
   }
 
   var GROUPS = {
-    'git': ['git', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
-    'graph-health': ['dep-graph', 'arch', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
-    'fix': ['fix-plan', 'fix-pr'], 'oss': ['oss'], 'more': ['more', 'fleet']
+    'git': ['git', 'oss', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
+    'graph-health': ['dep-graph', 'arch', 'code', 'db', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
+    'fix': ['fix-plan', 'fix-pr', 'reimpl'], 'report': ['report'], 'archintel': ['archintel'], 'diagrams': ['diagrams'],
+    'books': ['books'], 'more': ['more', 'fleet']
   };
+  /* the Claude-client rail (CCD "Code 탭 화면 해부" + IF-B04): the sidebar is a SESSION list first and the
+     feature panels live inside five collapsed sections - every pane stays reachable, but the menu no longer
+     dominates the screen (사용자 지시 2026-11-22: "메뉴를 주요 기능으로 통합, claude client 기능으로 따라서"). */
+  var SECTIONS = [
+    { icon: '🔎', label: '분석 스캔', groups: ['git'] },
+    { icon: '📊', label: '결과와 우선순위', groups: ['risk', 'prioritize'] },
+    { icon: '🗄', label: '리포트와 구조', groups: ['report', 'archintel', 'diagrams', 'graph-health'] },
+    { icon: '📚', label: '지식과 컴플라이언스', groups: ['books', 'compliance'] },
+    { icon: '🔧', label: '수정과 운영', groups: ['fix', 'more'] }
+  ];
   var LABELS = {
-    'git': '🌐 Git repo', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Overview', 'changes': '🔔 What changed',
+    'git': '🌐 Scan', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Findings', 'changes': '🔔 What changed',
+    'prioritize': '🎯 Prioritize', 'graph-health': '🕸 Graph & Health', 'compliance': '✅ Compliance', 'fix': '🔧 Fix',
     'ssvc': '🎯 SSVC', 'epss': '📡 EPSS', 'exploit-mat': '🔥 Exploit Mat.', 'dep-graph': '🕸 Dep Graph',
-    'arch': '🏛 Architecture', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
+    'arch': '🏛 Architecture', 'code': '🔎 Code Intel', 'db': '🗄 DB 질의', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
     'vex': '📋 VEX · Decisions', 'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
-    'fix-pr': '🔧 Patch', 'oss': '📜 OSS Scanner', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
+    'fix-pr': '🔧 Patch', 'reimpl': '🧬 Clean-Room', 'oss': '📜 OSS 결과', 'report': '📊 Report', 'archintel': '🏛 Arch Intel', 'diagrams': '🖼 Diagrams',
+    'books': '📚 Book KB', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
   };
   var SEVS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
   var SEV_COLOR = U.SEV_COLOR;
@@ -53,7 +66,43 @@
     return '<button type="button" class="run" data-act="' + esc(act) + '"' + (attrs || '') + (S.busy && extra === 'job' ? ' disabled' : '') + '>' + label + '</button>';
   }
 
-  /* ---------- tabs (same grouping as the platform screen) ---------- */
+  /* ---------- the Claude-client rail: sessions first, feature panels collapsed, assistant at the bottom ---------- */
+  function buildSideNav() {
+    var nav = $('#sideNav');
+    if (!nav) { return; }
+    var h = '<div class="bts-sidenav-brand">\u2699 BTS-SBOM</div>';
+    h += '<button type="button" class="bts-rail-new" data-act="new">\uFF0B \uC0C8 \uBD84\uC11D</button>';
+    h += '<div class="bts-rail-h">\u2699 \uBD84\uC11D \uC138\uC158</div><div id="railSessions" class="bts-rail-sessions"></div>';
+    SECTIONS.forEach(function (s) {
+      h += '<details class="bts-rail-grp"><summary class="rtab" data-sv="' + esc(s.groups[0]) + '" role="button" tabindex="0">' +
+           s.icon + ' ' + esc(s.label) + '</summary>';
+      s.groups.forEach(function (g) {
+        (GROUPS[g] || []).forEach(function (m) {
+          h += '<button type="button" class="bts-rail-chip" data-act="goto" data-sv="' + esc(m) + '">' + esc(LABELS[m] || m) + '</button>';
+        });
+      });
+      h += '</details>';
+    });
+    h += '<button type="button" class="bts-rail-assist" data-act="assist">\uD83D\uDCAC \uC5B4\uC2DC\uC2A4\uD134\uD2B8</button>';
+    nav.innerHTML = h;
+    renderRailSessions();
+  }
+  function renderRailSessions() {
+    var box = $('#railSessions');
+    if (!box) { return; }
+    if (!S.history.length) { box.innerHTML = '<div class="bts-rail-empty">\uBD84\uC11D \uAE30\uB85D\uC774 \uC5C6\uB2E4.</div>'; return; }
+    box.innerHTML = S.history.slice(0, 12).map(function (h) {
+      return '<button type="button" class="bts-rail-session' + (h.name === S.project ? ' on' : '') + '" data-act="session" data-name="' + esc(h.name) + '" title="' + esc(h.source || '') + '">' +
+        '<span class="bts-rail-session-n">' + esc(h.name) + '</span>' +
+        '<span class="bts-rail-session-t">' + esc(String(h.analysed_at || '').replace('T', ' ').slice(0, 16)) + '</span></button>';
+    }).join('');
+  }
+  function focusAssistant() {
+    var dock = $('#chatDock'), bar = $('#chatDockBar');
+    if (dock && bar && dock.className.indexOf('open') < 0) { bar.click(); }
+    var q = $('#chatDockQ');
+    if (q) { q.focus(); if (q.scrollIntoView) { q.scrollIntoView({ block: 'center' }); } }
+  }
   function groupOf(sv) {
     for (var g in GROUPS) { if (GROUPS[g].indexOf(sv) >= 0) { return g; } }
     return null;
@@ -66,15 +115,19 @@
       return '<button type="button" class="scan-subchip' + (m === member ? ' on' : '') + '" data-act="goto" data-sv="' + esc(m) + '">' + esc(LABELS[m] || m) + '</button>';
     }).join('');
   }
-  function activate(sv) {
+  /* exact=true: a sub-tab chip (or an explicit pane id) must open exactly that member; only the sidebar's
+     GROUP button restores the member the user visited last (sv === group). Without the exact path the first
+     member chip of a group can never reopen its own pane (e.g. the Scan landing after visiting OSS 결과). */
+  function activate(sv, exact) {
     var group = sv, member = sv;
     if ($('#view-scan .rtab[data-sv="' + sv + '"]')) { member = (GROUPS[sv] && GROUPS[sv][0]) || sv; }
     else { group = groupOf(sv); if (!group) { return; } }
-    if (sv === group && S.members[group] && GROUPS[group].indexOf(S.members[group]) >= 0) { member = S.members[group]; }
+    if (!exact && sv === group && S.members[group] && GROUPS[group].indexOf(S.members[group]) >= 0) { member = S.members[group]; }
     S.members[group] = member;
     $$('#view-scan .rtab').forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-sv') === group); });
     $$('#view-scan .rpane').forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-sv') === member); });
     subnav(group, member);
+    if (member === 'report') { renderConsole(); }     // the report tab owns the only ScaApp mount: re-render on entry
   }
 
   /* ---------- 1-4 step bar (same markup as the platform) ---------- */
@@ -86,7 +139,7 @@
       bar.className = 'analysis-workflow';
       bar.innerHTML = STEPS.map(function (l, i) { return '<div class="aw-step" data-step="' + (i + 1) + '">' + (i + 1) + '. ' + l + '</div>'; }).join('') +
         '<div class="aw-message"></div>';
-      row.insertBefore(bar, row.firstChild);
+      row.parentNode.insertBefore(bar, row);   // the bar sits ABOVE the unified input row: inside it the flex row would wrap apart
     }
     var failed = !!isError;           // toggle(name, undefined) would FLIP the class instead of clearing it
     $$('.aw-step', bar).forEach(function (el, i) {
@@ -110,12 +163,28 @@
     return api('/api/scan', body).then(function (r) {
       if (!r.ok) { setStep(1, (r.data && r.data.error) || ('HTTP ' + r.status), true); return null; }
       var id = r.data.job, t0 = Date.now();
+      /* live stage progress (the job's SSE stream): the polling loop alone only ticks seconds, which reads as
+         a hang on a big tree like u-boot (measured 2026-11-23: ~5 min of silent "running (N s)") */
+      var seen = {};
+      watchJobEvents(id, function (ev, d) {
+        if (d && d.name && (ev === 'step_start' || ev === 'step_end')) {
+          seen[d.name] = (ev === 'step_end') ? (d.ok === false ? 'fail' : 'ok') : 'run';
+          var done = Object.keys(seen).filter(function (k) { return seen[k] !== 'run'; }).length;
+          var cur = Object.keys(seen).filter(function (k) { return seen[k] === 'run'; }).pop();
+          setStep(3, label + ': ' + (cur ? ('stage ' + cur) : 'warming up') + ' · ' + done + ' stage(s) done · ' +
+            Math.round((Date.now() - t0) / 1000) + ' s');
+        } else if (ev === 'patch_gate' && d.state === 'awaiting_approval') {
+          setStep(3, label + ': patch plan awaits approval (digest ' + (d.digest || '') + ').');
+        }
+      });
       return new Promise(function (resolve) {
         (function poll() {
           api('/api/jobs/' + encodeURIComponent(id)).then(function (j) {
             var d = j.data || {};
             if (d.state === 'running') {
-              setStep(3, label + ': analysis engines are running (' + Math.round((Date.now() - t0) / 1000) + ' s).');
+              if (!Object.keys(seen).length) {                   // SSE owns the message once events arrive
+                setStep(3, label + ': analysis engines are running (' + Math.round((Date.now() - t0) / 1000) + ' s).');
+              }
               setTimeout(poll, 1500);
               return;
             }
@@ -130,13 +199,47 @@
       if (job.state !== 'done') { setStep(3, job.error || 'The analysis failed.', true); return null; }
       var m = job.metrics || {};
       setStep(4, 'Done: ' + (m.components || 0) + ' components, ' + (m.vulns || 0) + ' findings in ' + (m.elapsed_s || '?') + ' s.');
-      return loadHistory().then(function () { return selectProject(job.name, true); });
+      return loadHistory().then(function () { return selectProject(job.name, true).then(function () { return job; }); });
     });
   }
   function analyse(src) {
     src = (src || '').trim();
-    if (!src) { setStep(1, 'Enter a repository URL or a local path.', true); return; }
-    runJob({ source: src, offline: !!$('#scaOffline').checked, use_llm: !!$('#scaLlm').checked }, 'Analysis');
+    if (!src) { setStep(1, 'Enter a repository URL, a local path or an archive.', true); return; }
+    var ossOpts = window.BtsOss ? window.BtsOss.readForm() : null;      // modes/excludes/branch from the unified landing form
+    runJob({ source: src, offline: !!$('#scaOffline').checked, use_llm: !!$('#scaLlm').checked }, 'Analysis').then(function (job) {
+      var ok = job && job.state === 'done';
+      if (ok) { activate('report'); }                                    // the report has its own tab now
+      runOssChain(src, ossOpts, ok);   // one Analyze, two engines: the OSS stage runs even when the main pipeline cannot read the target (archives)
+    });
+  }
+  /* runOssChain: the same target through the OSS Scanner engine (source / dependency / binary chosen on the
+     landing form), so the platform deliverables (OSS notice / spreadsheet) exist without a second manual entry
+     point. The stage never skips silently: a missing engine script or an empty mode selection is reported, the
+     stage runs even when the main pipeline failed on the same target (e.g. an archive the pipeline cannot read),
+     and every failure note states what happened to the main result. Same DOM rules as renderConsole: note()
+     returns an HTML string whose dynamic parts must be esc()ed, then a real button node is appended (the page
+     CSP forbids inline handlers). */
+  function runOssChain(src, opts, mainOk) {
+    var banner = $('#scaBanner');
+    if (!banner) { return; }
+    if (!window.BtsOss) { banner.innerHTML = note('OSS 엔진 스크립트가 로드되지 않았다 — OSS 단계는 실행되지 않았다.', 'bad'); return; }
+    if (!opts) { banner.innerHTML = note('OSS 분석 유형이 하나도 선택되지 않았다 — OSS 단계는 건너뛰었다.', 'warn'); return; }
+    if (!mainOk) { banner.innerHTML = note('메인 파이프라인이 이 대상을 분석하지 못했다(사유는 단계 바에 있다) — OSS 스캔만 계속 실행한다.', 'warn'); }
+    setStep(4, 'OSS Scanner: scanning the same target (' + opts.modes.join(' + ') + ')…');
+    window.BtsOss.start(src, opts).then(function (r) {
+      if (r && r.superseded) { return; }                                 // a newer Analyze took over the OSS stage
+      if (!r || !r.ok) {
+        banner.innerHTML = note('OSS 성과물 생성 실패: ' + esc((r && r.error) || 'unknown') + ' — ' + (mainOk ? '메인 분석 결과는 정상이다.' : '메인 파이프라인도 이 대상은 분석하지 못했다.'), 'bad');
+        return;
+      }
+      banner.innerHTML = note('OSS 성과물 완료 (job ' + esc(r.id) + ') — 공개문·엑셀·바이너리 목록은 📜 OSS 결과 탭에 있다.', 'ok');
+      var view = document.createElement('button');
+      view.type = 'button';
+      view.className = 'bts-mini';
+      view.textContent = '📜 OSS 결과에서 보기';
+      view.addEventListener('click', function () { activate('oss'); });
+      banner.appendChild(view);
+    });
   }
 
   /* ---------- engine, history, project ---------- */
@@ -182,19 +285,22 @@
   function loadHistory() {
     return api('/api/history').then(function (r) {
       S.history = (r.data && r.data.history) || [];
-      fillSelect(); renderHistory();
+      fillSelect(); renderHistory(); renderRailSessions();           // the rail session list refreshes with the history
       loadFleet();                                                     // the roll-up covers the same evidence folder: refresh it with the list
     });
   }
   function selectProject(name, keepStep) {
-    if (!name) { S.project = ''; S.view = null; resetGovernance(); renderAll(); return Promise.resolve(); }
+    if (!name) { S.project = ''; S.view = null; resetGovernance(); renderAll();
+      document.dispatchEvent(new CustomEvent('bts:project', { detail: '' }));   // the dock swaps its conversation
+      return Promise.resolve(); }
     S.project = name;
     $('#projSel').value = name;
+    document.dispatchEvent(new CustomEvent('bts:project', { detail: name }));   // the dock swaps its conversation
     return Promise.all([api('/api/view/' + encodeURIComponent(name)), api('/api/triage')]).then(function (rs) {
       if (!rs[0].ok) {
         S.view = null;
         resetGovernance();
-        $('#scaReportOut').innerHTML = note(esc((rs[0].data && rs[0].data.error) || 'The project could not be loaded.'), 'bad');
+        $('#reportOut').innerHTML = note(esc((rs[0].data && rs[0].data.error) || 'The project could not be loaded.'), 'bad');
         renderPanes();
         return;
       }
@@ -240,9 +346,23 @@
       var n = e.firstChild;
       if (n && n.nodeType === 3 && n.nodeValue.indexOf('AutoGuard') >= 0) { n.nodeValue = n.nodeValue.replace('AutoGuard', 'BTS-SBOM'); }
     });
+    /* honest pass banner: a green "No known vulnerabilities detected" under a 0-component or unknown-presence
+       projection contradicts the warn banner above it (measured on a manifest-less C tree, 2026-11-23) */
+    var pass = $('.sx-banner.pass .sx-banner-msg', mount);
+    if (pass && S.view) {
+      var eng = S.view.engine || {};
+      var comp = ((S.view.report || {}).components) || 0;
+      if (eng.vulnerability_presence !== 'none' || comp === 0) {
+        var why = comp === 0 ? '구성요소 0 — 쿼리할 매니페스트 구성요소가 없다(결과는 unknown, 통과가 아니다)'
+                             : '쿼리 상태 ' + (eng.vulnerability_presence || 'unknown') + ' — 모든 구성요소가 답을 받은 것이 아니다';
+        pass.innerHTML = 'Unknown — not a pass: ' + esc(why);
+        var box = pass.closest('.sx-banner');
+        if (box) { box.classList.remove('pass'); box.classList.add('warn'); }
+      }
+    }
   }
   function watchBrand() {
-    var mount = $('#scaReportOut');
+    var mount = $('#reportOut');
     new MutationObserver(function () { rebrand(mount); }).observe(mount, { childList: true, subtree: true });
   }
   function download(url, fname) {
@@ -272,9 +392,16 @@
     });
   }
   function renderConsole() {
-    var mount = $('#scaReportOut'), banner = $('#scaBanner');
+    var mount = $('#reportOut'), banner = $('#reportBanner'), head = $('#reportHead');
+    if (!mount) { return; }
     banner.innerHTML = '';
-    if (!S.view) { mount.innerHTML = ''; return; }
+    if (!window.BtsReport) { head.innerHTML = ''; }
+    else { head.innerHTML = BtsReport.renderHead(S.view); }
+    if (!S.view) {
+      mount.innerHTML = note('아직 연 프로젝트가 없다 — 왼쪽 레일에서 세션을 고르거나 <b>+ 새 분석</b>으로 스캔하면 이 리포트가 채워진다. (스캔 전까지 이 화면은 비어 있는 게 아니라 "알 수 없음"이다.)', 'warn');
+      $('#govCards').innerHTML = '';
+      return;
+    }
     var rep = S.view.report, b = rep.bts || {};
     if (b.empty_project) {
       banner.innerHTML = note('<b>No supported manifest or lockfile was found in this source.</b> The result is <b>unknown</b>, not "no vulnerabilities".', 'warn');
@@ -285,6 +412,188 @@
     window.ScaApp.render(mount, rep, {
       proxy: proxy, triage: triage, triageCached: function () { return S.triage; },
       testedLabel: S.view.analysed_at ? 'Analysed ' + when(S.view.analysed_at) : ''
+    });
+    renderGovCards();
+  }
+  /* The three governance cards of the Report tab. Coverage and conformance are fetched lazily, once per
+     project; a failed fetch shows an honest "not loaded" line in the card instead of a made-up number. */
+  function renderGovCards() {
+    var box = $('#govCards');
+    if (!box || !window.BtsReport || !S.project) { return; }
+    var gc = S.govReport;
+    if (!gc || gc.name !== S.project) { gc = S.govReport = { name: S.project, coverage: null, conformance: null, fetched: false }; }
+    box.innerHTML = BtsReport.renderGovCards({ view: S.view, coverage: gc.coverage, conformance: gc.conformance });
+    if (gc.fetched) { return; }
+    gc.fetched = true;
+    var n = encodeURIComponent(S.project);
+    api('/api/coverage/' + n).then(function (r) {
+      gc.coverage = r.ok ? r.data : { error: (r.data && r.data.error) || ('HTTP ' + r.status) };
+      renderGovCards();
+    });
+    api('/api/conformance/' + n).then(function (r) {
+      gc.conformance = r.ok ? r.data : { error: (r.data && r.data.error) || ('HTTP ' + r.status) };
+      renderGovCards();
+    });
+  }
+
+  /* ---------- DB 인텔: 로컬 OSV DB에 자연어 질문 (nl2sql, 3주차 강의 기능) ---------- */
+  function dbIntel(v) {
+    var out = heading('DB 질의 (NL2SQL)', '로컬 OSV 데이터베이스에 자연어로 묻는다 — 읽기 전용 SELECT, 행 수 제한, 4상태 응답');
+    out += '<div class="bts-formbox"><div class="bts-fields"><label for="dbQ">질문</label>' +
+      '<input id="dbQ" placeholder="예: 생태계별 취약점 수 알려줘 / django의 취약점 목록 / 전체 취약점 개수" spellcheck="false"></div>' +
+      '<div class="bts-actions"><button type="button" class="run" id="dbQBtn">▶ 질의</button>' +
+      '<button type="button" class="bts-mini" id="dbSchemaBtn">스키마 보기</button></div>' +
+      '<div class="bts-small">NL2SQL(3주차 강의 기능): 질문이 SQL로 변환되어 로컬 OSV DB(읽기 전용)에서 실행된다. ' +
+      'DB가 없으면 정직하게 안내한다. 쓰기·여러 문장은 검증기가 차단한다.</div></div>';
+    out += '<div id="paneDbOut"></div>';
+    return out;
+  }
+  function dbStatusPill(s) {
+    var cls = s === 'success' ? 'ok' : (s === 'empty_result' ? 'muted' : (s === 'partial_result' ? 'warn' : 'bad'));
+    return pill(s || '—', cls);
+  }
+  function bindDbPane() {
+    var pane = $('#paneDb');
+    if (!pane || pane.dataset.dbBound) { return; }
+    pane.dataset.dbBound = '1';
+    /* delegated clicks: renderPanes rewrites this pane's innerHTML on every project switch, so the buttons are
+       bound on the persistent container, never on the per-render elements (a null querySelector here used to
+       kill the whole init chain before loadHistory ran - measured 2026-11-23). */
+    pane.addEventListener('click', function (e) {
+      var out = $('#paneDbOut');
+      if (e.target && e.target.id === 'dbQBtn') {
+        var q = $('#dbQ') ? $('#dbQ').value.trim() : '';
+        if (!q) { out.innerHTML = note('질문을 입력하라.', 'warn'); return; }
+        out.innerHTML = note('질의 실행 중…', 'warn');
+        api('/api/db/query', { q: q }).then(function (r) {
+          var d = r.data || {};
+          if (!r.ok) { out.innerHTML = note('<b>질의 실패.</b> ' + esc(d.error || ('HTTP ' + r.status)), 'bad'); return; }
+          var h = heading('질의 결과', 'status: ' + (d.status || '?') + (d.truncated ? ' · 잘림' : '') +
+            ' · source: ' + esc(d.source || '?') + ' · attempts: ' + esc(d.attempts));
+          h += kv([['SQL', H('<code>' + esc(d.sql || '—') + '</code>')]]);
+          var rows = d.rows || [];
+          if (rows.length) {
+            var cols = Object.keys(rows[0]);
+            h += table(cols, rows.slice(0, 50).map(function (row) { return cols.map(function (k) { return row[k]; }); }),
+              '행 없음.');
+            if (rows.length > 50) { h += note('앞 50행만 표시 (전체 ' + rows.length + '행).', 'warn'); }
+          } else if (d.status === 'empty_result') {
+            h += note('조건에 맞는 행이 없다 — 빈 결과는 오류가 아니다.', 'warn');
+          }
+          if (d.error) { h += note('<b>질의 오류.</b> ' + esc(d.error.message || ''), 'bad'); }
+          if (d.clarification_needed) { h += note('명확화 필요: ' + esc(d.clarification_needed), 'warn'); }
+          out.innerHTML = h;
+        });
+      } else if (e.target && e.target.id === 'dbSchemaBtn') {
+        api('/api/db/schema').then(function (r) {
+          var d = r.data || {};
+          if (!r.ok) { out.innerHTML = note(esc(d.error || '조회 실패'), 'bad'); return; }
+          var rows = Object.keys(d.tables || {}).map(function (k) { return [k, d.tables[k]]; });
+          out.innerHTML = heading('스키마 요약', esc(d.db || '')) +
+            table(['테이블', '행 수'], rows, '테이블 없음.');
+        });
+      }
+    });
+  }
+
+  /* ---------- panes ---------- */
+  /* ---------- 클린룸 재구현 워크벤치 (brief 6, /api/reimpl): 두 개의 벽 — 명세만 생성기로, 카피 게이트+원본 오라클 ---------- */
+  var REIMPL_STAGES = ['interface_ready', 'patterns_ready', 'spec_ready', 'diagram_ready', 'code_ready', 'copy_gate', 'tests_running', 'tests_passed', 'adopted_tests_running', 'adopted_tests_passed'];
+  var REIMPL_LABEL = { interface_ready: '인터페이스', patterns_ready: '패턴 추론', spec_ready: '명세', diagram_ready: 'DGML', code_ready: '코드 생성', copy_gate: '카피 게이트', tests_running: '계약 테스트', tests_passed: '계약 통과', adopted_tests_running: '원본 오라클', adopted_tests_passed: '원본 통과' };
+  var REIMPL_FAIL_AT = { copy_gate_failed: 'copy_gate', tests_failed: 'tests_running', adopted_tests_failed: 'adopted_tests_running', refused: 'interface_ready' };
+  /* job SSE consumer shared by the reimpl pane and the scan step bar: the server streams bts-sbom.events.v1 frames */
+  function watchJobEvents(jid, onEvent) {
+    fetch('/api/jobs/' + encodeURIComponent(jid) + '/events').then(function (res) {
+      if (!res.ok || !res.body) { throw new Error('HTTP ' + res.status); }
+      var reader = res.body.getReader(), dec = new TextDecoder(), buf = '';
+      function pump() {
+        return reader.read().then(function (chunk) {
+          if (chunk.done) { return; }
+          buf += dec.decode(chunk.value, { stream: true });
+          var parts = buf.split('\n\n');
+          buf = parts.pop();
+          parts.forEach(function (block) {
+            var lines = block.split('\n'), ev = '', datas = [];
+            lines.forEach(function (ln) {
+              if (ln.indexOf('event: ') === 0) { ev = ln.slice(7); }
+              else if (ln.indexOf('data: ') === 0) { datas.push(ln.slice(6)); }
+            });
+            if (ev && datas.length) { try { onEvent(ev, JSON.parse(datas.join('\n'))); } catch (e) { /* malformed frame: skip, keep the stream */ } }
+          });
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function () { /* the stream ends when the job ends */ });
+  }
+  function reimplPane(v) {
+    var src = (v && v.source) || '';
+    var out = heading('클린룸 재구현 (Clean-Room)', '두 개의 벽: 본문은 절대 생성기로 가지 않는다 — 카피 게이트(4행 shingle ≤5%) + 원본 테스트 오라클');
+    out += '<div class="bts-formbox"><div class="bts-fields"><label for="riSource">소스 (로컬 경로 / git URL)</label>' +
+      '<input id="riSource" placeholder="C:/path/to/repo 또는 https://github.com/owner/repo" spellcheck="false" value="' + esc(src) + '"></div>' +
+      '<div class="bts-fields"><label for="riComponent">컴포넌트 (소스 안의 모듈 상대경로)</label>' +
+      '<input id="riComponent" placeholder="예: tools/dtoc/src_scan.py" spellcheck="false"></div>' +
+      '<div class="bts-actions"><label class="bts-cd-llm"><input type="checkbox" id="riLlm" checked> LLM 생성 (끄면 스캐폴드)</label>' +
+      '<label class="bts-cd-llm"><input type="checkbox" id="riPatterns" checked> 책·AI 패턴 주입 (책 KB 먼저, 없으면 모델)</label>' +
+      '<button type="button" class="run" id="riRun">▶ 재구현 실행</button></div>' +
+      '<div class="bts-small">벽 1에서 인터페이스(함수·클래스 시그니처+docstring)만 명세가 된다. 벽 2는 명세만 본다. ' +
+      '생성 코드가 원본과 4행 shingle 5%를 넘게 겹치면 기각되고, 원본 테스트 오라클이 통과해야 발행 자격이 생긴다. 산출물: evidence/reimpl/&lt;jid&gt;/.</div></div>';
+    out += '<div id="riStages" class="bts-stages"></div>';
+    out += '<div id="riOut"></div>';
+    return out;
+  }
+  function reimplVerdict(d) {
+    var v = d.verdict || '?';
+    var cls = v === 'ok' ? 'ok' : (v === 'refused' || v === 'rejected' ? 'warn' : 'bad');
+    var h = heading('판정', esc(d.component || '') + ' · ' + esc(d.started || ''));
+    var cg = d.copy_gate || {};
+    var pt = d.patterns;
+    h += kv([['verdict', pill(v, cls)],
+             ['copy overlap', (cg.overlap !== undefined ? cg.overlap : '—') + ' (게이트 ' + (cg.threshold !== undefined ? cg.threshold : (d.copy_threshold !== undefined ? d.copy_threshold : '—')) + ')'],
+             ['생성 테스트', d.tests ? (d.tests.ok ? '통과' : '실패') : '—'],
+             ['원본 오라클', d.adopted_tests ? (d.adopted_tests.ok ? '통과 (' + (d.adopted_tests.files || []).length + '개 파일)' : '실패') : '—'],
+             ['호환성', d.compatibility || '—'],
+             ['패턴 주입', pt ? ('tier ' + pt.tier + ' · ' + (pt.patterns || []).map(function (p) { return p.name; }).join(', ')) : '—']]);
+    if (d.reason) { h += note('<b>이유:</b> ' + esc(d.reason), v === 'ok' ? 'ok' : 'warn'); }
+    if (d.published_to) { h += note('발행: <code>' + esc(d.published_to) + '</code>'); }
+    return h;
+  }
+  function bindReimplPane() {
+    var pane = $('#paneReimpl');
+    if (!pane || pane.dataset.riBound) { return; }
+    pane.dataset.riBound = '1';
+    /* delegated like bindDbPane: the pane's innerHTML is rewritten on project switches, the binding is not */
+    pane.addEventListener('click', function (e) {
+      if (!e.target || e.target.id !== 'riRun') { return; }
+      var src = $('#riSource').value.trim(), comp = $('#riComponent').value.trim();
+      var out = $('#riOut'), stages = $('#riStages');
+      if (!src || !comp) { out.innerHTML = note('소스와 컴포넌트 경로를 입력하라.', 'warn'); return; }
+      out.innerHTML = '<div class="bts-skel" style="width:70%"></div><div class="bts-skel" style="width:50%"></div>' + note('레인 실행 중 — 두 개의 벽을 통과하는 중…', 'warn');
+      stages.innerHTML = REIMPL_STAGES.map(function (s) {
+        return '<span class="bts-stage" id="ri-st-' + s + '">' + esc(REIMPL_LABEL[s] || s) + '</span>';
+      }).join('');
+      api('/api/reimpl', { source: src, component: comp, use_llm: $('#riLlm').checked, patterns: $('#riPatterns').checked }).then(function (r) {
+        if (!r.ok || !(r.data || {}).job) { out.innerHTML = note('<b>실행 거부.</b> ' + esc((r.data || {}).error || ('HTTP ' + r.status)), 'bad'); return; }
+        var jid = r.data.job;
+        watchJobEvents(jid, function (ev, d) {
+          if (ev === 'step_end' && d.name) {
+            var at = REIMPL_FAIL_AT[d.name] || d.name;
+            var el = document.getElementById('ri-st-' + at);
+            if (el) { el.classList.add(d.ok === false ? 'fail' : 'ok'); }
+          } else if (ev === 'final') {
+            api('/api/jobs/' + encodeURIComponent(jid)).then(function (jr) {
+              var d = jr.data || {};
+              out.innerHTML = reimplVerdict(d);
+              if (d.verdict === 'ok') {
+                REIMPL_STAGES.forEach(function (s) {
+                  var e = document.getElementById('ri-st-' + s);
+                  if (e && !e.classList.contains('fail')) { e.classList.add('ok'); }
+                });
+              }
+            });
+          }
+        });
+      });
     });
   }
 
@@ -325,6 +634,51 @@
       return [c.name, c.version, c.vuln_count, sevBadge(c.worst_severity), c.relationship, H(fixedAt(c.fixed_latest))];
     }), 'No vulnerable component.');
     return out + note('The graph is a flat list per manifest: BTS-SBOM records which manifest a component comes from, not its parent edges.');
+  }
+  /* Code Intel (Understand-like function-level lane, Python-only - honest about it): metrics, complexity top,
+     dead code, clones. Data comes from arch.code in the view projection (bts_sbom_app/code_intel.py). */
+  function codeIntel(v) {
+    var c = (v.arch || {}).code;
+    if (!c) {
+      return heading('Code Intel') + note('No function-level analysis was recorded for this project - it has no Python functions, or it was analysed before this lane existed. Other languages stay at module-level analysis.');
+    }
+    var m = c.metrics || {}, mx = m.max_complexity || {};
+    var out = heading('Code Intel', 'function-level facts (Python) - call graph, complexity, dead code, clones');
+    out += kv([['Functions analysed', m.functions], ['Avg complexity', m.avg_complexity],
+               ['Max complexity', (mx.name ? mx.name + ' (' + mx.file + ') — ' + mx.cc : '—')],
+               ['Dead functions (fan-in 0)', m.dead_count], ['Clone groups', m.clone_groups],
+               ['Resolved / unknown calls', (m.resolved_calls || 0) + ' / ' + (m.unknown_calls || 0)],
+               ['Language', c.language || '—']]);
+    out += '<div class="bts-actions">' +
+      '<button type="button" class="bts-mini" data-act="dl" data-url="/api/code-metrics/' + esc(encodeURIComponent(v.project)) + '">⬇ Metrics CSV (functions)</button></div>';
+    out += heading('Complexity top', 'cyclomatic = 1 + decisions (branches, loops, handlers, booleans)');
+    out += table(['Function', 'File', 'CC', 'nesting', 'fan-in', 'fan-out', 'sLOC'], (c.functions || []).map(function (f) {
+      return [f.name, f.file, f.complexity >= 9 ? H('<span class="bts-pill bad">' + esc(f.complexity) + '</span>') : f.complexity,
+              f.nesting === undefined ? '—' : f.nesting, f.fan_in, f.fan_out, f.sloc];
+    }), 'No functions were analysed.');
+    var bf = c.butterfly;
+    if (bf) {
+      out += heading('Butterfly: ' + bf.name, 'immediate neighbourhood (callers / callees, measured)');
+      out += table(['Direction', 'Function', 'File'], (bf.callers || []).map(function (x) {
+        return ['caller', x.name, x.file];
+      }).concat((bf.callees || []).map(function (x) {
+        return ['callee', x.name, x.file];
+      })), 'No resolved callers or callees for the top function (the resolver is name-based and Python-only).');
+    }
+    out += heading('Classes', 'name, bases and direct method count');
+    out += table(['Class', 'File', 'line', 'Bases', 'methods'], (c.classes || []).map(function (k) {
+      return [k.name, k.file, k.line, (k.bases || []).join(', ') || '—', k.methods];
+    }), 'No classes were analysed.');
+    out += heading('Dead code', 'never called in the analysed tree — remove or wire in, the judgement is yours');
+    out += table(['Function', 'File', 'line', 'sLOC'], (c.dead_code || []).map(function (d) {
+      return [d.name, d.file, d.line, d.sloc];
+    }), 'No dead function above the exclusions.');
+    out += heading('Clone groups', 'identical normalized bodies (identifiers and literals collapsed)');
+    out += table(['Group', 'Members'], (c.clones || []).map(function (g) {
+      return [g.hash, g.members.map(function (mm) { return mm.name + ' (' + mm.file + ':' + mm.line + ')'; }).join(', ')];
+    }), 'No clone group above the token threshold.');
+    (c.notes || []).forEach(function (n) { out += note(esc(n), 'warn'); });
+    return out;
   }
   function arch(v) {
     var a = v.arch || {}, g = a.graph || {}, lang = ((a.stack || {}).languages) || {};
@@ -399,12 +753,41 @@
         return [c.name, c.version, c.license || '<span class="sub">(unresolved)</span>', licBadge(c.category), c.source || '—'];
       }), 'No component was recorded.');
     }
-    out += heading('Policy findings', 'default policy: distribution = binary');
-    out += table(['Category', 'Severity', 'Components', 'Affected'], (l.policy || []).map(function (p) {
-      return [p.category, sevBadge(p.severity), p.count, (p.components || []).slice(0, 6).join(', ') + ((p.components || []).length > 6 ? ' …' : '')];
-    }), 'No license policy finding.');
+    out += '<div style="display:flex;gap:8px;align-items:center;margin:10px 0 2px;flex-wrap:wrap">' +
+      '<b style="font-size:12.5px">Policy findings</b>' +
+      '<select id="distSel" title="배포 모델을 바꾸면 정책 소견이 다시 계산된다" style="background:var(--dcard-bg,#161b22);border:1px solid #30363d;border-radius:6px;color:#e6edf3;font:inherit;font-size:12px;padding:3px 8px">' +
+      '<option value="binary">배포: binary</option><option value="saas">배포: saas</option><option value="internal">배포: internal</option></select>' +
+      '<span class="sub">기본값 binary — 소견은 /api/policy 로 재계산된다</span></div>';
+    out += '<div id="policyOut">' + policyBlock(l.policy || []) + '</div>';
     if ((l.unresolved || []).length) { out += heading('Unresolved', 'left unresolved on purpose, never guessed'); out += note(esc(l.unresolved.join(', '))); }
     return out;
+  }
+  function policyBlock(fs) {
+    if (!fs.length) { return note('No license policy finding.'); }
+    var h = table(['Category', 'Severity', 'Count', 'Affected / 의무'], fs.map(function (p) {
+      var right = (p.components || []).length ? (p.components.slice(0, 6).join(', ') + ((p.components || []).length > 6 ? ' …' : ''))
+                                              : (p.obligations || []).join('; ');
+      return [p.category, sevBadge(p.severity), p.count, right];
+    }));
+    h += fs.filter(function (p) { return p.detail; }).map(function (p) {
+      return note('<b>' + esc(p.category) + ':</b> ' + esc(p.detail));
+    }).join('');
+    return h;
+  }
+  function bindLicPane() {
+    var pane = document.querySelector('.rpane[data-sv="license-risk"]');
+    if (!pane || pane.dataset.licBound) { return; }
+    pane.dataset.licBound = '1';
+    pane.addEventListener('change', function (e) {
+      if (!e.target || e.target.id !== 'distSel' || !S.project) { return; }
+      var out = pane.querySelector('#policyOut');
+      if (out) { out.innerHTML = note('재계산 중…', 'warn'); }
+      api('/api/policy/' + encodeURIComponent(S.project) + '?distribution=' + encodeURIComponent(e.target.value)).then(function (r) {
+        var d = r.data || {};
+        if (!r.ok) { if (out) { out.innerHTML = note('<b>재계산 실패.</b> ' + esc(d.error || ('HTTP ' + r.status)), 'bad'); } return; }
+        if (out) { out.innerHTML = policyBlock(d.findings || []); }
+      });
+    });
   }
   function sectors(v) {
     var s = v.sectors || {}, keys = Object.keys(s);
@@ -423,12 +806,28 @@
     });
     return out;
   }
+  /* measured compatibility (compat.py): the gate's verdict per plan; "partial" carries the coverage of the used API */
+  function compatPill(c) {
+    if (!c) { return '—'; }
+    var kind = { compatible: 'ok', partial: 'warn', review: 'warn', breaking: 'bad', unverified: 'muted', not_direct: 'muted' };
+    return pill(c.status + (c.coverage !== null && c.coverage !== undefined ? ' ' + Math.round(c.coverage * 100) + '%' : ''), kind[c.status] || 'muted');
+  }
+  /* items: [{component, compat: {findings}}] - the exact symbols and call sites behind a breaking/review verdict */
+  function compatEvidence(items) {
+    var rows = [];
+    (items || []).forEach(function (x) {
+      ((x.compat || {}).findings || []).slice(0, 6).forEach(function (f) { rows.push([x.component, pill(f.level, f.level === 'breaking' ? 'bad' : 'warn'), f.rule, f.detail]); });
+    });
+    if (!rows.length) { return ''; }
+    return heading('Compatibility findings', 'the project\'s own call sites against the target release') + table(['Component', 'Level', 'Rule', 'Detail'], rows, '') +
+      note('Static check: a behaviour change behind an unchanged signature is not detected. <b>Breaking</b> upgrades are held back when the patch is applied; unverified ones are not blocked and not claimed compatible.');
+  }
   function fixPlan(v) {
     var ps = (v.plans || []).filter(function (p) { return p.status === 'upgrade'; }), pr = v.proposals || {};
     var out = heading('Upgrade plan', 'lowest version that clears every advisory, re-checked against OSV');
-    out += table(['Component', 'From', 'To', 'Clears', 'Worst', 'Breaking risk', 'Verified clean'], ps.map(function (p) {
+    out += table(['Component', 'From', 'To', 'Clears', 'Worst', 'Breaking risk', 'Compat (measured)', 'Verified clean'], ps.map(function (p) {
       var ver = p.verification || {};
-      return [p.component, p.current_version, p.safe_version, p.cve_count, sevBadge(p.max_severity), p.major_bump ? pill(p.breaking_risk || 'major bump', 'warn') : '—',
+      return [p.component, p.current_version, p.safe_version, p.cve_count, sevBadge(p.max_severity), p.major_bump ? pill(p.breaking_risk || 'major bump', 'warn') : '—', compatPill(p.compat),
               ver.clean === true ? pill('yes', 'ok') : ver.clean === false ? pill('no', 'bad') : pill('not verified', 'muted')];
     }), 'No upgrade is needed or possible (see the findings for entries without a fixed version).');
     out += heading('Proposals', 'source: ' + (pr.source || 'none') + (pr.model ? ' (' + pr.model + ')' : ''));
@@ -441,12 +840,13 @@
     var out = heading('Patch', 'approval-gated; the origin is never modified');
     out += note('<b>How it works.</b> 1) Preview the plan: nothing is changed. 2) Review it and approve with its digest. 3) Manifests are edited in a temporary work copy, ' +
       'the project is re-scanned, and the edit is reverted if the findings in the edited files increase. Lockfiles are never edited; regeneration commands are listed instead. ' +
-      '<b>The patched code has not been built or tested.</b>');
+      'Before editing, each upgrade is checked against the API the project actually uses (breaking ones are held back). <b>The patched code has not been built; its tests are run only when explicitly requested.</b>');
     out += '<div class="bts-actions">' + btn('1 · Preview plan (changes nothing)', 'plan', 'job', S.busy ? ' disabled' : '') + '</div>';
     if (st === 'not_requested') { return out + note('No patch has been requested for this analysis yet.'); }
     if (st === 'not_approved') {
       out += heading('Plan to review', 'digest ' + (p.digest || ''));
-      out += table(['Component', 'From', 'To', 'Breaking risk'], (p.plans || []).map(function (x) { return [x.component, x.current_version, x.safe_version, x.breaking_risk || '—']; }), 'The plan is empty.');
+      out += table(['Component', 'From', 'To', 'Breaking risk', 'Compat (measured)'], (p.plans || []).map(function (x) { return [x.component, x.current_version, x.safe_version, x.breaking_risk || '—', compatPill(x.compat)]; }), 'The plan is empty.');
+      out += compatEvidence(p.plans);
       if ((p.plans || []).length) {
         out += '<label style="font-size:12px;display:block;margin:8px 0"><input type="checkbox" id="ackPlan"> I reviewed this plan (digest <code>' + esc(p.digest) + '</code>)</label>' +
           '<div class="bts-actions">' + btn('2 · Approve and apply on a work copy', 'apply', 'job', ' disabled') + '</div>';
@@ -455,15 +855,24 @@
     }
     var rounds = p.rounds || [];
     out += heading('Result', st);
-    out += kv([['Status', pill(st, st === 'applied' ? 'ok' : st === 'regression_reverted' || st === 'digest_mismatch' ? 'bad' : 'warn')], ['Components edited', p.applied_components],
+    out += kv([['Status', pill(st, st === 'applied' ? 'ok' : st === 'regression_reverted' || st === 'compat_runtime_reverted' || st === 'digest_mismatch' ? 'bad' : 'warn')], ['Components edited', p.applied_components],
                ['Findings before', (p.before || {}).vulns], ['After re-scan', (p.after || {}).vulns_rescan], ['Estimated after (plan)', (p.after || {}).vulns_estimated],
                ['Fixed, confirmed by re-scan', p.rescan_fixed_total], ['Branch / commit', (p.branch || '—') + ' / ' + String(p.commit || '—').slice(0, 10)],
                ['Work copy', (S.lastJob && S.lastJob.work_copy) || '—']]);
     if (p.note) { out += note(esc(p.note), 'warn'); }
     if (st === 'regression_reverted') { out += note('The edit made things worse in the edited files, so it was <b>reverted</b>.', 'bad'); }
     if (st === 'digest_mismatch') { out += note('The plan changed since it was reviewed. Preview it again.', 'bad'); }
+    if (st === 'compat_runtime_reverted') { out += note('The project\'s own tests regressed on the patched versions, so the patch was <b>reverted</b>.', 'bad'); }
+    if (p.compat && (p.compat.summary || {}).held) {
+      out += note('<b>' + p.compat.summary.held + ' upgrade(s) were held back</b> by the compatibility gate and stay vulnerable until the call sites or pins are adapted. The rest were applied.', 'warn');
+    }
+    if (p.compat_runtime) {
+      var rt = p.compat_runtime, ra = rt.after || {}, rb = rt.baseline || {};
+      out += kv([['Runtime differential', pill(ra.status || rb.status || 'unverified', ra.status === 'ok' ? 'ok' : ra.status === 'regression' ? 'bad' : 'muted')], ['Detail', ra.reason || rb.reason || '—']]);
+    }
+    if (p.compat) { out += compatEvidence((p.compat.plans || []).map(function (x) { return { component: x.component, compat: x }; })); }
     if ((p.regenerate || []).length) { out += heading('Regenerate lockfiles'); out += note('<code>' + (p.regenerate || []).map(esc).join('</code><br><code>') + '</code>'); }
-    out += table(['Round', 'Status', 'Applied', 'Blocked', 'Manual', 'Before', 'After'], rounds.map(function (r) { return [r.round, r.status, r.applied, r.blocked, r.manual, r.vulns_before, r.vulns_after]; }), 'No round ran.');
+    out += table(['Round', 'Status', 'Applied', 'Held', 'Blocked', 'Manual', 'Before', 'After'], rounds.map(function (r) { return [r.round, r.status, r.applied, r.held || 0, r.blocked, r.manual, r.vulns_before, r.vulns_after]; }), 'No round ran.');
     var d = p.diff || {};
     if (d.stat || d.patch) {
       out += heading('Changed files', 'work copy against the base commit');
@@ -482,21 +891,43 @@
       'The history shows only the latest analysis per project, not a time series.');
     $('#paneHistory').innerHTML = out;
   }
+  /* Supply-chain substitution risks (bts_sbom/supply_chain.py, measured into the record by the pipeline):
+     typosquatting, npm namespace confusion and dependency confusion. */
+  function supplyChain(v) {
+    var fs = v.supply_chain || [];
+    var out = heading('Supply chain', 'substitution risks measured on the components - typosquatting, namespace confusion, dependency confusion');
+    if (!fs.length) {
+      return out + note('No substitution risk was measured on the ' + ((v.metrics || {}).components || (v.report || {}).components || 0) +
+        ' components: every name passed the typosquatting, namespace-confusion and dependency-confusion checks. ' +
+        'The checks compare each component name against a popular-package list (edit distance 1) and internal-name declarations.');
+    }
+    out += table(['Component', 'Ecosystem', 'Kind', 'Resembles', 'CWE', 'Confidence'], fs.map(function (f) {
+      return [f.package, f.ecosystem || '—', esc(f.kind), f.resembles || '—', f.cwe || '—', esc(f.confidence || '—')];
+    }));
+    out += fs.slice(0, 6).map(function (f) {
+      return '<div class="bts-note"><b>' + esc(f.kind) + ' — ' + esc(f.package) + '</b><br>' + esc(f.description || '') +
+        (f.recommendation ? '<br><b>권고:</b> ' + esc(f.recommendation) : '') + '</div>';
+    }).join('');
+    return out + note('Findings are name-based risk signals, not proof of compromise: verify the publisher and the intended package before acting.');
+  }
   function renderPanes() {
     var v = S.view;
     $('#paneContainer').innerHTML = '<b>Container image scanning is not supported by BTS-SBOM.</b> Analyse the repository or lockfile the image is built from instead.';
     $('#paneSsvc').innerHTML = unavailable('SSVC', 'CISA SSVC decisions need exploitation, automatable and mission-impact inputs that this workflow does not collect.');
     $('#paneEpss').innerHTML = unavailable('EPSS', 'No EPSS feed is wired into this workflow, so a finding has no score (it is absent, not zero).');
     $('#paneExploit').innerHTML = unavailable('Exploit maturity', 'It needs exploit-database and CISA KEV matching, which this workflow does not do.');
-    $('#paneSupply').innerHTML = unavailable('Supply chain', 'Typosquatting and dependency-confusion detection exists in the core (bts_sbom.supply_chain) but is not wired into this workflow yet.');
-    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr };
+    var map = { paneRisk: risk, paneDep: depGraph, paneArch: arch, paneCode: codeIntel, paneDb: dbIntel, paneSupply: supplyChain, paneSbom: sbomChecks, paneLic: licences, paneSectors: sectors, paneFixPlan: fixPlan, paneFixPr: fixPr, paneReimpl: reimplPane };
     Object.keys(map).forEach(function (id) { $('#' + id).innerHTML = v ? map[id](v) : needProject(); });
     renderHistory();
     renderGovernance();
+    bindDbPane();
+    bindReimplPane();
+    bindLicPane();
   }
   function renderAll() {
     renderConsole();
     renderPanes();
+    renderRailSessions();                                            // the rail session list follows the selected project
     var ack = $('#ackPlan');
     if (ack) { ack.addEventListener('change', function () { var b = $('[data-act="apply"]'); if (b) { b.disabled = !ack.checked || S.busy; } }); }
   }
@@ -553,18 +984,88 @@
     api(q.url).then(function (r) { S.affected = r; box.innerHTML = G.renderAffected(r, analysedMap()); });
   }
 
-  /* ---------- chat ---------- */
-  function ask() {
-    var q = $('#chatQ').value.trim(), out = $('#chatOut');
-    if (!q) { return; }
-    out.textContent = 'Thinking…';
-    api('/api/chat', { question: q, project: S.project || undefined, use_llm: !!$('#chatLlm').checked }).then(function (r) {
+  /* ---------- chat: the bottom dock (bts_chat_panel.js) owns the conversation UX; ask() and the chat-tab
+     bindings were removed together with the 💬 Chat tab. The dock reads the current project from #projSel. ---------- */
+
+  /* ---------- diagrams pane: the EA-17.2 catalog (ADR-0024), drawn from the measured record ----------
+     Same markup contract as the chat dock (.arc-dwrap > .arc-diagram + hidden .arc-mermaid-src), its own lazy
+     mermaid loader, and an honest note line when a kind has no measured source. */
+  var mermaidPromise = null;
+  function ensureMermaid() {
+    if (window.mermaid) { return Promise.resolve(window.mermaid); }
+    if (!mermaidPromise) {
+      mermaidPromise = new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = '/static/vendor/mermaid.min.js';
+        s.onload = function () {
+          if (window.mermaid) {
+            try { window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' }); } catch (e) { /* keep defaults */ }
+            resolve(window.mermaid);
+          } else { reject(new Error('mermaid loaded but the global is missing')); }
+        };
+        s.onerror = function () { reject(new Error('cannot load /static/vendor/mermaid.min.js')); };
+        document.head.appendChild(s);
+      }).catch(function (e) { mermaidPromise = null; throw e; });
+    }
+    return mermaidPromise;
+  }
+  var diagramSeq = 0;
+  function renderDiagramsIn(scope) {
+    Array.prototype.forEach.call((scope || document).querySelectorAll('.arc-dwrap'), function (wrap) {
+      var holder = wrap.querySelector('.arc-diagram');
+      var src = wrap.querySelector('.arc-mermaid-src');
+      if (!holder || !src || holder.childElementCount) { return; }   // already rendered (or empty)
+      var text = src.textContent || '';
+      if (!text.trim()) { return; }
+      ensureMermaid().then(function (m) {
+        return m.render('btsd-' + Date.now() + '-' + diagramSeq++, text);
+      }).then(function (out) {
+        holder.innerHTML = out.svg;                     // mermaid strict mode; the source is server-sanitized
+        src.hidden = true;
+      }).catch(function () {
+        src.hidden = false;                             // fallback: the Mermaid source, still the honest diagram
+      });
+    });
+  }
+  var dgCatalog = null;
+  function fillDiagramKindSelect() {
+    if ($('#dgKind') && $('#dgKind').childElementCount) { return Promise.resolve(); }
+    return api('/api/diagrams').then(function (r) {
+      dgCatalog = (r.data && r.data.catalog) || [];
+      var sel = $('#dgKind');
+      if (!sel) { return; }
+      var groups = {};
+      dgCatalog.forEach(function (c) { (groups[c.group] = groups[c.group] || []).push(c); });
+      sel.innerHTML = Object.keys(groups).map(function (g) {
+        return '<optgroup label="' + esc(g) + '">' + groups[g].map(function (c) {
+          return '<option value="' + esc(c.kind) + '">' + esc(c.title) + (c.needs_target ? ' (target)' : (c.needs_spec ? ' (spec)' : '')) + '</option>';
+        }).join('') + '</optgroup>';
+      }).join('');
+    });
+  }
+  function drawDiagram() {
+    var out = $('#paneDiagrams');
+    if (!out) { return; }
+    var kind = ($('#dgKind') || {}).value || '';
+    var p = encodeURIComponent(S.project || '');
+    var url = '/api/diagrams/' + encodeURIComponent(kind) +
+      (p ? '?project=' + p : '') +
+      ($('#dgTarget') && $('#dgTarget').value.trim() ? '&target=' + encodeURIComponent($('#dgTarget').value.trim()) : '') +
+      ($('#dgSpec') && $('#dgSpec').value.trim() ? '&spec=' + encodeURIComponent($('#dgSpec').value.trim()) : '');
+    out.innerHTML = note('Drawing…');
+    api(url).then(function (r) {
       var d = r.data || {};
-      if (!r.ok) { out.textContent = d.error || ('HTTP ' + r.status); return; }
-      var srcs = {};
-      (d.claims || []).forEach(function (c) { srcs[c.source] = 1; });
-      out.innerHTML = '<div>' + esc((d.found ? '' : '[not found] ') + (d.answer || '')) + '</div><div class="bts-chat-src">source: ' + esc(d.answer_source) +
-        ' · citation accuracy: ' + esc(d.citation_accuracy) + (Object.keys(srcs).length ? ' · evidence: ' + esc(Object.keys(srcs).join(', ')) : '') + '</div>';
+      if (!r.ok) { out.innerHTML = note(esc(d.error || ('HTTP ' + r.status)), 'bad'); return; }
+      if (!d.mermaid) {
+        out.innerHTML = heading(d.title || kind, (d.group || '') + ' · ' + (d.ea || '')) + note(esc(d.note || '그릴 데이터가 없습니다.'), 'warn');
+        return;
+      }
+      var noteText = String(d.note || '').split('\n')[0];
+      out.innerHTML = heading(d.title || kind, (d.group || '') + ' · ' + (d.ea || '')) +
+        '<div class="bts-diagram arc-dwrap"><div class="arc-diagram"></div><pre class="arc-mermaid-src" hidden>' + esc(d.mermaid) + '</pre>' +
+        (noteText ? '<div class="bts-diagram-note">' + esc(noteText) + '</div>' : '') + '</div>' +
+        (d.lines && d.lines.length ? '<pre class="bts-diagram-lines">' + esc(d.lines.join('\n')) + '</pre>' : '');
+      renderDiagramsIn(out);
     });
   }
 
@@ -575,19 +1076,24 @@
     if (t.classList.contains('rtab')) { activate(t.getAttribute('data-sv')); return; }
     if (t.classList.contains('egchip')) { $('#scaGitUrl').value = t.getAttribute('data-url'); $('#scaGitUrl').focus(); return; }
     var act = t.getAttribute('data-act');
-    if (act === 'goto') { activate(t.getAttribute('data-sv')); }
+    if (act === 'goto') { activate(t.getAttribute('data-sv'), t.classList.contains('scan-subchip')); }   // a sub-tab chip opens exactly that member
     else if (act === 'dl') { download(t.getAttribute('data-url'), t.getAttribute('data-fname')); }
     else if (act === 'triage-save') { saveDecision(); }
     else if (act === 'affected') { searchAffected(); }
     else if (act === 'open') { selectProject(t.getAttribute('data-name')).then(function () { activate('risk'); }); }
+    else if (act === 'session') { selectProject(t.getAttribute('data-name')).then(function () { activate('report', true); }); }   // a rail session opens its report
+    else if (act === 'new') { activate('git', true); }                             // ＋ 새 분석: the Scan landing
+    else if (act === 'assist') { focusAssistant(); }                               // 💬 어시스턴트: the main conversation surface
     else if (act === 'plan' && S.view) { runJob({ source: S.view.source, patch: true, approved: false, offline: !!$('#scaOffline').checked }, 'Plan preview').then(function () { activate('fix-pr'); }); }
     else if (act === 'apply' && S.view && S.view.patch && S.view.patch.digest && ($('#ackPlan') || {}).checked) {
       runJob({ source: S.view.source, patch: true, approved: true, approval_token: S.view.patch.digest, offline: !!$('#scaOffline').checked }, 'Approved patch').then(function () { activate('fix-pr'); });
     }
   });
   function init() {
+    buildSideNav();
     activate('git');
     setStep(1, 'Choose an input source.');
+    document.addEventListener('bts:activate', function (e) { if (e && e.detail) { activate(String(e.detail), true); } });   // pane scripts (oss_scanner.js) request an exact pane
     $('#runScaReport').addEventListener('click', function () { activate('git'); analyse($('#scaGitUrl').value); });
     $('#scaGitUrl').addEventListener('keydown', function (e) { if (e.key === 'Enter') { analyse($('#scaGitUrl').value); } });
     $('#scaDemoBtn').addEventListener('click', function () { $('#scaGitUrl').value = 'https://github.com/adeyosemanputra/pygoat.git'; analyse($('#scaGitUrl').value); });
@@ -604,8 +1110,8 @@
       $(id).addEventListener('change', updateTriageHint);
     });
     ['#afCve', '#afComp', '#afVer'].forEach(function (id) { $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { searchAffected(); } }); });
-    $('#chatBtn').addEventListener('click', ask);
-    $('#chatQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') { ask(); } });
+    fillDiagramKindSelect();                                        // the Diagrams pane (ADR-0024); Draw uses the selected project
+    if ($('#dgDraw')) { $('#dgDraw').addEventListener('click', drawDiagram); }
     watchBrand();
     renderPanes();
     loadEngine();

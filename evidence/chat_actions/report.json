@@ -1,0 +1,55 @@
+{
+ "steps": [
+  {
+   "step": "analyze_project",
+   "q": "C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_actions_run_d0wriwu4\\proj 분석해줘",
+   "project": null,
+   "ok": true,
+   "detail": "- Project proj: 2 components, 7 vulnerabilities (CRITICAL 2, HIGH 1, MEDIUM 4), license resolved rate 1.0.\n- CVE-2020-1747 affects pyyaml 5.3, severity CRITICAL (CVSS 9.8), fixed in 5.3.1.\n- CVE-2020-14343 affects pyyaml 5.3, severity CRITICAL (CVSS 9.8), fixed in 5.4.\n- CVE-2018-18074 affects requests 2.19.1, severity HIGH (CVSS 7.5), fixed in 2.20.0.\n- Licenses: 2 of 2 components resolved; 0 pol"
+  },
+  {
+   "step": "plan_patch",
+   "q": "패치 해줘",
+   "project": "proj",
+   "ok": true,
+   "detail": "- Patch plan for proj: 2 upgrade(s), 0 major version bump(s) (compatibility is not tested), 0 package(s) without a known fixed version.\n- Upgrade pyyaml 5.3 -> 5.4 (clears 2 advisories, verified clean against OSV).\n- Upgrade requests 2.19.1 -> 2.33.0 (clears 5 advisories, verified clean against OSV).\n- Approval token 64a2aba63040b0e7 covers exactly these 2 upgrade(s); nothing has been changed. To "
+  },
+  {
+   "step": "apply_patch",
+   "q": "패치 승인 64a2aba63040b0e7",
+   "project": "proj",
+   "ok": true,
+   "detail": "- Patch applied in an isolated work copy: 2 component(s) upgraded; the re-scan reports 7 advisories fixed and 0 introduced.\n- Branch bts-sbom/auto-fix, commit d3044fd3e3, work copy C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_sbom_fix_1to2315t\\proj_fix. The origin was not modified and nothing was pushed.\n- 수정과 패치 (Remediation and patching) / 승인 게이트 (approval)\n- 승인 없이는 파일을 하나도 바꾸지 않고 계획만 돌려준다("
+  },
+  {
+   "step": "record_applied",
+   "q": "(record)",
+   "project": "proj",
+   "ok": true,
+   "detail": "status=applied work_copy=C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\bts_sbom_fix_1to2315t\\proj_fix"
+  },
+  {
+   "step": "confirm_decision",
+   "q": "확정 9715d9ac340e",
+   "project": "proj",
+   "ok": true,
+   "detail": "- Recorded the VEX decision for CVE-2024-47081: false-positive, reason \"우리는 영향받는 버전을 안 쓴다\", in C:\\firebaseprojects\\beyondthesecurity-sbom\\evidence\\chat_actions\\.triage.json. Export the OpenVEX to see  | .triage.json has CVE-2024-47081: True"
+  },
+  {
+   "step": "decision_preview",
+   "q": "(CVE-2024-47081)",
+   "project": "proj",
+   "ok": true,
+   "detail": "- Proposed VEX decision for CVE-2024-47081: status false-positive, reason \"우리는 영향받는 버전을 안 쓴다\".\n- It applies to 1 finding(s): requests 2.19.1; VEX outcome: rejected.\n- It would NOT take effect as asked"
+  },
+  {
+   "step": "readonly_refusal",
+   "q": "패치 승인 64a2aba63040b0e7",
+   "project": "proj",
+   "ok": true,
+   "detail": "- This chat session is read-only, so the patch was not executed. Open it with actions enabled (`bts-sbom-app chat --actions`, or `bts-sbom-app serve --chat-actions`) to let it analyse, patch and record decisions; each of them still needs the confirmation its preview shows.\n- 수정과 패치 (Remediation and patching) / 승인 게이트 (approval)\n- 승인 없이는 파일을 하나도 바꾸지 않고 계획만 돌려준다(status `not_approved`).\n- `python -m "
+  }
+ ],
+ "passed": 7,
+ "total": 7
+}

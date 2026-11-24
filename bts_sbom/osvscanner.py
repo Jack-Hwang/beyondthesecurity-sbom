@@ -202,6 +202,9 @@ _MANIFEST_FORMAT = {
 _KNOWN_UNSUPPORTED_MANIFESTS = {
     "composer.json", "pipfile", "podfile", "cartfile", "build.sbt",
     "packages.config", "project.json", "shard.yml", "deno.json",
+    # disclosed, never silent: a setup.py holds install_requires but has no lock-grade pins, so it is not
+    # parsed - u-boot's tools/ship several and they used to vanish from the scan report entirely
+    "setup.py",
 }
 
 

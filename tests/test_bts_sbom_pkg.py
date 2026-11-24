@@ -852,3 +852,19 @@ def test_truly_corrupt_toml_is_still_reported_as_corrupt(tmp_path, monkeypatch):
     c, text = _scan_completeness(tmp_path, monkeypatch, "Cargo.lock", '[[package\nname = "serde"\n')
     assert c.get("data_status") == "parse_failed", c
     assert "corrupt toml manifest" in text
+
+def test_setup_py_is_disclosed_not_silent(tmp_path):
+    """u-boot's tools ship several setup.py files (AC: BSA-AC-615): they have no lock-grade pins so they are not
+    parsed, but they used to vanish entirely - a setup.py-only tree reported empty_project. Now the roster names
+    them, and the completeness block carries the unsupported entry instead of a quiet nothing."""
+    from bts_sbom.osvscanner import OsvScanner
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    stub = 'from setuptools import setup\nsetup(name=\'x\')\n'
+    (proj / "setup.py").write_text(stub, encoding="utf-8")
+    r = OsvScanner(offline=True).scan(str(proj))
+    comp = r["completeness"]["parse"]
+    assert not comp["parsed_sources"]
+    assert any(e.get("type") == "unsupported-manifest" and e["path"].endswith("setup.py") for e in comp["unsupported"])
+    empty = OsvScanner(offline=True).scan(str(tmp_path / "nothing"))
+    assert not empty["completeness"]["parse"]["unsupported"]      # a truly empty tree stays honest the other way

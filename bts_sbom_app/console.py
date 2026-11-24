@@ -183,6 +183,25 @@ def _sector(s: Dict[str, Any]) -> Dict[str, Any]:
                              for r in s.get("requirements") or []]}
 
 
+def _code_view(code: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The bounded function-level projection (Code Intel) of the arch record - absent when the stage is empty."""
+    if not code or not (code.get("metrics") or {}).get("functions"):
+        return None
+    from . import code_intel as _ci
+    fns = sorted(code.get("functions") or [], key=lambda f: -(f.get("complexity") or 0))[:15]
+    trim = lambda f: {k: f.get(k) for k in ("name", "file", "line", "complexity", "fan_in", "fan_out", "sloc", "nesting")}
+    top_name = fns[0]["name"] if fns else None
+    bf = _ci.butterfly(code, top_name) if top_name else None
+    return {"language": code.get("language"), "metrics": code.get("metrics"), "notes": code.get("notes") or [],
+            "functions": [trim(f) for f in fns], "dead_code": (code.get("dead_code") or [])[:15],
+            "clones": (code.get("clones") or [])[:8],
+            "classes": [{"name": k.get("name"), "file": k.get("file"), "line": k.get("line"),
+                         "bases": k.get("bases") or [], "methods": len(k.get("methods") or [])}
+                        for k in (code.get("classes") or [])[:12]],
+            "butterfly": ({"name": bf["name"], "callers": bf["callers"], "callees": bf["callees"]} if bf else None),
+            "call_edges": [{"from": a, "to": b} for a, b in (code.get("call_edges") or [])[:40]]}
+
+
 def build_view(rec: Dict[str, Any], triage: Optional[Dict[str, Dict[str, Any]]] = None, analysed_at: Optional[str] = None) -> Dict[str, Any]:
     """Everything the page needs for one project: the console report plus the data of the other panes."""
     arch = rec.get("arch") or {}
@@ -196,8 +215,12 @@ def build_view(rec: Dict[str, Any], triage: Optional[Dict[str, Dict[str, Any]]] 
                  "graph": {k: g.get(k) for k in ("modules", "import_edges", "cycle_count", "modules_in_cycles", "tangle_ratio", "max_depth", "fan_in_top")},
                  "cycles": (g.get("cycles") or [])[:10], "hotspots": (arch.get("hotspots") or [])[:15],
                  "coupling": ((arch.get("coupling") or {}).get("pairs") or [])[:15], "runtime_eol": arch.get("runtime_eol") or [],
-                 "modernization": arch.get("modernization") or [], "clusters": (arch.get("clusters") or [])[:15]},
+                 "modernization": arch.get("modernization") or [], "clusters": (arch.get("clusters") or [])[:15],
+                 "code": _code_view(arch.get("code"))},
         "sectors": {k: _sector(v) for k, v in (rec.get("sectors") or {}).items()},
+        "supply_chain": [{"package": f.get("package"), "ecosystem": f.get("ecosystem"), "kind": f.get("kind"), "resembles": f.get("resembles"),
+                          "confidence": f.get("confidence"), "cwe": f.get("cwe"), "description": f.get("description"),
+                          "recommendation": f.get("recommendation")} for f in rec.get("supply_chain") or []],
         "sbom_check": rec.get("sbom_check") or {}, "plan_summary": rec.get("plan_summary") or {},
         "plans": [{k: p.get(k) for k in ("component", "ecosystem", "current_version", "safe_version", "status", "cve_count", "max_severity", "max_cvss",
                                           "major_bump", "breaking_risk", "verification")} for p in rec.get("plans") or []],
