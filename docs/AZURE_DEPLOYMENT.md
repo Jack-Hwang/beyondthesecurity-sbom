@@ -1,8 +1,11 @@
 # MS Azure 배포 검토 (Azure Deployment Review) — bts-sbom-app
 
-상태: **배포 완료 — 라이브 (2026-11-23, 데모·약 2주 운영 후 삭제 예정)**.
-URL: https://bts-sbom.yellowdesert-36032bc5.koreacentral.azurecontainerapps.io — 실측 전문은 docs/RUNBOOK.md
-Delivery State "2026-11-23: FIRST AZURE DEPLOYMENT" 항목과 deploy/azure/README.md의 첫 배포 실측을 볼 것.
+상태: **철수 완료 (2026-11-24)** — 데모 창(약 2주 계획) 종료에 따라 az group delete로
+bts-sbom-rg·ACA 환경·앱·ACR(btsbomacr1123)·Azure Files·Log Analytics 전부 제거,
+ResourceGroupNotFound 확인. 실측 전문은 docs/RUNBOOK.md Delivery State
+"2026-11-23: FIRST AZURE DEPLOYMENT" 항목과 deploy/azure/README.md의 첫 배포 실측에 보존.
+재배포 시: deploy/azure/README.md 절차 + containerapp.applied.yaml(ACR 빌드 2m16s —
+ACR 재생성 필요) + evidence 시딩(scripts/seed_osv_local_db.py·기록 업로드).
 이 문서의 나머지는 검토(2026-11-22) 시점의 근거를 그대로 보존한다.
 아키텍처 스타일·Well-Architected 5 기둥 기준의 추론 리뷰는 docs/AZURE_ARCHITECTURE_REVIEW.md(2026-11-23,
 프로브 3종·진단 설정·적용 선언 적용 실측 포함)에 있다.

@@ -73,7 +73,11 @@ What exists today and what was actually checked, in this worktree, as of this ch
   instance is **public ingress without authentication** (Easy Auth was skipped for demo friction; the app's own
   `BTS_SBOM_LLM_DAILY_BUDGET=80` caps any third-party LLM use). The localhost no-auth contract above still governs
   the code; the Azure instance is a demo mirror that gets deleted after the review window
-  (`az group delete --name bts-sbom-rg --yes` removes everything including the registry and the Files share).
+  (`az group delete --name bts-sbom-rg --yes` removes everything including the registry and the Files share). **2026-11-24: the demo window was closed early — the resource group was deleted as planned**
+  (ResourceGroupNotFound verified; the only survivor is the separate rg-bts-openai LLM endpoint). Before
+  deletion the live-only NodeGoat scan record (1,091 components / 311 advisories) was pulled down to
+  evidence/runs/NodeGoat/, so every measured artifact now lives in this repository. Re-deployment path is
+  documented in deploy/azure/README.md §8.
 - **2026-11-22: Code Intel — Understand(SciTools)의 함수 레벨 기능을 설치·의존 없이 자체 재구현** (ADR-0023,
   BSA-AC-553..557): AST 기반 콜그래프·순환 복잡도·데드코드·클론 검출이 `arch.analyze()["code"]`로 상주하고,
   콘솔 🔎 Code Intel 판 + Arch Intel Code Intel 섹션(결정론 콜그래프)으로 표시된다. Python-first이며 타 언어는
