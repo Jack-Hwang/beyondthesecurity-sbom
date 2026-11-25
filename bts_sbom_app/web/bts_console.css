@@ -161,6 +161,8 @@ table.bts-table td code{word-break:break-all}
 .bts-stage{background:#161b22;border:1px solid #30363d;color:#8b949e;border-radius:999px;padding:3px 10px;font-size:11px}
 .bts-stage.ok{color:#7ee2b8;border-color:#2ea04366}
 .bts-stage.fail{color:#f85149;border-color:#f8514966}
+.bts-stage.skip{color:#d29922;border-color:#d2992266}
+.bts-pre{white-space:pre-wrap;font-size:12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px;max-height:480px;overflow:auto}
 /* honest pass banner: the pinned sca_app.js only styles pass/fail - an unknown must not look green */
 .sx-banner.warn{background:rgba(212,167,44,.15);border-left-color:#d4a72c;color:#9a6700;font-weight:700}
 @media (max-width:900px){ .bts-cd-msgs{max-height:32vh} }

@@ -17,6 +17,16 @@ $ python -m bts_sbom selfsbom
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
 
+## SBOM → rewrite support (unreleased, 2026-11-26) — REA input + developer dossier
+
+After the SBOM, `bts-sbom-app rewrite` lists the components that cannot be patched away — strong-copyleft licence, no fixed
+version, a fix that still leaves advisories (measured) and end-of-life / incompatible (declared) — each with its evidence, and the
+clean-room lane writes a **developer dossier** per rewrite: reasons, exposure, licence duty, how the project really uses the
+component (which public symbols it calls), the legacy interface, REA facts (or the REA commands to run yourself), pattern
+guidance, verification and what is still unknown. [REA](https://github.com/morluto/rea) is an optional external tool,
+detected at run time and never installed by this app; its facts enter the spec only through a fail-closed allow-list.
+See [docs/REA_INTEGRATION.md](docs/REA_INTEGRATION.md) (what REA is, licence, the clean-room walls, what was not possible).
+
 ## What's new since 0.5.0 (unreleased) — u-boot clean-room E2E + workbench UI + honest banners
 
 - **u-boot v2026.10 real-world E2E** (`evidence/uboot_e2e/E2E.md`): scanned 68 components / 43 advisories

@@ -1,0 +1,105 @@
+{
+ "candidates": {
+  "candidates": 4,
+  "license": 4,
+  "no_fix": 0,
+  "fix_incomplete": 0,
+  "eol": 0,
+  "incompatible": 0
+ },
+ "components": 68,
+ "rea": "absent",
+ "A": {
+  "verdict": "ok",
+  "generated_by": "llm",
+  "attempts": 1,
+  "copy_gate": {
+   "overlap": 0.0,
+   "threshold": 0.05,
+   "license_strings": [],
+   "passed": true
+  },
+  "tests": {
+   "ran": true,
+   "ok": true,
+   "code": 0,
+   "tail": "tests: 2 run, 0 failed",
+   "timeout": false
+  },
+  "rea": {
+   "state": "not_applicable",
+   "reason": "no JavaScript/Electron artefact under the target (rea's static provider covers JS/ASAR; a Python source is read by the lane's own ast reader)",
+   "version": null,
+   "coverage": null,
+   "modules": 0,
+   "imports": 0,
+   "boundaries": 0,
+   "dropped": null,
+   "evidence": null
+  },
+  "trigger": {
+   "component": "concurrencytest",
+   "version": "0.1.2",
+   "kinds": [
+    "license"
+   ],
+   "clean_room_required": true
+  },
+  "patterns": {
+   "tier": "book",
+   "patterns": [
+    {
+     "name": "Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (E",
+     "ref": "Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (Erich Gamma, Richard Helm, Ralph Johnson etc.) · Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (Erich Gamma, Richard Helm, Ralph Johnson etc.) / Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (Erich Gamma, Richard Helm, Ralph Johnson etc.)"
+    },
+    {
+     "name": "Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1) / Architec",
+     "ref": "Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1) · Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1) / Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1)"
+    },
+    {
+     "name": "OAuth 2.0: an access token is a bearer token, so reuse BearerAuthMiddleware # wi",
+     "ref": "Building Agentic AI Systems Build connected agent systems with MCP, A2A, agent loops, harness engineering, and cloud… (Anjanava Biswas, Wrick Talukdar) · OAuth 2.0: an access token is a bearer token, so reuse BearerAuthMiddleware # with a validator that verifies the token's signature and scope async def validate_token(token: str) -> bool:"
+    }
+   ]
+  },
+  "runtime": "3.12.10",
+  "adopted_tests": null
+ },
+ "B": {
+  "verdict": "ok",
+  "generated_by": "scaffold",
+  "trigger": {
+   "component": "concurrencytest",
+   "version": "0.1.2",
+   "kinds": [
+    "license",
+    "eol"
+   ],
+   "clean_room_required": true
+  },
+  "rea": {
+   "state": "not_applicable",
+   "reason": "no JavaScript/Electron artefact under the target (rea's static provider covers JS/ASAR; a Python source is read by the lane's own ast reader)",
+   "version": null,
+   "coverage": null,
+   "modules": 0,
+   "imports": 0,
+   "boundaries": 0,
+   "dropped": null,
+   "evidence": null
+  },
+  "runtime": "3.12.10"
+ },
+ "events_A": [
+  "rea_skipped",
+  "interface_ready",
+  "patterns_ready",
+  "spec_ready",
+  "diagram_ready",
+  "code_ready",
+  "copy_gate",
+  "tests_running",
+  "tests_passed",
+  "dossier_ready"
+ ]
+}

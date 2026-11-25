@@ -130,7 +130,20 @@ def build_parser() -> argparse.ArgumentParser:
     rj.add_argument("--allow-inplace", action="store_true", help="allow publish_dest to equal the analysed source")
     rj.add_argument("--attempts", type=int, default=2, help="clean-room candidates to try (best-of-N by the legacy oracle)")
     rj.add_argument("--why", default="compliance-risky license (clean-room reimplementation)")
+    rj.add_argument("--rea", action="store_true", help="reader-side analysis of the legacy artefact with the optional rea CLI (absent -> recorded as absent)")
+    rj.add_argument("--rea-target", default=None, help="artefact for rea (default: the source folder)")
+    rj.add_argument("--evidence", default=None, help="evidence folder holding the project's scan record (for the SBOM trigger + dossier)")
+    rj.add_argument("--project", default=None, help="project name in the evidence folder")
+    rj.add_argument("--sbom-component", default=None, help="name[@version] of the SBOM component being rewritten (reasons recomputed from the record)")
+    rj.add_argument("--eol", default=None, help="eol input file, the same {component: {eol, status}} contract as the sector reports")
+    rj.add_argument("--declare", action="append", default=[], metavar="COMPONENT=KIND[:NOTE]", help="operator declaration: kind eol|incompatible|license")
+    rj.add_argument("--project-root", default=None, help="the analysed project's source tree (usage sites in the dossier)")
     rj.add_argument("--json", action="store_true")
+    rw = sub.add_parser("rewrite", help="after the SBOM: which components must be rewritten (licence / EOL / no fix / incompatible) + the developer dossier")
+    rw.add_argument("--evidence", required=True); rw.add_argument("--project", required=True)
+    rw.add_argument("--eol", default=None); rw.add_argument("--component", default=None, help="name[@version]: print its dossier instead of the list")
+    rw.add_argument("--declare", action="append", default=[], metavar="COMPONENT=KIND[:NOTE]")
+    rw.add_argument("--project-root", default=None); rw.add_argument("--json", action="store_true")
     c = sub.add_parser("chat", help="ask a grounded question (with --actions: analyse, patch with an approval token, record VEX decisions)")
     c.add_argument("question", nargs="?", default=None); c.add_argument("--evidence", default=None); c.add_argument("--project", default=None)
     c.add_argument("--llm", action="store_true"); c.add_argument("--llm-config", default=None); c.add_argument("--json", action="store_true")
@@ -152,6 +165,16 @@ def _print(obj: Any, as_json: bool, text: str = "") -> None:
         print(json.dumps(obj, ensure_ascii=True, indent=1, default=str))
     else:
         print(console_text(text))          # stream-aware: real characters when the console can show them
+
+
+def _declared(items: List[str]) -> List[Dict[str, str]]:
+    """--declare COMPONENT=KIND[:NOTE] -> operator declarations for rewrite.candidates (kind is validated there)."""
+    out: List[Dict[str, str]] = []
+    for it in items or []:
+        comp, _, rest = it.partition("=")
+        kind, _, note = rest.partition(":")
+        out.append({"component": comp.strip(), "kind": kind.strip(), "note": note.strip()})
+    return out
 
 
 def project_records(evidence: str) -> Dict[str, Any]:
@@ -303,8 +326,29 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("bts-sbom MCP server: protocol %s, tools: %s" % (mcp_server.PROTOCOL_VERSION,
                                                                ", ".join(t["name"] for t in mcp_server.TOOL_DEFS)), file=sys.stderr)
         return mcp_server.serve_stdio(mcp_server.Session(a.root, a.evidence), sys.stdin, sys.stdout)
+    if a.cmd == "rewrite":
+        from . import rewrite as rewrite_mod
+        found = project_records(a.evidence).get(a.project)
+        if not found:
+            _print({"error": "unknown project"}, a.json, "unknown project %r in %s" % (a.project, a.evidence))
+            return 2
+        rep = rewrite_mod.candidates(found[1], eol=rewrite_mod.load_eol(a.eol) if a.eol else None, declared=_declared(a.declare))
+        if a.component:
+            row = rewrite_mod.find(rep, a.component)
+            if row is None:
+                _print({"error": "not a rewrite candidate"}, a.json, "%r is not a rewrite candidate of %s (see the list without --component)" % (a.component, a.project))
+                return 2
+            d = rewrite_mod.preview(found[1], row, a.project_root)
+            _print(d, a.json, rewrite_mod.dossier_markdown(d))
+            return 0
+        lines = ["rewrite candidates of %s: %d of %d components" % (a.project, rep["counts"]["candidates"], rep["components"])]
+        for r in rep["candidates"][:40]:
+            lines.append("  %s@%s: %s" % (r["component"], r["version"], rewrite_mod.why_text(r)))
+        lines += ["not assessed: " + n for n in rep["not_assessed"]]
+        _print(rep, a.json, chr(10).join(lines))
+        return 0
     if a.cmd == "reimpl":
-        from . import reimpl as reimpl_mod
+        from . import rea_adapter, rewrite as rewrite_mod
         client = _client(a.root, not a.llm, a.llm_config) if a.llm else None
         out = a.out or os.path.join(a.root, "evidence", "reimpl", os.path.splitext(os.path.basename(a.component))[0])
 
@@ -312,9 +356,21 @@ def main(argv: Optional[List[str]] = None) -> int:
             fields = " ".join("%s=%s" % (k, str(v)[:60]) for k, v in ev.items() if k not in ("event", "ts"))
             print("  [%s] %s" % (ev["event"], fields), flush=True)
 
+        rec, trigger = None, None
+        if a.evidence and a.project:
+            hit = project_records(a.evidence).get(a.project)
+            rec = hit[1] if hit else None
+        if rec is not None and a.sbom_component:
+            trigger_row = rewrite_mod.find(rewrite_mod.candidates(rec, eol=rewrite_mod.load_eol(a.eol) if a.eol else None,
+                                                                 declared=_declared(a.declare)), a.sbom_component)
+            trigger = rewrite_mod.trigger_record(trigger_row) if trigger_row else None
+            if trigger is None:
+                print("note: %r is not a rewrite candidate of %s; the lane runs without an SBOM trigger" % (a.sbom_component, a.project), file=sys.stderr)
+        rea_provider = (lambda root, comp: rea_adapter.collect(a.rea_target or root)) if a.rea else None
         res = reimpl_mod.reimpl(a.source, a.component, out, client=client if (client is not None and client.available) else None,
                                 license_ok=True, why=a.why, publish_dest=a.publish_dest,
                                 allow_inplace=a.allow_inplace, attempts=max(1, min(a.attempts, 6)),
+                                trigger=trigger, rea_provider=rea_provider, project_root=a.project_root, project_rec=rec,
                                 progress=on_progress)
         _print(res, a.json, "reimpl %s: %s (%s)" % (a.component, res["verdict"], res.get("reason", "all stages passed")))
         return 0 if res["verdict"] == "ok" else 1

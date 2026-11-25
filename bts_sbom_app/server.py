@@ -40,6 +40,7 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -269,6 +270,16 @@ def _safe_source(src: str) -> Optional[str]:
         return str(exc)
     if spec["kind"] == "local" and not os.path.exists(spec["path"]):
         return "local path does not exist"
+    return None
+
+
+def _project_tree(rec: Optional[Dict[str, Any]]) -> Optional[str]:
+    """The analysed project's source tree as the SERVER recorded it (work copy, else the original local source) - never a
+    path an HTTP caller supplied. Used for the dossier's usage sites."""
+    for key in ("path", "source"):
+        p = (rec or {}).get(key)
+        if isinstance(p, str) and os.path.isdir(p):
+            return p
     return None
 
 
@@ -538,6 +549,33 @@ def make_handler(st: State):
                     return self._send(404, {"error": "unknown project"})
                 folder, rec = hit
                 return self._send(200, selfcheck.to_csv(rec), "text/csv", {"Content-Disposition": 'attachment; filename="%s-selfcheck.csv"' % rec.get("name", "project")})
+            if path == "/api/rea":
+                from . import rea_adapter
+                d = rea_adapter.detect_cached()
+                return self._send(200, {k: d.get(k) for k in ("state", "version", "runtime", "reason", "upstream")})
+            if path.startswith("/api/rewrite/"):
+                # after the SBOM: the components that must be rewritten + (with ?component=) the developer dossier
+                from . import rewrite as rewrite_mod
+                hit = st.project(urllib.parse.unquote(path[len("/api/rewrite/"):]))
+                if hit is None:
+                    return self._send(404, {"error": "unknown project"})
+                folder, rec = hit
+                eol_path = os.path.join(st.evidence, "eol.json")      # optional operator input, same contract as the sector reports
+                try:
+                    eol = rewrite_mod.load_eol(eol_path) if os.path.isfile(eol_path) else None
+                except (OSError, ValueError) as exc:
+                    return self._send(400, {"error": "eol.json: %s" % str(exc)[:120]})
+                rep = rewrite_mod.candidates(rec, eol=eol)
+                comp = (q.get("component") or [""])[0]
+                if not comp:
+                    return self._send(200, rep)
+                row = rewrite_mod.find(rep, comp)
+                if row is None:
+                    return self._send(404, {"error": "not a rewrite candidate of this project"})
+                d = rewrite_mod.preview(rec, row, _project_tree(rec))   # the tree comes from the record, not from the caller
+                if (q.get("format") or ["json"])[0] == "md":
+                    return self._send(200, rewrite_mod.dossier_markdown(d), "text/markdown; charset=utf-8")
+                return self._send(200, d)
             if path == "/api/affected":
                 try:
                     return self._send(200, fleet.affected(load_projects(st.evidence), vuln_id=(q.get("cve") or [None])[0], component=(q.get("component") or [None])[0],
@@ -573,6 +611,13 @@ def make_handler(st: State):
             if path.startswith("/api/arch/jobs/") and path.endswith("/events"):
                 jid = path[len("/api/arch/jobs/"):-len("/events")].strip("/")
                 return arch_api.serve_events(st, self, jid, q)
+            if path.startswith("/api/jobs/") and path.endswith("/dossier"):
+                jid = path[len("/api/jobs/"):-len("/dossier")].strip("/")
+                fp = os.path.join(st.evidence, "reimpl", jid, "dossier.md")
+                if not re.fullmatch(r"[0-9a-f]{10}", jid) or not os.path.isfile(fp):
+                    return self._send(404, {"error": "no dossier for this job"})
+                with open(fp, "r", encoding="utf-8") as fh:
+                    return self._send(200, fh.read(), "text/markdown; charset=utf-8")
             if path.startswith("/api/jobs/") and path.endswith("/events"):
                 jid = path[len("/api/jobs/"):-len("/events")].strip("/")
                 return self._serve_events(jid, q)
@@ -850,13 +895,13 @@ def make_handler(st: State):
                         release()
 
                 def _reimpl_work() -> None:
-                    from . import reimpl as reimpl_mod
+                    from . import reimpl as reimpl_mod, rea_adapter, rewrite as rewrite_mod
                     out = os.path.join(st.evidence, "reimpl", jid)
                     final: Dict[str, Any]
 
                     def on_progress(ev: Dict[str, Any]) -> None:
                         try:
-                            ok = not ev["event"].endswith("_failed") and ev["event"] not in ("refused", "copy_gate_failed", "publish_refused")
+                            ok = not ev["event"].endswith("_failed") and ev["event"] not in ("refused", "copy_gate_failed", "publish_refused", "rea_skipped")
                             bus.publish("step_end", name=ev["event"], ok=ok, seconds=0.0)
                         except Exception:                      # noqa: BLE001 - telemetry never kills the lane
                             pass
@@ -877,10 +922,29 @@ def make_handler(st: State):
                             return reimpl_mod.infer_patterns(iface, book_index=idx,
                                                              client=client if client is not None else None)
 
+                        rec, trigger = None, None
+                        hit = st.project(str(b.get("project") or "")) if b.get("project") else None
+                        if hit is not None:
+                            rec = hit[1]
+                            if b.get("target"):                   # the trigger is RECOMPUTED here from the record, never taken from the caller
+                                eol_path = os.path.join(st.evidence, "eol.json")
+                                try:
+                                    eol = rewrite_mod.load_eol(eol_path) if os.path.isfile(eol_path) else None
+                                except (OSError, ValueError):
+                                    eol = None
+                                row = rewrite_mod.find(rewrite_mod.candidates(rec, eol=eol, declared=b.get("declared")), str(b.get("target")))
+                                trigger = rewrite_mod.trigger_record(row) if row else None
+                        rea_provider = None
+                        if bool(b.get("rea")):
+                            rea_target = str(b.get("rea_target") or "")
+                            if rea_target and (_safe_source(rea_target) or not os.path.exists(rea_target)):
+                                raise ValueError("rea_target must be an existing local path")
+                            rea_provider = (lambda root, _c: rea_adapter.collect(rea_target or root))
                         final = reimpl_mod.reimpl(src, comp, out, client=client,
                                                   license_ok=bool(b.get("license_ok", True)),
-                                                  why=str(b.get("why") or "compliance-risky license (clean-room reimplementation)"),
+                                                  why=str(b.get("why") or reimpl_mod.DEFAULT_WHY),
                                                   patterns_provider=patterns_provider if client is not None else None,
+                                                  trigger=trigger, rea_provider=rea_provider, project_rec=rec, project_root=_project_tree(rec),
                                                   progress=on_progress)
                     except Exception as exc:                   # noqa: BLE001 - the job reports, it never vanishes
                         final = {"verdict": "error", "reason": str(exc)[:200]}
@@ -888,8 +952,8 @@ def make_handler(st: State):
                         bus.publish("final", state=final.get("verdict", "error"))
                     except Exception:                          # noqa: BLE001
                         pass
-                    st.jobs[jid] = dict(final, state=("done" if final.get("verdict") == "ok" else "error"),
-                                        kind="reimpl", source=src, component=comp)
+                    st.jobs[jid] = dict(final, state=("done" if final.get("verdict") in ("ok", "dossier_only") else "error"),
+                                        kind="reimpl", source=src, component=comp, job=jid)
                     bus.close()
 
                 threading.Thread(target=work, daemon=True).start()

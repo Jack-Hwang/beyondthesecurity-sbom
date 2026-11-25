@@ -1,0 +1,260 @@
+{
+ "schema": "bts-sbom.rewrite.v1",
+ "project": "u-boot",
+ "components": 68,
+ "candidates": [
+  {
+   "component": "concurrencytest",
+   "version": "0.1.2",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/concurrencytest@0.1.2",
+   "relationship": "direct",
+   "license": "GPL-3.0-only",
+   "license_category": "strong-copyleft",
+   "files": [
+    "tools/u_boot_pylib/requirements.txt"
+   ],
+   "reasons": [
+    {
+     "kind": "license",
+     "strength": "measured",
+     "source": "scan record: license deps.dev",
+     "evidence": "GPL-3.0-only (strong-copyleft) - a patch cannot change a licence"
+    }
+   ],
+   "context": [],
+   "triggered": true,
+   "clean_room_required": true
+  },
+  {
+   "component": "fattools",
+   "version": "1.0.42",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/fattools@1.0.42",
+   "relationship": "direct",
+   "license": "GPL-3.0-only",
+   "license_category": "strong-copyleft",
+   "files": [
+    "test/py/requirements.txt"
+   ],
+   "reasons": [
+    {
+     "kind": "license",
+     "strength": "measured",
+     "source": "scan record: license deps.dev",
+     "evidence": "GPL-3.0-only (strong-copyleft) - a patch cannot change a licence"
+    }
+   ],
+   "context": [],
+   "triggered": true,
+   "clean_room_required": true
+  },
+  {
+   "component": "pylint",
+   "version": "2.4.4",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/pylint@2.4.4",
+   "relationship": "direct",
+   "license": "GPL-3.0-or-later",
+   "license_category": "strong-copyleft",
+   "files": [
+    "lib/mbedtls/external/mbedtls/scripts/ci.requirements.txt"
+   ],
+   "reasons": [
+    {
+     "kind": "license",
+     "strength": "measured",
+     "source": "scan record: license registry:pypi",
+     "evidence": "GPL-3.0-or-later (strong-copyleft) - a patch cannot change a licence"
+    }
+   ],
+   "context": [
+    {
+     "kind": "major_bump_fix",
+     "strength": "context",
+     "source": "remediation plan",
+     "evidence": "the only verified fix is 2.4.4 -> 4.0.9 (a major-version jump, compatibility not tested)"
+    }
+   ],
+   "triggered": true,
+   "clean_room_required": true
+  },
+  {
+   "component": "yamllint",
+   "version": "1.35.1",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/yamllint@1.35.1",
+   "relationship": "direct",
+   "license": "GPL-3.0-or-later",
+   "license_category": "strong-copyleft",
+   "files": [
+    "tools/binman/requirements.txt"
+   ],
+   "reasons": [
+    {
+     "kind": "license",
+     "strength": "measured",
+     "source": "scan record: license deps.dev",
+     "evidence": "GPL-3.0-or-later (strong-copyleft) - a patch cannot change a licence"
+    }
+   ],
+   "context": [],
+   "triggered": true,
+   "clean_room_required": true
+  }
+ ],
+ "watch": [
+  {
+   "component": "certifi",
+   "version": "2022.12.7",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/certifi@2022.12.7",
+   "relationship": "direct",
+   "license": "MPL-2.0",
+   "license_category": "weak-copyleft",
+   "files": [
+    "lib/mbedtls/external/mbedtls/docs/requirements.txt"
+   ],
+   "reasons": [],
+   "context": [
+    {
+     "kind": "major_bump_fix",
+     "strength": "context",
+     "source": "remediation plan",
+     "evidence": "the only verified fix is 2022.12.7 -> 2026.10.18 (a major-version jump, compatibility not tested)"
+    }
+   ],
+   "triggered": false,
+   "clean_room_required": false
+  },
+  {
+   "component": "certifi",
+   "version": "2024.8.30",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/certifi@2024.8.30",
+   "relationship": "direct",
+   "license": "MPL-2.0",
+   "license_category": "weak-copyleft",
+   "files": [
+    "doc/sphinx/requirements.txt"
+   ],
+   "reasons": [],
+   "context": [
+    {
+     "kind": "major_bump_fix",
+     "strength": "context",
+     "source": "remediation plan",
+     "evidence": "the only verified fix is 2024.8.30 -> 2026.10.18 (a major-version jump, compatibility not tested)"
+    }
+   ],
+   "triggered": false,
+   "clean_room_required": false
+  },
+  {
+   "component": "filelock",
+   "version": "3.20.3",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/filelock@3.20.3",
+   "relationship": "direct",
+   "license": "Unlicense",
+   "license_category": "public-domain",
+   "files": [
+    "test/py/requirements.txt",
+    "tools/buildman/requirements.txt"
+   ],
+   "reasons": [],
+   "context": [
+    {
+     "kind": "major_bump_fix",
+     "strength": "context",
+     "source": "remediation plan",
+     "evidence": "the only verified fix is 3.20.3 -> 4.2.1 (a major-version jump, compatibility not tested)"
+    }
+   ],
+   "triggered": false,
+   "clean_room_required": false
+  },
+  {
+   "component": "pytest",
+   "version": "8.4.2",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/pytest@8.4.2",
+   "relationship": "direct",
+   "license": "MIT",
+   "license_category": "permissive",
+   "files": [
+    "test/py/requirements.txt"
+   ],
+   "reasons": [],
+   "context": [
+    {
+     "kind": "major_bump_fix",
+     "strength": "context",
+     "source": "remediation plan",
+     "evidence": "the only verified fix is 8.4.2 -> 9.0.3 (a major-version jump, compatibility not tested)"
+    }
+   ],
+   "triggered": false,
+   "clean_room_required": false
+  },
+  {
+   "component": "setuptools",
+   "version": "78.1.1",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/setuptools@78.1.1",
+   "relationship": "direct",
+   "license": "",
+   "license_category": "unknown",
+   "files": [
+    "scripts/dtc/pylibfdt/requirements.txt"
+   ],
+   "reasons": [],
+   "context": [
+    {
+     "kind": "major_bump_fix",
+     "strength": "context",
+     "source": "remediation plan",
+     "evidence": "the only verified fix is 78.1.1 -> 84.1.0 (a major-version jump, compatibility not tested)"
+    }
+   ],
+   "triggered": false,
+   "clean_room_required": false
+  },
+  {
+   "component": "urllib3",
+   "version": "1.26.15",
+   "ecosystem": "PyPI",
+   "purl": "pkg:pypi/urllib3@1.26.15",
+   "relationship": "direct",
+   "license": "MIT",
+   "license_category": "permissive",
+   "files": [
+    "lib/mbedtls/external/mbedtls/docs/requirements.txt"
+   ],
+   "reasons": [],
+   "context": [
+    {
+     "kind": "major_bump_fix",
+     "strength": "context",
+     "source": "remediation plan",
+     "evidence": "the only verified fix is 1.26.15 -> 2.8.0 (a major-version jump, compatibility not tested)"
+    }
+   ],
+   "triggered": false,
+   "clean_room_required": false
+  }
+ ],
+ "counts": {
+  "candidates": 4,
+  "license": 4,
+  "no_fix": 0,
+  "fix_incomplete": 0,
+  "eol": 0,
+  "incompatible": 0
+ },
+ "not_assessed": [
+  "component end-of-life is not assessed: no eol input was supplied (same {component: {eol, status}} file as the sector reports), so absence of an EOL reason means unknown, not supported",
+  "3 component(s) have no resolved licence: the licence reason is not assessed for them",
+  "incompatibility is only what the operator declares; the tool does not measure it"
+ ]
+}
