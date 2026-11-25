@@ -1,0 +1,12 @@
+{
+ "state": "absent",
+ "version": null,
+ "runtime": null,
+ "reason": "the rea CLI is not installed (npm install --global rea-agents, or set BTS_REA_CMD); nothing was analysed",
+ "upstream": {
+  "repo": "https://github.com/morluto/rea",
+  "package": "rea-agents",
+  "licence": "MIT",
+  "docs": "https://rea.tools/"
+ }
+}

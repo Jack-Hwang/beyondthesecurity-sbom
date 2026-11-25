@@ -1,0 +1,176 @@
+{
+ "schema": "bts-sbom.rewrite.dossier.v1",
+ "component": "concurrencytest.py",
+ "generated": "2026-11-26T05:02:56+09:00",
+ "gaps": [
+  "REA analysis is not_applicable: no JavaScript/Electron artefact under the target (rea's static provider covers JS/ASAR; a Python source is read by the lane's own ast reader)",
+  "the legacy component ships no test suite: behaviour is verified against generated contract tests only (names and arity), not against the legacy behaviour"
+ ],
+ "why": [
+  {
+   "kind": "license",
+   "strength": "measured",
+   "source": "scan record: license deps.dev",
+   "evidence": "GPL-3.0-only (strong-copyleft) - a patch cannot change a licence"
+  }
+ ],
+ "context": [],
+ "identity": {
+  "component": "concurrencytest",
+  "version": "0.1.2",
+  "ecosystem": "PyPI",
+  "purl": "pkg:pypi/concurrencytest@0.1.2",
+  "relationship": "direct",
+  "files": [
+   "tools/u_boot_pylib/requirements.txt"
+  ]
+ },
+ "advisories": [],
+ "upgrade_plan": null,
+ "license": {
+  "id": "GPL-3.0-only",
+  "category": "strong-copyleft",
+  "obligations": [
+   "keep notices",
+   "offer corresponding source of the combined work when distributed"
+  ],
+  "clean_room_required": true,
+  "note": "a clean-room is legally motivated"
+ },
+ "usage": {
+  "scanned": true,
+  "files_scanned": 418,
+  "truncated": false,
+  "sites": [
+   {
+    "file": "tools/u_boot_pylib/test_util.py",
+    "line": 19,
+    "kind": "from-import",
+    "names": [
+     "ConcurrentTestSuite"
+    ]
+   },
+   {
+    "file": "tools/u_boot_pylib/test_util.py",
+    "line": 20,
+    "kind": "from-import",
+    "names": [
+     "fork_for_tests"
+    ]
+   }
+  ],
+  "symbols_used": [
+   "ConcurrentTestSuite",
+   "fork_for_tests"
+  ],
+  "reason": ""
+ },
+ "legacy_interface": {
+  "module": "concurrencytest",
+  "imports": [
+   "traceback",
+   "testtools",
+   "typing",
+   "sys",
+   "os",
+   "multiprocessing",
+   "unittest",
+   "subunit",
+   "collections",
+   "itertools",
+   "atexit"
+  ],
+  "api": [
+   {
+    "name": "fork_for_tests",
+    "kind": "function",
+    "args": [
+     "num_processes",
+     "partition_func"
+    ],
+    "contract": "Create a test runner that executes tests in multiple forked processes.\n\nThe returned callable partitions a test suite into groups and executes each group\nin a separate worker process using `os.fork()`.\n\nArgs:\n    num_processes:\n        Number of worker processes to spawn. Defaults to the number of CPUs on the\n        system.\n\n    partition_func:\n        Function used to partition tests across workers. It receives the test suite\n        and the worker count and must return a list of test lists (one list per\n        worker). Defaults to `partition_tests` (round-robin partition strategy).\n\nReturns:\n    Callable function that takes a `TestSuite` and returns an iterable of\n    test-like objects compatible with `ConcurrentTestSuite`.",
+    "used_by_project": true
+   },
+   {
+    "name": "partition_tests",
+    "kind": "function",
+    "args": [
+     "suite",
+     "count"
+    ],
+    "contract": "Partition a unittest suite into multiple lists of tests, using round-robin.\n\nThis function splits a test suite into its individual test cases and assigs them\nin a round-robin fashion to distribute load evenly across workers. This helps\navoid situations where one worker gets all slow tests while others finish quickly.\nOne potential drawback is that if you have a `setUpClass`/`tearDownClass` defined\nin a `TestCase`, it may be run multiple times if tests from the same class are run\non different workers.\n\nArgs:\n    suite: `TestSuite` containing all test cases to partition.\n    count: Number of partitions.\n\nReturns:\n    List of `count` lists, where each inner list contains the tests assigned to\n    that partition. The tests maintain their original order, distributed\n    round-robin.",
+    "used_by_project": false
+   },
+   {
+    "name": "partition_tests_by_class",
+    "kind": "function",
+    "args": [
+     "suite",
+     "count"
+    ],
+    "contract": "Partition a unittest suite into multiple lists of tests, keeping class locality.\n\nThis function groups all tests belonging to the same test case class and assigns\nthem as a block to the worker with the current smallest number of tests already\nassigned. This ensures that all tests from a single class run in the same worker,\nwhich preserves `setUpClass`/`tearDownClass` lifecycle semantics.\n\nArgs:\n    suite: `TestSuite` containing all test cases to partition.\n    count: Number of partitions.\n\nReturns:\n    List of `count` lists, where each inner list contains the tests assigned to\n    that partition. Each class's tests are contained within a single partition,\n    and partitions are balanced by total test count.",
+    "used_by_project": false
+   },
+   {
+    "name": "ConcurrentTestSuite",
+    "kind": "class",
+    "methods": [],
+    "contract": "",
+    "used_by_project": true
+   }
+  ],
+  "examples": []
+ },
+ "rea": {
+  "state": "not_applicable",
+  "reason": "no JavaScript/Electron artefact under the target (rea's static provider covers JS/ASAR; a Python source is read by the lane's own ast reader)",
+  "version": null,
+  "coverage": null,
+  "modules": 0,
+  "imports": 0,
+  "boundaries": 0,
+  "dropped": null,
+  "evidence": null
+ },
+ "rea_facts": null,
+ "rea_playbook": [
+  {
+   "command": "rea import-reference-source C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\conct_e2e\\concurrencytest-0.1.12 --detail summary --json",
+   "gives": "inventory of the source tree: languages, manifests, relationships (Linux/macOS hosts only)",
+   "wired": false
+  }
+ ],
+ "patterns": {
+  "tier": "book",
+  "patterns": [
+   {
+    "name": "Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (E",
+    "ref": "Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (Erich Gamma, Richard Helm, Ralph Johnson etc.) · Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (Erich Gamma, Richard Helm, Ralph Johnson etc.) / Design Patterns, Elements of Reusable Object Oriented Software (Gang of Four) (Erich Gamma, Richard Helm, Ralph Johnson etc.)"
+   },
+   {
+    "name": "Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1) / Architec",
+    "ref": "Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1) · Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1) / Architecting AI Software Systems (Richard D. Availa, Imran Ahmad) (1)"
+   },
+   {
+    "name": "OAuth 2.0: an access token is a bearer token, so reuse BearerAuthMiddleware # wi",
+    "ref": "Building Agentic AI Systems Build connected agent systems with MCP, A2A, agent loops, harness engineering, and cloud… (Anjanava Biswas, Wrick Talukdar) · OAuth 2.0: an access token is a bearer token, so reuse BearerAuthMiddleware # with a validator that verifies the token's signature and scope async def validate_token(token: str) -> bool:"
+   }
+  ]
+ },
+ "verification": {
+  "verdict": "ok",
+  "reason": null,
+  "generated_by": "llm",
+  "copy_gate": {
+   "overlap": 0.0,
+   "threshold": 0.05,
+   "passed": true
+  },
+  "contract_tests": {
+   "ok": true,
+   "tail": "tests: 2 run, 0 failed"
+  },
+  "legacy_oracle": null,
+  "runtime": "3.12.10"
+ }
+}

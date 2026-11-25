@@ -1,0 +1,12 @@
+[
+ "rea_skipped",
+ "interface_ready",
+ "patterns_ready",
+ "spec_ready",
+ "diagram_ready",
+ "code_ready",
+ "copy_gate",
+ "tests_running",
+ "tests_passed",
+ "dossier_ready"
+]

@@ -2,6 +2,25 @@
 
 All notable changes to bts-sbom are documented here.
 
+## Unreleased - 2026-11-26: SBOM -> rewrite support (multi-reason trigger, optional REA input, developer dossier)
+
+- Rewrite trigger beyond licence (`bts_sbom_app/rewrite.py`, `bts-sbom-app rewrite`, GET /api/rewrite/<project>): a component
+  enters the clean-room path for strong-copyleft licence, no fixed version, a verified upgrade that still leaves advisories
+  (measured from the scan record), end-of-life (the sector reports' eol input contract) or an operator-declared
+  incompatibility. Context signals (runtime EOL, major-bump-only fix, scheduled EOL) are listed, never a trigger.
+  Missing inputs are "not assessed", never "supported". Measured on the real u-boot record: 4 of 68 candidates, all licence.
+- REA (https://github.com/morluto/rea, MIT, Node.js) as an OPTIONAL external reverse-engineering input for the rewrite
+  (`bts_sbom_app/rea_adapter.py`): detected at run time, never downloaded or installed, honest states
+  (absent / not_applicable / failed / timeout / unrecognised_shape / ok). Its facts pass a fail-closed allow-list into the
+  spec with an Unknowns block; `raw_result` is never read; the copy gate operands are unchanged. NOT run against a real rea
+  here (tests use a fake process) - see docs/REA_INTEGRATION.md.
+- Developer dossier (dossier.md/json per run, GET /api/jobs/<id>/dossier, `rewrite --component`): reasons with evidence,
+  exposure, licence duty, the project's real usage sites and called symbols (used/unused public API), legacy interface,
+  REA facts or the exact rea commands to run, pattern guidance, verification and the honest gaps. The generator never gets it.
+- `dossier_only` verdict for modules the reader cannot parse (Python 2 syntax, non-Python): no code, full dossier.
+- Workbench: rewrite-candidate table, REA checkbox/state, `REA 분석` / `개발자 자료` stages (a skipped stage is shown as skip).
+- Spec AC-706..717, tests/bts_sbom_app/test_rewrite_rea.py.
+
 ## Unreleased - 2026-11-23b: u-boot real-world E2E + Clean-Room workbench UI + honest scanning surfaces
 
 - u-boot v2026.10 E2E measured end to end (evidence/uboot_e2e/E2E.md): scan 68 components / 43 advisories,

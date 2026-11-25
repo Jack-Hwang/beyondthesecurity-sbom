@@ -27,10 +27,13 @@ import subprocess
 import sys
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from . import __version__, arch_map
+import platform
+
+from . import __version__, arch_map, rea_adapter, rewrite
 from .binscan import _LICENSE_STRINGS
 
 SCHEMA = "bts-sbom.reimpl.v1"
+DEFAULT_WHY = "compliance-risky license (clean-room reimplementation)"
 COPY_THRESHOLD = 0.05
 SHINGLE_N = 4
 TEST_TIMEOUT = 120
@@ -510,12 +513,20 @@ def _emit(progress: Optional[Callable[[Dict[str, Any]], None]], event: str, **fi
 
 
 def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None, license_ok: bool = True,
-           why: str = "compliance-risky license (clean-room reimplementation)", copy_threshold: float = COPY_THRESHOLD,
+           why: str = DEFAULT_WHY, copy_threshold: float = COPY_THRESHOLD,
            publish_dest: Optional[str] = None, allow_inplace: bool = False, attempts: int = 2,
            pattern_pack: Optional[Dict[str, Any]] = None,
            patterns_provider: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
+           trigger: Optional[Dict[str, Any]] = None,
+           rea_provider: Optional[Callable[[str, str], Dict[str, Any]]] = None,
+           project_root: Optional[str] = None, project_rec: Optional[Dict[str, Any]] = None,
            progress: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
-    """The whole lane. Returns a verdict record; every stage is emitted through ``progress`` (SSE-ready)."""
+    """The whole lane. Returns a verdict record; every stage is emitted through ``progress`` (SSE-ready).
+
+    ``trigger`` is a rewrite.trigger_record (why the SBOM sends this component here: licence, EOL, no fix, declared
+    incompatibility); ``rea_provider(source_root, component)`` returns a rea_adapter pack (reader-side analysis of the
+    legacy artefact); ``project_root`` / ``project_rec`` let the developer dossier show how the project uses the
+    component and what the scan found. None of them is an operand of the copy gate."""
     res: Dict[str, Any] = {"schema": SCHEMA, "tool": "bts-sbom-app reimpl", "version": __version__,
                            "source": os.path.abspath(source_root), "component": component,
                            "started": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -531,9 +542,43 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
         return res
     os.makedirs(out_dir, exist_ok=True)
     module_name = os.path.splitext(os.path.basename(component))[0]
+    res["runtime"] = platform.python_version()
+    if trigger:
+        res["trigger"] = {"component": trigger.get("component"), "version": trigger.get("version"),
+                          "kinds": [t["kind"] for t in trigger.get("reasons") or []],
+                          "clean_room_required": bool(trigger.get("clean_room_required"))}
+        if why == DEFAULT_WHY and trigger.get("reasons"):
+            why = rewrite.why_text(trigger)
+    trig_kinds = set(res.get("trigger", {}).get("kinds") or [])
 
-    # wall 1: read the interface (bodies stay here, in the reader)
-    iface = extract_interface(src_path)
+    # reader-side REA analysis of the legacy artefact (never a gate operand, never read by the generator)
+    rea_pack: Optional[Dict[str, Any]] = None
+    if rea_provider is not None:
+        try:
+            rea_pack = rea_provider(source_root, component)
+        except Exception as exc:                               # noqa: BLE001 - a failing adapter degrades honestly
+            rea_pack = {"state": "failed", "reason": str(exc)[:160], "facts": None}
+        res["rea"] = rea_adapter.summary(rea_pack)
+        _emit(progress, "rea_ready" if rea_pack.get("state") == "ok" else "rea_skipped",
+              state=rea_pack.get("state"), reason=(rea_pack.get("reason") or "")[:120])
+
+    # wall 1: read the interface (bodies stay here, in the reader). A module the reader cannot parse (Python 2
+    # syntax, a non-Python component) cannot enter the generator: the developer still gets the dossier.
+    try:
+        if not component.lower().endswith(".py"):
+            raise ValueError("the reader covers Python modules only (%s is not a .py file)" % (os.path.splitext(component)[1] or component))
+        iface = extract_interface(src_path)
+    except (SyntaxError, ValueError) as exc:
+        iface = {"module": module_name, "path": src_path.replace("\\", "/"), "functions": [], "classes": [], "imports": [], "examples": []}
+        res.update(verdict="dossier_only", reason="no code was generated - %s: %s" % (
+            "the module does not parse under this interpreter (Python 2 syntax?)" if isinstance(exc, SyntaxError) else "unsupported component",
+            str(exc)[:120]))
+        res["interface"] = {"functions": [], "classes": [], "imports": []}
+        res["artifacts"] = {}
+        _write_dossier(res, out_dir, iface, trigger, rea_pack, None, project_root, project_rec, source_root)
+        _emit(progress, "dossier_ready", path=res["artifacts"].get("dossier"))
+        res["honesty"] = HONESTY
+        return res
     iface["examples"] = extract_examples(source_root)
     original_src = open(src_path, "r", encoding="utf-8", errors="replace").read()
     res["interface"] = {"functions": [f["name"] for f in iface["functions"]],
@@ -559,6 +604,14 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
         section = patterns_section(pack)
         if section:
             spec = spec + "\n\n" + section
+    if trig_kinds & {"eol", "incompatible"}:
+        spec += ("\n\n## Compatibility target\n- the legacy component is end-of-life or incompatible: the replacement must run "
+                 "on the interpreter that executes the contract tests (Python %s) and use no standard-library API that "
+                 "current releases removed" % res["runtime"])
+    rea_text = rea_adapter.facts_section(rea_pack) if rea_pack else ""
+    if rea_text:
+        spec += "\n\n" + rea_text                              # names/relations only; allow-listed in rea_adapter.extract_facts
+        res["rea_in_spec"] = True
     dgml = arch_map.to_dgml("Reimplementation of %s" % component,
                             sorted({iface["module"], *iface["imports"]}),
                             [(iface["module"], d) for d in iface["imports"]])
@@ -664,6 +717,10 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
             continue
         verdict = "ok"
         break
+    _write_dossier(dict(res, verdict=res.get("verdict") or verdict or "ok"), out_dir, iface, trigger, rea_pack, pack, project_root,
+                   project_rec, source_root)
+    res["artifacts"]["dossier"] = os.path.join(out_dir, "dossier.md")
+    _emit(progress, "dossier_ready", path=res["artifacts"]["dossier"])
     # stage F: publish only a fully passing lane (folder copy; the analysed source is never overwritten
     # without an explicit flag)
     if verdict == chr(111) + chr(107) and publish_dest:
@@ -681,6 +738,22 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
         res["verdict"] = "ok"
     res["honesty"] = HONESTY
     return res
+
+
+def _write_dossier(res: Dict[str, Any], out_dir: str, iface: Dict[str, Any], trigger: Optional[Dict[str, Any]],
+                   rea_pack: Optional[Dict[str, Any]], pack: Optional[Dict[str, Any]], project_root: Optional[str],
+                   project_rec: Optional[Dict[str, Any]], source_root: str) -> None:
+    """The developer dossier (rewrite.build_dossier): reader-side, for humans; the generator never receives it."""
+    names = [iface.get("module") or ""]
+    if trigger:
+        names += [str(trigger.get("component") or ""), str(trigger.get("component") or "").replace("-", "_").lower()]
+    usage = rewrite.usage_sites(project_root or "", names) if project_root else None
+    d = rewrite.build_dossier(row=trigger, rec=project_rec, iface=iface, usage=usage, rea=rea_pack, patterns=pack, result=res,
+                              adopted=discover_adopted_tests(source_root) if os.path.isdir(source_root) else None,
+                              target_artifact=os.path.abspath(source_root))
+    io_wrap(os.path.join(out_dir, "dossier.md"), rewrite.dossier_markdown(d))
+    io_wrap(os.path.join(out_dir, "dossier.json"), json.dumps(d, ensure_ascii=False, indent=1))
+    res.setdefault("artifacts", {})["dossier"] = os.path.join(out_dir, "dossier.md")
 
 
 def io_wrap(path: str, text: str) -> None:

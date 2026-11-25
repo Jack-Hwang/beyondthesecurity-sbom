@@ -498,9 +498,9 @@
 
   /* ---------- panes ---------- */
   /* ---------- 클린룸 재구현 워크벤치 (brief 6, /api/reimpl): 두 개의 벽 — 명세만 생성기로, 카피 게이트+원본 오라클 ---------- */
-  var REIMPL_STAGES = ['interface_ready', 'patterns_ready', 'spec_ready', 'diagram_ready', 'code_ready', 'copy_gate', 'tests_running', 'tests_passed', 'adopted_tests_running', 'adopted_tests_passed'];
-  var REIMPL_LABEL = { interface_ready: '인터페이스', patterns_ready: '패턴 추론', spec_ready: '명세', diagram_ready: 'DGML', code_ready: '코드 생성', copy_gate: '카피 게이트', tests_running: '계약 테스트', tests_passed: '계약 통과', adopted_tests_running: '원본 오라클', adopted_tests_passed: '원본 통과' };
-  var REIMPL_FAIL_AT = { copy_gate_failed: 'copy_gate', tests_failed: 'tests_running', adopted_tests_failed: 'adopted_tests_running', refused: 'interface_ready' };
+  var REIMPL_STAGES = ['interface_ready', 'rea_ready', 'patterns_ready', 'spec_ready', 'diagram_ready', 'code_ready', 'copy_gate', 'tests_running', 'tests_passed', 'adopted_tests_running', 'adopted_tests_passed', 'dossier_ready'];
+  var REIMPL_LABEL = { interface_ready: '인터페이스', rea_ready: 'REA 분석', dossier_ready: '개발자 자료', patterns_ready: '패턴 추론', spec_ready: '명세', diagram_ready: 'DGML', code_ready: '코드 생성', copy_gate: '카피 게이트', tests_running: '계약 테스트', tests_passed: '계약 통과', adopted_tests_running: '원본 오라클', adopted_tests_passed: '원본 통과' };
+  var REIMPL_FAIL_AT = { rea_skipped: 'rea_ready', copy_gate_failed: 'copy_gate', tests_failed: 'tests_running', adopted_tests_failed: 'adopted_tests_running', refused: 'interface_ready' };
   /* job SSE consumer shared by the reimpl pane and the scan step bar: the server streams bts-sbom.events.v1 frames */
   function watchJobEvents(jid, onEvent) {
     fetch('/api/jobs/' + encodeURIComponent(jid) + '/events').then(function (res) {
@@ -535,16 +535,44 @@
       '<input id="riComponent" placeholder="예: tools/dtoc/src_scan.py" spellcheck="false"></div>' +
       '<div class="bts-actions"><label class="bts-cd-llm"><input type="checkbox" id="riLlm" checked> LLM 생성 (끄면 스캐폴드)</label>' +
       '<label class="bts-cd-llm"><input type="checkbox" id="riPatterns" checked> 책·AI 패턴 주입 (책 KB 먼저, 없으면 모델)</label>' +
+      '<label class="bts-cd-llm"><input type="checkbox" id="riRea"> REA 분석 (설치된 경우만 — 없으면 "없음"으로 기록)</label>' +
       '<button type="button" class="run" id="riRun">▶ 재구현 실행</button></div>' +
       '<div class="bts-small">벽 1에서 인터페이스(함수·클래스 시그니처+docstring)만 명세가 된다. 벽 2는 명세만 본다. ' +
       '생성 코드가 원본과 4행 shingle 5%를 넘게 겹치면 기각되고, 원본 테스트 오라클이 통과해야 발행 자격이 생긴다. 산출물: evidence/reimpl/&lt;jid&gt;/.</div></div>';
+    out += '<div id="riReaState" class="bts-small"></div>';
+    out += '<div id="riCand"></div>';
     out += '<div id="riStages" class="bts-stages"></div>';
     out += '<div id="riOut"></div>';
+    setTimeout(loadRewriteInfo, 0);
     return out;
+  }
+  /* SBOM -> rewrite: the components that must be rewritten (licence / no fix / EOL / declared) + the optional REA tool state */
+  var RW_TARGET = '';
+  function loadRewriteInfo() {
+    var st = document.getElementById('riReaState'), cand = document.getElementById('riCand');
+    if (st) {
+      api('/api/rea').then(function (r) {
+        var d = r.data || {};
+        st.innerHTML = 'REA: ' + esc(d.state || '?') + (d.version ? ' ' + esc(d.version) : '') + (d.reason ? ' — ' + esc(d.reason) : '');
+      });
+    }
+    if (!cand || !S.project) { return; }
+    api('/api/rewrite/' + encodeURIComponent(S.project)).then(function (r) {
+      var d = r.data || {};
+      if (!r.ok) { cand.innerHTML = note('<b>재작성 후보 조회 실패.</b> ' + esc(d.error || ('HTTP ' + r.status)), 'bad'); return; }
+      var h = heading('재작성 후보 (SBOM 기준)', d.counts ? (d.counts.candidates + '개 / 구성요소 ' + d.components) : '');
+      h += table(['구성요소', '사유 (근거)', ''], (d.candidates || []).slice(0, 30).map(function (c) {
+        return [c.component + '@' + c.version, (c.reasons || []).map(function (t) { return t.kind + ': ' + t.evidence; }).join(' · '),
+                H('<button type="button" class="run" data-ri-target="' + esc(c.component + '@' + c.version) + '">선택</button>')];
+      }), '재작성 사유(라이선스·수정불가·EOL 선언)가 기록된 구성요소가 없다.');
+      h += (d.not_assessed || []).map(function (n) { return note('<b>미평가:</b> ' + esc(n)); }).join('');
+      h += '<div class="bts-small" id="riTarget">' + (RW_TARGET ? '선택: ' + esc(RW_TARGET) : '구성요소를 선택하면 사유가 명세에 기록되고 개발자 자료에 근거가 담긴다.') + '</div>';
+      cand.innerHTML = h;
+    });
   }
   function reimplVerdict(d) {
     var v = d.verdict || '?';
-    var cls = v === 'ok' ? 'ok' : (v === 'refused' || v === 'rejected' ? 'warn' : 'bad');
+    var cls = v === 'ok' ? 'ok' : (v === 'refused' || v === 'rejected' || v === 'dossier_only' ? 'warn' : 'bad');
     var h = heading('판정', esc(d.component || '') + ' · ' + esc(d.started || ''));
     var cg = d.copy_gate || {};
     var pt = d.patterns;
@@ -553,9 +581,14 @@
              ['생성 테스트', d.tests ? (d.tests.ok ? '통과' : '실패') : '—'],
              ['원본 오라클', d.adopted_tests ? (d.adopted_tests.ok ? '통과 (' + (d.adopted_tests.files || []).length + '개 파일)' : '실패') : '—'],
              ['호환성', d.compatibility || '—'],
-             ['패턴 주입', pt ? ('tier ' + pt.tier + ' · ' + (pt.patterns || []).map(function (p) { return p.name; }).join(', ')) : '—']]);
+             ['패턴 주입', pt ? ('tier ' + pt.tier + ' · ' + (pt.patterns || []).map(function (p) { return p.name; }).join(', ')) : '—'],
+             ['SBOM 사유', d.trigger ? (d.trigger.kinds || []).join(', ') + (d.trigger.clean_room_required ? ' · 클린룸 필수(라이선스)' : ' · 클린룸은 정책 적용') : '—'],
+             ['REA', d.rea ? (d.rea.state + (d.rea.reason ? ' — ' + d.rea.reason : '') + (d.rea.state === 'ok' ? ' · 모듈 ' + d.rea.modules + ' · 커버리지 ' + d.rea.coverage : '')) : '요청 안 함']]);
     if (d.reason) { h += note('<b>이유:</b> ' + esc(d.reason), v === 'ok' ? 'ok' : 'warn'); }
     if (d.published_to) { h += note('발행: <code>' + esc(d.published_to) + '</code>'); }
+    if (d.artifacts && d.artifacts.dossier && d.job) {
+      h += '<div class="bts-actions"><button type="button" class="run" data-ri-dossier="' + esc(d.job) + '">📄 개발자 자료 (dossier) 보기</button></div><div id="riDossier"></div>';
+    }
     return h;
   }
   function bindReimplPane() {
@@ -564,6 +597,20 @@
     pane.dataset.riBound = '1';
     /* delegated like bindDbPane: the pane's innerHTML is rewritten on project switches, the binding is not */
     pane.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t && t.getAttribute && t.getAttribute('data-ri-target')) {
+        RW_TARGET = t.getAttribute('data-ri-target');
+        var lab = document.getElementById('riTarget');
+        if (lab) { lab.textContent = '선택: ' + RW_TARGET; }
+        return;
+      }
+      if (t && t.getAttribute && t.getAttribute('data-ri-dossier')) {
+        var box = document.getElementById('riDossier');
+        fetch('/api/jobs/' + encodeURIComponent(t.getAttribute('data-ri-dossier')) + '/dossier').then(function (res) { return res.text(); }).then(function (txt) {
+          if (box) { box.innerHTML = '<pre class="bts-pre">' + esc(txt) + '</pre>'; }
+        });
+        return;
+      }
       if (!e.target || e.target.id !== 'riRun') { return; }
       var src = $('#riSource').value.trim(), comp = $('#riComponent').value.trim();
       var out = $('#riOut'), stages = $('#riStages');
@@ -572,14 +619,15 @@
       stages.innerHTML = REIMPL_STAGES.map(function (s) {
         return '<span class="bts-stage" id="ri-st-' + s + '">' + esc(REIMPL_LABEL[s] || s) + '</span>';
       }).join('');
-      api('/api/reimpl', { source: src, component: comp, use_llm: $('#riLlm').checked, patterns: $('#riPatterns').checked }).then(function (r) {
+      api('/api/reimpl', { source: src, component: comp, use_llm: $('#riLlm').checked, patterns: $('#riPatterns').checked, rea: !!(document.getElementById('riRea') || {}).checked,
+                           project: S.project || '', target: RW_TARGET }).then(function (r) {
         if (!r.ok || !(r.data || {}).job) { out.innerHTML = note('<b>실행 거부.</b> ' + esc((r.data || {}).error || ('HTTP ' + r.status)), 'bad'); return; }
         var jid = r.data.job;
         watchJobEvents(jid, function (ev, d) {
           if (ev === 'step_end' && d.name) {
             var at = REIMPL_FAIL_AT[d.name] || d.name;
             var el = document.getElementById('ri-st-' + at);
-            if (el) { el.classList.add(d.ok === false ? 'fail' : 'ok'); }
+            if (el) { el.classList.add(d.name === 'rea_skipped' ? 'skip' : (d.ok === false ? 'fail' : 'ok')); }
           } else if (ev === 'final') {
             api('/api/jobs/' + encodeURIComponent(jid)).then(function (jr) {
               var d = jr.data || {};
