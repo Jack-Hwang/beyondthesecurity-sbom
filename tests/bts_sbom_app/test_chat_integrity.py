@@ -233,3 +233,27 @@ def test_nl2sql_tool_result_appends_the_snapshot_freshness_line(monkeypatch, tmp
     monkeypatch.setattr(nl2sql, "answer", fake_answer_no_as_of)
     out3 = chat.run_tool(None, "nl2sql", {"q": "아무것도 없음"}, db_path=db_path)
     assert not any(ln.startswith("as of:") for ln in out3[0]["lines"])        # no as_of key at all: no line added, never guessed
+
+
+# --------------------------------------------------------------------------- C87: three-way support classification
+
+def test_classify_support_grades_three_ways_and_keeps_the_gate_binary():
+    """AC: BSA-AC-1253. A mirrored-polarity sentence in the cited document promotes a claim to 'contradicted';
+    absence of support stays 'unsupported' with its reason; verify_claims' binary gate is untouched."""
+    from bts_sbom_app.chat import classify_support, verify_claims
+    docs = {"a.md": "CVE-2024-9999 is affected in versions below 2.0. CVE-2025-1111 is not affected in all versions."}
+    claims = [
+        {"source": "a.md", "quote": "CVE-2024-9999 is affected in versions below 2.0.", "text": "c1"},
+        {"source": "a.md", "quote": "CVE-2025-1111 is affected in all versions.", "text": "c2"},
+        {"source": "missing.md", "quote": "x", "text": "c3"},
+        {"source": "a.md", "quote": "never quoted anywhere", "text": "c4"},
+    ]
+    r = classify_support(claims, docs)
+    assert r["supported"] == 1 and r["contradicted"] == 1 and r["unsupported"] == 2
+    reasons = {row["state"]: row["reason"] for row in r["rows"]}
+    assert "no such source" in reasons["unsupported"] or reasons["unsupported"]
+    v = verify_claims(claims[:2], docs)                                # the gate: still binary, unchanged
+    assert v["verified"] == 1 and v["accuracy"] == 0.5
+    neg = classify_support([{"source": "a.md", "quote": "전역 설치는 없다", "text": "ko"}],
+                           {"a.md": "전역 설치는 있다."})              # Korean polarity pair, mirrored exactly
+    assert neg["contradicted"] == 1

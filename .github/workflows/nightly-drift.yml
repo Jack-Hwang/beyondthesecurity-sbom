@@ -1,0 +1,68 @@
+# Nightly drift check (backlog C12): scheduled, DECOUPLED from push/PR triggers - the same checks the PR CI
+# runs are re-run on a fixed clock so slow drift (regression that only shows over days, an expired evidence
+# baseline, a dead docs link that appeared in a direct push) surfaces as a red nightly run instead of rotting.
+# Everything here is offline (PYTHONUTF8 + offline scanner + no LLM): the nightly budget is zero.
+name: nightly drift check
+
+on:
+  schedule:
+    - cron: "20 19 * * *"          # UTC 19:20 = KST 04:20 - after the day's pushes, before the morning
+  workflow_dispatch: {}            # manual run for a demo / a redeploy sanity check
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: offline drift battery
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install test-only deps
+        run: python -m pip install --quiet pytest
+      - name: regression suite (offline subset)
+        run: python -m pytest tests/bts_sbom_app -q --ignore=tests/bts_sbom_app/test_kind_manifests.py
+      - name: retrieval eval baseline (evalrag, offline by design)
+        run: python -m bts_sbom_app evalrag
+      - name: dogfood - the product scans its own source (C09)
+        run: python scripts/dogfood_gate.py
+      - name: escalation roll-up health (C52/C43)
+        run: |
+          python - <<'EOF'
+          import json, os
+          from bts_sbom_app import escalation_report
+          r = escalation_report.report("evidence")
+          print(json.dumps({k: r.get(k) for k in ("status", "totals", "open_queue", "resolution")}, ensure_ascii=False))
+          os.makedirs(os.path.join("evidence", "nightly"), exist_ok=True)
+          EOF
+      - name: markdown relative links (C39)
+        run: python scripts/check_md_links.py docs
+      - name: spec gates (speclint trace + lint)
+        run: python -m bts_sbom_app.speclint
+      - name: record the drift stamp
+        if: always()
+        run: |
+          python - <<'EOF'
+          import datetime, json, os
+          stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+          rec = {"stamp": stamp, "note": "nightly drift battery - see the step results for the pass/fail detail"}
+          os.makedirs("evidence/nightly", exist_ok=True)
+          with open(os.path.join("evidence/nightly", "drift_%s.json" % stamp), "w", encoding="utf-8") as fh:
+              json.dump(rec, fh, ensure_ascii=False, indent=1)
+          print(json.dumps(rec))
+          EOF
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-evidence
+          path: |
+            evidence/nightly/
+            evidence/top10_report.md
+          if-no-files-found: ignore
+          retention-days: 14

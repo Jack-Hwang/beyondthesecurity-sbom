@@ -61,3 +61,4 @@ evidence/chat_actions/.pending_decisions.json
 # session scratch that must never ship
 __verify_tmp_out__/
 enc_results.log
+evidence/nightly/
