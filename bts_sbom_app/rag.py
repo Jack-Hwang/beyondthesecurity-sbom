@@ -13,7 +13,10 @@ Design (each point is measured by evals/rag_golden.json):
     unresolved conflict (rule ``escalate``) - nothing is auto-preferred;
   * confidence gate: a question whose content words are not covered by the best chunk is OUT OF CORPUS
     (``found=False``) instead of being answered with the least-bad chunk;
-  * metadata filters (kind, project) so project evidence never answers a general question and vice versa.
+  * metadata filters (kind, project) so project evidence never answers a general question and vice versa;
+  * English-only queries (no Hangul) get a query-side English->Korean technical-term bridge (``EN_KR_BRIDGE`` plus
+    the reverse of ``SYNONYMS``) and light inflection folding, with a lower confidence-gate floor (``EN_MIN_BM25``)
+    measured on evals/rag_en.json + evals/rag_en_holdout.json - Korean queries are never affected by either change.
 """
 from __future__ import annotations
 
@@ -22,6 +25,8 @@ import os
 import re
 from collections import Counter
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+from . import evalguard
 
 RRF_K = 60
 CHUNK = 600
@@ -53,6 +58,85 @@ SYNONYMS = {
     # paraphrase vocabulary (2026-11-22, dev failures after the round-1 lecture corpus landed)
     "고쳤는데": ["fix", "patch", "regression"], "새 문제": ["regression", "재발"],
 }
+
+EN_KR_BRIDGE = {
+    # English -> Korean technical-term bridge, applied ONLY to queries without a single Hangul character (see
+    # tokenize()). Derived from the vocabulary knowledge/*.md actually uses for these concepts (headings and
+    # parenthetical glosses), not from any one eval query - symmetric to SYNONYMS but in the other direction, for
+    # terms SYNONYMS does not already cover in reverse (see _REVERSE_SYNONYMS below for the ones it does).
+    "lockfile": ["락파일"], "lockfiles": ["락파일"],
+    "calculate": ["계산"], "calculation": ["계산"], "calculations": ["계산"],
+    "pattern": ["패턴"], "patterns": ["패턴"],
+    "format": ["형식"], "formats": ["형식"],
+    "acceptance": ["수용"], "criteria": ["기준"], "criterion": ["기준"],
+    "fusion": ["융합"], "coupling": ["결합"],
+    "normalize": ["정규화"], "normalization": ["정규화"],
+    "layer": ["계층"], "layers": ["계층"], "hierarchical": ["계층"], "hierarchy": ["계층"],
+    "extraction": ["분리"], "requirement": ["요구"], "requirements": ["요구"],
+    "dependency": ["의존", "의존성"], "dependencies": ["의존", "의존성"],
+    "edit": ["수정"], "edited": ["수정"], "editing": ["수정"],
+    "metric": ["지표"], "metrics": ["지표"],
+    "delivery": ["전달"], "target": ["대상"], "targets": ["대상"],
+    "verify": ["검증"], "verified": ["검증"], "verification": ["검증"],
+    "hidden": ["숨은"], "section": ["섹션"], "sections": ["섹션"],
+    "reject": ["기각"], "rejected": ["기각"], "alternative": ["대안"], "alternatives": ["대안"],
+}
+
+
+def _build_reverse_synonyms(table: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    """SYNONYMS is written Korean-key -> English-values; an English query gets nothing from it as-is (no key ever
+    matches an English token). This reverses it once at import time so an English token can look up the Korean
+    key(s) that use it - the SAME hand-written table, just read in the other direction."""
+    rev: Dict[str, List[str]] = {}
+    for k, vs in table.items():
+        if "가" <= k[0] <= "힣":
+            for v in vs:
+                rev.setdefault(v, []).append(k)
+    return rev
+
+
+_REVERSE_SYNONYMS = _build_reverse_synonyms(SYNONYMS)
+
+
+def _has_hangul(text: str) -> bool:
+    return any("가" <= ch <= "힣" for ch in text)
+
+
+def _en_stem_variants(t: str) -> List[str]:
+    """Light, general English inflection folding (plural/-ed/-ing), query-side only: lets "hotspots" reach a
+    corpus chunk written "hotspot", or "calculated" reach the Korean bridge key for "calculate". Candidates are
+    added to the query's token pool alongside the original word, never replacing it; the corpus itself (and so
+    every Korean query's token counts, df/idf and BM25 length-normalisation) is completely unchanged."""
+    if len(t) < 5 or not t.isalpha():
+        return []
+    out = set()
+    if t.endswith("ies") and len(t) >= 6:
+        out.add(t[:-3] + "y")
+    elif t.endswith("es") and len(t) >= 6 and (t[-3] in "sxz" or t[-4:-2] in ("ch", "sh")):
+        out.add(t[:-2])
+    elif t.endswith("s") and not t.endswith("ss"):
+        out.add(t[:-1])
+    if t.endswith("ed") and len(t) >= 6:
+        out.add(t[:-2])
+        out.add(t[:-1])
+    if t.endswith("ing") and len(t) >= 7:
+        out.add(t[:-3])
+        out.add(t[:-3] + "e")
+    return [s for s in out if len(s) >= 3]
+
+
+# Confidence-gate adjustment for English-only queries (see Index.search): measured on evals/rag_en.json +
+# evals/rag_en_holdout.json (2026-11-27). The bilingual tokenizer's Korean path generates many more tokens per
+# query (syllable bigrams), so a Korean query's BM25 ceiling sits well above an English query's for equivalent
+# relevance - the committed 12.0 gate was tuned on Korean queries only and silently rejected good English answers
+# (found_rate 0.5 on rag_en.json while recall@5 was already 0.875 - the right document WAS retrieved, just hidden
+# behind the gate). Worst measured English OOD false-accept risk across both English sets AND the three pinned
+# sets' own English-only OOD probes ("who won the world cup final" and siblings): 9.70 ("Who won the latest World
+# Cup final?", rag_en.json). 10.0 keeps every English OOD probe measured (all <= 9.70) rejected while recovering
+# English in-domain questions that score just under the Korean-tuned line. Korean queries are never affected:
+# this constant is only read when the query has no Hangul AND the caller left min_bm25 at its committed default
+# (see Index.search) - re-measure both English sets (never rag_en.json alone) if this is ever retuned.
+EN_MIN_BM25 = 10.0
 
 
 def _hangul_tokens(run: str) -> List[str]:
@@ -145,10 +229,18 @@ def tokenize(text: str, *, for_query: bool = False) -> List[str]:
             toks.extend(parts)
     if for_query:
         extra: List[str] = []
+        no_hangul = not _has_hangul(text)
         for t in list(dict.fromkeys(toks)):
             for key, syn in SYNONYMS.items():
                 if t == key or (len(key) >= 2 and key in t and "가" <= key[0] <= "힣" and t in (key,)):
                     extra.extend(syn)
+            if no_hangul:
+                # English-only query: fold light inflection and bridge to the Korean terms the notes use for it.
+                variants = _en_stem_variants(t)
+                extra.extend(variants)
+                for cand in [t] + variants:
+                    extra.extend(_REVERSE_SYNONYMS.get(cand, ()))
+                    extra.extend(EN_KR_BRIDGE.get(cand, ()))
         for key, syn in SYNONYMS.items():
             if "가" <= key[0] <= "힣" and key in text:
                 extra.extend(syn)
@@ -248,6 +340,10 @@ class Index:
         # Korean word "결과" repeated in a lecture chunk scored 11.7 and leaked an out-of-domain query past the
         # old 11.0 gate (dev OOD 0.8). 12.0 rejects that hit with ZERO loss on golden/dev/test recall, precision
         # or OOD (measured before/after on all three sets); 12.5 starts dropping true finds (dev found 1.0 -> 0.933).
+        # English-only queries read a lower, separately-measured floor instead (EN_MIN_BM25) when the caller left
+        # min_bm25 at this committed default - see EN_MIN_BM25 for the measurement. Any caller that passes its own
+        # min_bm25 explicitly (not this default) always gets exactly the value it asked for, in any language.
+        gate_bm25 = EN_MIN_BM25 if (min_bm25 == 12.0 and not _has_hangul(query)) else min_bm25
         qt = tokenize(query, for_query=True)
         qc = Counter(qt)
         if not qc or not self.chunks:
@@ -297,7 +393,7 @@ class Index:
             results.append({"chunk": self.chunks[i], "rrf": round(fused[i], 5), "bm25": round(bm[i], 3),
                             "tfidf": round(tfidf[i], 3), "coverage": round(cov, 2), "lex": round(lex.get(i, 0.0), 2)})
         top = results[0] if results else None
-        found = bool(top and top["bm25"] >= min_bm25 and top["coverage"] >= min_cover)
+        found = bool(top and top["bm25"] >= gate_bm25 and top["coverage"] >= min_cover)
         return {"found": found, "results": results, "coverage": top["coverage"] if top else 0.0,
                 "rerank": {"pool": len(bm), "lex_candidates": len(lex)},
                 "reason": "" if found else ("no chunk covers the question's content words" if top else "no lexical match")}
@@ -339,13 +435,18 @@ def evaluate(index: Index, golden: Sequence[Dict[str, Any]], k: int = 5) -> Dict
     n_in = 0
     ood_ok = 0
     n_ood = 0
+    seg: Dict[str, Dict[str, float]] = {}
     misses: List[Dict[str, Any]] = []
     for g in golden:
         res = index.search(g["q"], k=k)
+        names = evalguard.segment_names(g)
         if g.get("ood"):
             n_ood += 1
+            s = seg.setdefault("ood", {"n": 0, "hit": 0, "rr": 0.0})
+            s["n"] += 1
             if not res["found"]:
                 ood_ok += 1
+                s["hit"] += 1
             else:
                 misses.append({"q": g["q"], "why": "ood answered", "top": res["results"][0]["chunk"]["source"]})
             continue
@@ -358,6 +459,11 @@ def evaluate(index: Index, golden: Sequence[Dict[str, Any]], k: int = 5) -> Dict
         dcg = sum(1.0 / math.log2(i + 1) for i, ok in enumerate(rel, 1) if ok)
         idcg = sum(1.0 / math.log2(i + 1) for i in range(1, min(k, max(1, sum(rel) or 1)) + 1))
         nd += dcg / idcg if idcg else 0.0
+        for nm in names:
+            s = seg.setdefault(nm, {"n": 0, "hit": 0, "rr": 0.0})
+            s["n"] += 1
+            s["hit"] += 1 if rank else 0
+            s["rr"] += 1 / rank if rank else 0.0
         if rank:
             hits += 1
             rr += 1 / rank
@@ -367,4 +473,6 @@ def evaluate(index: Index, golden: Sequence[Dict[str, Any]], k: int = 5) -> Dict
     return {"queries": n_in, "recall_at_k": round(hits / n_in, 3) if n_in else None, "mrr": round(rr / n_in, 3) if n_in else None,
             "ndcg_at_k": round(nd / n_in, 3) if n_in else None, "found_rate": round(found_in / n_in, 3) if n_in else None,
             "ood_queries": n_ood, "ood_rejected": ood_ok, "ood_rate": round(ood_ok / n_ood, 3) if n_ood else None, "k": k,
+            "segments": {nm: ({"n": int(s["n"]), "ood_rate": round(s["hit"] / s["n"], 3)} if nm == "ood"
+                              else {"n": int(s["n"]), "recall": round(s["hit"] / s["n"], 3), "mrr": round(s["rr"] / s["n"], 3)}) for nm, s in sorted(seg.items())},
             "misses": misses}

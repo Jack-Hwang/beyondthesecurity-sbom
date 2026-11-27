@@ -25,7 +25,7 @@ import datetime
 import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from . import engine
+from . import audit, engine, pii_guard
 
 STATUSES = ("open", "accepted", "wontfix", "false-positive", "fixed")
 JUSTIFICATIONS = ("component_not_present", "vulnerable_code_not_present", "vulnerable_code_not_in_execute_path",
@@ -99,6 +99,7 @@ def decide(v: Dict[str, Any], store: Dict[str, Any], *, today: Optional[datetime
         return None
     key, e = hit
     status, note = str(e.get("status") or "open"), str(e.get("note") or "").strip()
+    note, _ = pii_guard.redact(note)  # PII/secret-shaped substrings never reach the VEX statements or the stored decision
     exp, by = parse_date(e.get("expires")), str(e.get("by") or "").strip()
     d: Dict[str, Any] = {"key": key, "status": status, "state": "open", "vex": "affected", "justification": e.get("justification") or "",
                          "note": note, "expires": exp.isoformat() if exp else "", "by": by, "ts": e.get("ts") or "", "issue": ""}
@@ -187,4 +188,40 @@ def review_candidates(rec: Dict[str, Any], store: Optional[Dict[str, Any]] = Non
     return out
 
 
-__all__ = ["STATUSES", "JUSTIFICATIONS", "decide", "evaluate", "apply_to_statement", "review_candidates", "check_extras", "parse_date", "MIN_REASON"]
+
+# --------------------------------------------------------------------------- audit sampling (BSA-AC-118x)
+def closed_decisions(evaluated: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Findings out of ``evaluate()``'s ``findings`` whose triage decision is CLOSED (``not_affected`` or
+    ``accepted``) - the decisions an audit should re-review. A finding that is ``open`` / ``rejected`` /
+    ``expired`` (or undecided - no ``triage`` key at all) is not closed and is left out."""
+    return [f for f in evaluated.get("findings") or [] if (f.get("triage") or {}).get("state") in ("not_affected", "accepted")]
+
+
+def stratified_audit(vulns: Iterable[Dict[str, Any]], store: Dict[str, Any], *, seed: int = 0, margin: float = 0.1,
+                      confidence: float = 0.9, today: Optional[datetime.date] = None) -> Dict[str, Any]:
+    """A stratified re-review sample of CLOSED triage/VEX decisions (``not_affected`` / ``accepted``), grouped by
+    severity lane (the finding's own ``severity`` label: CRITICAL/HIGH/MEDIUM/LOW/UNKNOWN/...). Each lane is sized
+    by ``audit.sample_size`` (normal-approximation + finite-population correction) rather than a flat fraction - a
+    lane of 3 closed decisions and a lane of 300 do not need the same share reviewed to say something with the
+    same confidence. Deterministic (the same ``seed`` draws the same decisions from a lane whose membership has
+    not changed); an empty lane samples 0.
+
+    Returns ``{seed, margin, confidence, lanes, closed_total, by_lane: {lane: closed_count},
+    sampled: {lane: sampled_count}, queue: [finding, ...]}`` - ``queue`` holds the sampled findings themselves
+    (shallow copies, plus ``audit_reason``), ready to hand to a reviewer.
+    """
+    def _lane_key(f: Dict[str, Any]) -> str:
+        return str(f.get("severity") or "UNKNOWN")
+
+    ev = evaluate(vulns, store, today=today)
+    closed = closed_decisions(ev)
+    by_lane = {lane: len(items) for lane, items in audit.group_by(closed, _lane_key).items()}
+    sample = audit.stratified_sample(closed, _lane_key, size_fn=lambda n: audit.sample_size(n, margin=margin, confidence=confidence), seed=seed)
+    queue = [dict(f, audit_reason="stratified re-review sample of severity lane %r (closed decisions, seed %s)" % (lane, seed))
+             for lane, items in sorted(sample.items()) for f in items]
+    return {"seed": seed, "margin": margin, "confidence": confidence, "lanes": sorted(by_lane), "closed_total": len(closed),
+            "by_lane": by_lane, "sampled": {k: len(v) for k, v in sample.items()}, "queue": queue}
+
+
+__all__ = ["STATUSES", "JUSTIFICATIONS", "decide", "evaluate", "apply_to_statement", "review_candidates", "check_extras", "parse_date", "MIN_REASON",
+           "closed_decisions", "stratified_audit"]

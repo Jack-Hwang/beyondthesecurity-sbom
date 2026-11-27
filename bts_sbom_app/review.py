@@ -37,9 +37,42 @@ def _finding(rule: str, severity: str, detail: str, verdict: str) -> Dict[str, A
     return {"rule": rule, "severity": severity, "detail": detail, "_verdict": verdict}
 
 
+def _compat_findings(compat: Optional[Dict[str, Any]], runtime: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Rules over the MEASURED compatibility (bts_sbom_app.compat / compat_runtime). A plan the gate held back was not applied, so it
+    is informational; a breaking plan that WAS applied (warn mode) is a reject; ``review`` findings ask for a human look;
+    unverified is informational - absence of evidence is reported, never turned into a block."""
+    out: List[Dict[str, Any]] = []
+    if compat:
+        held = set((compat.get("held") or {}).keys())
+        plans = compat.get("plans") or []
+        broke = [p for p in plans if p.get("status") == "breaking" and p.get("key") not in held]
+        rev = [p for p in plans if p.get("status") == "review" and p.get("key") not in held]
+        if broke:
+            out.append(_finding("RV-COMPAT-BREAKING", "high", "%d applied upgrade(s) carry a breaking compatibility finding: %s" % (
+                len(broke), ", ".join("%s %s->%s" % (p.get("component"), p.get("from"), p.get("to")) for p in broke[:8])), REJECT))
+        if rev:
+            out.append(_finding("RV-COMPAT-REVIEW", "medium", "%d applied upgrade(s) need a human look at the used API: %s" % (
+                len(rev), ", ".join(str(p.get("component")) for p in rev[:8])), CHANGES_REQUESTED))
+        if held:
+            out.append(_finding("RV-COMPAT-HELD", "low", "%d upgrade(s) were held back by the compatibility gate and remain vulnerable until their call "
+                                "sites or pins are adapted: %s" % (len(held), ", ".join(sorted(held)[:8])), APPROVE))
+        unver = [p for p in plans if p.get("status") == "unverified"]
+        if unver:
+            out.append(_finding("RV-COMPAT-UNVERIFIED", "low", "%d upgrade(s) have no measured compatibility (offline, no archive or an unsupported "
+                                "ecosystem): only the major-bump prior applies" % len(unver), APPROVE))
+    if runtime:
+        after = runtime.get("after") or {}
+        if after.get("status") == "regression":
+            out.append(_finding("RV-RUNTIME-REGRESSION", "high", "the project's own tests regressed on the patched pins: %s" % after.get("reason"), REJECT))
+        elif (runtime.get("baseline") or {}).get("status") == "unverified":
+            out.append(_finding("RV-RUNTIME-UNVERIFIED", "low", "runtime differential requested but not measurable: %s" % (runtime["baseline"].get("reason")), APPROVE))
+    return out
+
+
 def review(*, plan_digest: str, changed_files: Sequence[str], planned_manifests: Sequence[str],
            diff_stats: Optional[Dict[str, Any]], impact: Optional[Dict[str, Any]], plan_summary: Optional[Dict[str, Any]],
-           major_bump_confirmed: bool = False, max_diff_lines: int = 400) -> Dict[str, Any]:
+           major_bump_confirmed: bool = False, max_diff_lines: int = 400, compat: Optional[Dict[str, Any]] = None,
+           compat_runtime: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Deterministic rule check over the patch ARTIFACTS (never the planner's internal state).
 
     changed_files        manifest paths patch.apply() actually edited (its "changed_files").
@@ -50,6 +83,9 @@ def review(*, plan_digest: str, changed_files: Sequence[str], planned_manifests:
     impact                bts_sbom_app.impact.classify() result ({"verdict": ..., ...}) or None/{} when it
                           could not be computed.
     plan_summary          bts_sbom_app.remediate.summary() result ({"major_bumps": int, ...}) or None.
+    compat                bts_sbom_app.compat.assess() result (per-plan measured compatibility) or None. Optional: when absent no
+                          compat rule fires, so older callers keep their verdicts.
+    compat_runtime        the opt-in runtime differential record (baseline vs patched test run) or None.
     major_bump_confirmed  True only when a human explicitly confirmed a high-breaking-risk (major version)
                           upgrade; this function never infers consent from the plan itself.
     max_diff_lines        changed+added line cap before the diff is flagged as too large to rubber-stamp.
@@ -91,6 +127,8 @@ def review(*, plan_digest: str, changed_files: Sequence[str], planned_manifests:
     elif impact_verdict is None:
         findings.append(_finding("RV-IMPACT-MISSING", "medium",
                                   "no impact analysis was provided", CHANGES_REQUESTED))
+
+    findings.extend(_compat_findings(compat, compat_runtime))
 
     lines_changed = int((diff_stats or {}).get("lines_changed") or 0)
     if lines_changed > max_diff_lines:

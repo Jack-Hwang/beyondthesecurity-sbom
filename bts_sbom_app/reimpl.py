@@ -529,6 +529,12 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
         res.update(verdict="refused", reason="component not found under the source root: %s" % component)
         _emit(progress, "refused", reason=res["reason"])
         return res
+    if os.path.splitext(component)[1].lower() in (".c", ".cc", ".cpp", ".cxx", ".c++"):
+        from . import reimpl_c                                     # C / C++ components: the real-toolchain backend (same record shape, same events)
+        return reimpl_c.run(source_root, component, out_dir, client=client, why=why,
+                            copy_threshold=reimpl_c.TOKEN_THRESHOLD if copy_threshold == COPY_THRESHOLD else copy_threshold,
+                            publish_dest=publish_dest, allow_inplace=allow_inplace, attempts=attempts, pattern_pack=pattern_pack,
+                            patterns_provider=patterns_provider, progress=progress, base=res)
     os.makedirs(out_dir, exist_ok=True)
     module_name = os.path.splitext(os.path.basename(component))[0]
 

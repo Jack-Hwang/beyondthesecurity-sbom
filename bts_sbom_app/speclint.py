@@ -93,6 +93,65 @@ def reqmap(path: str) -> Dict[str, Any]:
     return {"kinds": {k: len(v) for k, v in by.items()}, "ids": by, "total": sum(len(v) for v in by.values()), "defaults": defaults}
 
 
+# --------------------------------------------------------------------------- reverse traceability (C63): surfaces with zero spec mention
+
+_CLI_RE = re.compile(r'add_parser\(\s*"([a-z0-9][a-z0-9\-]*)"?')
+_ROUTE_RE = re.compile(r'["\'](/(?:api|healthz|readyz|\.well-known)/[^"\']*)["\']')
+_GENERIC_SEGMENTS = {"api", "jobs", "arch", "v1", "v2"}
+
+
+def _norm_route(path: str) -> str:
+    """A route literal as the spec would name it: keep the first two segments, strip a trailing slash and query."""
+    p = path.split("?")[0].strip("/")
+    segs = [s for s in p.split("/") if s]
+    keep = segs[:2] if segs and segs[0] == "api" else segs[:1]
+    return "/" + "/".join(keep)
+
+
+def surface_trace(spec_path: str, app_root: str) -> Dict[str, Any]:
+    """Every registered CLI subcommand and HTTP route the app exposes, checked against the spec TEXT: a surface
+    is 'mentioned' when its name (or its route's first distinguishing segment) appears anywhere in the spec file.
+    A surface with zero mention can still work - it just cannot be traced to a requirement, which is exactly the
+    gap this report names. Report-only: the loop gate decides whether an unmentioned surface ships."""
+    spec_text = open(spec_path, "r", encoding="utf-8").read().lower()
+    rows: List[Dict[str, Any]] = []
+    for fn in ("cli.py", "cli_ext.py"):
+        p = os.path.join(app_root, fn)
+        if not os.path.isfile(p):
+            continue
+        for m in _CLI_RE.finditer(open(p, "r", encoding="utf-8").read()):
+            rows.append({"surface": m.group(1), "kind": "cli", "file": fn})
+    seen: Set[str] = set()
+    for fn in ("server.py", "oss_api.py", "arch_api.py", "books_api.py", "cra_api.py"):
+        p = os.path.join(app_root, fn)
+        if not os.path.isfile(p):
+            continue
+        for m in _ROUTE_RE.finditer(open(p, "r", encoding="utf-8").read()):
+            r = _norm_route(m.group(1))
+            if r in ("/healthz", "/readyz"):
+                continue                                        # probes are named in the deployment docs, not the spec
+            if r not in seen:
+                seen.add(r)
+                rows.append({"surface": r, "kind": "route", "file": fn})
+    unmentioned: List[str] = []
+    for row in rows:
+        s = row["surface"].lower()
+        if s in spec_text:
+            row["mentioned"], row["via"] = True, "literal"
+        else:
+            seg = s.strip("/").split("/")
+            token = next((x for x in seg if x not in _GENERIC_SEGMENTS and len(x) >= 3), seg[-1] if seg else s)
+            if token and token in spec_text:
+                row["mentioned"], row["via"] = True, "segment:" + token
+            else:
+                row["mentioned"], row["via"] = False, ""
+                unmentioned.append(row["surface"])
+    return {"schema": "bts-sbom.surface-trace.v1", "surfaces": rows,
+            "total": len(rows), "mentioned": sum(1 for r in rows if r["mentioned"]),
+            "unmentioned": unmentioned,
+            "note": "report-only reverse trace: a working surface with zero spec mention cannot be traced to a requirement (C63)"}
+
+
 if __name__ == "__main__":
     import sys
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

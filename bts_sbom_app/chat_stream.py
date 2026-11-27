@@ -53,13 +53,14 @@ class StreamingChatbot(chatmod.Chatbot):
             self._emit("tool_call", tool=c["tool"], args=c.get("args", {}))
             try:
                 produced = super()._run(rec, [c])
-            except Exception as exc:                      # one tool down never kills the turn: honest envelope, keep going
-                self._emit("error", envelope=error_envelope(
-                    type(exc).__name__, "recoverable", retry_budget=1,
-                    completed_steps=["tool_call:%s" % c["tool"]],
-                    coverage_gap="tool %s failed; the answer rests on the remaining tools" % c["tool"]))
-                continue
+            except Exception as exc:                      # defence in depth: the base class already isolates run_tool itself
+                produced = [chatmod._tool_error_result(c["tool"], exc)]   # (C02) - this only guards a bug in _run's own bookkeeping
             for p in produced:
+                if p.get("error"):                          # one tool down never kills the turn: honest envelope, keep going
+                    self._emit("error", envelope=error_envelope(
+                        p.get("error_type") or "ToolError", "recoverable", retry_budget=1,
+                        completed_steps=["tool_call:%s" % c["tool"]],
+                        coverage_gap="tool %s failed; the answer rests on the remaining tools" % c["tool"]))
                 new = p.pop("record", None)               # parent semantics: an analysis mid-turn retargets the rest
                 if new is not None:
                     self.projects[new["name"]] = new
@@ -109,5 +110,12 @@ class StreamingChatbot(chatmod.Chatbot):
                    routing=res.get("routing"), routing_note=res.get("routing_note") or "",
                    followup=bool(res.get("followup")), decomposed=res.get("decomposed") or [],
                    diagrams=res.get("diagrams") or [],                      # drawn mid-conversation (ADR-0024)
-                   injection_attempts=(res.get("injection") or {}).get("attempts", 0))
+                   cards=res.get("cards") or [],                           # A2UI-style UI cards (docs/A2UI_INTEGRATION.md)
+                   injection_attempts=(res.get("injection") or {}).get("attempts", 0),
+                   coverage=res.get("coverage"),                            # partial-scan gaps of the answered project (None = no tool asked)
+                   escalation=res.get("escalation"), clarify=res.get("clarify"),   # a handoff payload / the candidate projects of a clarifying question
+                   reviewer_notes=res.get("reviewer_notes") or [],
+                   status=res.get("status") or "complete",                  # partial = at least one tool call in this turn raised (C02)
+                   tool_errors=res.get("tool_errors") or [],
+                   versions=res.get("versions") or {})                      # app/model/prompt/spec audit stamp (C38)
         return res

@@ -2,8 +2,9 @@
 -> delivery -> architecture -> industry reports -> AI proposals -> evidence files.
 
 Every stage is timed and isolated: a failing stage is recorded in ``stage_errors`` and the rest of the run continues, so a
-partial result is always visible instead of an exception that hides everything. Nothing here pushes, writes to the origin
-or runs code from the analysed project (delivery targets that do are separate, explicit flags in ``deliver``).
+partial result is always visible instead of an exception that hides everything. Nothing here pushes or writes to the origin
+(delivery targets that do are separate, explicit flags in ``deliver``). The analysed project's own code is never run, with
+ONE opt-in exception: ``compat_runtime=True`` runs its test suite in throw-away copies (see ``compat_runtime``).
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ import shutil
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from . import ai, arch as archmod, changes as changesmod, conformance, deliver as delivermod, engine, impact as impactmod, licenses, patch as patchmod, remediate, review as reviewmod, sbom, sectors, workspace
+from . import ai, arch as archmod, changes as changesmod, compat as compatmod, compat_runtime as compatrt, conformance, deliver as delivermod, engine, impact as impactmod, licenses, patch as patchmod, remediate, review as reviewmod, sbom, sectors, workspace
 from .llm import ChatClient
 from bts_sbom.supply_chain import SupplyChainAnalyzer
 from .util import safe_name, tree_hash, write_json
@@ -72,6 +73,7 @@ def severity_counts(vulns: List[Dict[str, Any]]) -> Dict[str, int]:
 def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name: Optional[str] = None, ref: Optional[str] = None,
                 depth: int = 200, offline: bool = False, online_license: bool = True, license_extra_registries: bool = True, patch: bool = False, approved: bool = False,
                 approval_token: Optional[str] = None, rounds: int = 2, verify_rounds: int = 3,
+                compat_mode: str = "block", compat_runtime: bool = False, compat_pip_args: Optional[List[str]] = None, compat_c_provider: Any = None,
                 deliver_target: str = "branch", deliver_kw: Optional[Dict[str, Any]] = None, use_llm: bool = True,
                 client: Optional[ChatClient] = None, industries: Optional[List[str]] = None, policy: Optional[Dict[str, Any]] = None,
                 cache_dir: Optional[str] = None, lang: str = "ko", arch_online: bool = False, scanner: Any = None,
@@ -147,7 +149,9 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
     # ---------------------------------------------------------------- patch loop (approval gated, verified by re-scan)
     if patch:
         rec["patch"] = S.run("patch", lambda: _patch_loop(rec, path, approved=approved, token=approval_token, rounds=rounds, offline=offline,
-                                                          scanner=scanner, verify_rounds=verify_rounds, engine_opts=eopts), {})
+                                                          scanner=scanner, verify_rounds=verify_rounds, engine_opts=eopts,
+                                                          compat_mode=compat_mode, compat_runtime=compat_runtime, compat_pip_args=compat_pip_args,
+                                                          compat_c_provider=compat_c_provider), {})
         if rec["patch"].get("status") == "applied" and deliver_target:
             kw = dict(deliver_kw or {})
             if deliver_target == "inplace":
@@ -173,13 +177,98 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
     return rec
 
 
+class _CompatState:
+    """The patch loop's compatibility gate (``compat``: static, before every apply) and the opt-in runtime differential
+    (``compat_runtime``: baseline before the first apply, one comparison after the last). Every failure in here is recorded
+    (``error``), never fatal: the gate may hold a package back, it may never take the loop down."""
+
+    def __init__(self, path: str, mode: str, offline: bool, provider: Any, runtime: bool, pip_args: Optional[List[str]], c_provider: Any = None) -> None:
+        self.path, self.offline, self.provider, self.c_provider = path, offline, provider, c_provider
+        self.mode = mode if mode in compatmod.MODES else "block"
+        self.cache: Dict[tuple, Dict[str, Any]] = {}
+        self.rounds: List[Dict[str, Any]] = []
+        self.error: Optional[str] = None
+        self.runtime_wanted, self.pip_args = bool(runtime), list(pip_args or [])
+        self.rt: Optional[Any] = None
+        self.runtime: Optional[Dict[str, Any]] = None
+
+    def gate(self, plans: List[Dict[str, Any]], components: List[Dict[str, Any]]) -> Dict[str, str]:
+        """Measure every upgrade BEFORE its manifest is touched; returns the plans to hold (block mode, breaking only)."""
+        if self.mode == "off":
+            return {}
+        try:
+            res = compatmod.assess(self.path, plans, components, mode=self.mode, offline=self.offline, provider=self.provider, cache=self.cache,
+                                   c_provider=self.c_provider)
+            compatmod.attach(plans, res)
+            self.rounds.append(res)
+            return res["held"]
+        except Exception as exc:                                      # noqa: BLE001 - recorded, never swallowed silently
+            self.error = "%s: %s" % (type(exc).__name__, str(exc)[:240])
+            return {}
+
+    def start_runtime(self, plans: List[Dict[str, Any]]) -> None:
+        if not self.runtime_wanted:
+            return
+        self.runtime = {"schema": compatrt.SCHEMA, "honesty": compatrt.HONESTY}
+        try:
+            self.rt = compatrt.Differential(self.path, compatrt.requirement_files(plans), pip_args=self.pip_args)
+            self.runtime["baseline"] = self.rt.baseline()
+        except Exception as exc:                                      # noqa: BLE001 - advisory layer: recorded, the patch still runs
+            self.runtime["baseline"] = {"status": "unverified", "reason": "%s: %s" % (type(exc).__name__, str(exc)[:200])}
+
+    def finish_runtime(self) -> Optional[Dict[str, Any]]:
+        """After the last applied round: compare against the baseline; None when there is nothing to compare."""
+        if self.runtime is None or self.rt is None or (self.runtime.get("baseline") or {}).get("status") != "ready":
+            return None
+        try:
+            self.runtime["after"] = self.rt.after()
+        except Exception as exc:                                      # noqa: BLE001
+            self.runtime["after"] = {"status": "unverified", "reason": "%s: %s" % (type(exc).__name__, str(exc)[:200])}
+        return self.runtime["after"]
+
+    def merged(self) -> Optional[Dict[str, Any]]:
+        """One record over all rounds: the latest assessment of each plan wins; ``held`` is the union."""
+        if not self.rounds:
+            return None
+        by: Dict[str, Dict[str, Any]] = {}
+        held: Dict[str, str] = {}
+        for r in self.rounds:
+            for pl in r.get("plans") or []:
+                by[pl.get("key") or "%s|%s" % (pl.get("component"), pl.get("from"))] = pl
+            held.update(r.get("held") or {})
+        plans = list(by.values())
+        return {"schema": compatmod.SCHEMA, "mode": self.mode, "plans": plans, "held": held, "summary": compatmod._summary(plans, held, self.mode),
+                "honesty": compatmod.HONESTY}
+
+    def close(self) -> None:
+        if self.rt is not None:
+            self.rt.close()
+
+
 def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Optional[str], rounds: int, offline: bool, scanner: Any,
-                verify_rounds: int, engine_opts: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                verify_rounds: int, engine_opts: Optional[Dict[str, Any]] = None, compat_mode: str = "block", compat_runtime: bool = False,
+                compat_pip_args: Optional[List[str]] = None, compat_provider: Any = None, compat_c_provider: Any = None) -> Dict[str, Any]:
+    cs = _CompatState(path, compat_mode, offline, compat_provider, compat_runtime and approved, compat_pip_args, compat_c_provider)
+    try:
+        return _patch_loop_core(rec, path, approved=approved, token=token, rounds=rounds, offline=offline, scanner=scanner,
+                                verify_rounds=verify_rounds, engine_opts=engine_opts, cs=cs)
+    finally:
+        cs.close()
+
+
+def _patch_loop_core(rec: Dict[str, Any], path: str, *, approved: bool, token: Optional[str], rounds: int, offline: bool, scanner: Any,
+                     verify_rounds: int, engine_opts: Optional[Dict[str, Any]], cs: _CompatState) -> Dict[str, Any]:
     out: Dict[str, Any] = {"approved": bool(approved), "rounds": [], "status": None, "before": {"vulns": len(rec["vulns"])}}
     if not approved:
+        cs.gate(rec["plans"], rec.get("components") or [])           # the reviewer sees the measured compatibility BEFORE approving
         pr = patchmod.apply(path, rec["plans"], approved=False)
         out.update(status="not_approved", note=pr["note"], digest=pr["digest"], plans=[p for p in rec["plans"] if p["status"] == "upgrade"][:30])
+        if cs.merged():
+            out["compat"] = cs.merged()
+        if cs.error:
+            out["compat_error"] = cs.error
         return out
+    cs.start_runtime(rec["plans"])
     base = workspace.head(path).get("commit", "")
     cur_plans, cur_vulns = rec["plans"], rec["vulns"]
     seen_plan_sets: List[tuple] = []
@@ -194,9 +283,11 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
             out["status"] = "spinning_stopped"
             break
         seen_plan_sets.append(key)
-        pr = patchmod.apply(path, cur_plans, approved=True, token=token if rnd == 1 else None)
+        hold = cs.gate(cur_plans, (last_after or {}).get("components") or rec.get("components") or [])
+        pr = patchmod.apply(path, cur_plans, approved=True, token=token if rnd == 1 else None, hold=hold or None)
         entry = {"round": rnd, "status": pr["status"], "applied": sum(1 for r in pr["results"] if r["status"] == "applied"),
                  "blocked": sum(1 for r in pr["results"] if r["status"] == "blocked"), "manual": sum(1 for r in pr["results"] if r["status"] == "manual"),
+                 "held": sum(1 for r in pr["results"] if r["status"] == "held"),
                  "results": pr["results"][:60], "regenerate": pr.get("regenerate", [])}
         last = pr
         for r in pr["results"]:
@@ -212,6 +303,10 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
                 out["status"] = "blocked"
                 out["note"] = ("approved patch could not be applied: %d candidate(s) blocked by manifest constraints "
                                "(see rounds[].results[].detail)" % entry["blocked"])
+            elif entry["held"] and not applied_total:
+                out["status"] = "compat_held"
+                out["note"] = ("nothing was applied: %d upgrade(s) were held back by the compatibility gate "
+                               "(see compat.plans[].findings for the exact symbols and call sites)" % entry["held"])
             else:
                 out["status"] = "applied" if applied_total else "nothing_applied"
             break
@@ -255,13 +350,25 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
         out["status"] = "applied" if applied_total else "nothing_applied"
     if out["status"] is None:
         out["status"] = "applied" if applied_total else "nothing_applied"
+    if out["status"] == "applied" and applied_total:               # opt-in runtime differential: the project's own tests, before vs after
+        rt_after = cs.finish_runtime()
+        if rt_after is not None and rt_after.get("status") == "regression":
+            patchmod.revert(path, base)
+            out["status"] = "compat_runtime_reverted"
+            out["note"] = "reverted: " + str(rt_after.get("reason") or "tests regressed on the patched pins")
+    if cs.runtime is not None:
+        out["compat_runtime"] = cs.runtime
+    if cs.merged():
+        out["compat"] = cs.merged()
+    if cs.error:
+        out["compat_error"] = cs.error
     out.update(applied_components=applied_total, base_commit=base, last=last, branch=last.get("branch"), commit=last.get("commit"),
                regenerate=sorted({x for r in out["rounds"] for x in r.get("regenerate", [])}))
     est = {v["id"] for p in rec["plans"] if p["status"] == "upgrade" and p["verification"].get("clean") is True
            and any(r["component"] == p["component"] and r["status"] == "applied" for ro in out["rounds"] for r in ro["results"])
            for v in rec["vulns"] if v["package"] == p["component"] and v["version"] == p["current_version"] and v.get("fixed_version")}
     out["estimated_fixed_by_plan"] = len(est)
-    out["after"] = {"vulns_rescan": len(cur_vulns) if out["status"] != "regression_reverted" else len(rec["vulns"]),
+    out["after"] = {"vulns_rescan": len(cur_vulns) if out["status"] not in ("regression_reverted", "compat_runtime_reverted") else len(rec["vulns"]),
                     "vulns_estimated": max(0, len(rec["vulns"]) - len(est))}
     if base and out["status"] == "applied":
         out["diff"] = patchmod.diff(path, base)
@@ -300,7 +407,8 @@ def _patch_loop(rec: Dict[str, Any], path: str, *, approved: bool, token: Option
             planned_manifests=sorted({f for p in (rec.get("plans") or []) for f in (p.get("files") or [])}),
             diff_stats={"lines_changed": lines_changed},
             impact=impact_result if impact_result is not None else out.get("impact"),
-            plan_summary=remediate.summary(rec.get("plans") or []))
+            plan_summary=remediate.summary(rec.get("plans") or []),
+            compat=out.get("compat"), compat_runtime=out.get("compat_runtime"))
     except Exception as exc:                                          # noqa: BLE001 - recorded, never swallowed silently
         out["review"] = {"error": "%s: %s" % (type(exc).__name__, str(exc)[:240])}
 

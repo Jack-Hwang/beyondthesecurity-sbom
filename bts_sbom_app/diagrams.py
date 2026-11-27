@@ -1184,6 +1184,69 @@ def build(kind: str, rec: Optional[Dict[str, Any]] = None, arch_doc: Optional[Di
             "mermaid": src or "", "note": note or "", "lines": lines}
 
 
+# --------------------------------------------------------------------------- generic Mermaid well-formedness lint (C27)
+
+MERMAID_HEADERS = ("flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram-v2", "stateDiagram",
+                   "erDiagram", "journey", "gantt", "mindmap", "timeline", "quadrantChart", "gitGraph", "pie",
+                   "requirementDiagram", "C4Context", "C4Container", "C4Component", "sankey-beta", "xychart-beta")
+_EDGE_ARROWS = ("-.->", "==>", "-->", "---", "-.-", "===")     # longest first so ".-->" never matches "-->" twice
+_PAIRS = {"(": ")", "[": "]", "{": "}"}
+
+
+def lint_mermaid(src: str) -> List[str]:
+    """Generic well-formedness lint for ANY Mermaid source (all 37 catalog kinds and third-party text alike):
+    a known diagram header on the first line, balanced quotes and bracket pairs (per line, quotes respected),
+    and every arrow edge carrying text on BOTH ends. Returns the problem strings; ``[]`` = no structural finding.
+    This is a structural check only - it cannot judge whether the drawn semantics are right."""
+    problems: List[str] = []
+    text = str(src or "")
+    stripped = [ln for ln in text.splitlines() if ln.strip()]
+    if not stripped:
+        return ["empty diagram"]
+    first = stripped[0].strip()
+    if not any(first.startswith(h) or first.split(" ")[0] == h for h in MERMAID_HEADERS):
+        problems.append("first line is not a known Mermaid header: %r" % first[:40])
+    for ln in stripped:
+        if ln.count('"') % 2:
+            problems.append("unbalanced quotes: %s" % ln.strip()[:60])
+        depth_bal = {"(": 0, "[": 0, "{": 0}
+        in_q = False
+        for ch in ln:
+            if ch == '"':
+                in_q = not in_q
+                continue
+            if in_q:
+                continue
+            if ch in depth_bal:
+                depth_bal[ch] += 1
+            elif ch in _PAIRS.values():
+                opener = {v: k for k, v in _PAIRS.items()}[ch]
+                if depth_bal[opener] <= 0:
+                    problems.append("unbalanced %s: %s" % (ch, ln.strip()[:60]))
+                    depth_bal[opener] = 0                # report once per line, keep scanning
+                else:
+                    depth_bal[opener] -= 1
+        for o, n in depth_bal.items():
+            if n:
+                problems.append("unbalanced %s...%s: %s" % (o, _PAIRS[o], ln.strip()[:60]))
+    for ln in stripped:                                        # edge lines need both endpoints
+        s = ln.strip()
+        for arrow in _EDGE_ARROWS:
+            i = s.find(arrow)
+            while i >= 0:
+                if not s[:i].strip() or not s[i + len(arrow):].strip():
+                    problems.append("edge without both endpoints: %s" % s[:60])
+                i = s.find(arrow, i + len(arrow))
+    # de-duplicate, keep order - the same broken line pattern can repeat across lines
+    seen: set = set()
+    out: List[str] = []
+    for p in problems:
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
 def draw_for_chat(kind: str, rec: Optional[Dict[str, Any]], arch_dir: Optional[str] = None,
                   target: Optional[str] = None, spec: Optional[str] = None) -> Dict[str, Any]:
     """chat.run_tool entry: builds the diagram, loading the newest Arch Intel doc when the kind needs one."""

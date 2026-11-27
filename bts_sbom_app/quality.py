@@ -8,13 +8,20 @@ Every number is computed from this run's own measured output, in the project sty
 - tool_accuracy: the weaker of the two routing rates (base + governance sets) - all shipped tools are read-only,
                 so the course's write-tool 1.0 rule is enforced structurally by the actions gate instead (chat.validate_calls)
 - over_refusal: normal questions the chat refused - gate <= 0.05 (course appendix ⑦)
+
+A 6th metric, consistency (course appendix Topic5 "평가 흐름" 5 metrics incl. 일관성), is measured and gated too
+(``consistency``/``consistency_gate``) but kept OUT of the ``apply_gates``/``THRESHOLDS``/``top10_report()["gates"]``
+shape above: that shape is locked by existing consumers (tests/bts_sbom_app/test_quality_top10.py asserts it has
+exactly the 5 named gates), so the contradiction-rate gate is reported as its own separate field instead of folded
+into it - additive, not a breaking change to the report.
 """
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
-from . import evals, evals_chat, rag
+from . import evals, evals_chat, licenses, rag
 
 #: course appendix gates; relevance/completeness floors are this corpus's measured floor, not the course's judge-model numbers
 THRESHOLDS: Dict[str, float] = {"faithfulness": 0.90, "relevance": 0.25, "completeness": 0.90,
@@ -58,6 +65,78 @@ def completeness(answer: str, elements: List[str]) -> float:
     return round(hit / len(elements), 4) if elements else 1.0
 
 
+#: the 6th TOP10 metric's own gate, separate from THRESHOLDS/apply_gates (see module docstring)
+CONSISTENCY_THRESHOLD = 0.05
+
+_ADVISORY_ID = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+|RUSTSEC-\d{4}-\d+|GO-\d{4}-\d+)\b", re.I)
+#: opposite status-word pairs: two claims about the SAME subject assigning BOTH sides of one pair is a contradiction
+#: NEGATED label checked BEFORE its positive counterpart (unaffected before affected, no_patch before
+#: patch_available): _claim_status returns the FIRST matching label, and \b-bounded word matching alone does not
+#: stop a positive pattern ("vulnerable", "patch...available") from matching as a free-standing substring inside a
+#: negated phrase ("not vulnerable", "no patch available") - checking the negated alternative first means that
+#: phrase is classified correctly instead of being mislabelled with the positive status it actually denies.
+_STATUS_WORDS: List[Tuple[str, "re.Pattern[str]"]] = [
+    ("unaffected", re.compile(r"\b(not\s+vulnerable|unaffected|no\s+known\s+vulnerabilit|영향\s*없|미영향)\b", re.I)),
+    ("affected", re.compile(r"\b(vulnerable|affected|영향\s*있|취약함)\b", re.I)),
+    ("no_patch", re.compile(r"\b(no\s+patch|not\s+patched|unpatched|패치\s*(없음|불가|미비))\b", re.I)),
+    ("patch_available", re.compile(r"\b(patch(ed)?\s+(is\s+)?available|fix(ed)?\s+(is\s+)?available|패치\s*(가능|있음|됨))\b", re.I)),
+    ("permissive", re.compile(r"\bpermissive\b|허용적", re.I)),
+    ("copyleft", re.compile(r"\bcopyleft\b|카피레프트", re.I)),
+]
+_OPPOSITES = [frozenset({"affected", "unaffected"}), frozenset({"patch_available", "no_patch"}),
+              frozenset({"permissive", "copyleft"})]
+
+
+def _claim_subject(text: str) -> Optional[str]:
+    """The advisory id or SPDX license name a claim is ABOUT, or ``None`` when it names neither."""
+    m = _ADVISORY_ID.search(text)
+    if m:
+        return m.group(0).upper()
+    for name in licenses.CATEGORY:                        # the product's own SPDX id vocabulary, not invented here
+        if re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(name), text, re.I):
+            return name
+    return None
+
+
+def _claim_status(text: str) -> Optional[str]:
+    for label, pat in _STATUS_WORDS:
+        if pat.search(text):
+            return label
+    return None
+
+
+def consistency(claims: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """⑤ contradiction rate (course TOP10 일관성): ``claims`` (an answer's KEPT, verified claims) grouped by the
+    advisory id or SPDX license name they each name; a group is flagged when two of its claims assign opposite
+    status words (affected/unaffected, patch available/no patch, permissive/copyleft) to that same subject. A claim
+    that names no subject or carries no recognised status word is not counted either way - absence of a signal is
+    never read as agreement. ``rate`` is contradicted-groups / groups-with-a-subject (0.0 when there are none)."""
+    groups: Dict[str, List[str]] = {}
+    for c in claims or []:
+        text = str(c.get("text") or c.get("quote") or "")
+        subj = _claim_subject(text)
+        label = _claim_status(text)
+        if subj and label:
+            groups.setdefault(subj, []).append(label)
+    contradictions = []
+    for subj, labels in groups.items():
+        labset = set(labels)
+        for pair in _OPPOSITES:
+            if pair <= labset:
+                contradictions.append({"subject": subj, "labels": sorted(pair)})
+                break
+    rate = round(len(contradictions) / len(groups), 4) if groups else 0.0
+    return {"groups": len(groups), "contradictions": contradictions, "rate": rate}
+
+
+def consistency_gate(claims: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """The 6th gate's verdict for one answer's claims - ``{value, threshold, pass, groups, contradictions}``,
+    reported next to (never inside) the 5-gate ``apply_gates`` shape."""
+    c = consistency(claims)
+    return {"value": c["rate"], "threshold": CONSISTENCY_THRESHOLD, "pass": bool(c["rate"] <= CONSISTENCY_THRESHOLD),
+            "groups": c["groups"], "contradictions": c["contradictions"]}
+
+
 def apply_gates(metrics: Dict[str, Any]) -> Dict[str, Any]:
     """Gates for the 5 gated metrics - verbatim metrics in, verdict out (the fail branch stays testable in isolation)."""
     gates: Dict[str, Dict[str, Any]] = {}
@@ -79,6 +158,7 @@ def top10_report(root: Optional[str] = None) -> Dict[str, Any]:
     faith: List[float] = []
     rel: List[float] = []
     comp: List[float] = []
+    cons: List[float] = []
     misses: List[Dict[str, Any]] = []
     for c in evals.CHAT_CASES:
         r = bot.ask(c["q"], project="demo")
@@ -95,6 +175,7 @@ def top10_report(root: Optional[str] = None) -> Dict[str, Any]:
             faith.append(f)
             rel.append(rv)
             comp.append(cp)
+            cons.append(consistency(r["claims"])["rate"])
             if f < THRESHOLDS["faithfulness"] or rv < THRESHOLDS["relevance"] or cp < THRESHOLDS["completeness"]:
                 misses.append({"q": c["q"], "faithfulness": f, "relevance": rv, "completeness": cp,
                                "required": req, "answer": r["answer"][:200]})
@@ -111,11 +192,16 @@ def top10_report(root: Optional[str] = None) -> Dict[str, Any]:
         "tool_accuracy": base["tool_routing_rate"] or 0.0,
         "paraphrase_routing_rate": gov["tool_routing_rate"],
         "over_refusal": round(refused / normal, 4) if normal else 0.0,
+        # the 6th metric (consistency) - measured here and gated via consistency_gate below, kept OUT of
+        # THRESHOLDS/apply_gates so the locked 5-gate shape is unaffected (see module docstring)
+        "consistency": round(sum(cons) / len(cons), 4) if cons else 0.0,
     }
     gates = apply_gates(metrics)
     return {"cases": len(evals.CHAT_CASES), "normal_cases": normal, "metrics": metrics,
             "gates": gates["gates"], "verdict": gates["verdict"], "failures": gates["failures"],
-            "misses": misses}
+            "misses": misses,
+            "consistency_gate": {"value": metrics["consistency"], "threshold": CONSISTENCY_THRESHOLD,
+                                  "pass": bool(metrics["consistency"] <= CONSISTENCY_THRESHOLD)}}
 
 
 def render_markdown(report: Dict[str, Any]) -> str:

@@ -16,7 +16,7 @@ from . import binscan, changes, conformance, coverage, fleet, portfolio, sbom, s
 from .llm import ChatClient
 from .util import console_text, read_json, write_json
 
-COMMANDS = ("conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck",
+COMMANDS = ("govgate", "secretscan", "audit", "access-token", "prompts", "evalsets", "escalations", "conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck",
             "trace", "portfolio", "proof")
 PROOF_COMMAND_NAMES = ("pytest", "speclint", "doclint", "evalrag")
 
@@ -55,6 +55,40 @@ def add_commands(sub: Any) -> None:
     f.add_argument("--component", default=None)
     f.add_argument("--version", default=None, help="constraint, e.g. '<2.0,>=1.0' or '2.19.1'")
     ev(f)
+    gg = sub.add_parser("govgate", help="6-gate governance checklist (Spec, AI-Review, Security, Compliance, Observability, Agent Access) from the existing checks; exit 1 when a gate fails")
+    gg.add_argument("--json", action="store_true")
+    gg.add_argument("--root", default=argparse.SUPPRESS, help="repository root (default: --root of the command)")
+    sx = sub.add_parser("secretscan", help="secret scan of a LOCAL source folder: file + line + rule only, never the value; a partial scan (skipped binary/oversized files) exits 1 like a finding")
+    sx.add_argument("folder", help="LOCAL source folder to scan")
+    sx.add_argument("--max", type=int, default=50, help="findings to print (the JSON has all)")
+    sx.add_argument("--json", action="store_true")
+    au = sub.add_parser("audit", help="stratified audit sample: licence resolutions by resolution source, or closed triage/VEX decisions by severity lane (deterministic with --seed)")
+    au.add_argument("project", help="project record file, or a project name in the evidence folder")
+    au.add_argument("--kind", default="licenses", choices=("licenses", "triage"))
+    au.add_argument("--seed", type=int, default=0)
+    au.add_argument("--frac", type=float, default=0.1, help="licenses: share of each source's resolved components to sample (minimum 1 per source)")
+    au.add_argument("--margin", type=float, default=0.1, help="triage: margin of error of the lane sample size")
+    au.add_argument("--confidence", type=float, default=0.9, help="triage: confidence of the lane sample size")
+    au.add_argument("--triage", default=None, help="decision store (default: <evidence>/.triage.json)")
+    ev(au)
+    at = sub.add_parser("access-token", help="print a fresh 256-bit access token for BTS_SBOM_ACCESS_TOKEN (the shared-secret gate of a deployed instance)")
+    at.add_argument("--json", action="store_true")
+    pm = sub.add_parser("prompts", help="prompt registry and drift gate: every prompt fingerprinted and pinned; --update re-pins after a deliberate change (needs --reason)")
+    pm.add_argument("--update", action="store_true", help="re-pin the prompts as they are now (refused while a changed prompt kept its PROMPT_VERSION)")
+    pm.add_argument("--reason", default=None, help="what changed in the prompt and why (recorded in the registry history)")
+    pm.add_argument("--require-loop-evidence", action="store_true", help="with --update: refuse the re-pin unless a fresh evidence/loop pass (or --loop-fingerprint) measured these exact prompts")
+    pm.add_argument("--loop-fingerprint", default=None, help="with --update: a loop pass's recorded prompt digest that vouches for freshness directly")
+    pm.add_argument("--json", action="store_true")
+    pm.add_argument("--root", default=argparse.SUPPRESS, help="repository root that holds bts_sbom_app/ and evals/ (default: --root of the command)")
+    esv = sub.add_parser("evalsets", help="integrity of the retrieval eval sets: composition per set and segment, fingerprints (the pin), leak / duplicate / dangling-expectation findings")
+    esv.add_argument("--json", action="store_true")
+    esv.add_argument("--root", default=argparse.SUPPRESS, help="repository root that holds evals/ and knowledge/ (default: --root of the command)")
+    es = sub.add_parser("escalations", help="the chat handoff log: list open / resolved escalations, or resolve one with the reviewer's note")
+    es.add_argument("--status", default="all", choices=("all", "open", "resolved"))
+    es.add_argument("--resolve", default=None, metavar="ID", help="close the escalation E-xxxxxxxx (needs --note and --by)")
+    es.add_argument("--note", default=None, help="the reviewer's note: what was decided and why")
+    es.add_argument("--by", default=None, help="who resolved it")
+    ev(es)
     cv = sub.add_parser("coverage", help="decision coverage: which advisories a standing decision or a verified plan already handles, and the worklist")
     cv.add_argument("project", help="project record file, or a project name in the evidence folder")
     cv.add_argument("--triage", default=None, help="decision store (default: <evidence>/.triage.json)")
@@ -187,6 +221,126 @@ def run(a: argparse.Namespace) -> int:
         if not a.out:
             print(json.dumps(doc, ensure_ascii=a.json, indent=1))
         return 0
+    if a.cmd == "govgate":
+        from . import govgate
+        res = govgate.evaluate(a.root)
+        _say(res, a.json, govgate.render(res))
+        return 0 if res["ok"] else 1
+    if a.cmd == "secretscan":
+        from . import secretscan
+        if not os.path.isdir(a.folder):
+            print("ERROR: %r is not a folder" % a.folder, file=sys.stderr)
+            return 2
+        findings, summary = secretscan.scan_tree(a.folder)
+        text = ["secretscan %s: %d finding(s) in %d file(s) scanned; skipped %d (binary %d, oversized %d, unreadable %d)%s" % (
+            summary["root"], len(findings), summary["files_scanned"], summary["files_skipped_total"], summary["files_skipped_binary"],
+            summary["files_skipped_oversized"], summary["files_skipped_unreadable"], " - COVERAGE LIMITED: 0 findings is not a clean result" if summary["coverage_limited"] else "")]
+        text += ["  %s:%d [%s]" % (f["file"], f["line"], f["rule"]) for f in findings[:max(0, a.max)]]
+        if len(findings) > a.max:
+            text.append("  ... %d more (use --json)" % (len(findings) - a.max))
+        _say({"findings": findings, "summary": summary}, a.json, "\n".join(text))
+        return 1 if findings or summary["coverage_limited"] else 0
+    if a.cmd == "audit":
+        folder, rec = _record(a.project, _evidence(a))
+        if rec is None:
+            print("ERROR: %r is neither a record file nor a project in %s" % (a.project, _evidence(a)), file=sys.stderr)
+            return 2
+        if a.kind == "licenses":
+            from . import licenses as licmod
+            res = licmod.audit_sample(rec.get("components") or [], frac=a.frac, seed=a.seed)
+            text = ["licence audit queue of %s: %d component(s) sampled from %d resolution source(s) (seed %d)" % (rec.get("name"), len(res["queue"]), len(res["by_source"]), a.seed)]
+            text += ["  %s: %d sampled of %d resolved" % (s, res["sampled"].get(s, 0), n) for s, n in sorted(res["by_source"].items())]
+            text += ["    review: %s@%s license=%s source=%s" % (c.get("name"), c.get("version"), c.get("license"), c.get("license_source")) for c in res["queue"][:40]]
+        else:
+            res = triage.stratified_audit(rec.get("vulns") or [], _store(a), seed=a.seed, margin=a.margin, confidence=a.confidence)
+            text = ["triage audit queue of %s: %d of %d closed decision(s) sampled across %d severity lane(s) (seed %d, margin %s, confidence %s)" % (
+                rec.get("name"), len(res["queue"]), res["closed_total"], len(res["lanes"]), a.seed, a.margin, a.confidence)]
+            text += ["  %s: %d sampled of %d closed" % (lane, res["sampled"].get(lane, 0), n) for lane, n in sorted(res["by_lane"].items())]
+            text += ["    re-review: %s %s (%s)" % (f.get("id"), f.get("package"), (f.get("triage") or {}).get("state")) for f in res["queue"][:40]]
+        _say(res, a.json, "\n".join(text))
+        return 0
+    if a.cmd == "access-token":
+        from . import access
+        tok = access.generate()
+        _say({"token": tok, "env": access.ENV, "min_length": access.MIN_LENGTH}, a.json, tok)
+        return 0
+    if a.cmd == "prompts":
+        from . import evalguard, evals, promptreg
+        if a.update:
+            try:
+                done = promptreg.update(a.root, a.reason, eval_pins={n: evalguard.fingerprint(g) for n, g in evals.rag_set_items(a.root).items()},
+                                        require_loop_evidence=a.require_loop_evidence, loop_fingerprint=a.loop_fingerprint)
+            except ValueError as exc:
+                print("ERROR: %s" % exc, file=sys.stderr)
+                return 2
+            _say(done, a.json, "pinned %d prompt(s); changed: %s; digest %s" % (done["pinned"], ", ".join(done["changed"]) or "none", done["digest"]))
+            return 0
+        st = promptreg.check(a.root)
+        lines = ["%d prompt(s) in the code, %d pinned, digest %s: %s" % (st["prompts"], st["pinned"], st["digest"], "ok" if st["ok"] else "DRIFT")]
+        lines += ["  changed  %s (pinned %s, now %s)" % (d["id"], d["pinned"], d["now"]) for d in st["drift"]]
+        lines += ["  unpinned %s" % p for p in st["unpinned"]] + ["  missing  %s (pinned, no longer in the code)" % p for p in st["missing"]]
+        lines += ["  version  %s changed but %s kept its PROMPT_VERSION: bump it before re-pinning" % (v["id"], v["version"]) for v in st["version_not_bumped"]]
+        if not st["ok"]:
+            lines.append('review the change, run the evals, then: bts-sbom-app prompts --update --reason "<what changed and why>"')
+        _say(st, a.json, "\n".join(lines))
+        return 0 if st["ok"] else 1
+    if a.cmd == "evalsets":
+        from . import evalguard, evals
+        rep = evals.eval_integrity(a.root)
+        lines = ["eval sets in %s" % a.root]
+        for name, c in rep["sets"].items():
+            lines.append("- %s: %d item(s) (%d in-domain, %d out-of-domain), fingerprint %s%s" % (
+                name, c["n"], c["in_domain"], c["ood"], c["fingerprint"], ("; no in-domain query in " + ", ".join(c["missing"])) if c["missing"] else ""))
+            lines.append("    thin segments (n < %d, reported but not gated): %s" % (evalguard.MIN_SEGMENT_N, ", ".join(c["thin"]) or "none"))
+        lk = rep["leak"]
+        lines.append("leak check: %d blocking, %d warning" % (lk["blocking"], lk["warnings"]))
+        lines += ["  [%s] %s" % (f["severity"], evalguard.describe(f)) for f in lk["findings"]]
+        dev = evals.injection_guard_eval(a.root)
+        hold_items = []
+        try:
+            with open(os.path.join(a.root, "evals", "injection_holdout.jsonl"), encoding="utf-8", errors="replace") as fh:
+                for ln in fh:
+                    try:
+                        rec_ = json.loads(ln)
+                    except ValueError:
+                        continue
+                    if isinstance(rec_, dict):
+                        hold_items.append(rec_)
+        except OSError:
+            pass
+        hold = evalguard.injection_eval(hold_items) if hold_items else None
+        inj_ok = None if hold is None else bool(hold["recall"] is not None and hold["recall"] >= 0.90 and (hold["benign_false_positive_rate"] or 0.0) <= 0.05)   # None: not measured here, not a pass and not a failure of THIS folder
+        rep["injection"] = {"dev": dev, "holdout": hold, "gate": {"min_recall": 0.90, "max_false_positive_rate": 0.05, "pass": inj_ok}}
+        lines.append("injection guard: dev recall %s precision %s fp-rate %s | holdout %s (gate: recall >= 0.90 and false-positive rate <= 0.05 on the HOLDOUT -> %s)" % (
+            dev["recall"], dev["precision"], dev["benign_false_positive_rate"],
+            ("recall %s precision %s fp-rate %s" % (hold["recall"], hold["precision"], hold["benign_false_positive_rate"])) if hold else "NOT MEASURED (evals/injection_holdout.jsonl missing)",
+            "pass" if inj_ok else ("not measured" if inj_ok is None else "FAIL")))
+        en = evals.rag_en_eval(a.root)
+        rep["english"] = en
+        lines.append("English retrieval (probe, not loop-gated): recall@5 %s MRR %s found %s OOD rejection %s (n=%s in-domain + %s out-of-domain)" % (
+            en["recall_at_k"], en["mrr"], en["found_rate"], en["ood_rate"], en["queries"], en["ood_queries"]))
+        _say(rep, a.json, "\n".join(lines))
+        return 1 if lk["blocking"] or inj_ok is False else 0
+    if a.cmd == "escalations":
+        from . import escalation as escmod
+        evidence = _evidence(a)
+        if a.resolve:
+            try:
+                done = escmod.resolve(evidence, a.resolve, a.note, a.by)
+            except KeyError:
+                print("ERROR: unknown escalation %s" % a.resolve, file=sys.stderr)
+                return 2
+            except ValueError as exc:
+                print("ERROR: %s" % exc, file=sys.stderr)
+                return 2
+            _say({"id": a.resolve, **done}, a.json, "resolved %s by %s: %s" % (a.resolve, done["resolution"]["by"], done["resolution"]["note"]))
+            return 0
+        rows = [(i, s) for i, s in sorted(escmod.load(evidence).items()) if a.status == "all" or s["status"] == a.status]
+        text = "\n".join(["%d escalation(s) (%s) in %s" % (len(rows), a.status, evidence)] + [
+            "- %s [%s] %s -> %s (project %s): %s" % (i, s["status"], s["payload"].get("trigger"), s["payload"].get("destination"), s["payload"].get("project") or "-",
+                                                  (s["payload"].get("triggering_question") or "")[:70]) for i, s in rows])
+        _say({"escalations": [dict(s, id=i) for i, s in rows]}, a.json, text)
+        return 0
     if a.cmd == "fleet":
         from .cli import load_projects
         projs = load_projects(_evidence(a))
@@ -293,7 +447,8 @@ def chat_main(a: argparse.Namespace) -> int:
     def one(q: str) -> None:
         r = bot.ask(q, project=a.project, use_llm=bool(a.llm))
         note = (" note=" + r["llm_note"]) if r.get("llm_note") else ""
-        _print(r, a.json, "found=%s source=%s citation_accuracy=%s%s\n%s" % (r["found"], r["answer_source"], r["citation_accuracy"], note, r["answer"]))
+        partial = (" status=partial (failed tool(s): %s)" % ", ".join(str(t.get("tool")) for t in r.get("tool_errors") or [])) if r.get("status") == "partial" else ""
+        _print(r, a.json, "found=%s source=%s citation_accuracy=%s%s%s\n%s" % (r["found"], r["answer_source"], r["citation_accuracy"], note, partial, r["answer"]))
 
     if a.question:
         one(a.question)

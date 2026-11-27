@@ -619,7 +619,7 @@
   }
   function reimplVerdict(d) {
     var v = d.verdict || '?';
-    var cls = v === 'ok' ? 'ok' : (v === 'refused' || v === 'rejected' ? 'warn' : 'bad');
+    var cls = v === 'ok' ? 'ok' : (v === 'refused' || v === 'rejected' || v === 'contract_only' || v === 'toolchain_missing' ? 'warn' : 'bad');
     var h = heading('판정', esc(d.component || '') + ' · ' + esc(d.started || ''));
     var cg = d.copy_gate || {};
     var pt = d.patterns;
@@ -628,6 +628,8 @@
              ['생성 테스트', d.tests ? (d.tests.ok ? '통과' : '실패') : '—'],
              ['원본 오라클', d.adopted_tests ? (d.adopted_tests.ok ? '통과 (' + (d.adopted_tests.files || []).length + '개 파일)' : '실패') : '—'],
              ['호환성', d.compatibility || '—'],
+             ['언어 / 컴파일', d.language ? (String(d.language).toUpperCase() + (d.compile ? (d.compile.ok ? ' · 컴파일 통과 (경고 ' + (d.compile.warnings || 0) + ')' : ' · 컴파일 실패') : '')) : '—'],
+             ['차등 오라클', (d.oracle && d.oracle.differential) ? (d.oracle.differential.ran ? ((d.oracle.differential.ok ? '일치 ' : '불일치 ') + (d.oracle.differential.functions || 0) + '개 항목 · ' + (d.oracle.differential.total_cases || 0) + '케이스 · 불일치 ' + (d.oracle.differential.mismatches === null || d.oracle.differential.mismatches === undefined ? '?' : d.oracle.differential.mismatches)) : ('없음 — ' + (d.oracle.differential.reason || ''))) : '—'],
              ['패턴 주입', pt ? ('tier ' + pt.tier + ' · ' + (pt.patterns || []).map(function (p) { return p.name; }).join(', ')) : '—']]);
     if (d.reason) { h += note('<b>이유:</b> ' + esc(d.reason), v === 'ok' ? 'ok' : 'warn'); }
     if (d.published_to) { h += note('발행: <code>' + esc(d.published_to) + '</code>'); }

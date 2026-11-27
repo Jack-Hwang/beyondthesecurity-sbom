@@ -69,6 +69,15 @@ measured loop. It is a work in progress: read **Limitations** first.
 패스 15 이후 변경(배치를 다시 돌리지 않고 단위테스트로만 검증): 작업 복사본 삭제 버그와 `loop --work` 무시 버그(AC-68, 레포 안에 1.1GB 누적되던 것), 챗봇의 출처 포인터
 정규화(AC-67). 둘 다 배치 지표를 바꾸지 않지만 "최종 트리 = 마지막 패스 코드"는 아닙니다.
 
+#### 평가와 프롬프트를 바꿀 때 (5~6주차 교안 적용, `docs/METANET_WEEK56_MAPPING.md`)
+
+- **프롬프트를 고치면** `bts-sbom-app prompts` 가 실패합니다(15개 프롬프트의 지문 핀, `evals/prompt_registry.json`). 평가를 돌린 뒤 `prompts --update --reason "무엇을 왜"`. 그 모듈에 `PROMPT_VERSION` 이 있으면 먼저 올려야 재핀됩니다. 루프 패스는 프롬프트 digest 를 기록하고 기준선과 달라지면 교란 경고를 냅니다.
+- **평가셋을 고치면** 다음 `ragloop` 패스는 비교 무효(undecidable)입니다. 의도한 변경이면 `ragloop --rebaseline "무엇을 왜"`, 평가셋이 안 바뀌었는데 지표만 떨어졌다면 재기준선은 거부됩니다. 세그먼트 하락(>0.10)은 총점이 평평해도 차단됩니다.
+- `bts-sbom-app evalsets` 로 평가셋 구성(범위 밖 비율·세그먼트·없는 언어)·지문·유출 점검을 봅니다. 홀드아웃이 튜닝 세트를 반복하거나 코퍼스에 복사됐으면 종료 코드 1.
+- 챗이 사람에게 넘긴 건(`bts-sbom-app escalations`, `GET /api/escalations`)은 `--resolve ID --note --by` 로 닫고, 닫은 메모는 그 프로젝트의 이후 답변에 데이터로 붙습니다. 부분 스캔(오프라인·미조회·미지원)의 답변에는 커버리지 갭이 붙고, 거기서 못 찾은 것은 "깨끗함"이 아니라 "검증 안 됨"입니다.
+- **공개 배포할 때**: `BTS_SBOM_ACCESS_TOKEN`(`bts-sbom-app access-token` 으로 생성, 16자 이상)을 설정하면 `/healthz`·`/readyz` 외 모든 경로가 Basic 비밀번호/Bearer/`X-BTS-Token` 을 요구합니다. `BTS_SBOM_ALLOWED_ROOTS` 는 로컬 경로 소스를 그 폴더 안으로 제한하고(git URL 만 받으려면 존재하지 않는 폴더), 내부망·메타데이터 주소를 가리키는 git URL 은 항상 거부합니다. 배포 절차와 렌더링은 `deploy/azure/README.md`, `scripts/azure_render_app.py`, `scripts/smoke_deployed.py`.
+- 새 점검 명령: `evalrag --calibrate`(RAG 게이트 보정), `evalsets`(인젝션 홀드아웃 게이트·영어 검색 프로브 포함), `govgate`(6게이트), `secretscan <folder>`, `audit <project> --kind licenses|triage`, `batch <sources.json> --retry-failed <run_dir>`.
+
 ## 사용법
 
 ```bash

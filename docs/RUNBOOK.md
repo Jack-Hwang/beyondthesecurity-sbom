@@ -1,8 +1,9 @@
 # RUNBOOK: bts_sbom_app service
 
 Scope: the stdlib HTTP service started by `python -m bts_sbom_app serve` (`bts_sbom_app/server.py`), packaged by
-`Dockerfile.bts-sbom-app`. **This is a localhost, single-process, single-node tool with no authentication** (see the
-module docstring of `server.py`): nothing below assumes a load balancer, an autoscaler, multiple replicas, a service
+`Dockerfile.bts-sbom-app`. **This is a localhost, single-process, single-node tool with no accounts** (see the
+module docstring of `server.py`); when it is reachable beyond localhost the one switch that closes the gap is the shared access token
+`BTS_SBOM_ACCESS_TOKEN` (`access.py`; `/healthz` and `/readyz` stay open) together with `BTS_SBOM_ALLOWED_ROOTS` for local sources: nothing below assumes a load balancer, an autoscaler, multiple replicas, a service
 mesh, or a reverse proxy/API gateway doing auth. If one of those gets added later, this document stops being accurate
 for that part and needs rewriting, not patching.
 
@@ -53,6 +54,17 @@ What exists today and what was actually checked, in this worktree, as of this ch
   unauthenticated by design), `BTS_OSS_ALLOWED_HOSTS=<fqdn>` un-blocks the oss/arch/books Host checks behind
   ingress, zero code changes required. Deployment status: **검토 완료·미배포** (az login + first-deploy
   measurements pending; the README lists the volume-UID item as the must-verify unknown).
+- **2026-11-27: SECOND AZURE DEPLOYMENT - token-gated, live** at https://bts-sbom.wittyforest-2c8fae00.koreacentral.azurecontainerapps.io (resource group `bts-sbom-rg`, ACR `btsbomacr1126`,
+  Storage `btsbomstg1127`, environment `bts-sbom-env`, app `bts-sbom`, scale 0->1, image `0.5.0-final1127b`). Access-token gate ON (401 without the token, probes open), source boundary
+  `BTS_SBOM_ALLOWED_ROOTS=/srv/bts-sources` (5 of 5 live boundary probes refused), allowlist `.dockerignore` (build context 1.925 MiB). Measured live: smoke 4/4 PASS, LLM chat + NL2SQL + escalation log,
+  remote scans (sampleproject 8 s, dvpwa 24 s, OWASP/NodeGoat 1,091 components / 311 advisories / 98.5 % licences). One real defect found and fixed: SQLite on the Azure Files share made every scanner cache write
+  wait out a 5 s lock (`database is locked`; NodeGoat 780 s) - the OSV snapshot is now copied once to local disk at start-up (`BTS_SBOM_OSV_SEED_DB` -> `BTS_SBOM_OSV_DB_PATH`), the same scan takes 96 s with 0 lock errors.
+  An adversarial pass on a local instance (3 agents, 48 attacks, 11 reproduced and verified) found and fixed: slowloris below the gate (read timeout 15 s + 128-connection cap), a ~1 CPU-second prompt-digest
+  re-parse per chat turn (cached), legacy IPv4 spellings (2130706433, 0x7f000001, 127.1, localhost.) slipping through both SSRF guards (one shared parser), file:// authority mismatch, DNS rebinding (checked address
+  pinned into the https clone via http.curloptResolve), no throttle on failed credentials (20 per caller per minute, then 429 without checking the token), forgeable X-Forwarded-For (trusted only with
+  BTS_SBOM_TRUST_FORWARDED=1), RecursionError on deeply nested JSON, Server header version leak. Live-only finding: the Container Apps ingress connects from 100.100.0.x (shared address space) which
+  ipaddress.is_private does not cover, so every caller shared two ingress addresses and the per-caller chat limit never fired (36 of 36 calls 200); fixed and re-measured live (200 x30 / 429 x6; wrong tokens 401 x20 / 429 x5).
+  Current revision bts-sbom--0000006 (image 0.5.0-final1127f). Not done: Easy Auth/AAD (needs an app registration; the service has no per-user accounts), a budget alert (the installed `az consumption budget create` cannot express notifications), min replicas stays 0. Details: `deploy/azure/README.md` §12.
 - **2026-11-23: FIRST AZURE DEPLOYMENT — live on Azure Container Apps (demo, ~2 weeks)**. Target: resource group
   `bts-sbom-rg` / environment `bts-sbom-env` (koreacentral) / app **`bts-sbom`** →
   https://bts-sbom.yellowdesert-36032bc5.koreacentral.azurecontainerapps.io — image

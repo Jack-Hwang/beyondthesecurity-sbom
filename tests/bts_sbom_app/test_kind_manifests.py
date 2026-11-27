@@ -45,6 +45,18 @@ def test_manifest_parses_with_kubectl_dry_run():
         pytest.skip("kubectl not on this host")
     p = subprocess.run([kubectl, "apply", "--dry-run=client", "--validate=false", "-f", MANIFEST],
                        capture_output=True, text=True, timeout=60)
+    if p.returncode != 0 and "unable to recognize" in p.stderr and ("dial tcp" in p.stderr or "connection" in p.stderr.lower()):
+        # kubectl >=1.36 needs API discovery for the REST mapper even with --dry-run=client + --validate=false;
+        # on a cluster-less host the same parseability contract is enforced client-side, document by document.
+        import yaml
+        docs = [d for d in yaml.safe_load_all(open(MANIFEST, encoding="utf-8")) if d]
+        assert len(docs) == 4, docs
+        for d in docs:
+            assert d.get("apiVersion") and d.get("kind") and (d.get("metadata") or {}).get("name"), d
+        for d in docs:                                                       # the honesty contract of deploy/kind: no :latest
+            for c in (d.get("spec") or {}).get("template", {}).get("spec", {}).get("containers", []):
+                assert not str(c.get("image", "")).endswith(":latest")
+        return
     assert p.returncode == 0, p.stderr
     assert "(dry run)" in p.stdout and p.stdout.count("(dry run)") == 4      # all four documents parse
 

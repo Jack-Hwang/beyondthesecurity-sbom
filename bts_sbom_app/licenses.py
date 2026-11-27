@@ -18,7 +18,7 @@ import time
 import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import net
+from . import audit, net
 from .util import read_json, read_text, write_json
 
 # --------------------------------------------------------------------------- SPDX normalisation
@@ -574,3 +574,29 @@ def scan_tree(root: str, *, max_files: int = 600) -> Dict[str, Any]:
                                                                     else ("spdx header majority" if tags else "")),
             "license_files": files[:80], "vendored": [f for f in files if f["depth"] > 0][:40],
             "spdx_header_counts": tags, "source_files_scanned": scanned}
+
+
+# --------------------------------------------------------------------------- audit sampling (BSA-AC-118x)
+def audit_sample(components: List[Dict[str, Any]], *, frac: float = 0.1, seed: int = 0, min_per_source: int = 1) -> Dict[str, Any]:
+    """A stratified review queue over RESOLVED components (``license`` truthy), grouped by the already-recorded
+    ``license_source`` (``lockfile`` / ``deps.dev`` / ``registry:*`` / ``cache``). A source whose true error rate is
+    higher than the others must not hide behind a good aggregate resolution rate: this samples at least ``frac``
+    (default 10%, minimum ``min_per_source``) of EACH source's resolved components, deterministically (the same
+    ``seed`` draws the same components from a source whose membership has not changed) - so a source with a 20%+
+    true error rate has a good chance of surfacing a wrong entry even while the overall resolution rate looks fine.
+    A source with 0 resolved components samples 0.
+
+    Returns ``{frac, seed, min_per_source, sources, by_source: {source: resolved_count},
+    sampled: {source: sampled_count}, queue: [component, ...]}`` - ``queue`` holds shallow copies of the sampled
+    components themselves (plus ``audit_reason``), ready to hand to a reviewer; nothing is looked up again.
+    """
+    def _source_key(c: Dict[str, Any]) -> str:
+        return str(c.get("license_source") or "unknown")
+
+    resolved = [c for c in components if c.get("license")]
+    by_source = {src: len(items) for src, items in audit.group_by(resolved, _source_key).items()}
+    sample = audit.stratified_sample(resolved, _source_key, frac=frac, seed=seed, minimum=min_per_source)
+    queue = [dict(c, audit_reason="stratified %s%% sample of resolution source %r (seed %s)" % (int(round(frac * 100)), src, seed))
+             for src, items in sorted(sample.items()) for c in items]
+    return {"frac": frac, "seed": seed, "min_per_source": min_per_source, "sources": sorted(by_source),
+            "by_source": by_source, "sampled": {k: len(v) for k, v in sample.items()}, "queue": queue}

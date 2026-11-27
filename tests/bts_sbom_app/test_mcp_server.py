@@ -40,7 +40,7 @@ def test_initialize_and_tools_list_shapes(s):
     assert _rpc(s, method="notifications/initialized") is None          # notification: no response at all
     tl = _rpc(s, method="tools/list")["result"]["tools"]
     names = [t["name"] for t in tl]
-    assert names == ["engine_status", "book_search", "project_overview", "chat_ask"]
+    assert names == ["engine_status", "book_search", "project_overview", "chat_ask", "nl2sql", "run_scan"]
     for t in tl:
         assert t["inputSchema"]["type"] == "object"                     # every tool self-describes its arguments
     assert _rpc(s, method="no/such")["error"]["code"] == -32601         # standard method-not-found

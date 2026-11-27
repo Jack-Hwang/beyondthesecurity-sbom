@@ -19,12 +19,13 @@ passage with ``trust="untrusted-quote"`` - it can be quoted, never obeyed, and t
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from . import actions as actionsmod, ai, conformance, conversation, coverage as coverage_mod, fleet, licenses, rag, sbom, triage, workspace
+from . import __version__, escalation as escmod, gaps as gapsmod, actions as actionsmod, ai, conformance, conversation, coverage as coverage_mod, fleet, licenses, pii_guard, promptreg as promptregmod, rag, sbom, triage, workspace
 from .llm import ChatClient, LLMError, LLMUnavailable
 
 _ID = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+|RUSTSEC-\d{4}-\d+|GO-\d{4}-\d+)(?![A-Za-z0-9])", re.I)
@@ -51,6 +52,28 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+_SPEC_REL = os.path.join("specs", "bts_sbom_app_features.md")
+
+
+def _repo_root() -> str:
+    """<root>/bts_sbom_app/chat.py -> <root> (same pattern as __init__.py/evals.py; evals.py imports this module,
+    so importing it back here would be circular - this tiny helper is duplicated on purpose)."""
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def spec_marker(root: Optional[str] = None) -> str:
+    """A short content fingerprint of the feature spec (12 hex chars, same scheme as promptreg's fingerprints):
+    changes whenever an acceptance criterion is added, reworded or removed, so a chat answer names exactly which
+    spec state produced it (C38 / CCD RFC chatbot design slide32, RFC-F015-AC1). "unknown" when the spec file is
+    not reachable from this installation - never guessed, never left blank."""
+    try:
+        with open(os.path.join(root or _repo_root(), _SPEC_REL), "r", encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        return "unknown"
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
 def order_passages_for_prompt(question: str, docs: Sequence[Tuple[str, str]], cap: int = 6) -> List[Tuple[str, str]]:
     """Lost-in-the-middle counter-measure (brief-5 books: LLM Design Patterns, Illustrated Guide): the passages
     handed to the model are ordered by token overlap with the question, most relevant FIRST, so the best
@@ -70,6 +93,67 @@ def passage_trim_note(total: int, cap: int = 6) -> str:
 def verify_claims(claims: Sequence[Dict[str, Any]], docs: Dict[str, str]) -> Dict[str, Any]:
     ok = [c for c in claims if c.get("source") in docs and c.get("quote") and _norm(c["quote"]) in _norm(docs[c["source"]])]
     return {"claims": len(claims), "verified": len(ok), "accuracy": round(len(ok) / len(claims), 3) if claims else 1.0, "kept": ok}
+
+
+_NUM = re.compile(r"\d[\d.,]*\d|\d")
+
+
+def check_citations(answer_text: str, kept_claims: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """Numeric-token citation completeness over the model's OWN answer text (week 4-3 AC-5, 'every number needs a
+    source' / D-advanced ``check_citations()``): every number the model wrote must be traceable to a quote that
+    already passed ``verify_claims`` - a plausible-looking number that was never in any cited passage is exactly
+    the kind of fact that must demote the answer to the extractive one, same as a failed citation-accuracy gate.
+    Pure text matching, deterministic: a number is "cited" when it is a WHOLE token of the pooled, whitespace-
+    normalised kept-claim quotes - the pool is tokenised with the SAME ``_NUM`` regex as the answer and membership
+    is exact-token, not substring search. A digit-boundary substring search (the previous approach) treated "."
+    and "," as valid token boundaries, so a short number that is merely a punctuation-delimited FRAGMENT of a
+    larger cited number was wrongly accepted as cited (a hallucinated "5" would pass merely because "7.5" was
+    quoted somewhere, and a hallucinated "19" merely because "2.19.1" was quoted) - measured 2026-11-26, see
+    test_chat_integrity.py. Exact-token comparison still correctly rejects "2.0" when only "12.0" is present (the
+    original case this function was written for) while also rejecting those fragment matches."""
+    nums = list(dict.fromkeys(_NUM.findall(answer_text or "")))
+    pool = _norm(" ".join(str(c.get("quote") or "") for c in kept_claims))
+    pool_nums = set(_NUM.findall(pool))
+    uncited = [n for n in nums if n not in pool_nums]
+    return {"ok": not uncited, "numbers": len(nums), "uncited": uncited}
+
+
+_SECRET_KINDS = ("private-key", "aws-key", "github-token", "bearer-token", "secret-assignment")
+
+
+def redact_secret_kinds(text: str) -> Tuple[str, List[str]]:
+    """Mask only the secret-shaped kinds of ``pii_guard.redact()`` in an assembled chat answer - a PEM private key,
+    an AWS access-key id, a GitHub token, a bearer/Authorization value or a key=value secret assignment - leaving
+    email, phone and Korean RRN matches untouched: an SBOM answer legitimately quotes a maintainer's email from a
+    licence or copyright line, and redacting that would be a regression, not a safeguard.
+
+    ``pii_guard.redact()`` (owned by another agent's bundle, not edited here) masks every kind it knows in one pass
+    and returns only the AGGREGATE list of kinds found - it has no per-match span and no kind-selection parameter.
+    Reconstructing which match was which kind by diffing the plain text against its combined masked output is NOT
+    reliable: the literal substring of a "[redacted:<kind>]" tag can coincidentally share characters with the
+    surrounding original text (e.g. "mai" inside both "maintainer" and "[redacted:em-AI-l]"), which measurably
+    confused a difflib.SequenceMatcher reconstruction in testing. Instead this re-applies pii_guard's OWN pattern
+    table (``pii_guard._PATTERNS``, the exact ``(kind, compiled pattern)`` list ``redact()`` itself iterates, in the
+    same priority order) filtered to the secret-shaped kinds only - masking automatically tracks pii_guard's own
+    pattern definitions without duplicating or editing any of them. Falls back to leaving the text untouched if
+    that table is ever removed or renamed (defensive, never a crash)."""
+    s = str(text or "")
+    if not s:
+        return s, []
+    patterns = getattr(pii_guard, "_PATTERNS", None)
+    if not patterns:
+        return s, []
+    hits: List[str] = []
+    for kind, pat in patterns:
+        if kind not in _SECRET_KINDS:
+            continue
+
+        def _sub(m: "re.Match[str]", _k: str = kind) -> str:
+            hits.append(_k)
+            return "[redacted:%s]" % _k
+
+        s = pat.sub(_sub, s)
+    return s, sorted(set(hits))
 
 
 # ------------------------------------------------------------------ project tools (each returns lines of fact text)
@@ -208,8 +292,11 @@ def _affected(projects: Dict[str, Dict[str, Any]], args: Dict[str, Any]) -> List
         return ["Cannot look up affected projects: %s." % exc]
     q = res["query"]
     what = q["id"] or ("%s%s" % (q["component"], (" " + q["version"]) if q["version"] else ""))
+    unverified = ["Not verified for %s: their scan coverage is incomplete (%s), so a missing match there proves nothing." % (
+        ", ".join(x["project"] for x in res.get("not_verified") or []), "; ".join(sorted({c for x in res.get("not_verified") or [] for c in x["gaps"]})))
+    ] if res.get("not_verified") else []
     if not res["project_count"]:
-        return ["%s was not found in any of the %d analysed projects (answers come from each project's last analysis)." % (what, res["analysed_projects"])]
+        return ["%s was not found in any of the %d analysed projects (answers come from each project's last analysis)." % (what, res["analysed_projects"])] + unverified
     lines = ["%s is present in %d of %d analysed projects: %s." % (what, res["project_count"], res["analysed_projects"], ", ".join(r["project"] for r in res["projects"]))]
     for r in res["projects"][:6]:
         for m in r["matches"][:2]:
@@ -219,7 +306,7 @@ def _affected(projects: Dict[str, Dict[str, Any]], args: Dict[str, Any]) -> List
                 lines.append("Project %s: %s has no recorded version, so it cannot be matched." % (r["project"], m["package"]))
             else:
                 lines.append("Project %s uses %s %s (%s dependency, %s known vulnerabilities)." % (r["project"], m["package"], m["version"] or "?", m.get("relationship"), m.get("vulns")))
-    return lines
+    return lines + unverified
 
 
 def _conformance(rec: Dict[str, Any], regime: Optional[str]) -> List[str]:
@@ -259,11 +346,15 @@ _READONLY = ("This chat session is read-only, so %s was not executed. Open it wi
 
 def _license_risks(rec: Dict[str, Any], dist: Optional[str]) -> List[str]:
     comps = rec.get("components") or []
+    assumed = not dist                              # no distribution named: "binary" is a DEFAULT, never a confirmed fact (C79)
     dist = dist or "binary"
     pf = licenses.policy_findings(comps, {"distribution": dist}, (rec.get("license") or {}).get("project_license") or "")
     unresolved = [c for c in comps if not c.get("license")]
     lines = ["License risk view of %s for a %s distribution: %d components, %d with an unresolved license, %d policy finding(s)." % (
         rec["name"], dist, len(comps), len(unresolved), len(pf))]
+    if assumed:
+        lines.append("Assumption: no distribution mode was named, so this screening ASSUMED '%s' as the default - "
+                     "it is not a confirmed fact; name saas/internal/binary to screen a specific one." % dist)
     for f in pf[:5]:
         lines.append("Policy %s [%s]: %s%s%s." % (f.get("verdict"), f.get("severity"), f.get("detail"),
                                                   ("; components " + ", ".join((f.get("components") or [])[:4])) if f.get("components") else "",
@@ -272,11 +363,19 @@ def _license_risks(rec: Dict[str, Any], dist: Optional[str]) -> List[str]:
         lines.append("No component needs a license decision under the default policy for a %s distribution." % dist)
     strong = [f for f in pf if f.get("category") == "strong-copyleft" and f.get("components")]
     if strong:
-        comps = ", ".join(name for f in strong for name in (f.get("components") or [])[:4])
+        strong_comps = ", ".join(name for f in strong for name in (f.get("components") or [])[:4])
         lines.append("A patch cannot fix a license: for the strong-copyleft components (%s) the compliance path is a "
                      "clean-room reimplementation - open the Clean-Room pane (🧬), give source+component, and the "
                      "pattern-inference lane (architecture books first, then the model) builds the NEW code behind "
-                     "the copy gate and the upstream oracle." % comps)
+                     "the copy gate and the upstream oracle." % strong_comps)
+        from . import reimpl_c                        # local, read-only: only toolchain() is called - nothing is generated or compiled here (C16)
+        tc = reimpl_c.toolchain()
+        if not tc.get("cc") and not tc.get("cxx"):
+            names = list(dict.fromkeys(name for f in strong for name in (f.get("components") or [])))
+            lines.append("Compiler-availability note: no C/C++ compiler (gcc/clang/cc) is on PATH in this deployment, so the "
+                         "clean-room compile-and-verify oracle cannot reach a verified pass here - 0 of %d strong-copyleft "
+                         "component(s) (%s) can be shown as a verified pass until a compiler is installed; the generated "
+                         "pattern is presented as unverified guidance only." % (len(names), ", ".join(names[:4])))
     if unresolved:
         lines.append("Unresolved licenses (identify them by hand before shipping): %s." % ", ".join(c["name"] + "@" + str(c.get("version")) for c in unresolved[:8]))
     lines.append("This is a policy screening of the recorded licenses, not legal advice.")
@@ -332,6 +431,11 @@ def _plan_patch(rec: Dict[str, Any], components: Optional[List[str]], writable: 
     else:
         lines.append("Approval token %s covers exactly these %d upgrade(s); nothing has been changed. This chat is read-only - apply them with: "
                      "bts-sbom-app patch %s --approve --token %s." % (tok, len(sel), rec.get("source"), tok))
+    lines += escmod.approval_request(
+        "apply %d upgrade(s) to an isolated work copy of %s" % (len(sel), rec["name"]),
+        "they are applied in one round, re-scanned and reverted on a regression; the origin is not modified and nothing is pushed",
+        "nothing changes and the findings stay open",
+        "none - the token is valid only while this exact plan is unchanged; a changed plan needs a new token")
     return lines
 
 
@@ -342,6 +446,7 @@ def _analysis_report(rec: Dict[str, Any]) -> List[str]:
     lines.append("Licenses: %s of %s components resolved; %d policy finding(s) for a binary distribution." % (
         ls.get("resolved"), ls.get("total"), len((rec.get("license") or {}).get("policy") or [])))
     lines.append("Remediation: %d upgrade plan(s) with a verified target%s." % (len(ups), ("; approval token for all of them: " + actionsmod.plan_token(rec)) if ups else ""))
+    lines += gapsmod.lines(rec)
     lines.append("Next you can ask for the license risks, the patch plan, the SBOM conformance or record a VEX decision.")
     return lines
 
@@ -389,6 +494,11 @@ def _decision_preview(rec: Dict[str, Any], args: Dict[str, Any], actions: Any) -
     else:
         code = actions.stage_decision(rec["name"], d)
         lines.append("Nothing was written yet. To record exactly this decision, reply: confirm %s" % code)
+        lines += escmod.approval_request(
+            "record this VEX decision for %s" % d["id"],
+            "it is stored in the triage store and shows in the OpenVEX export, under the triage rules",
+            "nothing is recorded and the finding is unchanged",
+            "the preview expires after 24 hours; after that no code works and nothing is recorded")
     return lines
 
 
@@ -472,6 +582,16 @@ def _result(rec: Dict[str, Any], tool: str, lines: List[str], trust: str = "tool
 
 def _plain(tool: str, source: str, lines: List[str], trust: str = "tool") -> Dict[str, Any]:
     return {"tool": tool, "source": source, "lines": lines, "trust": trust}
+
+
+def _tool_error_result(tool: str, exc: BaseException) -> Dict[str, Any]:
+    """One structured error passage for a tool call that raised (C02): names the failed tool and the exception's
+    TYPE only - the message or a traceback could carry a local path or other internal detail, so neither is ever
+    surfaced. Shaped exactly like any other tool result (tool/source/lines/trust) so it is cited and verified like
+    every other fact, plus an ``error``/``error_type`` marker the caller uses to compute the turn's status."""
+    return {"tool": tool, "source": "tool_error:%s" % tool,
+            "lines": ["Tool '%s' failed (%s); the other results in this answer are unaffected." % (tool, type(exc).__name__)],
+            "trust": "tool", "error": True, "error_type": type(exc).__name__}
 
 
 def _latest_arch_lines(arch_dir: Optional[str]) -> List[str]:
@@ -633,6 +753,16 @@ def _arrow_spec(q: str) -> str:
     return "\n".join(chains[:8])
 
 
+def _as_of_line(as_of: Dict[str, Any]) -> str:
+    """Render nl2sql's ``answer()['as_of']`` ({ecosystem: imported_at-ISO-date-or-None}; ``{"unknown": None}`` when
+    the result exposes no ecosystem column) as one freshness line, e.g. "PyPI=2024-11-19, npm=never imported" or
+    plain "unknown" for the no-ecosystem case - additive only, never changes the status/sql/row lines."""
+    bits = []
+    for eco, ts in as_of.items():
+        bits.append("unknown" if eco == "unknown" and ts is None else "%s=%s" % (eco, ts or "never imported"))
+    return ", ".join(bits)
+
+
 def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], projects: Optional[Dict[str, Dict[str, Any]]] = None,
              actions: Any = None, triage_store: Optional[Dict[str, Any]] = None,
              arch_dir: Optional[str] = None, books: Any = None, client: Any = None, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -718,6 +848,8 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
             lines.append("error: %s" % json.dumps(res["error"], ensure_ascii=False))
         if res.get("clarification_needed"):
             lines.append("clarification needed: %s" % res["clarification_needed"])
+        if res.get("as_of"):                                      # snapshot-freshness disclosure (RM-15), additive only
+            lines.append("as of: " + _as_of_line(res["as_of"]))
         return [_plain(tool, "db:nl2sql", lines, trust="tool")]
     assert rec is not None, "tool %s needs a project" % tool
     if tool == "license_risks":
@@ -888,6 +1020,23 @@ def plan_tools(question: str, rec: Optional[Dict[str, Any]], client: ChatClient,
     return {"calls": calls, "dropped": dropped}
 
 
+#: tools whose answer is only as complete as the scan behind it: a gap of the scan is appended to the first of them (once per answer)
+_VULN_TOOLS = ("overview", "top_vulns", "vuln_lookup", "component_lookup", "patch", "plan_patch", "what_if_upgrade", "export_vex")
+
+
+def annotate_gaps(rec: Optional[Dict[str, Any]], results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Append the coverage gaps of ``rec`` to the first vulnerability-related result, as trusted tool lines (so they are cited and verified
+    like every other fact). Nothing is appended when the record has no gap or no such tool ran. A tool-call error passage (C02) is never
+    a target: it already names its own failure and must not be mixed with an unrelated gap note. The input list is returned."""
+    extra = gapsmod.lines(rec) if rec is not None else []
+    if extra:
+        for t in results:
+            if t.get("tool") in _VULN_TOOLS and not t.get("error"):
+                t["lines"] = list(t["lines"]) + extra
+                break
+    return results
+
+
 def parse_decision(q: str) -> Optional[Dict[str, str]]:
     """A VEX decision typed in plain text: an advisory id, a status word and a reason (``사유:`` / ``reason:`` / ``because``, last in the sentence).
     The justification is taken only when the user wrote one of the five OpenVEX names; nothing is inferred on the user's behalf."""
@@ -916,7 +1065,7 @@ def parse_decision(q: str) -> Optional[Dict[str, str]]:
 class Chatbot:
     def __init__(self, index: rag.Index, projects: Optional[Dict[str, Dict[str, Any]]] = None, client: Optional[ChatClient] = None,
                  actions: Any = None, triage_store: Optional[Dict[str, Any]] = None, arch_dir: Optional[str] = None,
-                 books: Any = None, memory: Optional[Any] = None, db_path: Optional[str] = None):
+                 books: Any = None, memory: Optional[Any] = None, db_path: Optional[str] = None, escalations: Optional[str] = None):
         self.index = index
         self.projects = projects or {}
         self.client = client
@@ -927,12 +1076,31 @@ class Chatbot:
         self.books = books
         self.db_path = db_path                        # the local OSV database path, for the nl2sql tool                            # the serve-time book index (rag.Index, kind="books"), for book_search
         self.memory = memory                          # conversation memory (conversation.ConversationMemory), shared by the server's State
+        self.escalations = escalations                # the evidence folder that holds escalations.jsonl (None = escalations are returned, not logged)
 
     def _no_client_note(self, use_llm: bool) -> str:
         """Honesty: when EXAONE was requested but there is no client, say so instead of silently answering extractively."""
         if use_llm and self.client is None:
             return "EXAONE requested but unavailable (no API key configured: set EXAONE_API_KEY or BTS_SBOM_LLM_CONFIG) -> extractive answer"
         return ""
+
+    def _versions(self) -> Dict[str, Any]:
+        """Audit stamp for one chat answer (C38 / CCD RFC chatbot design slide32, RFC-F015-AC1): which app build,
+        which model, which prompts and which spec state produced it. Every field is populated - "none"/"unknown"
+        when genuinely not available, never guessed, never omitted - so an answer can always be traced back after
+        a prompt re-pin or a model swap."""
+        model = "none (no LLM client configured)"
+        if self.client is not None:
+            try:
+                model = str(self.client.describe().get("model") or "unknown")
+            except (AttributeError, TypeError, KeyError):
+                model = "unknown"
+        root = _repo_root()
+        try:
+            prompt_digest = promptregmod.digest(root)
+        except (OSError, SyntaxError, ValueError, TypeError):
+            prompt_digest = "unavailable"
+        return {"app": __version__, "model": model, "prompt_digest": prompt_digest, "spec": spec_marker(root)}
 
     def _pick_project(self, q: str, project: Optional[str]) -> Optional[Dict[str, Any]]:
         """An explicit project id is never guessed: unknown id -> None (ask() answers found=False before getting here)."""
@@ -1054,13 +1222,28 @@ class Chatbot:
         return calls
 
     def _run(self, rec: Optional[Dict[str, Any]], calls: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """One failing tool call must never drop the other results of the same turn (C02, 4주차 '에러 전파 -
+        전체 종료는 안티패턴'): each call is isolated in its own try/except, and an unhandled
+        exception becomes one structured error passage instead of aborting the rest of the plan."""
         out: List[Dict[str, Any]] = []
         for c in calls:
-            for p in run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store, self.arch_dir, self.books, self.client, self.db_path):
+            try:
+                produced = run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store, self.arch_dir, self.books, self.client, self.db_path)
+            except Exception as exc:
+                out.append(_tool_error_result(c["tool"], exc))
+                continue
+            for p in produced:
                 new = p.pop("record", None)
                 if new is not None:                         # an analysis just produced a project: the calls after it talk about that one
                     self.projects[new["name"]] = new
                     rec = new
+                try:                                        # A2UI-style UI cards (docs/A2UI_INTEGRATION.md): a
+                    from . import ui_cards as uicards       # deterministic post-processor - never the model - turns
+                    cards = uicards.cards_for(c["tool"], c.get("args", {}), rec, p)   # measured tool output into validated cards;
+                    if cards:                               # prose lines always ride along as the fallback
+                        p["cards"] = cards
+                except Exception:                           # noqa: BLE001 - a card must never break a turn
+                    pass
                 out.append(p)
         return out
 
@@ -1113,7 +1296,40 @@ class Chatbot:
             c["trust"] = trust.get(s, "unknown")
         return obj, verify_claims(lc, docs)
 
+    def _handed(self, answer: str, source: str, routing_note: str, use_llm: bool, followup: bool, parts: List[str], extra: Dict[str, Any]) -> Dict[str, Any]:
+        """The answer shape of a turn that ended in a handoff or a clarifying question (no tool ran, nothing to cite)."""
+        return dict({"found": True, "answer": answer, "claims": [], "answer_source": source, "tools": [], "retrieval": {"found": False, "coverage": 0.0, "top": []},
+                     "citation_accuracy": 1.0, "llm_note": self._no_client_note(use_llm), "contains_untrusted": False, "conflicts": [], "diagrams": [],
+                     "routing": source, "routing_note": routing_note, "plan_dropped": {}, "followup": followup, "decomposed": parts if len(parts) > 1 else [],
+                     "injection": {"attempts": 0, "sources": [], "hits": []}, "coverage": None, "reviewer_notes": [],
+                     "status": "complete", "tool_errors": [], "versions": self._versions()}, **extra)
+
+    def _escalate(self, kind: str, asked: str, project: Optional[str], attempted: List[Dict[str, Any]], use_llm: bool, followup: bool,
+                  parts: List[str], misses: int = 0) -> Dict[str, Any]:
+        """Hand the question over: structured payload, logged when the bot has an evidence folder (a log failure never loses the answer).
+        The analysed project record (when one is picked) rides along as ``rec=`` so ``escalation.build`` can copy its
+        coverage gaps into ``evidence_refs.root_cause`` (week 5 lesson 1 D1.4: a handoff summary names the root cause,
+        not just the question) - backward compatible, ``rec`` stays optional and keyword-only on the receiving end."""
+        rec = self._pick_project(asked, project)
+        payload = escmod.build(kind, asked, rec["name"] if rec else project, attempted, misses=misses, rec=rec)
+        try:
+            payload = escmod.record(self.escalations, payload) if self.escalations else dict(payload, logged=False, duplicate=False)
+        except OSError as exc:
+            payload = dict(payload, logged=False, duplicate=False, log_error=type(exc).__name__)
+        if self.memory is not None:
+            self.memory.record(asked, [], True, project)        # a handed-over question is answered by its receiver: it resets the miss counter
+        return self._handed(escmod.answer_text(payload), "escalation", "trigger %s decided by code%s" % (payload["trigger"], "" if attempted else "; no tool ran"),
+                            use_llm, followup, parts, {"escalation": payload})
+
+    def _clarify(self, candidates: List[str], asked: str, project: Optional[str], use_llm: bool, followup: bool, parts: List[str]) -> Dict[str, Any]:
+        if self.memory is not None:
+            self.memory.record(asked, [], True, project)
+        return self._handed(escmod.clarification_text(candidates), "clarification", "ambiguous project: %s" % ", ".join(candidates), use_llm, followup, parts,
+                            {"clarify": {"candidates": candidates}})
+
     def ask(self, question: str, *, project: Optional[str] = None, use_llm: bool = False, k: int = 4) -> Dict[str, Any]:
+        asked = question                              # the user's own words: a follow-up merge below must not leak into an escalation
+        prior_misses = escmod.trailing_misses(self.memory)
         followup = False
         parts: List[str] = [question]
         if self.memory is not None:                   # multi-turn: an elliptical follow-up merges with the previous turn
@@ -1124,13 +1340,19 @@ class Chatbot:
                     "claims": [], "answer_source": "none", "tools": [], "retrieval": {"found": False, "coverage": 0.0, "top": []},
                     "citation_accuracy": 1.0, "llm_note": self._no_client_note(use_llm), "routing": "none",
                     "routing_note": "unknown project id; nothing was guessed", "plan_dropped": {}, "contains_untrusted": False, "conflicts": [],
-                    "followup": followup, "decomposed": parts if len(parts) > 1 else []}
+                    "followup": followup, "decomposed": parts if len(parts) > 1 else [],
+                    "status": "complete", "tool_errors": [], "versions": self._versions()}
+        hard = escmod.hard_trigger(asked)
+        if hard:                                      # a human request / a decision this tool does not make: handed over BEFORE any tool runs
+            return self._escalate(hard[1], asked, project, [], use_llm, followup, parts)
         rec = self._pick_project(question, project)
         docs: Dict[str, str] = {}
         trust: Dict[str, str] = {}
         claims: List[Dict[str, Any]] = []
         tools_used: List[str] = []
+        tool_errors: List[Dict[str, Any]] = []
         diagrams: List[Dict[str, Any]] = []
+        cards: List[Dict[str, Any]] = []
         routing, routing_note, plan_dropped = "regex", "", {}
         if rec is not None:
             results: Optional[List[Dict[str, Any]]] = None
@@ -1151,9 +1373,13 @@ class Chatbot:
                 extra = [c for c in self._valid(self._diagram_calls(question), rec, question) if c["tool"] not in have]
                 if extra:
                     results += self._run(rec, extra)         # the union contributes EXECUTED results, never bare call dicts
+            results = annotate_gaps(rec, results)
             for t in results:
                 tools_used.append(t["tool"])
+                if t.get("error"):
+                    tool_errors.append({"tool": t["tool"], "error": t.get("error_type") or "unknown"})
                 diagrams.extend(t.get("diagrams") or [])
+                cards.extend(t.get("cards") or [])                 # A2UI-style UI cards (docs/A2UI_INTEGRATION.md)
                 docs[t["source"]] = "\n".join(t["lines"])
                 trust[t["source"]] = t["trust"]
                 claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"]} for ln in t["lines"])
@@ -1169,10 +1395,17 @@ class Chatbot:
                     routing_note = "LLM tool planning unavailable -> regex router: " + str(exc)[:160]
             for t in (unscoped if unscoped is not None else self._fleet_tools(question)):
                 tools_used.append(t["tool"])
+                if t.get("error"):
+                    tool_errors.append({"tool": t["tool"], "error": t.get("error_type") or "unknown"})
                 diagrams.extend(t.get("diagrams") or [])
+                cards.extend(t.get("cards") or [])                 # A2UI-style UI cards (docs/A2UI_INTEGRATION.md)
                 docs[t["source"]] = "\n".join(t["lines"])
                 trust[t["source"]] = t["trust"]
                 claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"]} for ln in t["lines"])
+        if rec is None and not tools_used and len(self.projects) > 1:      # several projects match: ask which one - never pick by heuristic (D5.2)
+            amb = escmod.ambiguous_projects(asked, self.projects)
+            if amb:
+                return self._clarify(amb, asked, project, use_llm, followup, parts)
         flt: Optional[Dict[str, Any]] = {"kind": ["knowledge", "evidence"]} if not rec else {"kind": ["knowledge"]}
         res = self.index.search(question, k=k, filters=flt)
         retrieval = {"found": res["found"], "coverage": res["coverage"],
@@ -1193,14 +1426,20 @@ class Chatbot:
                         claims.append({"text": s, "quote": s, "source": ch["id"], "trust": trust[ch["id"]]})
         meta = {"routing": routing, "routing_note": routing_note, "plan_dropped": plan_dropped,
                 "followup": followup, "decomposed": parts if len(parts) > 1 else [],
-                "injection": conversation.scan_injection(docs)}
+                "injection": conversation.scan_injection(docs),
+                "status": "partial" if tool_errors else "complete", "tool_errors": tool_errors,
+                "versions": self._versions()}
+        if rec is not None:
+            meta["coverage"] = gapsmod.summary(rec)         # partial results carry their gap annotation (week 5-4 / 6-1), never a bare "found"
         if self.memory is not None:                   # record the turn even when nothing was found (continuity is data)
             self.memory.record(question, tools_used, bool(claims), project)
         if not claims:
+            if prior_misses >= escmod.MAX_FAIL - 1:       # the 3rd consecutive unanswered question: stop repeating the same attempt, hand over
+                return self._escalate("no_progress", asked, project, [{"tool": t, "lines": 0} for t in tools_used], use_llm, followup, parts, misses=prior_misses + 1)
             return dict({"found": False, "answer": "I could not find this in the analysed projects or the knowledge base.", "claims": [],
                          "answer_source": "none", "tools": [], "retrieval": retrieval, "citation_accuracy": 1.0,
                          "llm_note": self._no_client_note(use_llm), "contains_untrusted": False, "conflicts": [],
-                         "diagrams": diagrams[:3]}, **meta)
+                         "diagrams": diagrams[:3], "cards": cards[:4]}, **meta)
         ver = verify_claims(claims, docs)
         answer = "\n".join(("- [untrusted quote] " if c.get("trust") == "untrusted-quote" else "- ") + c["text"] for c in ver["kept"])
         src = "tools" if tools_used else "rag"
@@ -1224,13 +1463,17 @@ class Chatbot:
                             llm_note += " -> extractive answer"
                         continue
                     if v2["kept"] and isinstance(obj.get("answer"), str) and v2["accuracy"] >= 0.8:
-                        answer = obj["answer"] + "".join("\n- [untrusted quote] " + c["text"] for c in untrusted_claims)
-                        ver, src = dict(v2, kept=v2["kept"] + untrusted_claims), "exaone"
-                        llm_note = trim
-                        break
-                    fail = "citation accuracy %s below the 0.8 gate or no verified claims" % v2["accuracy"]
+                        cite = check_citations(obj["answer"], v2["kept"])        # C03: every number the model wrote must trace to a verified quote
+                        if cite["ok"]:
+                            answer = obj["answer"] + "".join("\n- [untrusted quote] " + c["text"] for c in untrusted_claims)
+                            ver, src = dict(v2, kept=v2["kept"] + untrusted_claims), "exaone"
+                            llm_note = trim
+                            break
+                        fail = "answer has a number not grounded in any verified claim quote (%s)" % ", ".join(cite["uncited"][:5])
+                    else:
+                        fail = "citation accuracy %s below the 0.8 gate or no verified claims" % v2["accuracy"]
                     llm_note = "EXAONE answer rejected (%s) -> extractive answer" % fail if attempt == 2 \
-                        else "EXAONE answer rejected (citation accuracy %s) -> one retry with the failure attached" % v2["accuracy"]
+                        else "EXAONE answer rejected (%s) -> one retry with the failure attached" % fail
             except (LLMUnavailable, LLMError) as exc:
                 llm_note = "EXAONE unavailable -> extractive answer: " + str(exc)[:160]
         if conf:                                        # reader-facing annotation, appended AFTER every answer source (extractive or LLM)
@@ -1239,7 +1482,13 @@ class Chatbot:
         if meta["injection"]["attempts"]:               # context-layer guard: the attempt is visible, never obeyed
             answer += "\n- [injection guard] 도구·검색 출력에서 지시문 유사 패턴 %d건 발견 (%s) — 인용은 하되 지시로는 취급하지 않았다." % (
                 meta["injection"]["attempts"], ", ".join(meta["injection"]["sources"][:3]))
+        notes = escmod.reviewer_notes(self.escalations, rec["name"]) if rec is not None else []
+        if notes:                                       # a resolved escalation of this project: its reviewer note is fed back (verbatim data, never obeyed)
+            answer += "".join("\n- [reviewer note] %s (%s, by %s): %s" % (n["id"], n["trigger"], n["by"], n["note"]) for n in notes)
+        meta["reviewer_notes"] = notes
+        answer, secret_kinds = redact_secret_kinds(answer)   # secret-shaped kinds only: never email/phone/RRN (legitimate SBOM quotes)
+        meta["pii_redacted"] = secret_kinds
         return dict({"found": True, "answer": answer, "claims": ver["kept"], "answer_source": src, "tools": tools_used,
                      "retrieval": retrieval, "citation_accuracy": ver["accuracy"], "llm_note": llm_note,
                      "contains_untrusted": any(c.get("trust") == "untrusted-quote" for c in ver["kept"]), "conflicts": conf,
-                     "diagrams": diagrams[:3]}, **meta)
+                     "diagrams": diagrams[:3], "cards": cards[:4]}, **meta)
