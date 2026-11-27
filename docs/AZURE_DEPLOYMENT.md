@@ -1,6 +1,6 @@
 # MS Azure 배포 검토 (Azure Deployment Review) — bts-sbom-app
 
-상태: **재배포 완료 (2026-11-27)** — https://bts-sbom.wittyforest-2c8fae00.koreacentral.azurecontainerapps.io , 액세스 토큰 게이트 ON, 스케일 0->1,
+상태: **리비전 0000009 라이브 (2026-11-28)** — 이미지 `0.5.0-a2ui1128`(ACR 빌드 49s, git archive로 커밋 스냅샷만 업로드)로 갱신; A2UI 스타일 UI 카드 라운드 탑재. 라이브 실측: healthz/readyz 200, 토큰 게이트 401/200, GET /api/ui/catalog 8종 서빙, POST /api/chat(NodeGoat)이 stat_row 카드(1091 컴포넌트·311 취약점·CRITICAL 32/HIGH 168/MEDIUM 92 칩)를 응답에 실어 보냄, scripts/smoke_deployed.py 4/4 PASS. 공급망 게이트 pass(build·scan·sbom·self_sbom·bench). — 아래는 재배포(2026-11-27) 기록: **재배포 완료 (2026-11-27)** — https://bts-sbom.wittyforest-2c8fae00.koreacentral.azurecontainerapps.io , 액세스 토큰 게이트 ON, 스케일 0->1,
 실측은 deploy/azure/README.md §12. (아래 철수 기록은 첫 배포(2026-11-23)의 것이다.)
 이전 상태: **철수 완료 (2026-11-24)** — 데모 창(약 2주 계획) 종료에 따라 az group delete로
 bts-sbom-rg·ACA 환경·앱·ACR(btsbomacr1123)·Azure Files·Log Analytics 전부 제거,
