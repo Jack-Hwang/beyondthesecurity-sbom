@@ -242,3 +242,19 @@ def test_service_stores_the_decision_fields_and_serves_the_vex_with_them_applied
     code, conf = _http(base + "/api/conformance/" + name)
     assert code == 200 and len(conf["regimes"]) == 5
     assert _http(base + "/api/changes/" + name)[1].get("note")
+
+
+def test_a_prepare_exception_is_named_in_the_record_error_not_hidden_behind_a_bare_message(tmp_path, monkeypatch):
+    """AC: BSA-AC-338. A stage that raised is recorded in rec["stage_errors"]; for the prepare stage the record's own error now carries the same text
+    ("workspace preparation failed: <ExceptionType>: <message>") so a failed analysis says why instead of an intermittent, undiagnosable bare message."""
+    from bts_sbom_app import workspace
+
+    def boom(*a, **kw):
+        raise RuntimeError("disk said no")
+
+    monkeypatch.setattr(workspace, "prepare", boom)
+    rec = pipeline.run_project(str(tmp_path), work_root=str(tmp_path / "w"), use_llm=False, run_arch=False)
+    assert rec["error"] == "workspace preparation failed: RuntimeError: disk said no" == "workspace preparation failed: " + rec["stage_errors"]["prepare"]
+    monkeypatch.setattr(workspace, "prepare", lambda *a, **kw: {"ok": False, "error": "refused: not a git url"})
+    assert pipeline.run_project(str(tmp_path), work_root=str(tmp_path / "w2"), use_llm=False, run_arch=False)["error"] == "refused: not a git url"
+

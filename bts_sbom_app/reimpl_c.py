@@ -580,22 +580,31 @@ def compile_object(tc: Dict[str, Optional[str]], src: str, obj: str, include_dir
 
 
 def exported_symbols(tc: Dict[str, Optional[str]], obj: str, cpp: bool = False) -> Optional[Set[str]]:
+    return exported_symbols_why(tc, obj, cpp)[0]
+
+
+def exported_symbols_why(tc: Dict[str, Optional[str]], obj: str, cpp: bool = False) -> Tuple[Optional[Set[str]], str]:
+    """(symbols, "") or (None, why nm gave no answer): a failed nm call is retried once (a transient process failure under CI load must not turn a
+    verified export list into `unchecked`) and a second failure keeps nm's own rc/stderr instead of the bare "nm is not available"."""
     if not tc.get("nm"):
-        return None
-    r = _run([tc["nm"]] + (["-C"] if cpp else []) + ["--defined-only", obj], timeout=30)
+        return None, "nm is not available"
+    cmd = [tc["nm"]] + (["-C"] if cpp else []) + ["--defined-only", obj]
+    r = _run(cmd, timeout=30)
     if r["rc"] != 0:
-        return None
+        r = _run(cmd, timeout=30)
+    if r["rc"] != 0:
+        return None, "nm failed (rc=%s): %s" % (r["rc"], ((r["err"] or r["out"] or "").strip()[:200] or "no output"))
     out: Set[str] = set()
     for ln in r["out"].splitlines():
         parts = ln.split(None, 2)
         if len(parts) == 3 and parts[1] in ("T", "D", "B", "R", "C", "W", "V"):
             out.add(parts[2].strip().lstrip("_") if parts[2].startswith("_") and not cpp and parts[2][1:2].isalpha() and False else parts[2].strip())
-    return out
+    return out, ""
 
 
-def export_check(syms: Optional[Set[str]], iface: Dict[str, Any]) -> Dict[str, Any]:
+def export_check(syms: Optional[Set[str]], iface: Dict[str, Any], why: str = "") -> Dict[str, Any]:
     if syms is None:
-        return {"checked": False, "reason": "nm is not available"}
+        return {"checked": False, "reason": why or "nm is not available"}
     cpp = iface["language"] == "c++"
     want = [f["name"] for f in iface["functions"] if f["kind"] == "function"] + [v["name"] for v in iface.get("variables", [])]
     if cpp:
@@ -1153,7 +1162,8 @@ def run(source_root: str, component: str, out_dir: str, *, client: Any = None, w
                 prior_fail = "compiler errors:\n" + cr["errors"][:900]
                 continue
             break
-        ex = export_check(exported_symbols(tc, obj, res["language"] == "c++"), iface)
+        syms, nm_why = exported_symbols_why(tc, obj, res["language"] == "c++")
+        ex = export_check(syms, iface, nm_why)
         res["export"] = ex
         lk = None
         if res["language"] == "c" and not ex.get("missing"):

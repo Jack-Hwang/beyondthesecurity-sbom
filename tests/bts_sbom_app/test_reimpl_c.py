@@ -484,3 +484,26 @@ def test_the_compiler_runs_in_the_c_locale_so_the_repair_loop_reads_ascii_quotes
     monkeypatch.setattr(reimpl_c.subprocess, "run", fake_run)
     r = reimpl_c._run(["gcc", "--version"])
     assert r["rc"] == 0 and seen["env"] is not None and seen["env"]["LC_ALL"] == "C" and seen["env"]["LANGUAGE"] == "C"
+
+
+def test_a_failing_nm_is_retried_once_and_a_second_failure_keeps_its_reason(monkeypatch):
+    """AC: BSA-AC-639. The export proof reads `nm`: one failed call (a transient process failure on a loaded CI runner) is retried instead of turning the
+    export list into `unchecked`, and when nm fails twice the verdict card keeps nm's own rc/stderr rather than the bare "nm is not available"."""
+    calls: List[Any] = []
+
+    def flaky(cmd, cwd=None, timeout=30):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return {"rc": 1, "out": "", "err": "nm: transient", "timeout": False}
+        return {"rc": 0, "out": "0000000000000000 T crc32\n", "err": "", "timeout": False}
+
+    monkeypatch.setattr(reimpl_c, "_run", flaky)
+    syms, why = reimpl_c.exported_symbols_why({"nm": "nm"}, "x.o")
+    assert syms == {"crc32"} and why == "" and len(calls) == 2
+
+    monkeypatch.setattr(reimpl_c, "_run", lambda cmd, cwd=None, timeout=30: {"rc": 1, "out": "", "err": "nm: boom", "timeout": False})
+    syms, why = reimpl_c.exported_symbols_why({"nm": "nm"}, "x.o")
+    iface = {"language": "c", "functions": [], "variables": []}
+    assert syms is None and reimpl_c.export_check(syms, iface, why) == {"checked": False, "reason": "nm failed (rc=1): nm: boom"}
+    assert reimpl_c.export_check(None, iface)["reason"] == "nm is not available"
+    assert reimpl_c.exported_symbols({"nm": None}, "x.o") is None

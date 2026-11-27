@@ -93,7 +93,8 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
 
     ws = S.run("prepare", lambda: workspace.prepare(src, work_root, ref=ref, depth=depth, name=rec["name"]))
     if not ws or not ws.get("ok"):
-        rec["error"] = (ws or {}).get("error") or "workspace preparation failed"
+        why = rec["stage_errors"].get("prepare")                  # an exception inside prepare() is kept here; the bare message hid it
+        rec["error"] = (ws or {}).get("error") or ("workspace preparation failed" + (": " + why if why else ""))
         rec["elapsed_s"] = round(time.time() - t0, 1)
         return rec
     path = ws["path"]
