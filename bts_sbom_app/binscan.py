@@ -20,6 +20,7 @@ from typing import Any, Dict, List
 from . import __version__
 from .srcscan import MAX_FILE_BYTES, _is_link
 from .contextpack import SKIP_DIRS
+from . import binary_rea
 
 SCHEMA = "bts-sbom.binscan.v1"
 MAX_BINARIES = 200
@@ -53,6 +54,7 @@ def build(root: str, *, max_binaries: int = MAX_BINARIES) -> Dict[str, Any]:
     excluded: Dict[str, List[str]] = {"skipped_dirs": [], "links": [], "oversized": [], "unreadable": [], "text": []}
     stats = {"walked": 0, "binaries": 0, "with_license_strings": 0, "with_copyright": 0, "read_truncated": 0}
     bins: List[Dict[str, Any]] = []
+    evs: List[Dict[str, Any]] = []
     for dp, dns, fns in os.walk(root):
         for d in list(dns):
             if d in SKIP_DIRS or d.startswith("."):
@@ -98,18 +100,36 @@ def build(root: str, *, max_binaries: int = MAX_BINARIES) -> Dict[str, Any]:
                     copyrights.append(m.group(0).strip()[:160])
                 if len(copyrights) >= 5:
                     break
+            # REA-style structural tier (engine-free): import tables / needed libs / ASAR manifests as
+            # dependency evidence + SBOM components. Structural facts ride along per binary.
+            struct_ev = binary_rea.inspect(fp)
+            stats.setdefault("structural", Counter := __import__("collections").Counter())
+            Counter[struct_ev["kind"]] += 1
             if found:
                 stats["with_license_strings"] += 1
             if copyrights:
                 stats["with_copyright"] += 1
-            if found or copyrights:
-                bins.append({"file": rel, "bytes": size, "license_strings": found, "copyrights": copyrights})
+            entry = {"file": rel, "bytes": size, "license_strings": found, "copyrights": copyrights}
+            if struct_ev["kind"] != "unknown" and struct_ev["evidence"]:
+                entry["structure"] = {k: v for k, v in struct_ev["evidence"].items()
+                                      if k in ("format", "machine", "class", "imported_dlls", "imports",
+                                               "needed", "package_name", "package_version", "dependencies",
+                                               "electron", "files", "js_files", "classes", "manifest")}
+                entry["structure_tier"] = struct_ev["tier"]
+                if struct_ev["error"]:
+                    entry["structure_error"] = struct_ev["error"]
+            bins.append(entry)
+            evs.append(struct_ev)
     bins.sort(key=lambda b: b["file"])
     info = {"tool": "bts-sbom-app binscan", "version": __version__,
             "started": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), "path": os.path.abspath(root),
             "excluded": excluded, "stats": stats}
+    components = binary_rea.components_from(evs)
+    honesty = HONESTY + [binary_rea.TIER + "-tier structural evidence: import tables / ELF DT_NEEDED / "
+                         "ASAR manifests are dependency evidence with stated limitations, not a decompilation"]
     return {"schema": SCHEMA, "status": "OK", "root": os.path.abspath(root), "scanner_info": info,
-            "binaries": bins, "binaries_truncated": 0, "honesty": HONESTY}
+            "binaries": bins, "binaries_truncated": 0, "honesty": honesty,
+            "components": components, "component_count": len(components)}
 
 
 def to_csv(c: Dict[str, Any]) -> str:
@@ -139,5 +159,11 @@ def to_md(c: Dict[str, Any]) -> str:
     for b in (c.get("binaries") or [])[:50]:
         out.append("| %s | %d | %s | %s |" % (b["file"], b["bytes"], "; ".join(b.get("license_strings") or []) or "-",
                                               " | ".join(b.get("copyrights") or [])[:200] or "-"))
+    comps = c.get("components") or []
+    if comps:
+        out += ["", "## Structural components (%d) - engine-free REA-style tier" % len(comps), "",
+                "| component | kind | via | from |", "|---|---|---|---|"]
+        for cm in comps[:60]:
+            out.append("| %s | %s | %s | %s |" % (cm["name"], cm["kind"], cm["via"], cm["from_file"]))
     out += ["", "> " + "; ".join(HONESTY) + "."]
     return "\n".join(out) + "\n"

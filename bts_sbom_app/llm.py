@@ -27,14 +27,60 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .net import _retry_after_seconds
 from .util import read_json, write_json
 
 DEFAULT_BASE = "https://api.exaone.ai/v1"
 DEFAULT_MODEL = "k-exaone_v2.5"
 DEFAULT_AZURE_API_VERSION = "2024-10-21"
 FLOOR_TOKENS = 1024
-# tests: callable(url, headers, body_dict) -> (status:int, text:str); None = real network
-TRANSPORT: Optional[Callable[[str, Dict[str, str], Dict[str, Any]], Tuple[int, str]]] = None
+# tests: callable(url, headers, body_dict) -> (status:int, text:str) OR (status:int, text:str, response_headers:dict);
+# the 3-tuple form lets a fake transport simulate a Retry-After header (C15), mirroring net.py's TRANSPORT contract.
+# None = real network.
+TRANSPORT: Optional[Callable[..., Any]] = None
+#: Injectable backoff sleep (tests replace this with a recording no-op so retry/Retry-After tests run instantly,
+#: mirroring net.py's SLEEP hook).
+SLEEP: Callable[[float], None] = time.sleep
+
+# C48: static USD-per-1000-token price table for the estimated daily cost ledger. These are illustrative
+# published list prices (not a live price feed), keyed by the lowercased model name. A model this table does
+# not know about - including the EXAONE models this app talks to by default, whose commercial per-token price
+# is not public - reports its cost as None rather than guessing: never a silent wrong number.
+PRICE_PER_1K_USD: Dict[str, Tuple[float, float]] = {
+    # model name (lowercase) -> (prompt $/1K tokens, completion $/1K tokens)
+    "gpt-4o": (0.0025, 0.0100),
+    "gpt-4o-mini": (0.00015, 0.00060),
+    "gpt-4-turbo": (0.0100, 0.0300),
+    "gpt-4": (0.0300, 0.0600),
+    "gpt-3.5-turbo": (0.0005, 0.0015),
+    "gpt-5": (0.00125, 0.0100),
+    "o1": (0.0150, 0.0600),
+    "o1-mini": (0.0011, 0.0044),
+    "o3-mini": (0.0011, 0.0044),
+}
+
+
+def _price_lookup(model: str) -> Optional[Tuple[float, float]]:
+    """PRICE_PER_1K_USD lookup: an exact match on the lowercased model name first, else the longest registered
+    key the model name starts with (covers a dated/suffixed deployment name like 'gpt-4o-2024-08-06' or an
+    Azure deployment alias such as 'gpt-4o-mini-eu'). No match -> None."""
+    key = (model or "").strip().lower()
+    if key in PRICE_PER_1K_USD:
+        return PRICE_PER_1K_USD[key]
+    best = ""
+    for k in PRICE_PER_1K_USD:
+        if key.startswith(k) and len(k) > len(best):
+            best = k
+    return PRICE_PER_1K_USD[best] if best else None
+
+
+def estimated_cost_usd(prompt_tokens: int, completion_tokens: int, model: str) -> Optional[float]:
+    """C48: the estimated USD cost of ``prompt_tokens``/``completion_tokens`` on ``model``, or None when the
+    model is not in PRICE_PER_1K_USD (an honest "unknown", never a guess)."""
+    price = _price_lookup(model)
+    if price is None:
+        return None
+    return round(max(0, prompt_tokens) / 1000.0 * price[0] + max(0, completion_tokens) / 1000.0 * price[1], 6)
 
 
 class LLMError(RuntimeError):
@@ -43,6 +89,13 @@ class LLMError(RuntimeError):
 
 class LLMUnavailable(LLMError):
     """no key / budget exhausted / provider says the day limit is reached - callers downgrade honestly."""
+
+
+class LLMTruncated(LLMError):
+    """C41: finish_reason == 'length' - the provider cut the completion short at the token budget. This is not
+    a parse failure and not an availability problem, but the (possibly cut-off) text must not be trusted, so
+    it is raised instead of returned; every existing caller already catches the LLMError base class and records
+    str(exc) as its downgrade note, so this message ("truncated by token budget...") flows through unchanged."""
 
 
 class ChatClient:
@@ -106,18 +159,100 @@ class ChatClient:
     def _today(self) -> str:
         return time.strftime("%Y-%m-%d", time.gmtime())
 
+    @staticmethod
+    def _day_entry(raw: Any) -> Dict[str, Any]:
+        """One ledger day's record. A pre-C48 ledger stores a bare int (call count only); that is migrated in
+        place to the dict shape right here on read, so an OLD ledger file still parses correctly (calls known,
+        tokens/cost unknown) - the on-disk format of an old ledger is never broken."""
+        if isinstance(raw, dict):
+            return dict(raw)
+        return {"calls": int(raw or 0)}
+
     def calls_today(self) -> int:
         if not self.ledger:
             return self.calls
-        return int((read_json(self.ledger, {}) or {}).get(self._today(), 0))
+        raw = (read_json(self.ledger, {}) or {}).get(self._today(), 0)
+        return int(self._day_entry(raw).get("calls", 0))
+
+    def ledger_today(self) -> Dict[str, Any]:
+        """Today's ledger entry (calls/prompt_tokens/completion_tokens/cost_usd); the in-memory counters when
+        there is no ledger file configured at all (e.g. a short-lived CLI invocation)."""
+        if not self.ledger:
+            return {"calls": self.calls, "prompt_tokens": self.usage["prompt_tokens"],
+                    "completion_tokens": self.usage["completion_tokens"],
+                    "cost_usd": estimated_cost_usd(self.usage["prompt_tokens"], self.usage["completion_tokens"], self.model)}
+        raw = (read_json(self.ledger, {}) or {}).get(self._today(), 0)
+        entry = self._day_entry(raw)
+        entry.setdefault("calls", 0)
+        entry.setdefault("prompt_tokens", 0)
+        entry.setdefault("completion_tokens", 0)
+        entry.setdefault("cost_usd", estimated_cost_usd(entry["prompt_tokens"], entry["completion_tokens"], self.model))
+        return entry
+
+    # -- budget tiers (C33): ok / warn / critical / exhausted from calls_today vs. daily_budget
+    BUDGET_WARN_RATIO = 0.5
+    BUDGET_CRITICAL_RATIO = 0.8
+
+    def budget_tier(self) -> str:
+        """50%/80%/100% of daily_budget -> warn/critical/exhausted (2 of 2 thresholds), else ok."""
+        if self.daily_budget <= 0:
+            return "exhausted"
+        ratio = self.calls_today() / float(self.daily_budget)
+        if ratio >= 1.0:
+            return "exhausted"
+        if ratio >= self.BUDGET_CRITICAL_RATIO:
+            return "critical"
+        if ratio >= self.BUDGET_WARN_RATIO:
+            return "warn"
+        return "ok"
+
+    def budget_state(self) -> Dict[str, Any]:
+        """The tier plus the numbers a caller needs to render it: GET /api/llm (describe()) and the chat
+        llm_note path (server.py annotates the existing llm_note field with this - chat.py itself is untouched)."""
+        tier = self.budget_tier()
+        today = self.calls_today()
+        return {"tier": tier, "degraded": tier != "ok", "calls_today": today, "daily_budget": self.daily_budget,
+                "remaining_calls": max(0, self.daily_budget - today)}
 
     def _bump(self) -> None:
         self.calls += 1
-        if self.ledger:
-            d = read_json(self.ledger, {}) or {}
-            d = {k: v for k, v in d.items() if k >= self._today()}
-            d[self._today()] = int(d.get(self._today(), 0)) + 1
-            write_json(self.ledger, d)
+        if not self.ledger:
+            return
+        d = read_json(self.ledger, {}) or {}
+        d = {k: v for k, v in d.items() if k >= self._today()}
+        day = self._today()
+        entry = self._day_entry(d.get(day, 0))
+        entry["calls"] = int(entry.get("calls", 0)) + 1
+        entry.setdefault("prompt_tokens", 0)
+        entry.setdefault("completion_tokens", 0)
+        entry.setdefault("cost_usd", None if _price_lookup(self.model) is None else entry.get("cost_usd", 0.0))
+        d[day] = entry
+        write_json(self.ledger, d)
+
+    def _record_usage(self, prompt_tokens: int, completion_tokens: int) -> None:
+        """C48: add this completion's tokens to both the in-run counter (self.usage) and today's ledger entry,
+        accumulating the estimated USD cost for a priced model (stays None for an unpriced one)."""
+        self.usage["prompt_tokens"] += prompt_tokens
+        self.usage["completion_tokens"] += completion_tokens
+        if not self.ledger:
+            return
+        d = read_json(self.ledger, {}) or {}
+        d = {k: v for k, v in d.items() if k >= self._today()}
+        day = self._today()
+        entry = self._day_entry(d.get(day, 0))
+        entry["prompt_tokens"] = int(entry.get("prompt_tokens", 0)) + prompt_tokens
+        entry["completion_tokens"] = int(entry.get("completion_tokens", 0)) + completion_tokens
+        price = _price_lookup(self.model)
+        if price is None:
+            entry.setdefault("cost_usd", None)   # never overwrite a real cost_usd accumulated earlier the
+            # same day under a priced model (mirrors _bump()'s own setdefault guard on this same field)
+        else:
+            prior = entry.get("cost_usd")
+            entry["cost_usd"] = round((prior if isinstance(prior, (int, float)) else 0.0) +
+                                       prompt_tokens / 1000.0 * price[0] + completion_tokens / 1000.0 * price[1], 6)
+        entry.setdefault("calls", 0)
+        d[day] = entry
+        write_json(self.ledger, d)
 
     # -- call
     def complete(self, system: str, user: str, max_tokens: int = 2048, *, json_mode: bool = False) -> str:
@@ -154,18 +289,22 @@ class ChatClient:
             headers = {"Authorization": "Bearer " + self.api_key, "Content-Type": "application/json",
                        "User-Agent": "bts-sbom-app/" + __version__}
         wait = 3.0
+        status, text, resp_headers = 0, "", {}
         for attempt in range(2):
             self._bump()                  # every network attempt counts against the provider's day limit, failures included
-            status, text = self._post(url, headers, body)
+            status, text, resp_headers = self._post(url, headers, body)
             if status == 429:
                 low = text.lower()
                 if any(w in low for w in ("day", "daily", "quota", "limit exceeded")) or attempt == 1:
                     self.errors.append("HTTP 429: " + text[:160])
                     raise LLMUnavailable("provider rate/day limit (HTTP 429): " + text[:200].replace(self.api_key, "***"))
-                time.sleep(wait)
+                # C15: honour the provider's own Retry-After when it sends one (net._retry_after_seconds caps it
+                # at 30s), falling back to the fixed wait only when the header is absent or unparseable.
+                retry_after = _retry_after_seconds(resp_headers)
+                SLEEP(retry_after if retry_after is not None else wait)
                 continue
             if status >= 500 and attempt == 0:
-                time.sleep(wait)
+                SLEEP(wait)
                 continue
             break
         if status >= 400:
@@ -173,31 +312,54 @@ class ChatClient:
             raise LLMError("HTTP %s: %s" % (status, text[:200].replace(self.api_key, "***")))
         try:
             data = json.loads(text)
-            content = str(((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+            choice0 = (data.get("choices") or [{}])[0]
+            content = str((choice0.get("message") or {}).get("content") or "")
+            finish_reason = choice0.get("finish_reason")
             u = data.get("usage") or {}
-            self.usage["prompt_tokens"] += int(u.get("prompt_tokens") or 0)
-            self.usage["completion_tokens"] += int(u.get("completion_tokens") or 0)
+            p_tok, c_tok = int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
         except (ValueError, AttributeError, TypeError) as exc:
             raise LLMError("unparseable provider response: %s" % type(exc).__name__)
+        self._record_usage(p_tok, c_tok)                      # C48: counted whether or not the completion below turns out usable
+        if finish_reason == "length":
+            # C41: cut short at the token budget - the existing LLMError path carries the honest explanation on
+            # to every caller (ai.propose/chat.ask/council/reimpl_c) without any of those files needing a change.
+            raise LLMTruncated("truncated by token budget (finish_reason=length, requested max_tokens=%d, "
+                                "prompt_tokens=%d, completion_tokens=%d) - raise max_tokens or shorten the prompt"
+                                % (max(max_tokens, floor), p_tok, c_tok))
         content = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
         if not content:
             raise LLMError("empty completion (reasoning consumed the token budget?)")
         return content
 
-    def _post(self, url: str, headers: Dict[str, str], body: Dict[str, Any]) -> Tuple[int, str]:
+    def _post(self, url: str, headers: Dict[str, str], body: Dict[str, Any]) -> Tuple[int, str, Dict[str, str]]:
         if TRANSPORT is not None:
-            return TRANSPORT(url, headers, body)
+            result = TRANSPORT(url, headers, body)              # 2-tuple (status, text) or 3-tuple (+ response headers, C15)
+            if len(result) == 3:
+                status, text, resp_headers = result
+                return status, text, dict(resp_headers or {})
+            status, text = result
+            return status, text, {}
         req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return resp.status, resp.read().decode("utf-8", errors="replace")
+                return resp.status, resp.read().decode("utf-8", errors="replace"), dict(resp.headers.items())
         except urllib.error.HTTPError as exc:
-            return exc.code, exc.read().decode("utf-8", errors="replace") if hasattr(exc, "read") else str(exc)
+            resp_headers = dict(exc.headers.items()) if exc.headers is not None else {}
+            text = exc.read().decode("utf-8", errors="replace") if hasattr(exc, "read") else str(exc)
+            return exc.code, text, resp_headers
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             self.errors.append(type(exc).__name__)
             raise LLMUnavailable("network error: %s" % type(exc).__name__)
 
     def describe(self) -> Dict[str, Any]:
+        tier = self.budget_tier()
+        ledger_today = self.ledger_today()
         return {"provider": self.provider, "model": self.model, "base_url": self.base_url, "key_configured": self.available,
                 "calls_this_run": self.calls, "calls_today": self.calls_today(), "daily_budget": self.daily_budget,
-                "tokens": dict(self.usage)}
+                "tokens": dict(self.usage),
+                "budget_tier": tier, "degraded": tier != "ok",                            # C33
+                "remaining_calls_today": max(0, self.daily_budget - self.calls_today()),
+                "ledger_today": {"calls": ledger_today.get("calls", 0),                    # C48
+                                 "prompt_tokens": ledger_today.get("prompt_tokens", 0),
+                                 "completion_tokens": ledger_today.get("completion_tokens", 0),
+                                 "cost_usd": ledger_today.get("cost_usd")}}

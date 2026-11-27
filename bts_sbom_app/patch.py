@@ -304,7 +304,10 @@ def approval_digest(plans: List[Dict[str, Any]]) -> str:
 
 
 def apply(root: str, plans: List[Dict[str, Any]], *, approved: bool, token: Optional[str] = None, dry_run: bool = False,
-          branch: str = "bts-sbom/auto-fix", only_verified: bool = False) -> Dict[str, Any]:
+          branch: str = "bts-sbom/auto-fix", only_verified: bool = False, hold: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """``hold`` maps ``compat.plan_key`` -> reason: those plans are skipped (status ``held``) while the rest still apply. The
+    approval digest is computed over ALL upgrade plans, so holding never invalidates what the reviewer approved - a held plan
+    only makes the applied change strictly smaller than the approved one."""
     ups = [p for p in plans if p.get("status") == "upgrade" and p.get("safe_version")]
     digest = approval_digest(ups)
     out: Dict[str, Any] = {"approved": bool(approved), "digest": digest, "results": [], "changed_files": [],
@@ -320,6 +323,11 @@ def apply(root: str, plans: List[Dict[str, Any]], *, approved: bool, token: Opti
     pending: Dict[str, str] = {}                 # rel -> current (possibly edited) text
     base_sha = workspace.head(root).get("commit", "") if os.path.isdir(os.path.join(root, ".git")) else ""
     for p in ups:
+        hk = "|".join((str(p.get("ecosystem") or "").lower(), engine._canon(str(p.get("ecosystem") or ""), p["component"]), str(p["current_version"])))
+        if hold and hk in hold:
+            out["results"].append({"component": p["component"], "ecosystem": p["ecosystem"], "from": p["current_version"], "to": p["safe_version"],
+                                   "status": "held", "file": "", "detail": "compat: " + hold[hk]})
+            continue
         if only_verified and p["verification"].get("clean") is not True:
             out["results"].append({"component": p["component"], "from": p["current_version"], "to": p["safe_version"],
                                    "status": "skipped", "detail": "only_verified: candidate not verified clean"})

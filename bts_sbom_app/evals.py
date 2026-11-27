@@ -1,10 +1,11 @@
 """Evaluation harness: retrieval quality (golden set) and chatbot grounding (synthetic project, no network)."""
 from __future__ import annotations
 
+import json
 import os
 from typing import Any, Dict, List, Optional
 
-from . import chat, rag
+from . import chat, evalguard, rag
 from .util import read_json
 
 
@@ -30,16 +31,34 @@ def rag_eval(root: Optional[str] = None, golden_path: Optional[str] = None, k: i
 RAG_SETS = ("rag_golden", "rag_dev", "rag_test")
 
 
+def rag_set_items(root: Optional[str] = None) -> Dict[str, List[Dict[str, Any]]]:
+    """The retrieval eval sets as written on disk ({} for a set that does not exist)."""
+    root = root or repo_root()
+    out: Dict[str, List[Dict[str, Any]]] = {}
+    for name in RAG_SETS:
+        g = read_json(os.path.join(root, "evals", name + ".json"), None)
+        if isinstance(g, list):
+            out[name] = g
+    return out
+
+
 def rag_sets_eval(root: Optional[str] = None, k: int = 5) -> Dict[str, Dict[str, Any]]:
-    """Golden (regression), dev (tuned on) and test (written BEFORE tuning, never tuned on) retrieval sets."""
+    """Golden (regression), dev (tuned on) and test (written BEFORE tuning, never tuned on) retrieval sets.
+    Each result carries ``fingerprint``: the content hash of the set it was measured on (the pin a loop comparison needs)."""
     root = root or repo_root()
     idx = build_index(root)
     out: Dict[str, Dict[str, Any]] = {}
-    for name in RAG_SETS:
-        g = read_json(os.path.join(root, "evals", name + ".json"), None)
-        if g is not None:
-            out[name] = rag.evaluate(idx, g, k=k)
+    for name, g in rag_set_items(root).items():
+        out[name] = dict(rag.evaluate(idx, g, k=k), fingerprint=evalguard.fingerprint(g))
     return out
+
+
+def eval_integrity(root: Optional[str] = None) -> Dict[str, Any]:
+    """Composition table, fingerprints and leak findings of the retrieval eval sets (offline, deterministic)."""
+    root = root or repo_root()
+    sets = rag_set_items(root)
+    leak = evalguard.leak_check(sets, build_index(root).chunks if sets else None)
+    return {"sets": evalguard.composition(sets), "leak": leak, "pins": {n: evalguard.fingerprint(g) for n, g in sets.items()}}
 
 
 def synthetic_project() -> Dict[str, Any]:
@@ -127,6 +146,52 @@ def chat_eval(root: Optional[str] = None) -> Dict[str, Any]:
             "tool_routing_rate": round(ok_tool / n_tool, 3) if n_tool else None,
             "citation_accuracy": round(sum(acc) / len(acc), 3) if acc else None, "misses": bad,
             "paraphrase_routing_rate_regex": chat_paraphrase_eval(root)["tool_routing_rate"]}
+
+
+def injection_samples(root: Optional[str] = None) -> List[Dict[str, Any]]:
+    """evals/injection_samples.jsonl as parsed records (a damaged line is skipped, never fatal - same convention
+    as escalation.py's event log)."""
+    root = root or repo_root()
+    out: List[Dict[str, Any]] = []
+    try:
+        with open(os.path.join(root, "evals", "injection_samples.jsonl"), "r", encoding="utf-8",
+                  errors="replace") as fh:  # a single corrupted byte must not abort the whole parse (C: evals-injection-decode)
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(rec, dict):
+                    out.append(rec)
+    except OSError:
+        pass
+    return out
+
+
+def injection_guard_eval(root: Optional[str] = None) -> Dict[str, Any]:
+    """Measured attack recall / benign precision of the product's injection guard (conversation.scan_injection)
+    over evals/injection_samples.jsonl (offline, deterministic, no network)."""
+    return evalguard.injection_eval(injection_samples(root))
+
+
+RAG_EN_SET = "rag_en"  # deliberately NOT in RAG_SETS: a measurement probe, not a loop-gated regression set
+
+
+def rag_en_eval(root: Optional[str] = None, k: int = 5) -> Dict[str, Any]:
+    """English-language retrieval measurement (evals/rag_en.json: >=12 English in-domain queries + >=3 English
+    OOD queries), reporting recall@k, MRR and OOD rejection SEPARATELY so one does not hide another. Kept out of
+    RAG_SETS / rag_sets_eval on purpose - this is a probe for a known gap (zero English coverage in the pinned
+    sets), not a fourth gated regression set; the loop pins and gates over golden/dev/test stay untouched."""
+    root = root or repo_root()
+    data = read_json(os.path.join(root, "evals", RAG_EN_SET + ".json"), [])
+    idx = build_index(root)
+    out = rag.evaluate(idx, data, k=k)
+    return {"recall_at_k": out["recall_at_k"], "mrr": out["mrr"], "ood_rate": out["ood_rate"],
+            "found_rate": out["found_rate"], "queries": out["queries"], "ood_queries": out["ood_queries"],
+            "k": out["k"], "segments": out["segments"], "misses": out["misses"]}
 
 
 def license_gold(root: Optional[str] = None) -> List[Dict[str, Any]]:

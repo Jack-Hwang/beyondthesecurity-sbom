@@ -1,6 +1,8 @@
 # MS Azure 배포 검토 (Azure Deployment Review) — bts-sbom-app
 
-상태: **철수 완료 (2026-11-24)** — 데모 창(약 2주 계획) 종료에 따라 az group delete로
+상태: **재배포 완료 (2026-11-27)** — https://bts-sbom.wittyforest-2c8fae00.koreacentral.azurecontainerapps.io , 액세스 토큰 게이트 ON, 스케일 0->1,
+실측은 deploy/azure/README.md §12. (아래 철수 기록은 첫 배포(2026-11-23)의 것이다.)
+이전 상태: **철수 완료 (2026-11-24)** — 데모 창(약 2주 계획) 종료에 따라 az group delete로
 bts-sbom-rg·ACA 환경·앱·ACR(btsbomacr1123)·Azure Files·Log Analytics 전부 제거,
 ResourceGroupNotFound 확인. 실측 전문은 docs/RUNBOOK.md Delivery State
 "2026-11-23: FIRST AZURE DEPLOYMENT" 항목과 deploy/azure/README.md의 첫 배포 실측에 보존.

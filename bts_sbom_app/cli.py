@@ -35,7 +35,8 @@ def _settings(a: argparse.Namespace) -> Dict[str, Any]:
         s["policy"] = read_json(a.policy, {})
     if getattr(a, "patch", False) or a.cmd == "patch":
         s.update(patch=True, approved=bool(getattr(a, "approve", False)), approval_token=getattr(a, "token", None), rounds=a.rounds,
-                 deliver_target=getattr(a, "deliver", "branch"))
+                 deliver_target=getattr(a, "deliver", "branch"), compat_mode=getattr(a, "compat", "block"),
+                 compat_runtime=bool(getattr(a, "compat_runtime", False)))
         kw = {k: v for k, v in (("dest", getattr(a, "dest", None)), ("remote_url", getattr(a, "remote", None)),
                                 ("allow_origin_write", getattr(a, "allow_origin_write", False)), ("allow_push", getattr(a, "allow_push", False)),
                                 ("open_pr", getattr(a, "open_pr", False))) if v}
@@ -65,6 +66,10 @@ def _patch_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--approve", action="store_true", help="apply the patch (without it only the plan is shown)")
     p.add_argument("--token", default=None, help="approval digest of the reviewed plan")
     p.add_argument("--rounds", type=int, default=2)
+    p.add_argument("--compat", default="block", choices=("off", "warn", "block"),
+                   help="compatibility gate: measure the project's used API against each target release; block holds only BREAKING upgrades (default), warn reports, off skips")
+    p.add_argument("--compat-runtime", action="store_true",
+                   help="ALSO run the project's own test suite before/after in throw-away copies (executes project code; opt-in; reverts the patch on a regression)")
     p.add_argument("--deliver", default="branch", choices=("branch", "folder", "inplace", "github"))
     p.add_argument("--dest", default=None)
     p.add_argument("--allow-origin-write", action="store_true")
@@ -94,6 +99,7 @@ def build_parser() -> argparse.ArgumentParser:
     _common(a)
     b = sub.add_parser("batch", help="analyse many sources")
     b.add_argument("sources_json"); b.add_argument("--tag", default="batch"); b.add_argument("--jobs", type=int, default=1)
+    b.add_argument("--retry-failed", default=None, metavar="RUN_DIR", help="re-analyse ONLY the sources that failed in a prior run directory and merge them into its set by source id")
     b.add_argument("--patch", action="store_true"); _common(b); _patch_args(b)
     l = sub.add_parser("loop", help="run one loop-engineering pass (golden batch + RAG eval + gate)")
     l.add_argument("sources_json"); l.add_argument("--variable", required=True); l.add_argument("--hypothesis", default="")
@@ -101,6 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
     _common(l); _patch_args(l)
     e = sub.add_parser("evalrag", help="retrieval + chatbot grounding evaluation")
     e.add_argument("--golden", default=None); e.add_argument("--json", action="store_true")
+    e.add_argument("--calibrate", action="store_true", help="reliability table of the RAG confidence gate (top-hit BM25 score buckets vs accuracy / out-of-domain false accepts); exit 1 when the committed min_bm25 is not safe at the exact per-item check")
     ec = sub.add_parser("evalchat", help="tool-routing evaluation of the governance and action tools (BSA-AC-209): regex baseline, LLM planner with --llm-config")
     ec.add_argument("--llm-config", default=None); ec.add_argument("--json", action="store_true")
     cp = sub.add_parser("contextpack", help="bounded read-only view of a LOCAL source folder: license files + import sites of one package")
@@ -115,6 +122,8 @@ def build_parser() -> argparse.ArgumentParser:
     lg.add_argument("--out", default=None)
     rl = sub.add_parser("ragloop", help="retrieval-only loop pass over the golden/dev/test sets")
     rl.add_argument("--variable", required=True); rl.add_argument("--hypothesis", default=""); rl.add_argument("--tag", default="rag")
+    rl.add_argument("--rebaseline", default=None, metavar="REASON",
+                    help="start a new baseline after a deliberate eval-set change (refused when no eval set changed: a regression is never a reason)")
     rl.add_argument("--json", action="store_true")
     bk = sub.add_parser("books", help="build the book knowledge base from a local folder of PDF/EPUB books")
     bk.add_argument("src"); bk.add_argument("--out", default=None, help="output folder (default: <root>/evidence/books)")
@@ -208,7 +217,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             md = report.project_md(rec)
         _print({k: v for k, v in rec.items() if k not in ("components", "vulns", "_docs")}, a.json, md + "\n\nwork copy: %s\nevidence: %s" % (rec.get("path"), (rec.get("artifacts") or {}).get("record")))
-        if pa.get("status") in ("digest_mismatch", "regression_reverted", "blocked", "error"):
+        if pa.get("status") in ("digest_mismatch", "regression_reverted", "blocked", "error", "compat_held", "compat_runtime_reverted"):
             return 1                           # a rejected / reverted patch must be visible to automation
         return 0
     if a.cmd == "arch":
@@ -271,7 +280,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         st = _settings(a)
         st["cache_dir"] = os.path.join(a.root, "evidence", "cache")
         if a.cmd == "batch":
-            res = batch.run_batch(srcs, out, tag=a.tag, jobs=a.jobs, client=client, settings=st, work_root=a.work)
+            if getattr(a, "retry_failed", None):
+                res = batch.retry_failed(srcs, a.retry_failed, out, tag=a.tag, jobs=a.jobs, client=client, settings=st, work_root=a.work)
+            else:
+                res = batch.run_batch(srcs, out, tag=a.tag, jobs=a.jobs, client=client, settings=st, work_root=a.work)
             _print(res["summary"], a.json, report.batch_md(res["summary"], res["records"]))
             return 0
         rag_e = evals.rag_eval(a.root)
@@ -318,6 +330,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                                 progress=on_progress)
         _print(res, a.json, "reimpl %s: %s (%s)" % (a.component, res["verdict"], res.get("reason", "all stages passed")))
         return 0 if res["verdict"] == "ok" else 1
+    if a.cmd == "evalrag" and a.calibrate:
+        from . import calibrate
+        results = calibrate.probe_corpus(a.root)
+        table = calibrate.reliability_table(results)
+        chk = calibrate.check_threshold(results=results, table=table)
+        write_json(os.path.join(a.root, "evidence", "calibration", "rag_gate.json"), {"table": table, "check": chk})
+        _print({"table": table, "check": chk}, a.json,
+               "RAG gate calibration: %d probe question(s), %d bucket(s); committed min_bm25=%s\nbucket check: %s (enclosing bucket OOD false-accept %s) | exact per-item check: %s (OOD false-accept %s) | safe score range %s\n%s" % (
+                   len(results), len(table), chk["min_bm25"], "safe" if chk["bucket_safe"] else "NOT safe", chk["bucket_false_accept_rate"],
+                   "safe" if chk["exact_safe"] else "NOT safe", chk["exact_ood_false_accept_rate"], chk["safe_range"], chk["note"]))
+        return 0 if chk["exact_safe"] else 1
     if a.cmd == "evalrag":
         r = evals.rag_eval(a.root, a.golden)
         c = evals.chat_eval(a.root)
@@ -376,7 +399,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         _print({}, False, md)
         return 0
     if a.cmd == "ragloop":
-        e = loop.run_rag_pass(a.tag, os.path.join(a.root, "evidence", "loop"), a.root, variable=a.variable, hypothesis=a.hypothesis)
+        try:
+            e = loop.run_rag_pass(a.tag, os.path.join(a.root, "evidence", "loop"), a.root, variable=a.variable, hypothesis=a.hypothesis, rebaseline=a.rebaseline)
+        except ValueError as exc:
+            _print({"error": str(exc)}, a.json, "ERROR: %s" % exc)
+            return 2
         _print(e, a.json, "rag pass %s [%s] decision=%s failed=%s undecidable=%s\n%s" % (e["pass"], a.variable, e["decision"], e["gate"]["failed"], e["gate"].get("undecidable", []), json.dumps(e["metrics"], sort_keys=True)))
         return 0 if e["decision"] != "rollback" else 1
     if a.cmd == "chat":

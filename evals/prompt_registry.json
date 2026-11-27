@@ -1,0 +1,124 @@
+{
+ "schema": 1,
+ "prompts": {
+  "ai.SYSTEM": {
+   "kind": "constant",
+   "module": "ai",
+   "fingerprint": "d83912d654c0",
+   "version": "ai-v2"
+  },
+  "ai.propose#1": {
+   "kind": "inline",
+   "module": "ai",
+   "fingerprint": "93d4f0c3410d",
+   "version": "ai-v2"
+  },
+  "arch_intel.SYSTEM": {
+   "kind": "constant",
+   "module": "arch_intel",
+   "fingerprint": "c08cbbf949f5",
+   "version": "arch-intel-v1"
+  },
+  "arch_intel.propose_arch#1": {
+   "kind": "inline",
+   "module": "arch_intel",
+   "fingerprint": "f55183629d7d",
+   "version": "arch-intel-v1"
+  },
+  "changes.brief#1": {
+   "kind": "inline",
+   "module": "changes",
+   "fingerprint": "33659e2bafc2",
+   "version": null
+  },
+  "chat.PLAN_SYSTEM": {
+   "kind": "constant",
+   "module": "chat",
+   "fingerprint": "c109b3be4a70",
+   "version": null
+  },
+  "chat._llm_answer#1": {
+   "kind": "inline",
+   "module": "chat",
+   "fingerprint": "3f76502dc0c8",
+   "version": null
+  },
+  "council.CHAIR_SYSTEM": {
+   "kind": "constant",
+   "module": "council",
+   "fingerprint": "9fcb2832fdfe",
+   "version": "council-v1"
+  },
+  "council.MEMBER_SYSTEM": {
+   "kind": "constant",
+   "module": "council",
+   "fingerprint": "5832201d7e2b",
+   "version": "council-v1"
+  },
+  "council.REVIEW_SYSTEM": {
+   "kind": "constant",
+   "module": "council",
+   "fingerprint": "31b23183b523",
+   "version": "council-v1"
+  },
+  "loop.HYP_SYSTEM": {
+   "kind": "constant",
+   "module": "loop",
+   "fingerprint": "59ef49c009b8",
+   "version": null
+  },
+  "nl2sql.GEN_SYSTEM": {
+   "kind": "constant",
+   "module": "nl2sql",
+   "fingerprint": "41e0727c2bc3",
+   "version": null
+  },
+  "reimpl.infer_patterns#1": {
+   "kind": "inline",
+   "module": "reimpl",
+   "fingerprint": "8d896d146475",
+   "version": null
+  },
+  "reimpl.llm_generate#1": {
+   "kind": "inline",
+   "module": "reimpl",
+   "fingerprint": "89b8bf08344b",
+   "version": null
+  },
+  "reimpl_c.llm_generate_c#1": {
+   "kind": "inline",
+   "module": "reimpl_c",
+   "fingerprint": "037f44baa6b3",
+   "version": null
+  }
+ },
+ "history": [
+  {
+   "at": "2026-11-26T12:34:15+00:00",
+   "reason": "initial pin of the 15 prompts found in the code",
+   "changed": [
+    "ai.SYSTEM",
+    "ai.propose#1",
+    "arch_intel.SYSTEM",
+    "arch_intel.propose_arch#1",
+    "changes.brief#1",
+    "chat.PLAN_SYSTEM",
+    "chat._llm_answer#1",
+    "council.CHAIR_SYSTEM",
+    "council.MEMBER_SYSTEM",
+    "council.REVIEW_SYSTEM",
+    "loop.HYP_SYSTEM",
+    "nl2sql.GEN_SYSTEM",
+    "reimpl.infer_patterns#1",
+    "reimpl.llm_generate#1",
+    "reimpl_c.llm_generate_c#1"
+   ],
+   "eval_sets": {
+    "rag_golden": "d60c939bb542",
+    "rag_dev": "4b7823e570fc",
+    "rag_test": "bcfd2d9f65f2"
+   },
+   "digest": "d4b64f1a53b9"
+  }
+ ]
+}

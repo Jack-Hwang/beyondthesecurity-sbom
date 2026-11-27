@@ -14,7 +14,7 @@ import os
 from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional
 
-from . import ai, batch, evals
+from . import ai, batch, evalguard, evals, promptreg
 from .llm import ChatClient, LLMError, LLMUnavailable
 from .util import code_fingerprint, now_iso, read_json, write_json
 
@@ -184,7 +184,9 @@ def run_pass(tag: str, sources: List[Dict[str, Any]], out_root: str, loop_root: 
              chat_eval: Optional[Dict[str, Any]] = None, delta: float = 0.02, jobs: int = 1, hyp_client: Optional[ChatClient] = None,
              work_root: Optional[str] = None) -> Dict[str, Any]:
     """Run the golden batch, evaluate, gate against the accepted baseline, persist the pass record."""
-    code = code_fingerprint(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))     # fixed BEFORE the run starts
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    code = code_fingerprint(repo)                                                           # fixed BEFORE the run starts
+    prompts = promptreg.digest(repo)                                                        # which prompts produced this measurement
     res = batch.run_batch(sources, out_root, tag=tag, jobs=jobs, client=client, settings=settings, work_root=work_root)
     metrics = flatten(res["summary"], rag_eval, chat_eval)
     hist = read_json(history_path(loop_root), []) or []
@@ -198,12 +200,15 @@ def run_pass(tag: str, sources: List[Dict[str, Any]], out_root: str, loop_root: 
     entry = {"pass": len(hist) + 1, "tag": tag, "at": now_iso(), "variable": variable, "hypothesis": hypothesis, "decision": decision,
              "gate": g, "metrics": metrics, "failure_clusters": clusters[:25], "run_dir": res["summary"].get("run_dir"),
              "baseline_pass": base_rec["pass"] if base_rec else None, "core": res["summary"].get("core"),
-             "code": code}
+             "code": code, "prompts": prompts}
     def _cv(c: Any) -> str:
         return str(c.get("version")) if isinstance(c, dict) else str(c)
 
     if base_rec and base_rec.get("core") and _cv(base_rec["core"]) != _cv(entry["core"]):
         entry["warning"] = "core changed between baseline and this pass (%s -> %s): the delta is confounded" % (_cv(base_rec["core"]), _cv(entry["core"]))
+    if base_rec and base_rec.get("prompts") and base_rec["prompts"] != prompts:
+        entry["warning"] = (entry.get("warning", "") + "; " if entry.get("warning") else "") + (
+            "prompts changed between baseline and this pass (%s -> %s): the delta is confounded unless the prompt is the declared variable" % (base_rec["prompts"], prompts))
     entry["next"] = propose_variables(clusters, client=hyp_client)
     hist.append(entry)
     entry["plateau"] = plateau([h for h in hist if h["decision"] in ("baseline", "accept")], 3)
@@ -233,9 +238,15 @@ def rag_history_path(loop_root: str) -> str:
     return os.path.join(loop_root, "rag_history.json")
 
 
-def run_rag_pass(tag: str, loop_root: str, root: str, *, variable: str, hypothesis: str = "", delta: float = 0.02) -> Dict[str, Any]:
+def run_rag_pass(tag: str, loop_root: str, root: str, *, variable: str, hypothesis: str = "", delta: float = 0.02,
+                 rebaseline: Optional[str] = None) -> Dict[str, Any]:
     """Retrieval-only loop pass: evaluate the golden/dev/test sets, gate every metric against the accepted baseline,
-    and block on case-level regressions (a query that passed at baseline and fails now, even when the aggregates hold)."""
+    and block on case-level regressions (a query that passed at baseline and fails now, even when the aggregates hold).
+
+    Three integrity guards sit on top (``evalguard``): a SEGMENT drop blocks even when the totals are flat; a baseline
+    measured on another version of an eval set is undecidable (the pin); a holdout that repeats a tuned-on query or is
+    copied into the corpus blocks. ``rebaseline`` (a reason) starts a new baseline after a deliberate eval-set change -
+    and is refused when no eval set changed, so it can never launder a regression."""
     res = evals.rag_sets_eval(root)
     metrics: Dict[str, Any] = {}
     for name, r in res.items():
@@ -246,9 +257,23 @@ def run_rag_pass(tag: str, loop_root: str, root: str, *, variable: str, hypothes
     base = next((h for h in reversed(hist) if h.get("decision") in ("baseline", "accept")), None)
     failed: List[str] = []
     undecidable: List[str] = []
+    warnings: List[str] = []
     deltas: Dict[str, float] = {}
     regressions: List[Dict[str, str]] = []
-    if base:
+    pins = {n: r["fingerprint"] for n, r in res.items() if r.get("fingerprint")}
+    segments = {n: r["segments"] for n, r in res.items() if r.get("segments")}
+    pin_bad, pin_warn, changed = evalguard.pin_check(base.get("eval_sets") if base else None, pins) if base else ([], [], [])
+    if rebaseline is not None:
+        why = str(rebaseline).strip()
+        if len(why) < 8:
+            raise ValueError("a re-baseline needs a reason of at least 8 characters (what changed in the eval set and why)")
+        if not base:
+            raise ValueError("nothing to re-baseline: there is no accepted baseline yet (a plain pass records one)")
+        if not changed and (base.get("eval_sets") or {}):
+            raise ValueError("nothing to re-baseline: no eval set changed since pass %s; a regression is a reason to roll back, not to re-baseline" % base["pass"])
+    integrity = evalguard.leak_check(evals.rag_set_items(root), evals.build_index(root).chunks) if os.path.isdir(os.path.join(root, "evals")) else \
+        {"findings": [], "blocking": 0, "warnings": 0, "clean": True}
+    if base and rebaseline is None:
         for k, b in base["metrics"].items():
             if b is None:
                 continue
@@ -263,15 +288,36 @@ def run_rag_pass(tag: str, loop_root: str, root: str, *, variable: str, hypothes
         if regressions:
             failed.append("case regression: %d query(ies) passed at baseline but fail now: %s" % (
                 len(regressions), "; ".join("[%s] %s" % (r["set"], r["q"]) for r in regressions[:3])))
-    if base and not deltas and not undecidable and not regressions:   # nothing was compared (empty/all-None baseline, or no eval set at all): not a pass
+        undecidable += pin_bad
+        warnings += pin_warn
+        seg_failed, seg_undecidable, thin = evalguard.segment_gate(base.get("segments"), segments)
+        failed += seg_failed
+        undecidable += seg_undecidable
+        if thin:
+            warnings.append("%d segment(s) too thin to gate (n < %d): %s" % (len(thin), evalguard.MIN_SEGMENT_N, ", ".join(thin[:4]) + (" ..." if len(thin) > 4 else "")))
+        if not base.get("segments") and segments:
+            warnings.append("baseline predates segment metrics: segments are gated from the next accepted pass on")
+        if integrity["blocking"]:
+            undecidable.append("eval set integrity: %d blocking finding(s) - %s" % (
+                integrity["blocking"], "; ".join(evalguard.describe(f) for f in integrity["findings"] if f["severity"] == "blocking")[:300]))
+    if base and rebaseline is None and not deltas and not undecidable and not regressions:   # nothing was compared (empty/all-None baseline, or no eval set at all): not a pass
         undecidable.append("no metric is comparable between baseline and candidate")
     ok = not failed and not undecidable
-    decision = "baseline" if base is None else ("accept" if ok else "rollback")
+    decision = "baseline" if (base is None or rebaseline is not None) else ("accept" if ok else "rollback")
+    if rebaseline is not None:
+        ok, failed, undecidable = True, [], []
+    seg_only = bool(base) and rebaseline is None and bool(failed) and all(f.startswith("segment ") for f in failed)
     entry = {"pass": len(hist) + 1, "tag": tag, "at": now_iso(), "variable": variable, "hypothesis": hypothesis, "decision": decision,
-             "gate": {"pass": ok, "failed": failed, "undecidable": undecidable, "deltas": deltas, "delta_limit": delta}, "metrics": metrics,
-             "case_regressions": regressions,
+             "gate": {"pass": ok, "failed": failed, "undecidable": undecidable, "warnings": warnings, "deltas": deltas, "delta_limit": delta,
+                      "segment_only": seg_only},       # True: every failure is a segment drop the totals hid
+             "metrics": metrics, "case_regressions": regressions,
              "misses": {n: r["misses"] for n, r in res.items()},
+             "eval_sets": pins, "segments": segments,
+             "eval_integrity": {"blocking": integrity["blocking"], "warnings": integrity["warnings"],
+                                "findings": [evalguard.describe(f) for f in integrity["findings"]][:10]},
              "code": code_fingerprint(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))}
+    if rebaseline is not None:
+        entry["rebaseline"] = {"reason": str(rebaseline).strip(), "replaces_pass": base["pass"], "eval_sets_changed": changed}
     hist.append(entry)
     write_json(rag_history_path(loop_root), hist)
     return entry

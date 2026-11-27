@@ -2,6 +2,67 @@
 
 All notable changes to bts-sbom are documented here.
 
+## Unreleased - 2026-11-27: Full course re-analysis, 40 follow-up upgrades, access-token gate, Azure redeploy (AC-1100..1225)
+
+- Analysis: every document of the course folder (23 PDF, 7 pptx, 1 xlsx, 6 zip) re-read in 27 groups and verified against the code; 116 remaining gaps merged
+  into 87 candidates and scored by 3 independent lenses; the top ones built in 10 file-disjoint bundles, each reviewed by 2 adversarial reviewers and a refuting
+  verifier (24 confirmed defects fixed). Full mapping, measured findings and the not-built list: `docs/METANET_FULL_REANALYSIS.md`.
+- Security / deployment: `access.py` shared-secret gate (`BTS_SBOM_ACCESS_TOKEN`: Basic password / Bearer / `X-BTS-Token`, probes open, constant-time compare);
+  `BTS_SBOM_ALLOWED_ROOTS` source boundary + non-public git host refusal (`workspace.py`); egress SSRF guard in `net.py`; `secretscan.py` (file+line+rule, never the value,
+  skipped files make the scan partial); allowlist `.dockerignore` (the cloud build no longer uploads `evidence/` with the saved LLM key); `scripts/azure_render_app.py`.
+- Chat: per-call tool isolation (`status: partial`), numeric-citation completeness, CaseFacts memory, escalation root cause, PII/secret redaction (`pii_guard.py`),
+  contradiction gate, version stamp, nl2sql snapshot freshness; console shows handoff / which-project / partial-coverage / partial-turn / reviewer-note / version stamp.
+- Measured upgrades: injection guard dev recall 0.48 -> 1.0 and holdout 0.182 -> 1.0 (false positives 0.0); English retrieval found 0.50 -> 0.812 with every Korean metric
+  unchanged; NL2SQL per-package template fixed (EX no longer counts both-sides-failed as a match); RAG gate calibration (`evalrag --calibrate`).
+- Red team (local instance, 3 agents, 48 attacks, 11 reproduced + verified, all fixed, AC-1230..1240): slowloris below the gate (read timeout + connection cap), uncached prompt digest per chat turn, legacy IPv4
+  spellings through both SSRF guards (shared `netaddr.py`), file:// authority, DNS rebinding pin, failed-credential throttle, forwarded-for trust switch, deep-JSON RecursionError, Server header; live-only: the
+  Container Apps ingress peer (100.100.0.x) was not treated as a proxy so per-caller limits never fired - fixed and re-measured live.
+- Ops: LLM budget tiers, token/cost ledger, Retry-After, per-caller chat rate + concurrency caps, 4000-char question cap; MCP: operator-gated LLM, nl2sql tool/resource,
+  prompts primitive, scan tool with progress; batch `--retry-failed`; `audit` sampling, `govgate` 6 gates, `prompts --update --require-loop-evidence`.
+
+## Unreleased - 2026-11-26: Week 5-6 course analysis - coverage gaps, escalation, eval-set integrity, prompt registry (AC-1000..1088)
+
+- Coverage gaps (`gaps.py`): a partial scan (offline, unqueried components, unsupported manifests, core data status, stage errors) is named in every chat
+  answer, fleet query and analysis report; "not found in a partial scan" is "not verified", never "clean". Records without engine facts show no gap.
+- Escalation (`escalation.py`): three triggers decided by code (human request, policy gap: legal judgment / certification, no progress: 3rd consecutive
+  unanswered question), a structured handoff payload (question verbatim as an untrusted quote, attempted actions, evidence refs; no sentiment or confidence
+  field), an append-only `escalations.jsonl`, resolution notes fed back as data, `GET /api/escalations` + resolve, CLI `escalations`. Ambiguous projects get
+  a clarifying question instead of a guess; patch plans and VEX previews state decision / if approved / if not / deadline.
+- Eval integrity (`evalguard.py`): per-segment retrieval metrics and a segment gate (a segment drop blocks even when the total is flat), eval-set fingerprint
+  pin (another version = comparison undecidable; `ragloop --rebaseline REASON`, refused when no set changed), leak / duplicate / dangling-expectation check
+  and composition table (`evalsets`). Measured: the holdout is clean; one dev query is copied into the corpus (warning); no English in-domain query exists.
+- Prompt registry (`promptreg.py`, `evals/prompt_registry.json`, CLI `prompts`): 15 prompts fingerprinted from source (AST); drift, unpinned, missing and
+  changed-without-PROMPT_VERSION-bump fail the check; loop passes record the prompt digest. RAG metrics unchanged (golden 1.0/0.95, dev 1.0/0.836, test 0.917/0.75).
+- Docs: `docs/METANET_WEEK56_MAPPING.md` (what was inferred, what already existed, what was built, what was deliberately not built).
+
+## Unreleased - 2026-11-24c: C/C++ support - clean-room reimplementation + compatibility gate (AC-637..644)
+
+- `cparse.py`: stdlib C/C++ declaration reader + usage scanner (functions, types, enums with values, macros, variables, doc comments;
+  bodies never stored). Vs Universal Ctags on u-boot: 625 headers recall 0.997 / precision 0.998, 0 crashes.
+- `reimpl_c.py`: the clean-room lane for .c/.cc/.cpp (dispatched by `reimpl.reimpl`): interface-only reader, deterministic self-contained header,
+  identifier-normalised token copy gate (numeric tables and forced prototypes are facts), real gcc compile + nm export proof, upstream test mains and a
+  generated DIFFERENTIAL driver against the original built on this host (return values, output buffers, published tables), one regeneration from the
+  observed mismatches. `contract_only` (never `ok`) when no oracle exists; `toolchain_missing` without a compiler.
+- Original-build repairs for kernel-style code (include order, conflicting header stubs, typedef/marker/feature-macro repairs, header shadowing).
+  Real GPL u-boot: lib/crc8.c (132 cases, 0 mismatches) and lib/crc16.c (function + 256-entry table) verified; 13 of 77 lib files build standalone.
+- `compat_c.py`: C/C++ upgrade gate - header diff on the symbols the project uses (removed function/macro/enumerator/variable, call-argument count,
+  removed struct field = breaking; value/type/layout = review) + compiler differential (`-fsyntax-only` old vs new headers) via dir/git-tag providers.
+- Console: clean-room verdict card shows language/compile and the differential oracle. Docs: docs/CLEANROOM_C_CPP.md.
+
+## Unreleased - 2026-11-24: Patch compatibility gate (AC-630..636)
+
+- New `compat.py`: before a manifest is edited, every PyPI upgrade is measured against what the project actually uses
+  (ast: imports, attribute chains, call-site shape, base classes) vs the public API of the current and target release
+  (wheel/sdist parsed in memory, never executed), plus Requires-Dist pin conflicts in both directions. Verdicts:
+  compatible / partial / review / breaking / unverified / not_direct - thin evidence is never "compatible".
+- `block` (default) holds ONLY breaking plans (`patch.apply(hold=)`), applies the rest under the unchanged approval
+  digest; all-held finishes as `compat_held` with 0 files written. `--compat off|warn|block`.
+- Opt-in `--compat-runtime` (`compat_runtime.py`): the project's own tests before/after in throw-away venv copies
+  (binary-only installs, minimal env); a passing-then-failing test reverts the patch (`compat_runtime_reverted`).
+- Review gains RV-COMPAT-* / RV-RUNTIME-* rules; the patch pane shows the measured compatibility, held count and findings.
+- `net.fetch_bytes` for bounded archive downloads. Limits (PyPI only, no type inference, C extensions unresolved):
+  docs/COMPAT_GATE.md.
+
 ## Unreleased - 2026-11-23b: u-boot real-world E2E + Clean-Room workbench UI + honest scanning surfaces
 
 - u-boot v2026.10 E2E measured end to end (evidence/uboot_e2e/E2E.md): scan 68 components / 43 advisories,

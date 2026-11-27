@@ -1,0 +1,14 @@
+# Allowlist build context. Dockerfile.bts-sbom-app COPYs only the paths re-included below; everything else
+# (evidence/ with run records and a saved LLM key, _attic/, downloads/, .claude/, .git, tests, docs) must never be
+# uploaded to a builder - `az acr build .` ships the whole context to the cloud.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!Dockerfile.bts-sbom-app
+!bts_sbom
+!bts_sbom_app
+!knowledge
+!evals
+**/__pycache__
+**/*.pyc

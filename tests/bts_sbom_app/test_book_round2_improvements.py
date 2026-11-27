@@ -90,7 +90,8 @@ def test_mcp_resources_list_and_read(tmp_path, make_repo):
         return mcp_server.handle(s, {"jsonrpc": "2.0", "id": 1, **kw})
 
     lst = rpc(method="resources/list")["result"]["resources"]
-    assert [r["uri"] for r in lst] == ["bts://tools/catalog", "bts://agent/card", "bts://books/notes-index"]
+    assert [r["uri"] for r in lst] == ["bts://tools/catalog", "bts://agent/card", "bts://books/notes-index",
+                                       "bts://nl2sql/catalog"]
     catalog = rpc(method="resources/read", params={"uri": "bts://tools/catalog"})["result"]["contents"][0]
     assert catalog["uri"] == "bts://tools/catalog" and "vuln_lookup" in catalog["text"]
     card = json.loads(rpc(method="resources/read", params={"uri": "bts://agent/card"})["result"]["contents"][0]["text"])

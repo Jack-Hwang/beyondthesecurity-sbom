@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from . import engine, licenses, versions
+from . import engine, gaps, licenses, versions
 
 _OPS = ("==", "!=", "<=", ">=", "<", ">")
 _RANK = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
@@ -92,6 +92,7 @@ def affected(projects: Dict[str, Dict[str, Any]], *, vuln_id: Optional[str] = No
             clean.append(name)
     return {"query": {"id": want_id, "component": component or "", "version": version or ""}, "analysed_projects": len(projects), "project_count": len(rows),
             "match_count": sum(len(r["matches"]) for r in rows), "projects": rows, "not_found_in": clean,
+            "not_verified": [{"project": n, "gaps": [g["code"] for g in gaps.of(projects[n])]} for n in clean if gaps.of(projects[n])],
             "note": "answers come from the findings and components of each project's last analysis; a project analysed offline may be missing findings"}
 
 

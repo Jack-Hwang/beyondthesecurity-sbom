@@ -243,7 +243,7 @@
   }
   function answerHtml(fin) {
     // the final event carries the whole answer contract - render it like U.renderChatAnswer does for /api/chat
-    var h = '<div class="bts-chat-out">' + esc((fin.found ? '' : '[not found] ') + (fin.answer || '')) + '</div>';
+    var h = '<div class="bts-chat-out" aria-live="polite">' + esc((fin.found ? '' : '[not found] ') + (fin.answer || '')) + '</div>';
     h += '<div class="bts-chat-src">source: ' + esc(fin.answer_source) + ' · citation accuracy: ' + esc(fin.citation_accuracy) +
       ' · routing: ' + esc(fin.routing || 'n/a') + (fin.routing_note ? ' · ' + esc(fin.routing_note) : '') + '</div>';
     var tops = fin.retrieval_top || [];
@@ -259,6 +259,50 @@
     (fin.conflicts || []).forEach(function (c) {
       h += note('<b>[conflict]</b> ' + esc(c.label) + ': ' + esc(c.a.value) + ' (' + esc(c.a.source) + ') vs ' +
         esc(c.b.value) + ' (' + esc(c.b.source) + ') - the sources disagree; the judgement stays with you.', 'warn');
+    });
+    h += (U && U.chatExtras) ? U.chatExtras(fin) : '';   // handoff / clarification / partial coverage / partial turn / reviewer notes / version stamp
+    /* A2UI-style UI cards (docs/A2UI_INTEGRATION.md): data-only payloads from the server's card catalog,
+       string-rendered with esc() like every other dynamic value - a card cannot carry markup, scripts or
+       styles; an unknown kind is skipped (the prose lines that always ride along still answer). The patch
+       approval button stays on the awaiting_approval event path (a click there IS the user's action). */
+    (fin.cards || []).forEach(function (c) {
+      if (!c || !c.kind) { return; }
+      var b = '<div class="bts-card2"><div class="bts-card2-title">' + esc(c.title || c.kind) + '</div>';
+      if (c.kind === 'stat_row') {
+        b += '<div class="bts-card2-stats">' + (c.items || []).map(function (it) {
+          return '<span class="bts-card2-stat' + (it.sev ? ' sev-' + esc(it.sev) : '') + '"><b>' + esc(it.value) + '</b> ' + esc(it.label) + '</span>';
+        }).join('') + '</div>';
+      } else if (c.kind === 'table') {
+        b += '<div class="bts-wrap"><table class="bts-table"><tr>' + (c.head || []).map(function (x) { return '<th>' + esc(x) + '</th>'; }).join('') + '</tr>' +
+          (c.rows || []).map(function (r) { return '<tr>' + (r || []).map(function (x) { return '<td>' + esc(x) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>';
+      } else if (c.kind === 'kv') {
+        b += '<div class="bts-card2-kv">' + (c.items || []).map(function (it) {
+          return '<span class="bts-card2-k">' + esc(it.k) + '</span><span class="bts-card2-v">' + esc(it.v) + '</span>';
+        }).join('') + '</div>';
+      } else if (c.kind === 'decision') {
+        b += '<div class="bts-card2-line"><span class="bts-pill pass">' + esc(c.verdict || '?') + '</span><span>' +
+          esc((c.priority ? c.priority + ' ' : '') + (c.action || '')) + '</span></div>' +
+          '<div class="bts-card2-sub">발화 규칙: ' + esc(c.rule || '-') + '</div>';
+      } else if (c.kind === 'approval_request') {
+        b += '<div class="bts-card2-line"><span class="bts-pill warn">승인 대기: ' + esc(c.gate || '') + '</span></div>' +
+          '<div class="bts-card2-sub">' + esc(c.summary || '') + '</div>' +
+          (c.code ? '<div class="bts-card2-line"><code>' + esc(c.code) + '</code></div>' : '');
+      } else if (c.kind === 'progress') {
+        b += (c.items || []).map(function (it) {
+          var cls = it.state === 'pass' ? 'pass' : (it.state === 'fail' ? 'bad' : 'warn');
+          return '<div class="bts-card2-line"><span class="bts-pill ' + cls + '">' + esc(it.state) + '</span><span>' + esc(it.label) + '</span></div>';
+        }).join('');
+      } else if (c.kind === 'findings_badges') {
+        b += '<div class="bts-card2-stats">' + Object.keys(c.counts || {}).map(function (k) {
+          return '<span class="bts-card2-stat sev-' + esc(k) + '">' + esc(k) + ' ' + esc(c.counts[k]) + '</span>';
+        }).join('') + '</div>';
+      } else if (c.kind === 'diagram_ref') {
+        b += '<div class="arc-diagram"></div><pre class="arc-mermaid-src" hidden>' + esc(c.mermaid || '') + '</pre>';
+        b = b.replace('<div class="bts-card2">', '<div class="bts-card2 arc-dwrap">');   // renderDiagramsIn() picks it up
+      } else {
+        return;                                         // unknown kind: the prose answers
+      }
+      h += b + '</div>';
     });
     /* diagrams drawn mid-conversation (ADR-0024): same markup contract as the Diagrams tab - the Mermaid
        source rides in a hidden pre, renderDiagramsIn() below draws it (source text is the honest fallback). */

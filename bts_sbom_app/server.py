@@ -38,17 +38,21 @@ Scan sources are restricted to https/ssh/file git URLs, owner/repo shorthands an
 from __future__ import annotations
 
 import datetime
+import ipaddress
 import json
+import math
 import os
 import shutil
+import socket
 import tempfile
 import threading
+import time
 import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from . import __version__, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, conversation, coverage, engine, events, evals, fleet, licenses, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, access, cra_api, escalation as escmod, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, conversation, coverage, engine, events, evals, fleet, licenses, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 from .util import clip, read_json, write_json
@@ -61,6 +65,83 @@ _SBOM_FILES = {"cdx": ".cdx.json", "spdx": ".spdx.json", "vex": ".vex.json"}
 EVENTS_HEARTBEAT_SECONDS = 15.0
 _READYZ_PROBE_NAME = ".readyz_probe"
 MAX_BUSES = 64                                                # event buses kept in memory; the oldest CLOSED ones are dropped first
+MAX_QUESTION_CHARS = 4000                                     # C72: a boundary-condition guard on /api/chat(/stream); exactly this many chars is still accepted
+HANDLER_TIMEOUT = float(os.environ.get("BTS_SBOM_HANDLER_TIMEOUT", "15"))   # seconds a connection may stall while the REQUEST is being read (slowloris)
+MAX_CONNECTIONS = max(1, int(os.environ.get("BTS_SBOM_MAX_CONNECTIONS", "128")))   # accepted sockets served at once; the rest get an immediate 503
+TRUST_FORWARDED_ENV = "BTS_SBOM_TRUST_FORWARDED"                       # =1 only when a trusted proxy (the Container Apps ingress) is the TCP peer
+AUTH_FAIL_LIMIT = max(1, int(os.environ.get("BTS_SBOM_AUTH_FAIL_LIMIT", "20")))     # failed credentials per caller per window before 429 (no verification)
+AUTH_FAIL_WINDOW = max(1.0, float(os.environ.get("BTS_SBOM_AUTH_FAIL_WINDOW_SECONDS", "60")))
+MAX_CHAT_RATE_CALLERS = 4096                                  # cap on distinct caller identities tracked by State._chat_hits at once (C10 follow-up);
+                                                               # stale/oldest entries are pruned first once exceeded, mirroring MAX_BUSES/_prune_buses above
+
+
+def _question_error(q: str) -> Optional[str]:
+    """C72: None when ``q`` (already stripped) is acceptable, else the 400 body's error message. Mirrors the
+    existing empty-question check the two chat routes already had."""
+    if not q:
+        return "question required"
+    if len(q) > MAX_QUESTION_CHARS:
+        return "question too long (max %d characters)" % MAX_QUESTION_CHARS
+    return None
+
+
+def _is_private_or_loopback(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    mapped = getattr(addr, "ipv4_mapped", None)
+    if mapped is not None:
+        addr = mapped
+    # not globally routable: RFC1918, loopback, link-local AND the shared address space 100.64.0.0/10 - the Container Apps ingress
+    # connects from 100.100.0.x (measured live 2026-11-27: ipaddress.is_private is False for it, so the real client was never seen)
+    return addr.is_private or addr.is_loopback or addr.is_link_local or not addr.is_global
+
+
+def _caller_id(handler: "BaseHTTPRequestHandler") -> str:
+    """Best-effort caller identity for the C10 per-caller chat rate limiter, behind Azure Container Apps ingress.
+
+    ACA's own ingress proxy terminates the public connection and opens a NEW one to this container from an
+    address inside its private network; it appends the address it saw (the real public caller, when ACA is the
+    first hop) as the LAST entry of X-Forwarded-For itself - any EARLIER entry in that header could have been
+    forged by the client and is never trusted. So: trust the header's last entry only when the TCP peer this
+    socket sees is itself private/loopback (that is the signature of "a proxy, not the public caller, is what
+    the socket sees"); otherwise - no proxy in front, e.g. local dev or a direct connection - the TCP peer IS
+    the caller, and the header (fully attacker-controlled in that case) is ignored.
+
+    The header is honoured ONLY when the operator says a trusted proxy is in front (``BTS_SBOM_TRUST_FORWARDED=1``, set in the
+    Container Apps template): a private/loopback peer alone is not proof of a proxy (red-team finding 2026-11-27: any
+    private-network or loopback peer could forge X-Forwarded-For and defeat the limit). Without the switch the TCP peer is the caller.
+
+    Known limitation, stated rather than hidden: a direct, unproxied caller that happens to connect from a
+    private/loopback address (local dev, a test harness, a private-network peer) is indistinguishable from
+    "behind ACA's ingress" by this rule alone, and could forge X-Forwarded-For to dodge the rate limit. That
+    matches the one deployment topology this rule targets (ACA's ingress is the only private-address peer of
+    the production container) and the course material's own design; it is not a defence against a trusted
+    network peer spoofing its own identity.
+    """
+    peer = (handler.client_address[0] if handler.client_address else "") or ""
+    if os.environ.get(TRUST_FORWARDED_ENV, "").strip() == "1" and _is_private_or_loopback(peer):
+        xff = (handler.headers.get("X-Forwarded-For") or "") if handler.headers is not None else ""
+        parts = [p.strip() for p in xff.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
+    return peer
+
+
+def _annotate_budget_note(res: Any, client: "ChatClient") -> None:
+    """C33: thread the LLM budget tier into a chat response's existing llm_note field (llm.py computes the
+    tier via ChatClient.budget_tier - chat.py itself is never touched). ``res`` is either the /api/chat response
+    dict or the /api/chat/stream 'final' SSE event dict - both already carry an ``llm_note`` key. A no-op once
+    the tier is back to 'ok'."""
+    if not isinstance(res, dict):
+        return
+    tier = client.budget_tier()
+    if tier == "ok":
+        return
+    note = "LLM daily budget %s (%d/%d calls today)" % (tier, client.calls_today(), client.daily_budget)
+    existing = res.get("llm_note") or ""
+    res["llm_note"] = (existing + " | " + note) if existing else note
 
 
 def _prune_buses(buses: Dict[str, "events.EventBus"], keep: int) -> int:
@@ -73,6 +154,30 @@ def _prune_buses(buses: Dict[str, "events.EventBus"], keep: int) -> int:
         bus = buses.get(jid)
         if bus is not None and bus.closed and buses.pop(jid, None) is not None:
             dropped += 1
+    return dropped
+
+
+def _prune_chat_hits(hits: Dict[str, List[float]], now: float, window: float, keep: int) -> int:
+    """Bound State._chat_hits (C10 follow-up): without this, a long-running internet-facing process (this
+    app is deployed on Azure Container Apps per the repo's own deploy docs) accumulates one permanent dict
+    entry per distinct caller id (e.g. public client IP) ever seen, even once every hit in that caller's
+    history has aged out of the sliding window - an unbounded memory leak. Mirrors _prune_buses/MAX_BUSES
+    above: first drop any caller whose whole history has already expired out of the window (free - that
+    caller has no state worth keeping), then, if still over ``keep``, drop the oldest-inserted remaining
+    callers (a rare caller that returns later simply starts a fresh window, same as a brand-new caller).
+    Returns how many were dropped."""
+    dropped = 0
+    for key in list(hits):
+        if len(hits) <= keep:
+            break
+        if not [t for t in hits[key] if t > now - window]:
+            del hits[key]
+            dropped += 1
+    for key in list(hits):
+        if len(hits) <= keep:
+            break
+        del hits[key]
+        dropped += 1
     return dropped
 # The page loads only its own files; everything it renders from analysed data is escaped, and this policy is the second line of defence.
 _CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
@@ -103,6 +208,18 @@ class State:
         self.max_jobs = max(1, int(os.environ.get("BTS_SBOM_MAX_JOBS", "1")))
         self.jobs_sem = threading.BoundedSemaphore(self.max_jobs)
         self.draining = False                                # SIGTERM: stop accepting new jobs, finish the running ones
+        self.access_token = access.configured_token()        # BTS_SBOM_ACCESS_TOKEN: when set, every request but the probes must present it (access.py)
+        self._auth_fails: Dict[str, List[float]] = {}        # caller -> monotonic times of failed credentials (bounded like the chat limiter)
+        # C10: a global concurrency cap on /api/chat + /api/chat/stream (Bulkhead, same pattern as jobs_sem
+        # above, but a separate/tighter semaphore so a scan job and a chat turn never starve each other) PLUS a
+        # per-caller sliding-window rate limit, independent of and tighter than the daily LLM ledger. A refusal
+        # from either gate never calls st.bot()/st.client, so it never spends that budget.
+        self.chat_max_concurrency = max(1, int(os.environ.get("BTS_SBOM_CHAT_MAX_CONCURRENCY", "4")))
+        self.chat_sem = threading.BoundedSemaphore(self.chat_max_concurrency)
+        self.chat_rate_limit = max(1, int(os.environ.get("BTS_SBOM_CHAT_RATE_LIMIT", "30")))
+        self.chat_rate_window = max(1.0, float(os.environ.get("BTS_SBOM_CHAT_RATE_WINDOW_SECONDS", "60")))
+        self._chat_hits: Dict[str, List[float]] = {}
+        self._chat_hits_lock = threading.Lock()
         if cfg:
             os.environ["BTS_SBOM_LLM_CONFIG"] = cfg
         self.client = ChatClient.from_env(ledger=os.path.join(root, "evidence", ".llm_ledger.json"))
@@ -139,6 +256,50 @@ class State:
         self.draining = True
         if self.jobs_sem.acquire(blocking=True, timeout=timeout):
             self.jobs_sem.release()                          # everything finished: just confirming the slot is free
+
+    def acquire_chat_slot(self) -> Optional[Callable[[], None]]:
+        """Global concurrency cap for /api/chat + /api/chat/stream (C10, Bulkhead - same shape as acquire_job
+        above but its own semaphore). Returns the release callable when a slot is free, else None (the route
+        answers 429+Retry-After instead of proceeding)."""
+        return self.chat_sem.release if self.chat_sem.acquire(blocking=False) else None
+
+    def auth_blocked(self, caller: str) -> Tuple[bool, float]:
+        """True (+ seconds to wait) when ``caller`` has failed AUTH_FAIL_LIMIT credentials inside the window: the next attempt is answered
+        429 WITHOUT verifying the token, so guessing is rate-limited per caller. A caller that presents the right token never fails."""
+        now = time.monotonic()
+        with self._chat_hits_lock:
+            hist = [t for t in self._auth_fails.get(caller, []) if t > now - AUTH_FAIL_WINDOW]
+            self._auth_fails[caller] = hist
+            if hist and len(hist) >= AUTH_FAIL_LIMIT:
+                return True, max(1.0, hist[0] + AUTH_FAIL_WINDOW - now)
+            return False, 0.0
+
+    def auth_failed(self, caller: str) -> None:
+        now = time.monotonic()
+        with self._chat_hits_lock:
+            self._auth_fails.setdefault(caller, []).append(now)
+            if len(self._auth_fails) > MAX_CHAT_RATE_CALLERS:
+                _prune_chat_hits(self._auth_fails, now, AUTH_FAIL_WINDOW, MAX_CHAT_RATE_CALLERS - 1)
+
+    def chat_rate_check(self, caller: str) -> Tuple[bool, float]:
+        """Per-caller sliding-window rate limit (C10), independent of the concurrency cap above - one noisy
+        caller is throttled without touching any other caller's quota. Returns (allowed, retry_after_seconds).
+        Also bounds State._chat_hits to at most MAX_CHAT_RATE_CALLERS distinct caller identities (pruning
+        stale/oldest entries first) so a long-running, internet-facing deployment cannot accumulate one
+        permanent dict entry per distinct caller address ever seen."""
+        now = time.monotonic()
+        with self._chat_hits_lock:
+            hist = [t for t in self._chat_hits.get(caller, []) if t > now - self.chat_rate_window]
+            if len(hist) >= self.chat_rate_limit:
+                self._chat_hits[caller] = hist
+                result = False, max(1.0, hist[0] + self.chat_rate_window - now)
+            else:
+                hist.append(now)
+                self._chat_hits[caller] = hist
+                result = True, 0.0
+            if len(self._chat_hits) > MAX_CHAT_RATE_CALLERS:
+                _prune_chat_hits(self._chat_hits, now, self.chat_rate_window, MAX_CHAT_RATE_CALLERS - 1)
+            return result
 
     def db_path(self) -> str:
         """The local OSV database for the nl2sql lane. Resolution: the BTS_SBOM_OSV_DB_PATH env first, then the
@@ -222,7 +383,7 @@ class State:
         return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
                                projs, client, acts, self.triage(),
                                arch_dir=os.path.join(self.evidence, "archintel"), books=self.books_index(),
-                               memory=self.chat_memory, db_path=self.db_path())
+                               memory=self.chat_memory, db_path=self.db_path(), escalations=self.evidence)
 
     def stream_bot(self, sink: Any) -> chat_stream.StreamingChatbot:
         """The same wiring as :meth:`bot`, as the observing subclass: the 7 chat-level events go to ``sink``."""
@@ -231,7 +392,7 @@ class State:
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
         return chat_stream.StreamingChatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
                                             projs, client, acts, self.triage(), arch_dir=os.path.join(self.evidence, "archintel"), db_path=self.db_path(),
-                                            books=self.books_index(), memory=self.chat_memory, sink=sink)
+                                            books=self.books_index(), memory=self.chat_memory, sink=sink, escalations=self.evidence)
 
     def triage(self) -> Dict[str, Any]:
         with self.lock:
@@ -289,7 +450,9 @@ def agent_card(st: "State") -> Dict[str, Any]:
                        "a deterministic license council, a grounded chatbot and a book knowledge base.",
         "url": "http://127.0.0.1", "protocolVersion": "bts-sbom.card.v1",
         "capabilities": {"streaming": True, "pushNotifications": False, "stateTransitionHistory": False},
-        "securitySchemes": {"none": {"type": "none", "description": "localhost only, no authentication - do not expose beyond loopback (docs/RUNBOOK.md)"}},
+        "securitySchemes": ({"accessToken": {"type": "http", "scheme": "basic", "description": "shared access token (BTS_SBOM_ACCESS_TOKEN) as the Basic password, a Bearer token or X-BTS-Token; /healthz and /readyz are open"}}
+                            if st is not None and getattr(st, "access_token", None) else
+                            {"none": {"type": "none", "description": "localhost only, no authentication - do not expose beyond loopback (docs/RUNBOOK.md)"}}),
         "handoffSchema": "bts-sbom.handoff.v1",
         "skills": [
             {"id": "scan", "name": "Analyze a source", "gate": "none",
@@ -368,6 +531,13 @@ class _BadBody(Exception):
 
 def make_handler(st: State):
     class H(BaseHTTPRequestHandler):
+        timeout = HANDLER_TIMEOUT                                  # StreamRequestHandler.setup() applies it to the socket: a stalled client is dropped
+        server_version = "bts-sbom"
+        sys_version = ""
+
+        def version_string(self) -> str:                           # no interpreter / stdlib version to anonymous callers
+            return self.server_version
+
         def log_message(self, *a: Any) -> None:
             pass
 
@@ -385,12 +555,61 @@ def make_handler(st: State):
                 self.send_header("Content-Security-Policy", _CSP)
             for k, v in (headers or {}).items():
                 self.send_header(k, v)
+            if os.environ.get("BTS_SBOM_DEBUG_CALLER") == "1" and getattr(self, "_authed", False):   # diagnosis aid for token holders only, off by default
+                self.send_header("X-BTS-Caller-Debug", "peer=%s xff=%s eea=%s id=%s" % (
+                    (self.client_address or ("",))[0], (self.headers.get("X-Forwarded-For") or "")[:200], (self.headers.get("X-Envoy-External-Address") or "")[:80], _caller_id(self)))
             self.end_headers()
             self.wfile.write(body)
 
         def _send(self, code: int, obj: Any, ctype: str = "application/json", headers: Optional[Dict[str, str]] = None) -> None:
             body = (obj if isinstance(obj, str) else json.dumps(obj, ensure_ascii=False, default=str)).encode("utf-8")
             self._emit(code, body, ctype, headers)
+
+        def _linger(self) -> None:
+            """Lingering close after an early refusal: finish our side, then swallow what the client still sends (bounded) so the OS does not
+            answer the unread bytes with a connection reset that can destroy the response we just wrote (seen as a flaky WinError 10053)."""
+            try:
+                self.connection.shutdown(socket.SHUT_WR)
+                self.connection.settimeout(0.5)
+                for _ in range(16):
+                    if not self.connection.recv(65536):
+                        break
+            except OSError:
+                pass
+
+        def _gate(self, path: str) -> bool:
+            """Access-token gate (access.py): True when the request may proceed; otherwise a 401 with the Basic challenge has been sent."""
+            if access.exempt(path) or not st.access_token:
+                return True
+            caller = _caller_id(self)
+            blocked, retry = st.auth_blocked(caller)
+            if blocked:                                            # too many failures from this caller: refuse WITHOUT checking the token
+                self._send(429, {"error": "too many failed attempts", "correlation_id": getattr(self, "_cid", "")}, headers={"Retry-After": str(int(retry) + 1)})
+                return False
+            if access.authorized(self.headers, st.access_token):
+                self._authed = True
+                return True
+            st.auth_failed(caller)
+            self._send(401, {"error": "authentication required", "correlation_id": getattr(self, "_cid", "")}, headers=access.challenge())
+            return False
+
+        def _chat_admit(self) -> Optional[Callable[[], None]]:
+            """C10 gate for /api/chat and /api/chat/stream: the per-caller rate limit first (so a throttled
+            caller never takes a concurrency slot from someone else), then the global concurrency cap. Returns
+            the release callable to call once the turn is done, or None once a 429 has already been sent - in
+            neither refusal case does this touch st.bot()/st.client, so the daily LLM budget is never spent."""
+            caller = _caller_id(self)
+            allowed, retry_after = st.chat_rate_check(caller)
+            if not allowed:
+                self._send(429, {"error": "rate limit exceeded for this caller - retry shortly"},
+                          headers={"Retry-After": str(int(math.ceil(retry_after)))})
+                return None
+            release = st.acquire_chat_slot()
+            if release is None:
+                self._send(429, {"error": "too many concurrent chat requests - retry shortly"},
+                          headers={"Retry-After": "2"})
+                return None
+            return release
 
         def _file(self, path: str) -> None:
             ctype = _CTYPES.get(os.path.splitext(path)[1], "application/octet-stream")
@@ -413,7 +632,7 @@ def make_handler(st: State):
             try:
                 d = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
                 return d if isinstance(d, dict) else {}
-            except ValueError:
+            except (ValueError, RecursionError):                       # deep nesting raises RecursionError, not ValueError
                 return {}
 
         def _oss(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
@@ -443,6 +662,18 @@ def make_handler(st: State):
         def _books(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
             """The Book KB screen's API (books_api.py); False when the path is not one of its routes."""
             hit = books_api.route(method, path, q, body, self.headers, st, bind=tuple(self.server.server_address[:2]))
+            if hit is None:
+                return False
+            code, obj, ctype, headers = hit
+            if isinstance(obj, (bytes, bytearray)):
+                self._emit(code, bytes(obj), ctype, headers)
+            else:
+                self._send(code, obj, ctype, headers)
+            return True
+
+        def _cra(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
+            """The EU CRA compliance screen's API (cra_api.py); False when the path is not one of its routes."""
+            hit = cra_api.route(method, path, q, body, self.headers, st, bind=tuple(self.server.server_address[:2]))
             if hit is None:
                 return False
             code, obj, ctype, headers = hit
@@ -499,6 +730,8 @@ def make_handler(st: State):
         def _do_get(self) -> None:
             u = urllib.parse.urlsplit(self.path)
             path, q = u.path, urllib.parse.parse_qs(u.query)
+            if not self._gate(path):
+                return
             if path in ("/", "/index.html"):
                 return self._file(os.path.join(WEB_DIR, "index.html"))
             if path.startswith("/static/"):
@@ -532,6 +765,12 @@ def make_handler(st: State):
                 return self._send(200, {"triage": st.triage()})
             if path == "/api/fleet":
                 return self._send(200, fleet.rollup(load_projects(st.evidence)))
+            if path == "/api/escalations":                           # the handoff log: open / resolved escalations (data for tuning triggers and wording)
+                want = (q.get("status") or ["all"])[0]
+                if want not in ("all", "open", "resolved"):
+                    return self._send(400, {"error": "status must be all, open or resolved"})
+                rows = [dict(s, id=i) for i, s in sorted(escmod.load(st.evidence).items()) if want == "all" or s["status"] == want]
+                return self._send(200, {"escalations": rows, "count": len(rows)})
             if path.startswith("/api/selfcheck/"):
                 hit = st.project(urllib.parse.unquote(path[len("/api/selfcheck/"):]))
                 if hit is None:
@@ -625,6 +864,9 @@ def make_handler(st: State):
                 if bf is None:
                     return self._send(404, {"error": "unknown function %r in this project's code intel" % fname})
                 return self._send(200, bf)
+            if path == "/api/ui/catalog":                            # A2UI-style card-catalog negotiation (docs/A2UI_INTEGRATION.md)
+                from . import ui_cards as _uic
+                return self._send(200, {"catalog": _uic.catalog_doc()})
             if path == "/api/diagrams":                              # the EA-17.2 catalog (ADR-0024): no project needed
                 from . import diagrams as _dg
                 return self._send(200, {"catalog": _dg.catalog_doc()})
@@ -671,6 +913,8 @@ def make_handler(st: State):
                 return
             if self._books("GET", path, q, {}):
                 return
+            if self._cra("GET", path, q, {}):
+                return
             self._send(404, {"error": "not found"})
 
         def do_POST(self) -> None:                                   # noqa: N802
@@ -688,10 +932,13 @@ def make_handler(st: State):
                     pass
 
         def _do_post(self) -> None:
+            if not self._gate(urllib.parse.urlsplit(self.path).path):      # before the body is read: an unauthenticated POST costs nothing
+                return self._linger()
             try:
                 b = self._body()
             except _BadBody as exc:
-                return self._send(exc.code, {"error": str(exc)})
+                self._send(exc.code, {"error": str(exc)})
+                return self._linger()
             path = urllib.parse.urlsplit(self.path).path
             if path.startswith("/api/db/query"):
                 dbp = st.db_path()
@@ -792,32 +1039,58 @@ def make_handler(st: State):
 
                 threading.Thread(target=work, daemon=True).start()
                 return self._send(202, {"job": jid})
+            if path.startswith("/api/escalations/") and path.endswith("/resolve"):
+                esc_id = path[len("/api/escalations/"):-len("/resolve")]
+                try:
+                    return self._send(200, {"ok": True, "escalation": escmod.resolve(st.evidence, esc_id, b.get("note"), b.get("by"))})
+                except KeyError:
+                    return self._send(404, {"error": "unknown escalation"})
+                except ValueError as exc:
+                    return self._send(400, {"error": str(exc)})
             if path == "/api/chat":
                 q = str(b.get("question") or "").strip()
-                if not q:
-                    return self._send(400, {"error": "question required"})
-                return self._send(200, st.bot().ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm"))))
+                bad = _question_error(q)                    # C72: empty or over MAX_QUESTION_CHARS -> 400
+                if bad:
+                    return self._send(400, {"error": bad})
+                release = self._chat_admit()                # C10: concurrency cap + per-caller rate limit
+                if release is None:
+                    return
+                try:
+                    res = st.bot().ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
+                finally:
+                    release()
+                _annotate_budget_note(res, st.client)        # C33: budget tier -> the existing llm_note field
+                return self._send(200, res)
             if path == "/api/chat/stream":
                 q = str(b.get("question") or "").strip()
-                if not q:
-                    return self._send(400, {"error": "question required"})
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("X-Content-Type-Options", "nosniff")
-                self.end_headers()
-
-                def sink(ev: Dict[str, Any]) -> None:      # live flush per event; a gone reader must not fail the turn
-                    try:
-                        self.wfile.write(chat_stream.format_stream_sse(ev).encode("utf-8"))
-                        self.wfile.flush()
-                    except (BrokenPipeError, ConnectionResetError, OSError):
-                        pass
-
+                bad = _question_error(q)                    # C72: empty or over MAX_QUESTION_CHARS -> 400
+                if bad:
+                    return self._send(400, {"error": bad})
+                release = self._chat_admit()                # C10: concurrency cap + per-caller rate limit
+                if release is None:
+                    return
                 try:
-                    st.stream_bot(sink).ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
-                except Exception:                          # noqa: BLE001 - the bot already emitted its fatal error envelope
-                    pass
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    self.end_headers()
+
+                    def sink(ev: Dict[str, Any]) -> None:      # live flush per event; a gone reader must not fail the turn
+                        if ev.get("kind") == "final":
+                            _annotate_budget_note(ev, st.client)    # C33
+                        try:
+                            self.wfile.write(chat_stream.format_stream_sse(ev).encode("utf-8"))
+                            self.wfile.flush()
+                        except (BrokenPipeError, ConnectionResetError, OSError):
+                            pass
+
+                    try:
+                        st.stream_bot(sink).ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
+                    except Exception:                          # noqa: BLE001 - the bot already emitted its fatal error envelope
+                        pass
+                finally:
+                    release()
                 return
             if path == "/api/reimpl":
                 # the clean-room lane (brief 6): source -> interface spec + diagram -> NEW code -> copy gate ->
@@ -910,15 +1183,84 @@ def make_handler(st: State):
                 return
             if self._books("POST", path, {}, b):
                 return
+            if self._cra("POST", path, {}, b):
+                return
             self._send(404, {"error": "not found"})
 
     return H
 
 
+class CappedServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer that never serves more than MAX_CONNECTIONS sockets at once: an excess connection is answered 503 and closed
+    at once instead of spawning one more thread (slowloris / connection flooding on a 0.5 vCPU replica). The per-connection read
+    timeout (HANDLER_TIMEOUT) reclaims the slots of stalled clients."""
+    daemon_threads = True
+
+    def __init__(self, *args: Any, max_connections: Optional[int] = None, **kw: Any):
+        self._slots = threading.BoundedSemaphore(max_connections or MAX_CONNECTIONS)
+        super().__init__(*args, **kw)
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        if not self._slots.acquire(blocking=False):
+            try:
+                request.sendall(b"HTTP/1.0 503 Service Unavailable" + b"\r\n" + b"Retry-After: 5" + b"\r\n" + b"Content-Length: 0" + b"\r\n" + b"\r\n")
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        super().process_request(request, client_address)
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
+
+
+SEED_ENV = "BTS_SBOM_OSV_SEED_DB"
+
+
+def seed_local_osv_db(env: Optional[Dict[str, str]] = None) -> str:
+    """Copy the OSV snapshot from a seed location (the evidence volume) to the LOCAL path the scanner and nl2sql use.
+
+    SQLite on a network file share (Azure Files / SMB) cannot take the scanner's concurrent cache writes: every
+    ``store_exact`` waited out the 5 s lock timeout and a full NodeGoat scan took 780 s instead of ~355 s (measured on
+    the 2026-11-27 deployment). ``BTS_SBOM_OSV_SEED_DB`` names the read-mostly snapshot, ``BTS_SBOM_OSV_DB_PATH`` the
+    local disk copy; the copy is made once, only when the local file is absent. Returns what happened ('' = nothing to do)."""
+    e = env if env is not None else os.environ
+    seed, dest = e.get(SEED_ENV, ""), e.get("BTS_SBOM_OSV_DB_PATH", "")
+    if not seed or not dest or os.path.abspath(seed) == os.path.abspath(dest):
+        return ""
+    if os.path.exists(dest):
+        return "present"
+    if not os.path.isfile(seed):
+        return "no-seed"
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(dest)), exist_ok=True)
+        shutil.copyfile(seed, dest + ".part")
+        os.replace(dest + ".part", dest)
+    except OSError as exc:
+        print("warning: could not copy the OSV snapshot %s -> %s (%s); the scanner will build its own cache" % (seed, dest, type(exc).__name__), flush=True)
+        return "failed"
+    return "copied"
+
+
 def serve(root: str, host: str, port: int, evidence: str, cfg: Optional[str] = None, chat_actions: bool = False) -> int:
+    seeded = seed_local_osv_db()
+    if seeded:
+        print("OSV snapshot: %s" % seeded, flush=True)
     st = State(root, evidence, cfg, chat_actions)
-    httpd = ThreadingHTTPServer((host, port), make_handler(st))
-    print("BTS-SBOM serving on http://%s:%d (evidence: %s)" % (host, port, evidence), flush=True)
+
+    def _warm_prompt_digest() -> None:                              # the chat version stamp needs it: pay the one-time parse before the first turn
+        try:
+            from . import promptreg
+            promptreg.digest(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        except Exception:                                           # a stamp that cannot be computed must never stop the service
+            pass
+
+    threading.Thread(target=_warm_prompt_digest, daemon=True).start()
+    httpd = CappedServer((host, port), make_handler(st))
+    print("BTS-SBOM serving on http://%s:%d (evidence: %s; access-token gate %s)" % (host, port, evidence, "ON" if st.access_token else "off"), flush=True)
 
     def _sigterm(signum: int, frame: Any) -> None:
         # background-jobs best practice (AC-618): stop accepting NEW jobs, let the running one finish inside the

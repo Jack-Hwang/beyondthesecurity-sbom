@@ -1,0 +1,23 @@
+[
+ {"q": "What order does the tool resolve a component license?", "expect": ["domain/licenses.md"]},
+ {"q": "Is AGPL denied for SaaS distribution?", "expect": ["domain/licenses.md"]},
+ {"q": "How are CVSS severity scores calculated?", "expect": ["domain/vulnerabilities.md"]},
+ {"q": "How is the fixed version range chosen and are git commit hashes used?", "expect": ["domain/vulnerabilities.md"]},
+ {"q": "What happens if a patch is requested without approval?", "expect": ["domain/remediation_patching.md"]},
+ {"q": "Why is the lockfile never edited directly?", "expect": ["domain/remediation_patching.md"]},
+ {"q": "How are architecture hotspots calculated?", "expect": ["domain/legacy_architecture.md"]},
+ {"q": "Why cut circular dependencies first?", "expect": ["domain/legacy_architecture.md"]},
+ {"q": "What does the FDA 524B 2025 guidance newly require?", "expect": ["domain/industries.md"]},
+ {"q": "How is the EXAONE daily limit of 429 handled?", "expect": ["domain/ai_and_loop.md"]},
+ {"q": "What EARS pattern and acceptance criteria format is used?", "expect": ["lecture/sdd_and_requirements.md"]},
+ {"q": "How is nDCG calculated?", "expect": ["lecture/eval_metrics.md", "lecture/rag_methods.md"]},
+ {"q": "What is parent child hierarchical chunking?", "expect": ["lecture/rag_methods.md"]},
+ {"q": "What k value is used in RRF fusion?", "expect": ["domain/ai_and_loop.md", "lecture/rag_methods.md"]},
+ {"q": "What SPDX identifier does GPLv3 normalize to?", "expect": ["domain/licenses.md"]},
+ {"q": "How does the license policy decide deny vs review?", "expect": ["domain/licenses.md"]},
+ {"q": "What is the weather like in Seoul today?", "ood": true},
+ {"q": "Recommend a good pizza recipe", "ood": true},
+ {"q": "What is the price forecast for bitcoin?", "ood": true},
+ {"q": "Who won the latest World Cup final?", "ood": true},
+ {"q": "What is your favorite movie?", "ood": true}
+]

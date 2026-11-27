@@ -16,7 +16,7 @@
 
   var GROUPS = {
     'git': ['git', 'oss', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
-    'graph-health': ['dep-graph', 'arch', 'code', 'db', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'vex', 'license-risk', 'sectors'],
+    'graph-health': ['dep-graph', 'arch', 'code', 'db', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'cra', 'vex', 'license-risk', 'sectors'],
     'fix': ['fix-plan', 'fix-pr', 'reimpl'], 'report': ['report'], 'archintel': ['archintel'], 'diagrams': ['diagrams'],
     'books': ['books'], 'more': ['more', 'fleet']
   };
@@ -36,6 +36,7 @@
     'ssvc': '🎯 SSVC', 'epss': '📡 EPSS', 'exploit-mat': '🔥 Exploit Mat.', 'dep-graph': '🕸 Dep Graph',
     'arch': '🏛 Architecture', 'code': '🔎 Code Intel', 'db': '🗄 DB 질의', 'supply-chain': '⛓ Supply Chain', 'ntia': '✅ SBOM checks', 'conformance': '📐 SBOM conformance',
     'vex': '📋 VEX · Decisions', 'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
+    'cra': '🇪🇺 CRA',
     'fix-pr': '🔧 Patch', 'reimpl': '🧬 Clean-Room', 'oss': '📜 OSS 결과', 'report': '📊 Report', 'archintel': '🏛 Arch Intel', 'diagrams': '🖼 Diagrams',
     'books': '📚 Book KB', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
   };
@@ -314,13 +315,13 @@
 
   /* ---------- SBOM governance data: conformance, what changed, OpenVEX with decisions, fleet ---------- */
   function resetGovernance() {
-    S.gov = { seq: S.gov.seq + 1, conformance: null, changes: null, vex: null };
+    S.gov = { seq: S.gov.seq + 1, conformance: null, changes: null, vex: null, cra: null };
   }
   function loadGovernance(name) {
     resetGovernance();
     var seq = S.gov.seq, n = encodeURIComponent(name);
     renderGovernance();
-    [['conformance', '/api/conformance/'], ['changes', '/api/changes/'], ['vex', '/api/vex/']].forEach(function (p) {
+    [['conformance', '/api/conformance/'], ['changes', '/api/changes/'], ['vex', '/api/vex/'], ['cra', '/api/cra/']].forEach(function (p) {
       api(p[1] + n).then(function (r) {
         if (S.gov.seq !== seq || S.project !== name) { return; }      // another project was selected meanwhile
         S.gov[p[0]] = r;
@@ -330,6 +331,80 @@
   }
   function loadFleet() {
     return api('/api/fleet').then(function (r) { S.fleet = r; renderGovernance(); });
+  }
+
+  /* ---------- EU CRA (Regulation (EU) 2024/2847): readiness, security.txt, support period, Article 14 clock, annex-J ledgers ---------- */
+  var CRA_ST = { pass: 'ok', partial: 'warn', gap: 'bad' };
+  function craClockLine(e) {
+    var c = e.clock || {}, f = function (s) { return s && s.due ? esc(s.due) + ' <span class="bts-pill ' + (s.status === 'overdue' ? 'bad' : 'ok') + '">' + esc(s.status) + '</span>' : '<span class="sub">—</span>'; };
+    return '<b>' + esc(e.id) + '</b> (' + esc(e.kind) + ') T0 ' + esc(e.aware_at) +
+      '<br>24h 조기 경보: ' + f(c.early_warning) + ' · 72h 통보: ' + f(c.notification) + ' · 최종 보고: ' + f(c.final_report);
+  }
+  function craPane(p) {
+    if (!p) { return heading('EU CRA') + note('readiness 데이터를 불러오는 중…'); }
+    var r = p.readiness || {}, sc = r.score || {}, n = encodeURIComponent(p.project);
+    var out = heading('EU CRA compliance', 'Regulation (EU) 2024/2847 · K-OSSC 실무 가이드 v1.0');
+    out += kv([['Readiness', (sc.pass || 0) + ' pass · ' + (sc.partial || 0) + ' partial · ' + (sc.gap || 0) + ' gap → ' + (sc.pct || 0) + '%'],
+               ['security.txt', p.security_txt && p.security_txt.deployed ? pill('deployed', 'ok') : pill('not deployed', 'bad')],
+               ['지원 기간', p.support && p.support.declared ? esc(p.support.declared_end || p.support.declared) + ' · ' + esc(p.support.status) : '미선언']]);
+    (r.checks || []).forEach(function (c) {
+      out += note('<b>' + esc(c.title) + '</b> ' + pill(c.status, CRA_ST[c.status] || 'muted') + ' <span class="sub">' + esc(c.ref) + '</span><br>' +
+        esc(c.basis) + (c.fix ? '<br><span class="sub">→ ' + esc(c.fix) + '</span>' : ''), c.status === 'gap' ? 'bad' : '');
+    });
+    out += heading('security.txt', 'RFC 9116 · CRA Annex I Part II (5)/(6)');
+    out += (p.security_txt && p.security_txt.preview) ? H('<pre>' + esc(p.security_txt.preview) + '</pre>')
+      : note(esc((p.security_txt && p.security_txt.note) || '미배포'), 'warn');
+    out += heading('지원 기간 선언', 'Article 13(8): 최소 5년 · Annex II 7: 최소 연·월');
+    out += '<div class="bts-actions"><input id="craSupportEnd" placeholder="YYYY-MM (예: 2032-06)" size="16">' +
+      btn('선언 저장', 'cra-support') +
+      btn('EOL 대장 유지 플래그 ' + (p.eol_maintained ? '끄기' : '켜기'), 'cra-eol') + '</div>';
+    out += heading('Article 14 보고 시계', '2026-09-11부터 적용 중 · 24h → 72h → 14일(취약점)/1개월(사고)');
+    out += '<div class="bts-actions"><input id="craAevId" placeholder="CVE-… / 사고 ID" size="16">' +
+      '<select id="craAevKind"><option value="aev">악용 취약점</option><option value="incident">심각한 사고</option></select>' +
+      '<input id="craAevAware" placeholder="T0 인지 시각(비우면 지금)" size="18">' + btn('인지 기록', 'cra-aev') + '</div>';
+    (p.awareness || []).forEach(function (e) { out += note(craClockLine(e), 'warn'); });
+    out += heading('SBOM 관리 5종 대장', 'guide annex J');
+    out += '<div class="bts-actions">' + [1, 2, 3, 4, 5].map(function (i) {
+      return btn('⬇ 대장 ' + i, 'dl', '', ' data-url="/api/cra/' + n + '/ledgers?which=' + i + '"');
+    }).join('') + '</div>';
+    return out + note(esc(r.note || ''), 'warn');
+  }
+  function craReload() {
+    return api('/api/cra/' + encodeURIComponent(S.project)).then(function (r) {
+      if (r.ok) { S.gov.cra = r.data; renderGovernance(); }
+    });
+  }
+  function bindCraPane() {
+    var pane = $('#paneCra');
+    if (!pane || pane.dataset.craBound) { return; }
+    pane.dataset.craBound = '1';
+    /* delegated on the persistent container: renderGovernance rewrites this pane's innerHTML (the db-pane lesson) */
+    pane.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.getAttribute) { return; }
+      var act = t.getAttribute('data-act'), n = encodeURIComponent(S.project || '');
+      if (act === 'cra-support') {
+        api('/api/cra/' + n + '/support', { support_end: ($('#craSupportEnd') ? $('#craSupportEnd').value : '').trim() }).then(function (r) {
+          toolNote(r.ok ? '지원 기간 저장됨: ' + esc((((r.data || {}).validation || {}).status) || '?') : ('실패: ' + esc((r.data || {}).error || r.status)));
+          return craReload();
+        });
+      } else if (act === 'cra-eol') {
+        api('/api/cra/' + n + '/eol-maintained', { maintained: !((S.gov.cra || {}).eol_maintained) }).then(function (r) {
+          toolNote(r.ok ? 'EOL 대장 유지 플래그 갱신됨' : ('실패: ' + esc((r.data || {}).error || r.status)));
+          return craReload();
+        });
+      } else if (act === 'cra-aev') {
+        var id = ($('#craAevId') ? $('#craAevId').value : '').trim();
+        if (!id) { toolNote('CVE id 또는 사고 ID를 입력하라.'); return; }
+        var body = { id: id, kind: $('#craAevKind') ? $('#craAevKind').value : 'aev' };
+        var aware = ($('#craAevAware') ? $('#craAevAware').value : '').trim();
+        if (aware) { body.aware_at = aware; }
+        api('/api/cra/' + n + '/article14', body).then(function (r) {
+          toolNote(r.ok ? '인지 기록됨 - 24h 조기 경보 시한이 이 팬에 표시된다' : ('실패: ' + esc((r.data || {}).error || r.status)));
+          return craReload();
+        });
+      }
+    });
   }
   function analysedMap() {
     var m = Object.create(null);
@@ -544,7 +619,7 @@
   }
   function reimplVerdict(d) {
     var v = d.verdict || '?';
-    var cls = v === 'ok' ? 'ok' : (v === 'refused' || v === 'rejected' ? 'warn' : 'bad');
+    var cls = v === 'ok' ? 'ok' : (v === 'refused' || v === 'rejected' || v === 'contract_only' || v === 'toolchain_missing' ? 'warn' : 'bad');
     var h = heading('판정', esc(d.component || '') + ' · ' + esc(d.started || ''));
     var cg = d.copy_gate || {};
     var pt = d.patterns;
@@ -553,6 +628,8 @@
              ['생성 테스트', d.tests ? (d.tests.ok ? '통과' : '실패') : '—'],
              ['원본 오라클', d.adopted_tests ? (d.adopted_tests.ok ? '통과 (' + (d.adopted_tests.files || []).length + '개 파일)' : '실패') : '—'],
              ['호환성', d.compatibility || '—'],
+             ['언어 / 컴파일', d.language ? (String(d.language).toUpperCase() + (d.compile ? (d.compile.ok ? ' · 컴파일 통과 (경고 ' + (d.compile.warnings || 0) + ')' : ' · 컴파일 실패') : '')) : '—'],
+             ['차등 오라클', (d.oracle && d.oracle.differential) ? (d.oracle.differential.ran ? ((d.oracle.differential.ok ? '일치 ' : '불일치 ') + (d.oracle.differential.functions || 0) + '개 항목 · ' + (d.oracle.differential.total_cases || 0) + '케이스 · 불일치 ' + (d.oracle.differential.mismatches === null || d.oracle.differential.mismatches === undefined ? '?' : d.oracle.differential.mismatches)) : ('없음 — ' + (d.oracle.differential.reason || ''))) : '—'],
              ['패턴 주입', pt ? ('tier ' + pt.tier + ' · ' + (pt.patterns || []).map(function (p) { return p.name; }).join(', ')) : '—']]);
     if (d.reason) { h += note('<b>이유:</b> ' + esc(d.reason), v === 'ok' ? 'ok' : 'warn'); }
     if (d.published_to) { h += note('발행: <code>' + esc(d.published_to) + '</code>'); }
@@ -921,6 +998,7 @@
     renderHistory();
     renderGovernance();
     bindDbPane();
+    bindCraPane();
     bindReimplPane();
     bindLicPane();
   }
@@ -937,6 +1015,7 @@
     var v = S.view, g = S.gov, ages = analysedMap();
     $('#paneConformance').innerHTML = v ? G.renderConformance(g.conformance)
       : heading('SBOM conformance') + note(G.LEGAL_NOTE, 'warn') + needProject();
+    $('#paneCra').innerHTML = v ? craPane(g.cra) : needProject();
     $('#paneChanges').innerHTML = v ? G.renderChanges(g.changes) : needProject();
     renderVexPane();
     $('#paneFleet').innerHTML = G.renderFleet(S.fleet, ages);
