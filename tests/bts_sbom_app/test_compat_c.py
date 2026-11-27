@@ -260,3 +260,18 @@ def test_report_shape_is_the_same_as_the_python_backend_so_the_loop_and_the_ui_n
     c = plan["compat"]
     assert {"status", "reason", "coverage", "counts", "findings", "basis"} <= set(c) and c["status"] == "breaking"
     assert {"symbol", "level", "rule", "detail", "sites"} <= set(c["findings"][0]) and res["plans"][0]["key"] == "conan|foo|1.0"
+
+
+def test_the_compiler_runs_in_the_c_locale_so_its_diagnostics_use_ascii_quotes(monkeypatch, tmp_path):
+    """AC: BSA-AC-642. gcc prints curly quotes under a UTF-8 locale (the CI runners' LANG=C.UTF-8) while the compile differential parses its diagnostics with ASCII-quote
+    patterns, so the compiler must be called with LC_ALL=C - the first-use message then reads `'X' undeclared` instead of the curly-quoted form that matched nothing."""
+    seen: Dict[str, Any] = {}
+
+    def fake_run(cmd, **kw):
+        seen["env"] = kw.get("env")
+        return subprocess.CompletedProcess(cmd, 1, "", "a.c:1:1: error: 'X' undeclared (first use in this function)\n")
+
+    monkeypatch.setattr(compat_c.subprocess, "run", fake_run)
+    out = compat_c._errors("gcc", "a.c", str(tmp_path), [], "c")
+    assert seen["env"] is not None and seen["env"]["LC_ALL"] == "C" and seen["env"]["LANGUAGE"] == "C"
+    assert out == {("a.c", 1, "'X' undeclared (first use in this function)")}

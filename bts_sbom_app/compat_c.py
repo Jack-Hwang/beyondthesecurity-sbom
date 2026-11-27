@@ -326,7 +326,9 @@ def _errors(cc: str, src: str, cwd: str, includes: List[str], lang: str) -> Opti
     for d in includes:
         cmd += ["-I", d]
     try:
-        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=COMPILE_TIMEOUT)
+        # LC_ALL=C: the diagnostics below are parsed with ASCII-quote patterns; under a UTF-8 locale (CI runners: LANG=C.UTF-8) gcc prints curly quotes
+        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=COMPILE_TIMEOUT,
+                           env=dict(os.environ, LC_ALL="C", LANGUAGE="C"))
     except (OSError, subprocess.TimeoutExpired):
         return None
     out: Set[Tuple[str, int, str]] = set()

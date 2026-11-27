@@ -115,7 +115,9 @@ def toolchain() -> Dict[str, Optional[str]]:
 
 def _run(cmd: List[str], cwd: Optional[str] = None, timeout: float = COMPILE_TIMEOUT) -> Dict[str, Any]:
     try:
-        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+        # LC_ALL=C: the repair loop reads gcc diagnostics with ASCII-quote patterns; under a UTF-8 locale (CI runners: LANG=C.UTF-8) gcc prints curly quotes
+        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
+                           env=dict(os.environ, LC_ALL="C", LANGUAGE="C"))
         return {"rc": p.returncode, "out": (p.stdout or ""), "err": (p.stderr or ""), "timeout": False}
     except subprocess.TimeoutExpired as exc:
         return {"rc": None, "out": "", "err": "timeout after %ds" % int(timeout), "timeout": True}
