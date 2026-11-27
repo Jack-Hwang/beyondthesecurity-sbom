@@ -43,7 +43,10 @@ def test_manifest_parses_with_kubectl_dry_run():
     kubectl = next((k for k in KUBECTL_CANDIDATES if shutil.which(k) or os.path.exists(k)), None)
     if not kubectl:
         pytest.skip("kubectl not on this host")
-    probe = subprocess.run([kubectl, "api-resources", "--request-timeout=5s"], capture_output=True, text=True, timeout=30)
+    try:
+        probe = subprocess.run([kubectl, "api-resources", "--request-timeout=5s"], capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:         # a hung probe (Windows runners) is the same answer as a refused one: no cluster
+        pytest.skip("no reachable cluster: the `kubectl api-resources` probe timed out")
     if probe.returncode != 0:                 # kubectl is installed (CI runners have it) but no cluster answers
         pytest.skip("no reachable cluster: `kubectl apply --dry-run=client` still needs API discovery")
     p = subprocess.run([kubectl, "apply", "--dry-run=client", "--validate=false", "-f", MANIFEST],
