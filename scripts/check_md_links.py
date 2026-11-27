@@ -41,7 +41,8 @@ def check(root: str) -> list:
                         continue                                   # pure-anchor link: nothing to resolve on disk
                     resolved = os.path.normpath(os.path.join(dp, t))
                     if not os.path.exists(resolved):
-                        dead.append((os.path.relpath(path, root) if root != "." else path, i, target))
+                        rel = os.path.relpath(path, root).replace(os.sep, "/") if root != "." else path.replace(os.sep, "/")
+                        dead.append((rel, i, target))
     return dead
 
 

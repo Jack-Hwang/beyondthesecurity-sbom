@@ -110,9 +110,16 @@ def catalog_lines() -> List[str]:
 
 # --------------------------------------------------------------------------- helpers (mermaid discipline)
 def _esc(s: Any, limit: int = MAX_LABEL) -> str:
-    """A safe Mermaid double-quoted label: quotes, backslashes and shape syntax stripped, newlines flattened."""
+    """A safe Mermaid double-quoted label: quotes, backslashes and shape syntax stripped, newlines flattened.
+    Truncation never leaves an unbalanced paren behind - a label cut mid-``(...)`` broke the decision diagram's
+    dotted-arrow edges (caught by lint_mermaid, C27)."""
     t = re.sub(r"\s+", " ", str(s or "?")).strip()
-    return t.replace("\\", "\\\\").replace('"', "'").replace("[", "(").replace("]", ")").replace("{", "(").replace("}", ")")[:limit]
+    t = t.replace("\\", "\\\\").replace('"', "'").replace("[", "(").replace("]", ")").replace("{", "(").replace("}", ")")
+    if len(t) > limit:
+        t = t[:limit]
+        while t.count("(") > t.count(")"):
+            t += ")"
+    return t
 
 
 def _pid(prefix: str, seen: Dict[str, str], raw: str) -> str:
@@ -1206,12 +1213,15 @@ def lint_mermaid(src: str) -> List[str]:
     first = stripped[0].strip()
     if not any(first.startswith(h) or first.split(" ")[0] == h for h in MERMAID_HEADERS):
         problems.append("first line is not a known Mermaid header: %r" % first[:40])
+    brace_depth = 0                                          # entity blocks span lines: brace balance is document-scoped
+    brace_line: List[str] = []
     for ln in stripped:
         if ln.count('"') % 2:
             problems.append("unbalanced quotes: %s" % ln.strip()[:60])
-        depth_bal = {"(": 0, "[": 0, "{": 0}
+        work = ln.replace("o{", "").replace("}o", "")         # crow's-foot cardinality markers, not blocks (erDiagram)
+        depth_bal = {"(": 0, "[": 0}
         in_q = False
-        for ch in ln:
+        for ch in work:
             if ch == '"':
                 in_q = not in_q
                 continue
@@ -1219,16 +1229,25 @@ def lint_mermaid(src: str) -> List[str]:
                 continue
             if ch in depth_bal:
                 depth_bal[ch] += 1
-            elif ch in _PAIRS.values():
+            elif ch in _PAIRS.values() and ch != "}":
                 opener = {v: k for k, v in _PAIRS.items()}[ch]
                 if depth_bal[opener] <= 0:
                     problems.append("unbalanced %s: %s" % (ch, ln.strip()[:60]))
-                    depth_bal[opener] = 0                # report once per line, keep scanning
+                    depth_bal[opener] = 0                    # report once per line, keep scanning
                 else:
                     depth_bal[opener] -= 1
+            elif ch == "{":
+                brace_depth += 1
+            elif ch == "}":
+                brace_depth -= 1
+                if brace_depth < 0:
+                    problems.append("unbalanced }: %s" % ln.strip()[:60])
+                    brace_depth = 0
         for o, n in depth_bal.items():
             if n:
                 problems.append("unbalanced %s...%s: %s" % (o, _PAIRS[o], ln.strip()[:60]))
+    if brace_depth > 0:
+        problems.append("unbalanced {...}: %d unclosed entity block(s)" % brace_depth)
     for ln in stripped:                                        # edge lines need both endpoints
         s = ln.strip()
         for arrow in _EDGE_ARROWS:

@@ -8,6 +8,8 @@ mesh, or a reverse proxy/API gateway doing auth. If one of those gets added late
 for that part and needs rewriting, not patching.
 
 ## Delivery State
+- **2026-11-28: A2UI-style UI cards live.** The a2ui-project analysis (docs/A2UI_INTEGRATION.md, Apache-2.0, spec-level clean-room) became a closed 8-kind card catalog over chat tool results: deterministic post-processing of measured records, strict validation (unknown kinds/fields/oversized/non-scalar dropped and named - prose always rides along), catalog negotiation at GET /api/ui/catalog, native rendering in the chat dock and the non-stream answer, and a deliberate no-agent-actions deviation keeping the typed-token approval gates. Deployed as Container Apps revision 0000009 (image 0.5.0-a2ui1128); live: NodeGoat overview answers with a stat_row card (1091/311/CRITICAL 32), smoke_deployed 4/4, supply-chain gate pass (AC 645-646).
+
 
 What exists today and what was actually checked, in this worktree, as of this change:
 
