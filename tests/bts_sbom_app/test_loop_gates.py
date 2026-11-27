@@ -49,10 +49,9 @@ def test_surface_trace_names_surfaces_the_spec_never_mentioned():
     # a fabricated unknown surface must land in unmentioned (the matching is real, not always-true)
     import tempfile
     with tempfile.TemporaryDirectory() as td:
-        os.makedirs(os.path.join(td, "bts_sbom_app"))
-        with open(os.path.join(td, "bts_sbom_app", "cli.py"), "w", encoding="utf-8") as fh:
+        with open(os.path.join(td, "cli.py"), "w", encoding="utf-8") as fh:
             fh.write('sub.add_parser("zzz-never-registered", help="fixture")\n')
-        with open(os.path.join(td, "bts_sbom_app", "server.py"), "w", encoding="utf-8") as fh:
+        with open(os.path.join(td, "server.py"), "w", encoding="utf-8") as fh:
             fh.write('if path == "/api/zzz-never-route":\n    pass\n')
         r2 = speclint.surface_trace(SPEC, td)
         assert "zzz-never-registered" in r2["unmentioned"] and "/api/zzz-never-route" in r2["unmentioned"]
