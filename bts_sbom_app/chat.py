@@ -95,6 +95,54 @@ def verify_claims(claims: Sequence[Dict[str, Any]], docs: Dict[str, str]) -> Dic
     return {"claims": len(claims), "verified": len(ok), "accuracy": round(len(ok) / len(claims), 3) if claims else 1.0, "kept": ok}
 
 
+# Three-way support classification (backlog C87): the gate stays binary (verify_claims decides what the answer
+# may keep), but the EVIDENCE layer names why a claim failed and, when the cited document says the opposite, says
+# so explicitly instead of leaving a contradiction inside "not verified". A claim is "contradicted" ONLY when the
+# cited document contains the claim's own sentence with the polarity MIRROR-FLIPPED (an exact normalised match of
+# a documented antonym pair) - a negated-duplicate detection, never a heuristic guess, because the earlier
+# contradiction gate that misclassified "not vulnerable" was a measured defect (2026-11-26). If the mirror is
+# absent the claim stays plain "unsupported" - absence of support is not proof of the opposite.
+_POLARITY_PAIRS = (
+    ("is affected", "is not affected"), ("is vulnerable", "is not vulnerable"),
+    ("exists", "does not exist"), ("is supported", "is not supported"),
+    ("affected", "not affected"), ("vulnerable", "not vulnerable"),
+    ("있다", "없다"), ("지원한다", "지원하지 않는다"), ("취약하다", "취약하지 않다"), ("영향을 받는다", "영향을 받지 않는다"),
+)
+
+
+def classify_support(claims: Sequence[Dict[str, Any]], docs: Dict[str, str]) -> Dict[str, Any]:
+    """Per-claim ``supported | contradicted | unsupported`` plus the reason. ``unsupported`` names WHY
+    (no such source / quote not in source). Only the mirrored-polarity exact match promotes to ``contradicted``."""
+    out: List[Dict[str, Any]] = []
+    n_contra = 0
+    for c in claims:
+        src = c.get("source")
+        quote = _norm(str(c.get("quote") or ""))
+        if src not in docs:
+            out.append({"claim": str(c.get("text") or c.get("quote") or "")[:120], "state": "unsupported", "reason": "no such source"})
+            continue
+        doc = _norm(docs[src])
+        if quote and quote in doc:
+            out.append({"claim": str(c.get("text") or c.get("quote") or "")[:120], "state": "supported", "reason": "quote in source"})
+            continue
+        state, reason = "unsupported", "quote not in source"
+        if quote:
+            for pos, neg in _POLARITY_PAIRS:
+                for a, b in ((pos, neg), (neg, pos)):
+                    if a in quote:
+                        mirror = _norm(quote.replace(a, b))
+                        if mirror in doc:
+                            state, reason = "contradicted", "the source states the mirrored polarity of this claim"
+                            n_contra += 1
+                        break
+                if state == "contradicted":
+                    break
+        out.append({"claim": str(c.get("text") or c.get("quote") or "")[:120], "state": state, "reason": reason})
+    return {"claims": len(out), "supported": sum(1 for o in out if o["state"] == "supported"),
+            "unsupported": sum(1 for o in out if o["state"] == "unsupported"),
+            "contradicted": n_contra, "rows": out}
+
+
 _NUM = re.compile(r"\d[\d.,]*\d|\d")
 
 

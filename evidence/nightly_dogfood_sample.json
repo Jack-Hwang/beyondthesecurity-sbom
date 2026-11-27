@@ -1,0 +1,17 @@
+{
+ "target": "C:\\firebaseprojects\\beyondthesecurity-sbom\\bts_sbom_app",
+ "offline": true,
+ "stamp": "20261127T171849Z",
+ "checks": {
+  "record_name": "bts-sbom-self",
+  "components": 1,
+  "mode": "offline",
+  "declared_runtime_deps": [],
+  "cyclonedx_valid": true,
+  "cyclonedx_errors": [],
+  "ntia_2021": "gaps",
+  "ntia_elements_gap": [
+   "supplier"
+  ]
+ }
+}
