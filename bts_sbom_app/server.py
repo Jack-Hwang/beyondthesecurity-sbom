@@ -48,7 +48,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import __version__, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, conversation, coverage, engine, events, evals, fleet, licenses, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, cra_api, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, conversation, coverage, engine, events, evals, fleet, licenses, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 from .util import clip, read_json, write_json
@@ -452,6 +452,18 @@ def make_handler(st: State):
                 self._send(code, obj, ctype, headers)
             return True
 
+        def _cra(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
+            """The EU CRA compliance screen's API (cra_api.py); False when the path is not one of its routes."""
+            hit = cra_api.route(method, path, q, body, self.headers, st, bind=tuple(self.server.server_address[:2]))
+            if hit is None:
+                return False
+            code, obj, ctype, headers = hit
+            if isinstance(obj, (bytes, bytearray)):
+                self._emit(code, bytes(obj), ctype, headers)
+            else:
+                self._send(code, obj, ctype, headers)
+            return True
+
         def _serve_events(self, jid: str, q: Dict[str, Any]) -> None:
             """GET /api/jobs/<jid>/events as text/event-stream. Unknown job -> plain 404 JSON (never a stream).
             Resumes after ``Last-Event-ID`` (header takes precedence over ``?after=``); heartbeats keep an idle
@@ -670,6 +682,8 @@ def make_handler(st: State):
             if self._arch("GET", path, q, {}):
                 return
             if self._books("GET", path, q, {}):
+                return
+            if self._cra("GET", path, q, {}):
                 return
             self._send(404, {"error": "not found"})
 
@@ -909,6 +923,8 @@ def make_handler(st: State):
             if self._arch("POST", path, {}, b):
                 return
             if self._books("POST", path, {}, b):
+                return
+            if self._cra("POST", path, {}, b):
                 return
             self._send(404, {"error": "not found"})
 
