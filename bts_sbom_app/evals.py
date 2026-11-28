@@ -61,6 +61,35 @@ def eval_integrity(root: Optional[str] = None) -> Dict[str, Any]:
     return {"sets": evalguard.composition(sets), "leak": leak, "pins": {n: evalguard.fingerprint(g) for n, g in sets.items()}}
 
 
+def eval_inventory(root: Optional[str] = None) -> Dict[str, Any]:
+    """The course's holdout 구성표 (week 5 lesson 2) over EVERY declared eval corpus: the retrieval sets, the labelled
+    injection corpora and the chat feature routing set - each with its 전형/경계/적대 counts, the rule that decided
+    them, and the coverage gate findings (undecidable compositions fail; informative gaps are notes, not failures)."""
+    root = root or repo_root()
+    sets: Dict[str, List[Dict[str, Any]]] = dict(rag_set_items(root))
+    g = read_json(os.path.join(root, "evals", "chat_features.json"), None)
+    if isinstance(g, list) and g:
+        sets["chat_features"] = g
+    for name in evalguard.ADVERSARIAL_SETS:
+        rows: List[Dict[str, Any]] = []
+        try:
+            with open(os.path.join(root, "evals", name + ".jsonl"), encoding="utf-8", errors="replace") as fh:
+                for ln in fh:
+                    try:
+                        rec = json.loads(ln)
+                    except ValueError:
+                        continue
+                    if isinstance(rec, dict):
+                        rows.append(rec)
+        except OSError:
+            pass
+        if rows:
+            sets[name] = rows
+    comp = evalguard.composition(sets)
+    failed, notes = evalguard.coverage_gate(comp)
+    return {"sets": comp, "coverage_gate": {"failed": failed, "notes": notes, "pass": not failed}}
+
+
 def synthetic_project() -> Dict[str, Any]:
     """A fixed project record exercising every chat tool (offline, deterministic)."""
     v = {"id": "CVE-2018-18074", "aliases": ["GHSA-x84v-xcm2-53pg"], "osv_ids": ["GHSA-x84v-xcm2-53pg"], "package": "requests", "version": "2.19.1",

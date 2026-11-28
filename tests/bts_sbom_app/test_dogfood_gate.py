@@ -49,6 +49,6 @@ def test_nightly_workflow_is_wellformed_yaml_with_the_decoupled_schedule():
         assert any("cron" in str(x) for x in (on["schedule"] or []))
     except ImportError:
         assert re.search(r"^\s+schedule:", text, re.M) and "workflow_dispatch" in text and "push:" not in text.split("jobs:")[0]
-    for step in ("dogfood_gate.py", "evalrag", "check_md_links.py", "speclint", "escalation_report"):
+    for step in ("dogfood_gate.py", "evalrag", "check_md_links.py", "speclint", "escalation_report", "evalsets"):
         assert step in text
     assert "paths:" not in text.split("jobs:")[0]                    # no push/PR path filters: the trigger is the clock

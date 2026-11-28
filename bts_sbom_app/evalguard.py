@@ -117,8 +117,30 @@ def segment_gate(base: Optional[Dict[str, Dict[str, Any]]], cand: Optional[Dict[
     return failed, undecidable, thin
 
 
+KINDS = ("typical", "boundary", "adversarial")   # the course's 전형 / 경계 / 적대 (week 5 lesson 2: only-typical sets miss the failures that matter)
+ADVERSARIAL_SETS = ("injection_samples", "injection_holdout")   # labelled attack/benign corpora: the label decides, not a heuristic
+
+
+def kind_of(item: Dict[str, Any], set_name: str = "") -> str:
+    """전형/경계/적대 of one eval item. An explicit ``kind`` tag wins (and an unknown tag is returned VERBATIM so the
+    composition report can flag it - never silently coerced to typical); a labelled attack sample is adversarial and its
+    benign twin is typical (it probes precision, not attack strength); an ``ood`` item is boundary; everything else is
+    typical by the declared default. The rule that decided each item is visible in :func:`composition`."""
+    k = str(item.get("kind") or "").strip().lower()
+    if k:
+        return k
+    if set_name in ADVERSARIAL_SETS:
+        return "adversarial" if item.get("label") == "attack" else "typical"
+    if item.get("ood"):
+        return "boundary"
+    return "typical"
+
+
 def composition(sets: Dict[str, Sequence[Dict[str, Any]]], min_n: int = MIN_SEGMENT_N) -> Dict[str, Dict[str, Any]]:
-    """What each eval set is made of: size, out-of-domain share, topic and language mix, segments too thin to gate."""
+    """What each eval set is made of: size, out-of-domain share, topic and language mix, segments too thin to gate,
+    and the 전형/경계/적대 composition with the rule that decided each item (explicit tag / corpus label / ood flag /
+    typical default). A set whose items are all one kind is reported as such - the course names that as the shape of a
+    set that will miss real failures, and the report says it instead of hiding it."""
     out: Dict[str, Dict[str, Any]] = {}
     for name, items in sets.items():
         segs: Dict[str, int] = {}
@@ -128,10 +150,47 @@ def composition(sets: Dict[str, Sequence[Dict[str, Any]]], min_n: int = MIN_SEGM
         n = len(items)
         ood = segs.get("ood", 0)
         langs = {s for s in segs if s.startswith("lang:")}
+        kinds: Dict[str, int] = {k: 0 for k in KINDS}
+        rules = {"explicit": 0, "label": 0, "ood": 0, "default": 0}
+        unknown: List[Dict[str, str]] = []
+        for g in items:
+            k = kind_of(g, name)
+            if k in kinds:
+                kinds[k] += 1
+            else:
+                unknown.append({"kind": k, "q": str(g.get("q") or g.get("text") or "")[:60]})
+            if g.get("kind"):
+                rules["explicit"] += 1
+            elif name in ADVERSARIAL_SETS:
+                rules["label"] += 1
+            elif g.get("ood"):
+                rules["ood"] += 1
+            else:
+                rules["default"] += 1
         out[name] = {"n": n, "in_domain": n - ood, "ood": ood, "ood_share": round(ood / n, 3) if n else None, "segments": dict(sorted(segs.items())),
                      "thin": sorted(s for s, c in segs.items() if c < min_n), "fingerprint": fingerprint(items),
-                     "missing": sorted({"lang:ko", "lang:en"} - langs) if n - ood else []}       # a language with no in-domain query is not measured at all
+                     "missing": sorted({"lang:ko", "lang:en"} - langs) if n - ood else [],        # a language with no in-domain query is not measured at all
+                     "kinds": dict(kinds), "kind_rules": rules, "unknown_kinds": unknown}
     return out
+
+
+def coverage_gate(cov: Dict[str, Dict[str, Any]]) -> Tuple[List[str], List[str]]:
+    """(failed, notes) over a :func:`composition` table. Two conditions make a measurement UNDECIDABLE and are hard
+    failures; everything else is composition information, reported - an all-typical chat set is a finding about the
+    set, not about this gate. (1) an explicit ``kind`` outside the closed set would silently join no slice at all;
+    (2) a corpus declared adversarial (injection_*) with zero attack samples would make the guard's recall number a
+    division that never happens while the harness still prints one."""
+    failed: List[str] = []
+    notes: List[str] = []
+    for name, c in sorted(cov.items()):
+        for u in c.get("unknown_kinds") or []:
+            failed.append("%s: explicit kind %r is outside the closed set (%s)" % (name, u["kind"], "/".join(KINDS)))
+        if name in ADVERSARIAL_SETS and (c.get("kinds") or {}).get("adversarial", 0) == 0:
+            failed.append("%s: a declared adversarial corpus has 0 attack samples - recall is undecidable" % name)
+        kinds = c.get("kinds") or {}
+        if c.get("n", 0) and kinds.get("adversarial", 0) == 0 and kinds.get("boundary", 0) == 0 and not (c.get("unknown_kinds") or []):
+            notes.append("%s: %d item(s), all typical - only-typical sets miss the failures that matter (course 5-2)" % (name, c["n"]))
+    return failed, notes
 
 
 def _grams(q: str) -> set:

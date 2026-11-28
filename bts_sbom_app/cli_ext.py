@@ -16,7 +16,7 @@ from . import binscan, changes, conformance, coverage, fleet, portfolio, sbom, s
 from .llm import ChatClient
 from .util import console_text, read_json, write_json
 
-COMMANDS = ("govgate", "secretscan", "audit", "access-token", "prompts", "evalsets", "escalations", "conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck",
+COMMANDS = ("govgate", "secretscan", "audit", "access-token", "prompts", "evalsets", "ai-impact", "escalations", "conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck",
             "trace", "portfolio", "proof")
 PROOF_COMMAND_NAMES = ("pytest", "speclint", "doclint", "evalrag")
 
@@ -83,6 +83,10 @@ def add_commands(sub: Any) -> None:
     esv = sub.add_parser("evalsets", help="integrity of the retrieval eval sets: composition per set and segment, fingerprints (the pin), leak / duplicate / dangling-expectation findings")
     esv.add_argument("--json", action="store_true")
     esv.add_argument("--root", default=argparse.SUPPRESS, help="repository root that holds evals/ and knowledge/ (default: --root of the command)")
+    aim = sub.add_parser("ai-impact", help="the AI impact assessment (export of existing artifacts): print it, --write it to docs/, or --check the committed copy for staleness (exit 1)")
+    aim.add_argument("--check", action="store_true", help="gate the committed docs/AI_IMPACT_ASSESSMENT.md: sections, cited paths, cited AC ids, version stamp")
+    aim.add_argument("--write", default=None, metavar="PATH", help="write the freshly resolved assessment here (default path is docs/AI_IMPACT_ASSESSMENT.md)")
+    aim.add_argument("--json", action="store_true")
     es = sub.add_parser("escalations", help="the chat handoff log: list open / resolved escalations, or resolve one with the reviewer's note")
     es.add_argument("--status", default="all", choices=("all", "open", "resolved"))
     es.add_argument("--resolve", default=None, metavar="ID", help="close the escalation E-xxxxxxxx (needs --note and --by)")
@@ -284,6 +288,23 @@ def run(a: argparse.Namespace) -> int:
             lines.append('review the change, run the evals, then: bts-sbom-app prompts --update --reason "<what changed and why>"')
         _say(st, a.json, "\n".join(lines))
         return 0 if st["ok"] else 1
+    if a.cmd == "ai-impact":
+        from . import ai_impact
+        if a.check:
+            r = ai_impact.gate(a.root)
+            _say(r, a.json, "\n".join(["ai-impact gate: %s (%s)" % ("ok" if r["ok"] else "FAIL", ai_impact.DOC_PATH)] +
+                                      ["  stale: %s" % f for f in r["findings"]]))
+            return 0 if r["ok"] else 1
+        payload = ai_impact.assess(a.root)
+        md = ai_impact.render(payload)
+        if a.write:
+            path = a.write if os.path.isabs(a.write) else os.path.join(a.root, a.write)
+            with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(md)
+            print("wrote %s" % path)
+            return 0
+        _say(payload, a.json, md)
+        return 0
     if a.cmd == "evalsets":
         from . import evalguard, evals
         rep = evals.eval_integrity(a.root)
@@ -295,6 +316,18 @@ def run(a: argparse.Namespace) -> int:
         lk = rep["leak"]
         lines.append("leak check: %d blocking, %d warning" % (lk["blocking"], lk["warnings"]))
         lines += ["  [%s] %s" % (f["severity"], evalguard.describe(f)) for f in lk["findings"]]
+        inv = evals.eval_inventory(a.root)                          # the course's holdout 구성표: 전형/경계/적대 over EVERY declared corpus
+        rep["inventory"] = inv
+        lines.append("composition (전형/경계/적대):")
+        for name, c in inv["sets"].items():
+            k = c["kinds"]
+            lines.append("  - %s: typical %d, boundary %d, adversarial %d (rules: %s)" % (
+                name, k.get("typical", 0), k.get("boundary", 0), k.get("adversarial", 0),
+                ", ".join("%s=%d" % (r, n) for r, n in sorted(c["kind_rules"].items()) if n)))
+            lines += ["    NOTE: %s" % t for t in inv["coverage_gate"]["notes"] if t.startswith(name + ":")]
+        lines += ["  FAIL: %s" % f for f in inv["coverage_gate"]["failed"]]
+        cg_pass = inv["coverage_gate"]["pass"]
+        lines.append("coverage gate: %s" % ("pass" if cg_pass else "FAIL (%d)" % len(inv["coverage_gate"]["failed"])))
         dev = evals.injection_guard_eval(a.root)
         hold_items = []
         try:
@@ -320,7 +353,7 @@ def run(a: argparse.Namespace) -> int:
         lines.append("English retrieval (probe, not loop-gated): recall@5 %s MRR %s found %s OOD rejection %s (n=%s in-domain + %s out-of-domain)" % (
             en["recall_at_k"], en["mrr"], en["found_rate"], en["ood_rate"], en["queries"], en["ood_queries"]))
         _say(rep, a.json, "\n".join(lines))
-        return 1 if lk["blocking"] or inj_ok is False else 0
+        return 1 if lk["blocking"] or inj_ok is False or not cg_pass else 0
     if a.cmd == "escalations":
         from . import escalation as escmod
         evidence = _evidence(a)

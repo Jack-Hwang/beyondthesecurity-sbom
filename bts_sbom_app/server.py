@@ -137,12 +137,17 @@ def _annotate_budget_note(res: Any, client: "ChatClient") -> None:
     the tier is back to 'ok'."""
     if not isinstance(res, dict):
         return
+    # D1 §22 (course 5-4): the degradation signal travels WITH the result - any turn carrying an llm_note caveat
+    # (provider refusal, extractive fallback, budget pressure) is stamped degraded=True so the UI can badge it
+    # without parsing prose. A silent downgrade is the failure mode this exists to prevent.
+    res["degraded"] = bool(res.get("llm_note"))
     tier = client.budget_tier()
     if tier == "ok":
         return
     note = "LLM daily budget %s (%d/%d calls today)" % (tier, client.calls_today(), client.daily_budget)
     existing = res.get("llm_note") or ""
     res["llm_note"] = (existing + " | " + note) if existing else note
+    res["degraded"] = True
 
 
 def _prune_buses(buses: Dict[str, "events.EventBus"], keep: int) -> int:

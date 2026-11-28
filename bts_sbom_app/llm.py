@@ -18,6 +18,7 @@ floor is 1024 and ``reasoning_effort`` is sent as "low".
 from __future__ import annotations
 from . import __version__
 
+import datetime
 import json
 import os
 import re
@@ -114,6 +115,8 @@ class ChatClient:
         self.calls = 0
         self.errors: List[str] = []
         self.usage = {"prompt_tokens": 0, "completion_tokens": 0}
+        self.attempt_log: List[Dict[str, Any]] = []      # D4 §20: every attempt is recorded - what happened, and why it was retried or not
+        self._ATTEMPT_CAP = 200                          # bounded: this is a health signal, not an audit journal (escalations.py owns that role)
 
     # -- configuration
     @classmethod
@@ -229,6 +232,32 @@ class ChatClient:
         d[day] = entry
         write_json(self.ledger, d)
 
+    def _log_attempt(self, attempt: int, outcome: str, status: Optional[int], reason: str) -> None:
+        """D4 §20: every transport attempt is recorded - which attempt, what happened, the HTTP status and WHY it was
+        retried or refused (429_retry_after / 429_day_limit / 5xx_transient / http_4xx / network_lost). The ledger is
+        in-memory and bounded: it is a health signal for :meth:`retry_stats`, not an audit journal."""
+        self.attempt_log.append({"at": datetime.datetime.now().isoformat(timespec="seconds"),
+                                 "attempt": attempt, "outcome": outcome, "status": status, "reason": reason})
+        if len(self.attempt_log) > self._ATTEMPT_CAP:
+            del self.attempt_log[: len(self.attempt_log) - self._ATTEMPT_CAP]
+
+    def retry_stats(self) -> Dict[str, Any]:
+        """The course's retry-budget health signal (week 5 lesson 3: a spiking retry rate is a PROMPT/transport
+        smell, so it is measured, not guessed): attempts, completions, retried attempts with reasons, hard failures,
+        and the retry rate over completed calls. Empty log -> an honest zero shape, never a made-up ratio."""
+        log = self.attempt_log
+        retried = [e for e in log if e["outcome"] == "retried"]
+        failed = [e for e in log if e["outcome"] == "failed"]
+        by_reason: Dict[str, int] = {}
+        for e in retried + failed:
+            by_reason[e["reason"]] = by_reason.get(e["reason"], 0) + 1
+        attempts = len(log)
+        completions = sum(1 for e in log if e["outcome"] == "ok")
+        return {"attempts": attempts, "completions": completions, "retried": len(retried), "failures": len(failed),
+                "retry_rate": round(len(retried) / attempts, 3) if attempts else None,
+                "by_reason": dict(sorted(by_reason.items(), key=lambda kv: -kv[1])),
+                "recent_errors": list(self.errors[-3:])}
+
     def _record_usage(self, prompt_tokens: int, completion_tokens: int) -> None:
         """C48: add this completion's tokens to both the in-run counter (self.usage) and today's ledger entry,
         accumulating the estimated USD cost for a priced model (stays None for an unpriced one)."""
@@ -292,24 +321,33 @@ class ChatClient:
         status, text, resp_headers = 0, "", {}
         for attempt in range(2):
             self._bump()                  # every network attempt counts against the provider's day limit, failures included
-            status, text, resp_headers = self._post(url, headers, body)
+            try:
+                status, text, resp_headers = self._post(url, headers, body)
+            except Exception as exc:      # D1 §21: a network loss is an attempt too - recorded, then raised honestly
+                self._log_attempt(attempt, "failed", None, "network_lost")
+                raise
             if status == 429:
                 low = text.lower()
                 if any(w in low for w in ("day", "daily", "quota", "limit exceeded")) or attempt == 1:
+                    self._log_attempt(attempt, "failed", status, "429_day_limit")
                     self.errors.append("HTTP 429: " + text[:160])
                     raise LLMUnavailable("provider rate/day limit (HTTP 429): " + text[:200].replace(self.api_key, "***"))
                 # C15: honour the provider's own Retry-After when it sends one (net._retry_after_seconds caps it
                 # at 30s), falling back to the fixed wait only when the header is absent or unparseable.
+                self._log_attempt(attempt, "retried", status, "429_retry_after")
                 retry_after = _retry_after_seconds(resp_headers)
                 SLEEP(retry_after if retry_after is not None else wait)
                 continue
             if status >= 500 and attempt == 0:
+                self._log_attempt(attempt, "retried", status, "5xx_transient")
                 SLEEP(wait)
                 continue
             break
         if status >= 400:
+            self._log_attempt(attempt, "failed", status, "http_%d" % status)
             self.errors.append("HTTP %s" % status)
             raise LLMError("HTTP %s: %s" % (status, text[:200].replace(self.api_key, "***")))
+        self._log_attempt(attempt, "ok", status, "completed")
         try:
             data = json.loads(text)
             choice0 = (data.get("choices") or [{}])[0]
@@ -362,4 +400,5 @@ class ChatClient:
                 "ledger_today": {"calls": ledger_today.get("calls", 0),                    # C48
                                  "prompt_tokens": ledger_today.get("prompt_tokens", 0),
                                  "completion_tokens": ledger_today.get("completion_tokens", 0),
-                                 "cost_usd": ledger_today.get("cost_usd")}}
+                                 "cost_usd": ledger_today.get("cost_usd")},
+                "retry": self.retry_stats()}                                               # D4 §20: retry-budget health, measured

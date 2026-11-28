@@ -121,6 +121,7 @@ class StreamingChatbot(chatmod.Chatbot):
                    status=res.get("status") or "complete",                  # partial = a tool raised; cancelled = the reader left mid-turn (C32)
                    tool_errors=res.get("tool_errors") or [],
                    cancelled=bool(res.get("cancelled")),                    # C32: the turn stopped early because the reader is gone
+                   degraded=bool(res.get("degraded")),                      # D1 §22: the downgrade signal rides WITH the result - the dock badges it
                    trace_id=self.trace_id or "",                            # C25: the HTTP correlation id of this turn
                    versions=res.get("versions") or {})                      # app/model/prompt/spec audit stamp (C38)
         return res

@@ -30,6 +30,8 @@ jobs:
         run: python -m pytest tests/bts_sbom_app -q --ignore=tests/bts_sbom_app/test_kind_manifests.py
       - name: retrieval eval baseline (evalrag, offline by design)
         run: python -m bts_sbom_app evalrag
+      - name: eval-set composition (전형/경계/적대 구성표, week 5 lesson 2)
+        run: python -m bts_sbom_app evalsets --root .
       - name: dogfood - the product scans its own source (C09)
         run: python scripts/dogfood_gate.py
       - name: escalation roll-up health (C52/C43)

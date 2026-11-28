@@ -245,6 +245,11 @@
   function answerHtml(fin) {
     // the final event carries the whole answer contract - render it like U.renderChatAnswer does for /api/chat
     var h = '<div class="bts-chat-out" aria-live="polite">' + esc((fin.found ? '' : '[not found] ') + (fin.answer || '')) + '</div>';
+    if (fin.degraded) {
+      // D1 §22: the downgrade signal travels WITH the result - badge it, and let the note say exactly what degraded
+      h += '<div class="bts-chat-degraded" title="' + esc(fin.llm_note || 'degraded turn') + '">⚠ 저하 모드 — ' +
+        esc(fin.llm_note || 'this turn did not run on the standard model path') + '</div>';
+    }
     h += '<div class="bts-chat-src">source: ' + esc(fin.answer_source) + ' · citation accuracy: ' + esc(fin.citation_accuracy) +
       ' · routing: ' + esc(fin.routing || 'n/a') + (fin.routing_note ? ' · ' + esc(fin.routing_note) : '') + '</div>';
     var tops = fin.retrieval_top || [];
