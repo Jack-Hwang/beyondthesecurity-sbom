@@ -2,6 +2,33 @@
 
 All notable changes to bts-sbom are documented here.
 
+## 0.6.0 - 2026-11-28: Course re-analysis upgrades + CRA compliance + incident-response lane + governance/chat ops + oracle honesty
+
+- **Full course re-analysis shipped (AC-1100..1240)**: every document of the Metanet course folder
+  (PDF 23 / pptx 7 / xlsx 1 / zip 6) re-read in 27 agent groups against two repository searches each;
+  116 remaining gaps merged into 87 scored candidates; 40 upgrades built in file-disjoint bundles,
+  each adversarially reviewed and only reproduced defects fixed. Access-token gate for the UI.
+- **CRA compliance lane (AC-1241..1246)**: security.txt (/.well-known, CVD contact knob), 5-year support
+  verification, Article 14 reporting clocks (T0 -> 24h/72h/14d/1mo), readiness 8-check, Annex J registers;
+  measured on u-boot: 37.5% -> 75.0% readiness, honest "미판정" where KEV/EUVD is not integrated.
+- **Incident-response lane (AC-1261..1263)**: the KISA RFP mapped onto the product - a forward-only stage
+  machine with the RFP SLA clocks, four report builders (초동/원인분석/증거체크리스트/대응방안 모음집),
+  an IoC registry with supply-chain cross-check, and the 🚨 사고 대응 pane.
+- **Governance + chat operations**: approval ledger (JSONL, digest-mismatch attempts recorded), an
+  overridable remediation policy (validated atomically), honest blocked-lookup reasons, eval-candidate
+  feed; chat turns gained cancellation between tool calls, an SSE heartbeat (BTS_SBOM_SSE_HEARTBEAT_SECONDS),
+  and one trace_id linking request -> job -> SSE -> escalation (AC-1247..1260).
+- **UI cards 19/27 tools + live HITL**: the a2ui-style card catalog covers 19 of 27 chat tools; the full
+  approval chain was measured live on Azure (stale-token refusal, isolated apply 80.7s, source-boundary
+  refusal) behind Easy Auth, BTS_SBOM_CHAT_ACTIONS=1.
+- **Oracle honesty round (clean-room lane)**: FunctionTestCase suites (mimeparse 0.1.3 shape, 29 cases,
+  zero TestCase classes) now run - the static skip note no longer outranks the shim's measured output;
+  best-of-N parses `FAILED (failures=N)`; the LLM JSON envelope salvages bare backslashes. Measured
+  mimeparse live: 14 -> 4 of 29 legacy failures, reproduced twice; the remaining 4 are named.
+- **Azure operations**: system-assigned managed identity pulls from ACR (admin user OFF), nightly drift
+  workflow (schedule-only, offline battery), CI quota discipline, the self-dogfood gate proves the
+  stdlib-only claim (declared_runtime_deps=[]), and the repository is public.
+
 ## Unreleased - 2026-11-27: Full course re-analysis, 40 follow-up upgrades, access-token gate, Azure redeploy (AC-1100..1225)
 
 - Analysis: every document of the course folder (23 PDF, 7 pptx, 1 xlsx, 6 zip) re-read in 27 groups and verified against the code; 116 remaining gaps merged
