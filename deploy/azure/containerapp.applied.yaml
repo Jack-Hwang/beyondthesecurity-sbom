@@ -222,14 +222,28 @@ properties:
       - name: AZURE_OPENAI_API_VERSION
         secretRef: azure-api-version
       - name: BTS_OSS_ALLOWED_HOSTS
-        value: bts-sbom.yellowdesert-36032bc5.koreacentral.azurecontainerapps.io
+        value: bts-sbom.wittyforest-2c8fae00.koreacentral.azurecontainerapps.io
       - name: BTS_SBOM_LLM_DAILY_BUDGET
         value: '80'
       - name: BTS_SBOM_UNICODE
         value: '1'
       - name: BTS_SBOM_OSV_DB_PATH
         value: /tmp/evidence/bts_sbom_osv_local.db
-      image: btsbomacr1123.azurecr.io/bts-sbom-app:0.5.0-uboot2
+      - name: BTS_SBOM_ALLOWED_ROOTS
+        value: /srv/bts-sources
+      - name: BTS_SBOM_CHAT_ACTIONS
+        value: '1'
+      - name: BTS_SBOM_CVD_CONTACT
+        value: https://github.com/Jack-Hwang/beyondthesecurity-sbom/security
+      - name: BTS_SBOM_MI_SWITCH
+        value: '20261128'
+      - name: BTS_SBOM_OSV_SEED_DB
+        value: /tmp/evidence/bts_sbom_osv_local.db
+      - name: BTS_SBOM_TRUST_FORWARDED
+        value: '1'
+      - name: BTS_SBOM_ACCESS_TOKEN
+        value: '<masked: set at deploy time>'
+      image: btsbomacr1126.azurecr.io/bts-sbom-app:sha-5c7484b
       name: bts-sbom-app
       probes:
       - failureThreshold: 24
