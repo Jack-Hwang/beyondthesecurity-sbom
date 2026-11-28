@@ -147,3 +147,47 @@ def review(*, plan_digest: str, changed_files: Sequence[str], planned_manifests:
 
 
 __all__ = ["review", "REVIEWER", "APPROVE", "CHANGES_REQUESTED", "REJECT"]
+
+
+# ------------------------------------------------------------------ C31: reviewer-finding convergence
+MAX_LEDGER = 200
+
+
+def convergence(ledger_path: str, review_result: Dict[str, Any], *, escalate_at: int = 3) -> Dict[str, Any]:
+    """The same reviewer finding recurring review after review is TRACKED, not forgotten (C31): each review appends
+    its finding fingerprints (rule + detail head) to a per-project ledger, and every fingerprint now seen on
+    ``escalate_at`` or more reviews comes back in ``escalating`` - the recurrence that means the fix never landed.
+    Append-only and bounded; a failed ledger write is reported, never silently skipped."""
+    import datetime
+    import json
+    import os
+    prints = ["%s: %s" % (f.get("rule"), str(f.get("detail") or "")[:80]) for f in (review_result.get("findings") or [])]
+    history: List[str] = []
+    try:
+        with open(ledger_path, encoding="utf-8", errors="replace") as fh:
+            for ln in fh:
+                try:
+                    rec = json.loads(ln)
+                except ValueError:
+                    continue
+                if isinstance(rec, dict):
+                    history.extend(rec.get("findings") or [])
+    except OSError:
+        pass
+    counts: Dict[str, int] = {}
+    for fp in history + prints:
+        counts[fp] = counts.get(fp, 0) + 1
+    escalating = sorted(fp for fp, n in counts.items() if n >= escalate_at)
+    line = json.dumps({"at": datetime.datetime.now().isoformat(timespec="seconds"),
+                       "verdict": review_result.get("verdict"), "findings": prints}, ensure_ascii=False) + "\n"
+    write_error = None
+    try:
+        os.makedirs(os.path.dirname(ledger_path) or ".", exist_ok=True)
+        lines = open(ledger_path, encoding="utf-8", errors="replace").readlines()[-(MAX_LEDGER - 1):] if os.path.exists(ledger_path) else []
+        lines.append(line)
+        with open(ledger_path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.writelines(lines)
+    except OSError as exc:
+        write_error = "%s: %s" % (type(exc).__name__, str(exc)[:120])
+    return {"ledger": os.path.basename(ledger_path), "appended": len(prints), "reviews_seen": counts and max(counts.values()) or 0,
+            "escalating": escalating, "escalate_at": escalate_at, "write_error": write_error}

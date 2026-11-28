@@ -225,3 +225,31 @@ def stratified_audit(vulns: Iterable[Dict[str, Any]], store: Dict[str, Any], *, 
 
 __all__ = ["STATUSES", "JUSTIFICATIONS", "decide", "evaluate", "apply_to_statement", "review_candidates", "check_extras", "parse_date", "MIN_REASON",
            "closed_decisions", "stratified_audit"]
+
+
+# ------------------------------------------------------------------ C64: triage corrections as eval candidates
+def eval_candidates(triage_path: str, *, min_reason_chars: int = 20) -> dict:
+    """The human triage corrections as EVAL CANDIDATES (backlog C64; report-only, same contract as the escalation
+    feed): one row per recorded decision whose reason carries the minimum substance (the advisory id, the status,
+    the human's reason and who decided); a thin or anonymous entry counts as skipped, never as a row. Importing
+    them into evals/ is a deliberate human step - never an automatic rewrite of a golden set."""
+    import json as _json
+    import os as _os
+    rows, skipped = [], 0
+    try:
+        store = _json.load(open(triage_path, encoding="utf-8"))
+    except (OSError, ValueError):
+        store = {}
+    for key, entry in (store or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        adv, scope = _split_key(str(key), entry)
+        reason = str(entry.get("reason") or entry.get("justification") or "").strip()
+        by = entry.get("by")
+        if len(reason) >= min_reason_chars and by:
+            rows.append({"id": adv, "status": str(entry.get("status") or ""), "scope": scope,
+                         "reason": reason, "by": str(by)[:40], "kind": "triage_correction"})
+        else:
+            skipped += 1
+    return {"candidates": rows, "skipped": skipped,
+            "report_only": "importing into evals/ is a deliberate human step - never an automatic rewrite of a golden set"}

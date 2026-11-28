@@ -31,9 +31,10 @@ class _Stages:
     ``rec["stage_errors"]["progress_callback"]`` (a later one is not reported again - the signal is "the
     callback is unreliable", not a per-stage count) and the stage's own outcome is unaffected."""
 
-    def __init__(self, rec: Dict[str, Any], progress: Optional[Callable[..., None]] = None):
+    def __init__(self, rec: Dict[str, Any], progress: Optional[Callable[..., None]] = None, checkpoint_path: Optional[str] = None):
         self.rec = rec
         self.progress = progress
+        self.checkpoint_path = checkpoint_path
         rec["timings"] = {}
         rec["stage_errors"] = {}
 
@@ -60,6 +61,27 @@ class _Stages:
             seconds = round(time.time() - t, 2)
             self.rec["timings"][name] = seconds
             self._notify("step_end", name, ok=ok, seconds=seconds, error=error)
+            self._checkpoint(name, ok, seconds, error)
+
+    def _checkpoint(self, name: str, ok: bool, seconds: float, error: Optional[str]) -> None:
+        """C65: the phase checkpoint - after EVERY stage the file says which phase last completed. A crash (or a
+        SIGTERM) mid-analysis leaves this trace on disk instead of nothing: the resume question 'how far did it
+        get' has a measured answer. The write is best-effort - a checkpoint failure is recorded, never fatal."""
+        if not self.checkpoint_path:
+            return
+        try:
+            import datetime
+            import json as _json
+            os.makedirs(os.path.dirname(self.checkpoint_path) or ".", exist_ok=True)
+            with open(self.checkpoint_path, "w", encoding="utf-8", newline="\n") as fh:
+                _json.dump({"project": self.rec.get("name"), "at": datetime.datetime.now().isoformat(timespec="seconds"),
+                            "last_completed_stage": name if ok else self.rec.get("_last_ok_stage"),
+                            "stage": name, "ok": ok, "seconds": seconds, "error": error,
+                            "completed_before": list(self.rec.get("timings") or {})}, fh, ensure_ascii=False, indent=1)
+            if ok:
+                self.rec["_last_ok_stage"] = name
+        except OSError as exc:                                     # noqa: BLE001
+            self.rec["stage_errors"].setdefault("checkpoint", "%s: %s" % (type(exc).__name__, str(exc)[:120]))
 
 
 def _ids(vulns: List[Dict[str, Any]]) -> set:
@@ -83,7 +105,7 @@ def run_project(src: str, *, work_root: str, out_dir: Optional[str] = None, name
     rec: Dict[str, Any] = {"schema": PROJECT_SCHEMA, "name": name or safe_name(os.path.basename(src.rstrip("/\\")) or "project"),
                            "source": src, "ref": ref or "", "components": [], "vulns": [], "plans": [], "license": {}, "arch": {},
                            "sectors": {}, "patch": {}, "proposals": {}, "sbom_check": {}, "engine": {"core": ""}, "error": None}
-    S = _Stages(rec, progress=progress)
+    S = _Stages(rec, progress=progress, checkpoint_path=os.path.join(work_root, "%s.checkpoint.json" % (rec["name"] or "project")))
     try:
         kind = workspace.normalize_source(src)
     except ValueError:
@@ -411,6 +433,11 @@ def _patch_loop_core(rec: Dict[str, Any], path: str, *, approved: bool, token: O
             compat=out.get("compat"), compat_runtime=out.get("compat_runtime"))
     except Exception as exc:                                          # noqa: BLE001 - recorded, never swallowed silently
         out["review"] = {"error": "%s: %s" % (type(exc).__name__, str(exc)[:240])}
+    try:
+        out["review_convergence"] = reviewmod.convergence(            # C31: the same finding recurring across rounds is tracked
+            os.path.join(os.path.dirname(path) or ".", "review_convergence.jsonl"), out["review"])
+    except Exception as exc:                                          # noqa: BLE001
+        out["review_convergence"] = {"error": "%s: %s" % (type(exc).__name__, str(exc)[:160])}
 
     return out
 

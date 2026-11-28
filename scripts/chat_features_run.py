@@ -52,7 +52,9 @@ def run(base: str, suite: List[Dict[str, Any]], use_llm: bool = False, pause_s: 
             issues.append("turn reported found=false")
         answer = (res.get("answer") or "").replace("\n", " ")
         out.append({"feature": row.get("feature"), "tool": expected, "fired": fired, "found": found,
-                    "tools": tools, "answer_head": answer[:140], "routing": res.get("routing"),
+                    "tools": tools, "tool_args": res.get("tool_args") or {},   # C74: the fired call's argument values
+                    "stage_ms": res.get("stage_ms") or {},                     # C75: where the turn spent its time
+                    "answer_head": answer[:140], "routing": res.get("routing"),
                     "answer_source": res.get("answer_source"), "s": round(time.time() - t0, 1),
                     "issues": issues})
         mark = "ok " if not issues else "FAIL"

@@ -16,7 +16,7 @@ from . import binscan, changes, conformance, coverage, fleet, portfolio, sbom, s
 from .llm import ChatClient
 from .util import console_text, read_json, write_json
 
-COMMANDS = ("govgate", "secretscan", "audit", "access-token", "prompts", "evalsets", "ai-impact", "escalations", "conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck",
+COMMANDS = ("govgate", "secretscan", "audit", "access-token", "prompts", "evalsets", "ai-impact", "datasheet", "maturity", "escalations", "conformance", "diff", "vex", "review", "fleet", "coverage", "srcscan", "binscan", "selfcheck",
             "trace", "portfolio", "proof")
 PROOF_COMMAND_NAMES = ("pytest", "speclint", "doclint", "evalrag")
 
@@ -83,6 +83,12 @@ def add_commands(sub: Any) -> None:
     esv = sub.add_parser("evalsets", help="integrity of the retrieval eval sets: composition per set and segment, fingerprints (the pin), leak / duplicate / dangling-expectation findings")
     esv.add_argument("--json", action="store_true")
     esv.add_argument("--root", default=argparse.SUPPRESS, help="repository root that holds evals/ and knowledge/ (default: --root of the command)")
+    ds = sub.add_parser("datasheet", help="the dataset datasheet (export of the eval/knowledge corpora): print it, --write it to docs/, or --check the committed copy for staleness (exit 1)")
+    ds.add_argument("--check", action="store_true", help="gate the committed docs/DATASET_DATASHEET.md: sections, cited paths, corpus counts")
+    ds.add_argument("--write", default=None, metavar="PATH", help="write the freshly resolved datasheet here (default path is docs/DATASET_DATASHEET.md)")
+    ds.add_argument("--json", action="store_true")
+    mt = sub.add_parser("maturity", help="MLOps maturity self-diagnostic, measured from repo artifacts (L0/L1/L2 per dimension, overall = min) + the measured FT decision-table row + the prompt-conflict lint")
+    mt.add_argument("--json", action="store_true")
     aim = sub.add_parser("ai-impact", help="the AI impact assessment (export of existing artifacts): print it, --write it to docs/, or --check the committed copy for staleness (exit 1)")
     aim.add_argument("--check", action="store_true", help="gate the committed docs/AI_IMPACT_ASSESSMENT.md: sections, cited paths, cited AC ids, version stamp")
     aim.add_argument("--write", default=None, metavar="PATH", help="write the freshly resolved assessment here (default path is docs/AI_IMPACT_ASSESSMENT.md)")
@@ -288,6 +294,39 @@ def run(a: argparse.Namespace) -> int:
             lines.append('review the change, run the evals, then: bts-sbom-app prompts --update --reason "<what changed and why>"')
         _say(st, a.json, "\n".join(lines))
         return 0 if st["ok"] else 1
+    if a.cmd == "maturity":
+        from . import ft_decision, maturity, prompt_lint
+        m = maturity.diagnose(a.root)
+        m["ft_decision"] = ft_decision.decide(a.root)
+        m["prompt_conflicts"] = prompt_lint.lint(a.root)
+        lines = ["maturity: overall L%d (%s)" % (m["overall_level"], m["scale"])]
+        lines += ["  L%d  %-18s artifact=%s%s" % (d["level"], k, d["artifact"], (" enforced by " + d["enforced_by"]) if d["enforced_by"] else "")
+                  for k, d in sorted(m["dimensions"].items())]
+        lines += ["  blocker: %s" % ", ".join(m["blockers"]) if m["blockers"] else "  no L0/L1 blockers"]
+        lines.append("ft decision: %s (%s)" % (m["ft_decision"]["recommendation"], m["ft_decision"]["reason"]))
+        pc = m["prompt_conflicts"]
+        for f in pc["findings"]:
+            lines.append("  - %s: %s" % (f["rule"], str(f["ids"])))
+        lines.append("prompt conflict lint: %s (%d findings)" % ("clean" if pc["clean"] else "FINDINGS", len(pc["findings"])))
+        _say(m, a.json, "\n".join(lines))
+        return 0
+    if a.cmd == "datasheet":
+        from . import datasheet as dsm
+        if a.check:
+            r = dsm.gate(a.root)
+            _say(r, a.json, "\n".join(["datasheet gate: %s (%s)" % ("ok" if r["ok"] else "FAIL", dsm.DOC_PATH)] +
+                                      ["  stale: %s" % f for f in r["findings"]]))
+            return 0 if r["ok"] else 1
+        payload = dsm.assess(a.root)
+        md = dsm.render(payload)
+        if a.write:
+            path = a.write if os.path.isabs(a.write) else os.path.join(a.root, a.write)
+            with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(md)
+            print("wrote %s" % path)
+            return 0
+        _say(payload, a.json, md)
+        return 0
     if a.cmd == "ai-impact":
         from . import ai_impact
         if a.check:

@@ -7,9 +7,12 @@ Korean comment makes `az containerapp create --yaml` fail with a cp949 decode er
 `az containerapp create`: it holds the secrets.
 
 usage: python -I scripts/azure_render_app.py <template> <out>
-env:   IMAGE FQDN LLM_KEY LLM_BASE ACCESS_TOKEN ACR_SERVER ACR_USER ACR_PASSWORD   (optional: WEEK, OWNER, MIN_REPLICAS)
+env:   IMAGE FQDN LLM_KEY LLM_BASE ACCESS_TOKEN ACR_SERVER ACR_USER ACR_PASSWORD   (optional: WEEK, OWNER, MIN_REPLICAS, IMAGE_DIGEST)
+       IMAGE_DIGEST (C35): an immutable sha256 digest for the same repository - when set, IMAGE must name the SAME
+       repository and the rendered image becomes repo@sha256:... instead of a mutable tag.
 """
 import os
+import re
 import sys
 
 tpl, out = sys.argv[1], sys.argv[2]
@@ -23,12 +26,22 @@ def sub(a, b):
 
 
 E = os.environ
+DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+IMAGE = E["IMAGE"]
+if E.get("IMAGE_DIGEST"):
+    d = E["IMAGE_DIGEST"].strip()
+    if not DIGEST.fullmatch(d):
+        sys.exit("IMAGE_DIGEST must be sha256:<64 hex>, got %r" % d)
+    if "@" in IMAGE:
+        sys.exit("IMAGE must be a plain repo[:tag] when IMAGE_DIGEST is set; got %r" % IMAGE)
+    repo = IMAGE.rsplit(":", 1)[0] if ":" in IMAGE else IMAGE
+    IMAGE = "%s@%s" % (repo, d)                        # C35: the mutable tag is replaced by the immutable digest
 sub('week: "<ISO week of this redeploy, e.g. 2026-W48>"', 'week: "%s"' % E.get("WEEK", "2026-W48"))
 sub('owner: "<on-call contact: email or chat handle>"', 'owner: "%s"' % E.get("OWNER", "bts-sbom-operator"))
 sub('value: "<AZURE_OPENAI_KEY — az keyvault 또는 수동 입력>"', 'value: "%s"' % E["LLM_KEY"])
 sub('value: "https://<resource>.openai.azure.com"', 'value: "%s"' % E["LLM_BASE"])
 sub('value: "<python -m bts_sbom_app access-token 으로 만든 값 — 로그·레포에 남기지 말 것>"', 'value: "%s"' % E["ACCESS_TOKEN"])
-sub('image: "<REGISTRY>/bts-sbom-app:8.1.0"   # Dockerfile.bts-sbom-app 빌드 결과', 'image: "%s"' % E["IMAGE"])
+sub('image: "<REGISTRY>/bts-sbom-app:8.1.0"   # Dockerfile.bts-sbom-app 빌드 결과', 'image: "%s"' % IMAGE)
 sub('value: "<app FQDN, 예: bts-sbom.<env>.azurecontainerapps.io>"', 'value: "%s"' % E["FQDN"])
 sub("      minReplicas: 1                       # 단일 프로세스·evidence 공유 계약 — 0 스케일 배제", "      minReplicas: %s                       # 0 = demo cost cap (scale to zero when idle); az containerapp update --min-replicas 1 pins one" % E.get("MIN_REPLICAS", "0"))
 # the OSV snapshot lives on the evidence volume (seed) and is copied to LOCAL disk at start-up: SQLite cannot take the scanner's concurrent writes on an SMB share (AC-1226)

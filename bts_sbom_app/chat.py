@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import __version__, escalation as escmod, gaps as gapsmod, actions as actionsmod, ai, conformance, conversation, coverage as coverage_mod, fleet, licenses, pii_guard, promptreg as promptregmod, rag, sbom, triage, workspace
@@ -673,6 +674,42 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
                     "doc": "apply the approved patch plan in an isolated work copy, re-scan, revert on regression; needs the token the user typed"},
     "confirm_decision": {"args": {"code": "the 12-hex confirm code exactly as the user typed it"}, "doc": "record the previewed VEX decision whose code the user typed"},
 }
+#: C53: a worked example and the stated boundary against the confusable neighbour, for every tool - the model (and
+#: the reader of /api/ui/catalog) should not have to guess which of two similar tools answers the question.
+TOOL_EXAMPLES: Dict[str, Tuple[str, str]] = {
+    "overview": ("django-nV 프로젝트 개요를 요약해줘", "구성요소 하나의 상세는 component_lookup — overview는 프로젝트 전체 집계만 한다"),
+    "top_vulns": ("가장 심각한 취약점 top 3 보여줘", "특정 CVE 상세는 vuln_lookup — top_vulns는 서열만 돌려준다"),
+    "vuln_lookup": ("CVE-2018-18074 취약점 상세 알려줘", "여러 프로젝트의 영향 목록은 affected_projects — vuln_lookup은 단건 판정"),
+    "component_lookup": ("django 컴포넌트 정보 알려줘", "올리기 시뮬레이션은 what_if_upgrade — component_lookup은 현재 상태"),
+    "license": ("라이선스 현황 보여줘", "배포 모델별 리스크 스크리닝은 license_risks — license는 통계다"),
+    "patch": ("패치 현황 알려줘", "미리보기는 plan_patch, 적용은 apply_patch — patch는 현황 조회다"),
+    "architecture": ("아키텍처 분석 결과 보여줘", "기록된 심층 결과는 latest_arch — architecture는 이번 분석의 요약"),
+    "sector": ("금융 산업 규제 관점 리포트 보여줘", "SBOM 형식 요건은 sbom_conformance — sector는 산업 규제다"),
+    "what_if_upgrade": ("django를 5.2.17로 업그레이드하면 어때?", "실제 적용이 아니다 — 적용은 plan_preview 토큰과 apply_patch"),
+    "affected_projects": ("CVE-2018-18074에 영향받는 프로젝트가 어디야?", "단일 프로젝트 내 단건 조회는 vuln_lookup — affected는 전체 탐색"),
+    "latest_arch": ("최신 아키텍처 인텔 결과 보여줘", "이번 분석의 경량 요약은 architecture — latest_arch는 evidence의 최신 심층"),
+    "draw_diagram": ("이 프로젝트를 component 다이어그램으로 그려줘", "행동 판단은 decide — draw_diagram은 그림만, 측정값 없으면 빈 그림 대신 이유를 말한다"),
+    "decide": ("의사결정 테이블로 이 프로젝트의 조치를 판단해줘", "법적 판단·보증은 도구가 내리지 않는다 — policy_gap 에스컬레이션으로 사람에게 간다"),
+    "nl2sql": ("OSV 데이터베이스에서 생태계별 취약점 수 알려줘", "프로젝트 기록의 취약점은 top_vulns — nl2sql은 로컬 OSV DB 질의다"),
+    "book_search": ("책에서 fitness function 찾아줘", "프로젝트 분석이 아니라 책 지식 검색이다 — 출처가 책/섹션으로 붙는다"),
+    "sbom_conformance": ("SBOM conformance 검사 결과 보여줘", "산업 규제 관점은 sector — conformance는 형식 요건 체크다"),
+    "what_changed": ("지난 분석 이후 무엇이 바뀌었어?", "결정 커버리지는 coverage — what_changed는 발견 변화다"),
+    "coverage": ("결정 커버리지 보여줘", "결정 미리보기는 record_decision — coverage는 기록된 결정이 무엇을 이미 처리하는가"),
+    "license_risks": ("라이선스 리스크 관점에서 보여줘", "전체 통계는 license — license_risks는 배포 모델별 정책 위험이다"),
+    "proposals": ("기록된 수정 제안 목록을 보여줘", "패치 계획 미리보기는 plan_patch — proposals는 기록된 LLM 제안이다"),
+    "supply_chain": ("이 프로젝트에 타이포스쿼팅 같은 공급망 혼동 위험은 없어?", "사고 IoC 교차조회는 ioc_impact — supply_chain은 이름 혼동 위험 측정"),
+    "plan_patch": ("django-nV 패치 계획 미리보기 보여줘", "변경 없음 — 실제 적용은 사용자가 타이핑한 토큰과 apply_patch가 필요하다"),
+    "ioc_impact": ('침해지표 IoC "requests" 이(가) 구성요소에 있나 교차조회 해줘', "이름 유사성 위험은 supply_chain — ioc_impact는 사고 IoC 대조다"),
+    "export_vex": ("OpenVEX 내보내기 결과 보여줘", "결정 미리보기는 record_decision — export_vex는 기록된 결정이 적용된 문서다"),
+    "record_decision": ("이 결정을 장부에 남겨줘: CVE-2018-18074 는 not_affected, 사유는 우리가 그 버전을 안 쓴다", "미리보기일 뿐 — 기록은 사용자가 타이핑한 확인 코드와 confirm_decision이 필요하다"),
+    "analyze_project": ("owner/repo 소스를 분석하고 기록해줘", "actions 세션에서만 제공 — 새 분석을 기록하는 유일한 쓰기 도구다"),
+    "apply_patch": ("계획 적용 승인 <토큰>", "토큰은 사용자가 타이핑한 값 그대로 — 모델이 지어낸 토큰은 validate_calls가 드롭한다"),
+    "confirm_decision": ("확인 코드 <코드>", "미리보기(record_decision)가 준 코드를 사용자가 타이핑했을 때만 기록한다"),
+}
+for _t, (_ex, _bd) in TOOL_EXAMPLES.items():
+    if _t in TOOL_CATALOG:
+        TOOL_CATALOG[_t]["example"], TOOL_CATALOG[_t]["boundary"] = _ex, _bd
+
 WRITE_TOOLS = ("analyze_project", "apply_patch", "confirm_decision")
 NO_PROJECT_TOOLS = ("affected_projects", "analyze_project", "confirm_decision", "latest_arch", "book_search", "nl2sql",
                     "draw_diagram", "decide")                   # these can run before any project is loaded
@@ -1366,6 +1403,7 @@ class Chatbot:
                 out.append(_tool_error_result(c["tool"], exc))
                 continue
             for p in produced:
+                p["args"] = dict(c.get("args") or {})     # C74: the fired call echoes its arguments for the arg-value eval
                 new = p.pop("record", None)
                 if new is not None:                         # an analysis just produced a project: the calls after it talk about that one
                     self.projects[new["name"]] = new
@@ -1463,6 +1501,7 @@ class Chatbot:
 
     def ask(self, question: str, *, project: Optional[str] = None, use_llm: bool = False, k: int = 4) -> Dict[str, Any]:
         asked = question                              # the user's own words: a follow-up merge below must not leak into an escalation
+        _t0 = time.monotonic()                        # C75: per-stage timings - the answer carries WHERE the turn spent its time
         prior_misses = escmod.trailing_misses(self.memory)
         followup = False
         parts: List[str] = [question]
@@ -1484,10 +1523,12 @@ class Chatbot:
         trust: Dict[str, str] = {}
         claims: List[Dict[str, Any]] = []
         tools_used: List[str] = []
+        tool_args: Dict[str, Dict[str, Any]] = {}
         tool_errors: List[Dict[str, Any]] = []
         diagrams: List[Dict[str, Any]] = []
         cards: List[Dict[str, Any]] = []
         routing, routing_note, plan_dropped = "regex", "", {}
+        _t_route = time.monotonic()                   # route bucket ends here: follow-up merge, decomposition, project pick
         if rec is not None:
             results: Optional[List[Dict[str, Any]]] = None
             if use_llm and self.client is not None:
@@ -1510,6 +1551,8 @@ class Chatbot:
             results = annotate_gaps(rec, results)
             for t in results:
                 tools_used.append(t["tool"])
+                if t.get("args"):
+                    tool_args[t["tool"]] = t["args"]      # C74: last value wins; the eval only needs what actually fired
                 if t.get("error"):
                     tool_errors.append({"tool": t["tool"], "error": t.get("error_type") or "unknown"})
                 diagrams.extend(t.get("diagrams") or [])
@@ -1536,6 +1579,7 @@ class Chatbot:
                 docs[t["source"]] = "\n".join(t["lines"])
                 trust[t["source"]] = t["trust"]
                 claims.extend({"text": ln, "quote": ln, "source": t["source"], "trust": t["trust"]} for ln in t["lines"])
+        _t_retr = time.monotonic()                    # retrieval bucket ends here: tool planning + execution + fleet scan
         if rec is None and not tools_used and len(self.projects) > 1:      # several projects match: ask which one - never pick by heuristic (D5.2)
             amb = escmod.ambiguous_projects(asked, self.projects)
             if amb:
@@ -1576,6 +1620,7 @@ class Chatbot:
                          "llm_note": self._no_client_note(use_llm), "contains_untrusted": False, "conflicts": [],
                          "diagrams": diagrams[:3], "cards": cards[:4]}, **meta)
         ver = verify_claims(claims, docs)
+        _t_ver = time.monotonic()                     # verification bucket ends here: claim-vs-document checking
         answer = "\n".join(("- [untrusted quote] " if c.get("trust") == "untrusted-quote" else "- ") + c["text"] for c in ver["kept"])
         src = "tools" if tools_used else "rag"
         llm_note = self._no_client_note(use_llm)
@@ -1623,7 +1668,11 @@ class Chatbot:
         meta["reviewer_notes"] = notes
         answer, secret_kinds = redact_secret_kinds(answer)   # secret-shaped kinds only: never email/phone/RRN (legitimate SBOM quotes)
         meta["pii_redacted"] = secret_kinds
+        stage_ms = {"route": int((_t_route - _t0) * 1000), "retrieval": int((_t_retr - _t_route) * 1000),
+                    "verify": int((_t_ver - _t_retr) * 1000), "generate": int((time.monotonic() - _t_ver) * 1000)}
         return dict({"found": True, "answer": answer, "claims": ver["kept"], "answer_source": src, "tools": tools_used,
+                     "tool_args": tool_args,
                      "retrieval": retrieval, "citation_accuracy": ver["accuracy"], "llm_note": llm_note,
                      "contains_untrusted": any(c.get("trust") == "untrusted-quote" for c in ver["kept"]), "conflicts": conf,
+                     "stage_ms": stage_ms,                                   # C75: where the turn spent its time
                      "diagrams": diagrams[:3], "cards": cards[:4]}, **meta)

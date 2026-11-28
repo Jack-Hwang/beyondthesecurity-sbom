@@ -187,6 +187,7 @@ def run_pass(tag: str, sources: List[Dict[str, Any]], out_root: str, loop_root: 
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     code = code_fingerprint(repo)                                                           # fixed BEFORE the run starts
     prompts = promptreg.digest(repo)                                                        # which prompts produced this measurement
+    u0 = dict(client.usage) if client is not None else {}
     res = batch.run_batch(sources, out_root, tag=tag, jobs=jobs, client=client, settings=settings, work_root=work_root)
     metrics = flatten(res["summary"], rag_eval, chat_eval)
     hist = read_json(history_path(loop_root), []) or []
@@ -197,10 +198,15 @@ def run_pass(tag: str, sources: List[Dict[str, Any]], out_root: str, loop_root: 
         g = gate(base_rec["metrics"], metrics, delta)
         decision = "accept" if g["pass"] else "rollback"
     clusters = cluster_failures(res["records"])
+    per_case_s = {r["name"]: r.get("s") for r in res["records"] if isinstance(r.get("s"), (int, float))}
     entry = {"pass": len(hist) + 1, "tag": tag, "at": now_iso(), "variable": variable, "hypothesis": hypothesis, "decision": decision,
              "gate": g, "metrics": metrics, "failure_clusters": clusters[:25], "run_dir": res["summary"].get("run_dir"),
              "baseline_pass": base_rec["pass"] if base_rec else None, "core": res["summary"].get("core"),
-             "code": code, "prompts": prompts}
+             "code": code, "prompts": prompts,
+             "eval_pins": {n: evalguard.fingerprint(g) for n, g in evals.rag_set_items().items()},     # lineage: WHICH eval-set versions measured this pass
+             "per_case_seconds": dict(sorted(per_case_s.items(), key=lambda kv: -(kv[1] or 0))[:8]),   # C42: where the pass spent its minutes
+             "llm_cost": ({"prompt_tokens": client.usage["prompt_tokens"] - u0.get("prompt_tokens", 0),   # C42: this pass's own token spend
+                           "completion_tokens": client.usage["completion_tokens"] - u0.get("completion_tokens", 0)} if client is not None else None)}
     def _cv(c: Any) -> str:
         return str(c.get("version")) if isinstance(c, dict) else str(c)
 

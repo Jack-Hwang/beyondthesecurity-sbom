@@ -59,6 +59,18 @@ def fingerprint(items: Optional[Iterable[Dict[str, Any]]]) -> str:
     return hashlib.sha256(json.dumps(rows, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:12]
 
 
+def wilson_interval(k: int, n: int, z: float = 1.96) -> Dict[str, Optional[float]]:
+    """Wilson score interval on a proportion (C47): a rate measured on n items is a POINT estimate, and a small n
+    constrains the truth less than the point pretends. n <= 0 -> an honest {None, None}, never a fake interval."""
+    if n <= 0:
+        return {"lo": None, "hi": None}
+    p = k / n
+    denom = 1 + z * z / n
+    centre = p + z * z / (2 * n)
+    spread = z * ((p * (1 - p) + z * z / (4 * n)) / n) ** 0.5
+    return {"lo": round(max(0.0, (centre - spread) / denom), 3), "hi": round(min(1.0, (centre + spread) / denom), 3)}
+
+
 def pin_check(base_pins: Optional[Dict[str, str]], cand_pins: Optional[Dict[str, str]]) -> Tuple[List[str], List[str], List[str]]:
     """(undecidable, warnings, changed_sets): the same eval-set version on both sides, or the comparison is invalid."""
     undecidable: List[str] = []

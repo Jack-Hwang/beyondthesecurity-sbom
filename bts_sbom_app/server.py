@@ -52,7 +52,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from . import __version__, access, cra_api, escalation as escmod, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, conversation, coverage, engine, events, evals, fleet, incidents as incidentsmod, licenses, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
+from . import __version__, access, cra_api, escalation as escmod, actions as actionsmod, arch_api, books, books_api, chat as chatmod, chat_stream, conformance, console, conversation, coverage, engine, events, evals, feedback as feedback_mod, fleet, incidents as incidentsmod, licenses, oss_api, pipeline, rag, report, sbom, selfcheck, triage as triagemod, workspace
 from .cli import evidence_chunks, load_projects, project_records
 from .llm import ChatClient
 from .util import clip, read_json, write_json
@@ -705,6 +705,15 @@ def make_handler(st: State):
                 self._send(code, obj, ctype, headers)
             return True
 
+        def _feedback(self, method: str, path: str, q: Dict[str, Any], body: Dict[str, Any]) -> bool:
+            """The chat-feedback lane (feedback.py, C76/C66); False when the path is not one of its routes."""
+            hit = feedback_mod.route(method, path, q, body, self.headers, st, bind=tuple(self.server.server_address[:2]))
+            if hit is None:
+                return False
+            code, obj = hit
+            self._send(code, obj)
+            return True
+
         def _serve_events(self, jid: str, q: Dict[str, Any]) -> None:
             """GET /api/jobs/<jid>/events as text/event-stream. Unknown job -> plain 404 JSON (never a stream).
             Resumes after ``Last-Event-ID`` (header takes precedence over ``?after=``); heartbeats keep an idle
@@ -939,6 +948,8 @@ def make_handler(st: State):
                 return
             if self._incidents("GET", path, q, {}):
                 return
+            if self._feedback("GET", path, q, {}):
+                return
             self._send(404, {"error": "not found"})
 
         def do_POST(self) -> None:                                   # noqa: N802
@@ -1079,12 +1090,17 @@ def make_handler(st: State):
                 release = self._chat_admit()                # C10: concurrency cap + per-caller rate limit
                 if release is None:
                     return
+                t0 = time.monotonic()
                 try:
                     res = st.bot(trace_id=self._cid, actor=_caller_id(self)) \
                         .ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
                 finally:
                     release()
                 _annotate_budget_note(res, st.client)        # C33: budget tier -> the existing llm_note field
+                res["latency_ms"] = int((time.monotonic() - t0) * 1000)   # C86: the non-stream reader's full-turn latency
+                feedback_mod.record_turn(st.evidence, self._cid, answer_source=res.get("answer_source") or "",
+                                         degraded=bool(res.get("degraded")), found=res.get("found"),
+                                         status=res.get("status") or "")   # C76: the review-queue population (metadata only, never the text)
                 return self._send(200, res)
             if path == "/api/chat/stream":
                 q = str(b.get("question") or "").strip()
@@ -1124,9 +1140,18 @@ def make_handler(st: State):
                     beat_t = threading.Thread(target=beat, daemon=True)
                     beat_t.start()
 
+                    t0 = time.monotonic()                      # C86: TTFT (first flushed SSE event) + full-turn duration,
+                    first_at = [None]                          # measured here where the reader's experience actually happens
+                    last_ev = [{}]
+
                     def sink(ev: Dict[str, Any]) -> None:      # live flush per event; a gone reader must not fail the turn
+                        if first_at[0] is None:
+                            first_at[0] = time.monotonic()
                         if ev.get("kind") == "final":
                             _annotate_budget_note(ev, st.client)    # C33
+                            ev["ttft_ms"] = int((first_at[0] - t0) * 1000)
+                            ev["duration_ms"] = int((time.monotonic() - t0) * 1000)
+                            last_ev[0] = ev
                         _w(chat_stream.format_stream_sse(ev).encode("utf-8"))
 
                     try:
@@ -1137,6 +1162,10 @@ def make_handler(st: State):
                     finally:
                         stop_beat.set()
                         beat_t.join(timeout=2)
+                        fin = last_ev[0]                       # C76: the turn existed - metadata only, never the text
+                        feedback_mod.record_turn(st.evidence, self._cid, answer_source=fin.get("answer_source") or "",
+                                                 degraded=bool(fin.get("degraded")), found=fin.get("found"),
+                                                 status=fin.get("status") or "streamed")
                 finally:
                     release()
                 return
@@ -1232,6 +1261,8 @@ def make_handler(st: State):
             if self._books("POST", path, {}, b):
                 return
             if self._incidents("POST", path, {}, b):
+                return
+            if self._feedback("POST", path, {}, b):
                 return
             if self._cra("POST", path, {}, b):
                 return

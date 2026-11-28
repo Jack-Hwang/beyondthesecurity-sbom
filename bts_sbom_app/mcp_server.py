@@ -25,17 +25,50 @@ Usage:  python -m bts_sbom_app --root <repo> mcp            (a client spawns thi
 """
 from __future__ import annotations
 
+import concurrent.futures
+import datetime
 import hashlib
 import json
 import os
 import shutil
 import sys
 import tempfile
+import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from . import __version__, books as booksmod, chat as chatmod, evals
 from .cli import evidence_chunks, load_projects
 from .util import clip
+
+_MCP_TIMEOUT = float(os.environ.get("BTS_SBOM_MCP_TIMEOUT", "0") or 0)   # C58: per-call wall budget (0 = off)
+_TOOL_STATS: Dict[str, Dict[str, int]] = {}                              # C58: per-tool calls and errors, in-memory
+
+
+def _audit(s: Session, name: str, args: Any, t0: float, outcome: str, err_head: str) -> None:
+    """One audit line per MCP tool call (C58): what ran, how long it took, how it ended - and the per-tool error
+    counter a spiking error rate needs. The audit never carries argument VALUES (they are caller data): the keys
+    only, plus the outcome. A failed audit write is reported in the stats, never raised into the session."""
+    d = round((time.monotonic() - t0) * 1000)
+    st = _TOOL_STATS.setdefault(name, {"calls": 0, "errors": 0})
+    st["calls"] += 1
+    if outcome != "ok":
+        st["errors"] += 1
+    try:
+        path = os.path.join(s.evidence, "mcp_audit.jsonl")
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "a", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps({"at": datetime.datetime.now().isoformat(timespec="seconds"), "tool": name,
+                                 "arg_keys": sorted(args.keys()) if isinstance(args, dict) else [],
+                                 "duration_ms": d, "outcome": outcome,
+                                 "error_head": err_head or None}, ensure_ascii=False) + "\n")
+    except OSError:
+        st.setdefault("audit_write_errors", 0)
+        st["audit_write_errors"] += 1
+
+
+def tool_stats() -> Dict[str, Dict[str, int]]:
+    """The per-tool counters (C58): calls, errors, error rate - the input to 'this tool has started failing'."""
+    return {k: dict(v, error_rate=round(v["errors"] / v["calls"], 3) if v["calls"] else None) for k, v in sorted(_TOOL_STATS.items())}
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "bts-sbom"
@@ -376,17 +409,37 @@ def handle(s: Session, msg: Any, notify: Optional[Callable[[Dict[str, Any]], Non
             return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32602, "message": "unknown tool %r" % name}}
         meta = params.get("_meta")
         token = meta.get("progressToken") if isinstance(meta, dict) else None
+        _t0 = time.monotonic()
+        outcome, value, err_head = "ok", None, ""
         try:
-            value = _tool_result(s, name, args, notify, token)
+            if _MCP_TIMEOUT > 0:                           # C58: a bounded call - the work itself is not cancellable
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
+                    value = _ex.submit(_tool_result, s, name, args, notify, token).result(timeout=_MCP_TIMEOUT)
+            else:
+                value = _tool_result(s, name, args, notify, token)
+        except concurrent.futures.TimeoutError:
+            outcome, err_head = "timeout", "timed out after %ss" % _MCP_TIMEOUT
+            return {"jsonrpc": "2.0", "id": mid,
+                    "result": {"content": [{"type": "text", "text": "tool timed out after %ss - the underlying work is NOT cancelled "
+                                                           "(stdlib threads cannot be killed) and may still finish; its result is not reflected here" % _MCP_TIMEOUT}],
+                               "isError": True}}
         except (ValueError, KeyError) as exc:
+            outcome, err_head = "failed", str(exc)[:200]
             return {"jsonrpc": "2.0", "id": mid,
-                    "result": {"content": [{"type": "text", "text": "tool failed: %s" % str(exc)[:200]}], "isError": True}}
+                    "result": {"content": [{"type": "text", "text": "tool failed: %s" % err_head}], "isError": True}}
         except Exception as exc:                           # noqa: BLE001 - the tool reports, it never crashes the session
+            outcome, err_head = "crashed", "%s: %s" % (type(exc).__name__, str(exc)[:180])
             return {"jsonrpc": "2.0", "id": mid,
-                    "result": {"content": [{"type": "text", "text": "tool crashed: %s: %s" % (type(exc).__name__, str(exc)[:180])},
+                    "result": {"content": [{"type": "text", "text": "tool crashed: %s" % err_head},
                                            ], "isError": True}}
+        finally:
+            _audit(s, name, args, _t0, outcome, err_head)  # C58: every call audited, errors counted per tool
         return {"jsonrpc": "2.0", "id": mid, "result": {"content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False)}],
                                                         "isError": False}}
+    if method == "sampling/createMessage":                 # MCP sampling (course 6-1, D2 §20): the SERVER asks the CLIENT's
+        return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601,   # model - but this server HOLDS its own gated client instead
+                    "message": "this server does not consume client sampling: it runs its own gated LLM client "
+                               "(promptreg + budget + retry ledger); its initialize declares no sampling capability."}}
     if method == "ping":
         return {"jsonrpc": "2.0", "id": mid, "result": {}}
     return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": "method not found: %s" % method}}

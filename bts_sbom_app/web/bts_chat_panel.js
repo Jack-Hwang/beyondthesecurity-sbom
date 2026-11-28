@@ -371,9 +371,37 @@
     row.appendChild(el('span', { text: '승인 대기 토큰: ' }));
     row.appendChild(el('code', { text: token }));
     var btn = el('button', { type: 'button', 'class': 'run', text: '\u2713 이 토큰으로 승인' });
+    btn.setAttribute('aria-label', '화면에 본 패치 계획을 이 토큰으로 승인');
     btn.addEventListener('click', function () { send('계획 적용 승인 ' + token); });
     row.appendChild(btn);
     row.appendChild(el('span', { 'class': 'sub', text: '승인은 사람이 - 서버가 --chat-actions로 열렸을 때만 실제 적용된다' }));
+    return row;
+  }
+
+  function feedbackRow(traceId) {
+    /* C76: one vote per turn, recorded by trace id. The verdict goes to the ledger; the buttons go away -
+       the answer itself is untouched either way (feedback never rewrites what was said). */
+    var row = el('div', { 'class': 'bts-cd-fb' });
+    var done = false;
+    function vote(v) {
+      if (done) { return; }
+      done = true;
+      fetch('/api/chat/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trace_id: traceId, verdict: v }) }).catch(function () {});
+      Array.prototype.forEach.call(row.querySelectorAll('button'), function (b) { b.disabled = true; });
+      row.appendChild(el('span', { 'class': 'sub', text: ' 피드백 기록 (' + v + ') - 감사합니다.' }));
+    }
+    var up = el('button', { type: 'button', 'class': 'bts-cd-fb-b', text: '\ud83d\udc4d' });
+    up.setAttribute('aria-label', '이 답변이 도움이 되었다고 기록');
+    up.title = '도움이 되었다';
+    up.addEventListener('click', function () { vote('up'); });
+    var down = el('button', { type: 'button', 'class': 'bts-cd-fb-b', text: '\ud83d\udc4e' });
+    down.setAttribute('aria-label', '이 답변이 도움이 되지 않았다고 기록');
+    down.title = '도움이 되지 않았다';
+    down.addEventListener('click', function () { vote('down'); });
+    row.appendChild(up);
+    row.appendChild(down);
+    row.appendChild(el('span', { 'class': 'sub', text: '이 답변 어땠나요?' }));
     return row;
   }
 
@@ -413,6 +441,9 @@
       setBar();
       if (fin) {
         answerBox.innerHTML = answerHtml(fin);
+        if (fin.trace_id) {                             // C76: the turn's own thumbs - the human signal the system never had
+          answerBox.appendChild(feedbackRow(fin.trace_id));
+        }
         if (pendingToken) { answerBox.appendChild(approveRow(pendingToken)); }   // the approval outlives the final render
         renderDiagramsIn(answerBox);                    // draw the turn's diagrams (ADR-0024)
         var summ = el('summary', { text: '활동 보기 (' + actBox.querySelectorAll('.bts-cd-act').length + ')' });

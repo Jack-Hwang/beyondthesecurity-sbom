@@ -42,6 +42,9 @@ details.bts-chat summary{cursor:pointer;font-weight:600;color:#1f2328}
 .bts-chat-out{margin-top:10px;font-size:12.5px;line-height:1.55;color:#1f2328;white-space:pre-wrap}
 .bts-chat-src{color:#57606a;font-size:11px;margin-top:6px}
 .bts-chat-degraded{margin-top:8px;font-size:11.5px;padding:5px 8px;border:1px solid #d4a72c;border-radius:6px;background:#fff8c5;color:#4d2d00;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
+.bts-cd-fb{margin-top:8px;display:flex;align-items:center;gap:6px}
+.bts-cd-fb-b{border:1px solid #d0d7de;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:13px;line-height:1.4}
+.bts-cd-fb-b:disabled{opacity:.45;cursor:default}
 .bts-chat-chips{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
 .bts-chat-chip{display:inline-block;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid #d0d7de;border-radius:999px;
   background:#f6f8fa;color:#1f2328;font-size:11px;padding:2px 9px}

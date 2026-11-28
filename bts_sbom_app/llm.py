@@ -111,6 +111,8 @@ class ChatClient:
         self.provider = provider
         self.api_version = api_version or DEFAULT_AZURE_API_VERSION
         self.daily_budget = int(os.environ.get("BTS_SBOM_LLM_DAILY_BUDGET", "80")) if daily_budget is None else daily_budget
+        self.min_interval = float(os.environ.get("BTS_SBOM_LLM_MIN_INTERVAL", "0") or 0)   # C68: proactive pacing (0 = off)
+        self._last_call_at: Optional[float] = None
         self.ledger = ledger
         self.calls = 0
         self.errors: List[str] = []
@@ -284,13 +286,32 @@ class ChatClient:
         write_json(self.ledger, d)
 
     # -- call
-    def complete(self, system: str, user: str, max_tokens: int = 2048, *, json_mode: bool = False) -> str:
+    def complete(self, system: str, user: str, max_tokens: int = 2048, *, json_mode: bool = False,
+                 temperature: Optional[float] = None) -> str:
         """One request in flight at a time: parallel batch workers sharing this client would otherwise trip the provider's
-        'service is busy' 429 (measured: 2 of 10 projects lost their proposals that way)."""
+        'service is busy' 429 (measured: 2 of 10 projects lost their proposals that way). With ``min_interval`` set
+        (BTS_SBOM_LLM_MIN_INTERVAL, C68) the client ALSO paces proactively - the wait happens before the request is
+        built, instead of after a 429 has already been spent."""
         with self._lock:
-            return self._complete(system, user, max_tokens, json_mode=json_mode)
+            if self.min_interval > 0 and self._last_call_at is not None:
+                wait = self.min_interval - (time.monotonic() - self._last_call_at)
+                if wait > 0:
+                    SLEEP(wait)                            # C68: pace BEFORE spending a call, not after a refusal
+            out = self._complete(system, user, max_tokens, json_mode=json_mode, temperature=temperature)
+            self._last_call_at = time.monotonic()
+            return out
 
-    def _complete(self, system: str, user: str, max_tokens: int, *, json_mode: bool) -> str:
+    def _accepts_temperature(self) -> bool:
+        """Reasoning models ignore/reject sampling temperature - their ``reasoning_effort`` is the control. Sending
+        temperature there would 400 the request (or be silently ignored), so the client refuses to send it."""
+        if self.provider == "exaone":
+            return False
+        if self.provider == "azure":
+            return not re.match(r"^(gpt-[5-9]|o\d)", self.model)
+        return True
+
+    def _complete(self, system: str, user: str, max_tokens: int, *, json_mode: bool,
+                  temperature: Optional[float] = None) -> str:
         if not self.available:
             raise LLMUnavailable("no API key configured (set EXAONE_API_KEY)")
         if self.calls_today() >= self.daily_budget:
@@ -299,6 +320,10 @@ class ChatClient:
                 {"role": "user", "content": user}]
         floor = 2048 if self.provider == "azure" else FLOOR_TOKENS
         body: Dict[str, Any] = {"messages": msgs, "max_tokens": max(max_tokens, floor)}
+        if json_mode and temperature is None:
+            temperature = 0.2                              # C49: structured/extraction output wants a low sampling temperature -
+        if temperature is not None and self._accepts_temperature():   # a default at the client, so every JSON call site inherits it
+            body["temperature"] = temperature
         if self.provider == "azure":
             # Azure OpenAI: the deployment rides in the URL, auth is the api-key header. gpt-5+/o* reasoning
             # deployments require max_completion_tokens and burn completion tokens on reasoning, so the floor is

@@ -112,8 +112,14 @@ def _run_one(s: Any, *, work_root: str, run_dir: Optional[str], settings: Dict[s
     for k in ("ref", "depth"):
         if s.get(k) is not None:
             kw[k] = s[k]
+    t0 = time.time()
+    u0 = dict(client.usage) if client is not None else {}
     rec = pipeline.run_project(s["src"], work_root=work_root, out_dir=run_dir, name=s.get("name"), client=client, cache_dir=cache_dir, **kw)
     rec["id"] = sid
+    rec["s"] = round(time.time() - t0, 1)             # C42: per-case wall time - the loop can see WHERE a pass spent its minutes
+    if client is not None:                            # C42: this case's own token spend (the cost half of the metric)
+        rec["llm_tokens"] = {"prompt_tokens": client.usage["prompt_tokens"] - u0.get("prompt_tokens", 0),
+                             "completion_tokens": client.usage["completion_tokens"] - u0.get("completion_tokens", 0)}
     _carry_proposal_counts(rec)
     return rec
 

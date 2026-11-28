@@ -32,7 +32,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import chat, evals, evals_chat, rag
+from . import chat, evals, evals_chat, evalguard, rag
 
 GATES = {"grounding_f": 0.90, "completeness": 0.90, "tool_accuracy_read": 0.95,
          "tool_accuracy_write": 1.0, "over_refusal_rate": 0.05}
@@ -171,7 +171,9 @@ def tool_accuracy_eval(root: Optional[str] = None) -> Dict[str, Any]:
 
 
 def suite_lane_eval(path: str = SUITE_REPORT) -> Dict[str, Any]:
-    """The live lane: expected tool fired per row of the suite that ran against the real service (planner on)."""
+    """The live lane: expected tool fired per row of the suite that ran against the real service (planner on).
+    Ratios carry a Wilson interval (C47) - a proportion measured on ~26 rows is a point, the interval is the truth
+    it can actually support."""
     if not os.path.exists(path):
         return {"available": False}
     try:
@@ -184,7 +186,168 @@ def suite_lane_eval(path: str = SUITE_REPORT) -> Dict[str, Any]:
     refusals = [r["feature"] for r in rows if not r.get("found") and not (r.get("tools") or [])]
     return {"available": True, "passed": rep.get("passed"), "rounds": rep.get("rounds"),
             "tool_accuracy_read": round(hit / len(scored), 3) if scored else None,
-            "over_refusal_rate": round(len(refusals) / len(rows), 3) if rows else None, "refusals": refusals}
+            "tool_accuracy_read_ci": evalguard.wilson_interval(hit, len(scored)),
+            "over_refusal_rate": round(len(refusals) / len(rows), 3) if rows else None,
+            "over_refusal_rate_ci": evalguard.wilson_interval(len(refusals), len(rows)), "refusals": refusals}
+
+
+# ------------------------------------------------------------------ C61: the answer-correctness grader
+def reference_eval(root: Optional[str] = None) -> Dict[str, Any]:
+    """The answer-correctness grader against the reference (C61, distinct from A2 completeness): a case is correct
+    only when the answer was FOUND, carries every reference element, carries none of the row's FORBIDDEN content
+    (a fabricated value fails the case even when the must-list matched), and is more than the bare refusal."""
+    bot, _ = _both_projects(root)
+    ok, rows = 0, []
+    for row in A2_ROWS:
+        r = bot.ask(row["q"], project=row["project"])
+        low = r["answer"].lower()
+        missing = [m for m in row["must"] if m.lower() not in low]
+        forbidden = [f for f in row.get("forbid") or [] if f.lower() in low]
+        bare = (not r["found"]) or low.strip().startswith("i could not find")
+        correct = not bare and not missing and not forbidden
+        ok += 1 if correct else 0
+        rows.append({"q": row["q"][:40], "correct": correct, "missing": missing, "forbidden": forbidden})
+    return {"cases": len(A2_ROWS), "answer_correctness": round(ok / len(A2_ROWS), 3), "rows": rows}
+
+
+# ------------------------------------------------------------------ C62: the 3-way miss classification
+def miss_quadrant(path: str = SUITE_REPORT, golden_path: str = "evals/chat_features.json") -> Dict[str, Any]:
+    """Every failing suite row is classified into ONE of three observable misses (C62): ``tool_miss`` - the expected
+    tool never fired (a routing problem); ``empty_result`` - the tool fired and the turn honestly reported nothing
+    found (a retrieval/lookup problem); ``content_miss`` - found=true but the answer lacks the golden row's expected
+    content (a grounding/generation problem; only classifiable where the golden row carries ``expect``). A row that
+    fits none is ``unclassified`` - named, never force-fitted."""
+    if not os.path.exists(path):
+        return {"available": False}
+    try:
+        rep = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return {"available": False}
+    rows = rep.get("results") or []
+    try:
+        golden = {g.get("feature"): g for g in json.load(open(golden_path, encoding="utf-8"))}
+    except Exception:
+        golden = {}
+    classes: Dict[str, List[str]] = {"tool_miss": [], "empty_result": [], "content_miss": [], "unclassified": []}
+    for r in rows:
+        g = golden.get(r.get("feature")) or {}
+        # content_miss is checked BEFORE the issues gate: the runner only flags a missing tool or a bare refusal,
+        # so an answer that was "found" but lacks the golden content is a failure ONLY this classifier can see.
+        if r.get("found") and g.get("expect") and any(str(x).lower() not in (r.get("answer_head") or "").lower() for x in g["expect"]):
+            classes["content_miss"].append(r.get("feature"))
+            continue
+        issues = r.get("issues") or []
+        if not issues:
+            continue
+        fired, found, expected = r.get("tools") or [], bool(r.get("found")), r.get("tool")
+        if expected and expected not in fired:
+            classes["tool_miss"].append(r.get("feature"))
+        elif expected and fired and not found:
+            classes["empty_result"].append(r.get("feature"))
+        else:
+            classes["unclassified"].append(r.get("feature"))
+    n = sum(len(v) for v in classes.values())
+    return {"available": True, "fails": n,
+            "classes": {k: {"n": len(v), "features": v[:6]} for k, v in classes.items()},
+            "rate": {k: (round(len(v) / n, 3) if n else None) for k, v in classes.items()}}
+
+
+# ------------------------------------------------------------------ C74: did the fired tool call carry the RIGHT values?
+def tool_arg_eval(path: str = SUITE_REPORT, golden_path: str = "evals/chat_features.json") -> Dict[str, Any]:
+    """Tool-call accuracy so far checked only that a tool FIRED (C74); this checks the ARGUMENT VALUES: each golden
+    row may carry ``expect_args`` ({tool: {arg: value}}) and the live row's echoed ``tool_args`` must contain that
+    exact value. A tool that fires with a wrong id answered nothing - this is where that shows."""
+    if not os.path.exists(path):
+        return {"available": False}
+    try:
+        rep = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return {"available": False}
+    rows = rep.get("results") or []
+    try:
+        golden = {g.get("feature"): g for g in json.load(open(golden_path, encoding="utf-8"))}
+    except Exception:
+        golden = {}
+    checked, correct, misses = 0, 0, []
+    for r in rows:
+        g = golden.get(r.get("feature")) or {}
+        exp = g.get("expect_args") or {}
+        if not exp:
+            continue
+        actual = r.get("tool_args") or {}
+        for tool, want in exp.items():
+            for k, v in want.items():
+                checked += 1
+                got = (actual.get(tool) or {}).get(k)
+                if got == v:
+                    correct += 1
+                else:
+                    misses.append({"feature": r.get("feature"), "tool": tool, "arg": k, "want": v, "got": got})
+    return {"available": True, "checked": checked, "correct": correct,
+            "arg_accuracy": round(correct / checked, 3) if checked else None, "misses": misses}
+
+
+# ------------------------------------------------------------------ C75: which stage ate the turn?
+def stage_bottleneck(path: str = SUITE_REPORT) -> Dict[str, Any]:
+    """Per-stage medians over the suite rows that carry ``stage_ms`` (C75), and the bottleneck: the stage with the
+    largest MEDIAN share of the turn - weighted by share, not by one noisy outlier row."""
+    if not os.path.exists(path):
+        return {"available": False}
+    try:
+        rep = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return {"available": False}
+    rows = [r for r in (rep.get("results") or []) if isinstance(r.get("stage_ms"), dict) and r.get("stage_ms")]
+    if not rows:
+        return {"available": True, "rows": 0, "note": "no stage_ms in this report (run the suite against a service with C75 timings)"}
+    shares: Dict[str, List[float]] = {}
+    for r in rows:
+        sm = r["stage_ms"]
+        total = sum(v for v in sm.values() if isinstance(v, (int, float))) or 1
+        for stage, ms in sm.items():
+            if isinstance(ms, (int, float)):
+                shares.setdefault(stage, []).append(ms / total)
+    med = {k: round(sorted(v)[len(v) // 2], 3) for k, v in sorted(shares.items())}
+    top = max(med, key=med.get) if med else None
+    return {"available": True, "rows": len(rows), "median_share": med, "bottleneck": top}
+
+
+# ------------------------------------------------------------------ C04: the rolling baseline
+SCORES_HIST = os.path.join("evidence", "chat_features", "top10_history.jsonl")
+
+
+def rolling_baseline(current: Dict[str, Any], path: str = SCORES_HIST, window: int = 5) -> Dict[str, Any]:
+    """Drift against the ROLLING median of the last ``window`` recorded runs (C04) - a single stored previous run
+    makes every comparison a two-point story; the rolling median is the baseline a slow slide cannot hide from.
+    A metric below median + DELTA_FLOOR is named. An empty history is an honest zero-shape, not a pass."""
+    hist: List[Dict[str, Any]] = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for ln in fh:
+                try:
+                    rec = json.loads(ln)
+                except ValueError:
+                    continue
+                if isinstance(rec, dict) and isinstance(rec.get("scores"), dict):
+                    hist.append(rec["scores"])
+    except OSError:
+        pass
+    hist = hist[-window:]
+    drift: List[str] = []
+    med: Dict[str, Optional[float]] = {}
+    for k, v in current.items():
+        if not isinstance(v, (int, float)):
+            continue
+        vals = sorted(h[k] for h in hist if isinstance(h.get(k), (int, float)))
+        if not vals:
+            med[k] = None
+            continue
+        m = vals[len(vals) // 2]
+        med[k] = round(m, 3)
+        if v - m < DELTA_FLOOR - 1e-9:
+            drift.append("%s: %.3f is below the rolling median %.3f by more than %.2f" % (k, v, m, abs(DELTA_FLOOR)))
+    return {"history_runs": len(hist), "median": med, "drift": drift,
+            "pass": bool(hist) and not drift}          # no history yet: not a pass, an honest "cannot tell yet"
 
 
 # ------------------------------------------------------------------ A4 over-refusal (deterministic pool)
@@ -242,7 +405,20 @@ def top10(root: Optional[str] = None, suite_report: str = SUITE_REPORT) -> Dict[
             "delta_rule": "regression gate: a metric may drop by at most %.2f against the stored previous run" % abs(DELTA_FLOOR),
             "lane": {"live_suite": lane, "live_used": bool(live_ok),
                      "read_floor": ta["tool_accuracy_read_floor"], "refusal_floor": orr["over_refusal_rate_floor"]},
-            "grounding": g, "relevance": rc, "tool_accuracy": ta, "over_refusal": orr}
+            "grounding": g, "relevance": rc, "tool_accuracy": ta, "over_refusal": orr,
+            "reference": reference_eval(root),              # C61: answer correctness vs the reference content
+            "miss_quadrant": miss_quadrant(suite_report),   # C62: 3-way miss classification
+            "tool_args": tool_arg_eval(suite_report),       # C74: fired calls carry the RIGHT values
+            "bottleneck": stage_bottleneck(suite_report),   # C75: which stage ate the turn
+            "rolling": rolling_baseline(scores)}            # C04: drift vs the rolling median
+
+
+def append_history(result: Optional[Dict[str, Any]] = None, path: str = SCORES_HIST) -> None:
+    """One scores line per recorded run (C04): the rolling baseline needs history, so write_report leaves it."""
+    r = result or {}
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "a", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps({"scores": r.get("scores") or {}}, ensure_ascii=False) + "\n")
 
 
 def write_report(result: Optional[Dict[str, Any]] = None, path: str = REPORT_PATH, scores_path: str = SCORES_PATH) -> str:
@@ -282,11 +458,33 @@ def write_report(result: Optional[Dict[str, Any]] = None, path: str = REPORT_PAT
     if misses:
         lines.append("- floor 읽기 미발동: %s" % "; ".join("「%s」→ %s (기대 %s)" % (m["q"], m["tools"], m["expected"]) for m in misses[:8]) +
                      (" ..." if len(misses) > 8 else ""))
+    misses = r["tool_accuracy"]["read_misses"]
+    if misses:
+        lines.append("- floor 읽기 미발동: %s" % "; ".join("「%s」→ %s (기대 %s)" % (m["q"], m["tools"], m["expected"]) for m in misses[:8]) +
+                     (" ..." if len(misses) > 8 else ""))
+    ref = r.get("reference") or {}
+    if ref:
+        lines.append("- C61 답변 정답률(reference grader): %s (%d케이스) — 발견+필수요소 충족+금지값 부재+공거 아님을 전부 충족한 케이스만 정답." % (ref.get("answer_correctness"), ref.get("cases")))
+    mq = r.get("miss_quadrant") or {}
+    if mq.get("available") and mq.get("fails"):
+        lines.append("- C62 실패 3분류: tool_miss %s / empty_result %s / content_miss %s / 미분류 %s" % (
+            mq["classes"]["tool_miss"]["n"], mq["classes"]["empty_result"]["n"], mq["classes"]["content_miss"]["n"], mq["classes"]["unclassified"]["n"]))
+    ta_args = r.get("tool_args") or {}
+    if ta_args.get("available") and ta_args.get("checked"):
+        lines.append("- C74 인자값 정확도: %s (%d/%d) %s" % (ta_args.get("arg_accuracy"), ta_args.get("correct"), ta_args.get("checked"),
+                                                            ("; " + "; ".join("%s.%s은 %s이어야 하는데 %s" % (m["feature"], m["arg"], m["want"], m["got"]) for m in ta_args["misses"][:4])) if ta_args.get("misses") else ""))
+    bo = r.get("bottleneck") or {}
+    if bo.get("available") and bo.get("rows"):
+        lines.append("- C75 병목(중앙값 점유율): %s — %s" % (bo.get("bottleneck"), bo.get("median_share")))
+    ro = r.get("rolling") or {}
+    if ro:
+        lines.append("- C04 롤링 베이스라인: 최근 %d회 중앙값 대비 %s" % (ro.get("history_runs"), ("이탈: " + "; ".join(ro["drift"])) if ro.get("drift") else "이탈 없음"))
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
     with open(scores_path, "w", encoding="utf-8") as fh:            # the stored run the next Δ compares against
         json.dump(r["scores"], fh, ensure_ascii=False, indent=1, sort_keys=True)
+    append_history(r)                                               # C04: the rolling baseline reads this history
     return path
 
 
