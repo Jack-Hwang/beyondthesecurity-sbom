@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bts-sbom"
-version = "0.6.0"
+version = "0.6.1"
 description = "Regulatory-sector SBOM/SCA toolkit — CRA · FDA 524B · UNECE R155/R156 · EO 14028 · finance OSS guide · robot/ISO 10218"
 readme = "README.md"
 requires-python = ">=3.10"

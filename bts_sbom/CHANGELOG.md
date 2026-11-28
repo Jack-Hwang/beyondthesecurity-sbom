@@ -2,6 +2,28 @@
 
 All notable changes to bts-sbom are documented here.
 
+## 0.6.1 - 2026-11-28: GitOps deploy lane + secretless CI + ubuntu CI green + public access
+
+- **GitOps deploy lane (AC-1272/1273)**: scripts/gitops_deploy.py - blue/green via ACA revision traffic
+  weights (the smoke asserts the served CONTAINER_APP_REVISION), a rollback lane driven by the
+  evidence/deploy_ledger.jsonl ledger (flip while the previous revision is alive, rebuild from the
+  recorded image when it is gone), and a committed-YAML vs live drift gate that never prints env values.
+  Measured live: PROMOTED and ROLLED BACK on the real app; drift honestly named a stale image.
+- **Secretless CI image lane**: .github/workflows/ci-image.yml authenticates by GitHub OIDC federation
+  (bts-sbom-ci app registration, AcrPush/AcrPull assigned via raw ARM after the CLI refused this
+  subscription), gates on Trivy CRITICAL=0 before pushing, rotates the rollback tags
+  (latest -> previous, new as v<version> + sha-<commit>).
+- **Ubuntu CI green again**: five measured environment gaps repaired - Linux gcc's unconditional
+  Unicode quotes normalized at both parser capture points, the SSE heartbeat test no longer races a
+  fast stream (the turn deterministically outlives one interval), healthz's new revision field accepted,
+  the marker-macro repair shape (expected ';' before 'static') added to the C repair loop, honest skips
+  for the gitignored book corpus and PyYAML-dependent kubectl fixture.
+- **Public access by owner decision**: the 401 callers saw was the app's own BTS_SBOM_ACCESS_TOKEN gate
+  (never Easy Auth - az containerapp auth show returns {}); the token env was removed so evaluators open
+  the app directly; the approval chain still guards patches and the daily LLM budget still caps spend.
+- Deployed end to end: CI-gated images sha-5c7484b and sha-b03650a promoted to the live app through the
+  blue/green lane; the committed applied YAML matches the live app ("no drift").
+
 ## 0.6.0 - 2026-11-28: Course re-analysis upgrades + CRA compliance + incident-response lane + governance/chat ops + oracle honesty
 
 - **Full course re-analysis shipped (AC-1100..1263)**: every document of the Metanet course folder

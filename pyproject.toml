@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bts-sbom"
-version = "0.6.0"
+version = "0.6.1"
 description = "Regulatory-sector SBOM/SCA toolkit — CRA · FDA 524B · UNECE R155/R156 · EO 14028 · finance OSS guide · robot/ISO 10218"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -50,3 +50,8 @@ target-version = "py310"
 [tool.ruff.lint]
 # explicit rule set (the long-standing ruff default) so a newer ruff cannot silently enable more rules and redden CI
 select = ["E4", "E7", "E9", "F"]
+
+[tool.pytest.ini_options]
+# root-level collection used to recurse into .claude/worktrees/ repo copies (174 stray test files ->
+# 2,303 collection errors on 2026-11-28); the real suite lives in tests/ only.
+testpaths = ["tests"]

@@ -19,9 +19,22 @@ standard library (Python >= 3.10). The package can prove it:
 
 ```console
 $ python -m bts_sbom selfsbom
-{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.6.0", "dependsOn": [] }],
+{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.6.1", "dependsOn": [] }],
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
+
+## What's new in 0.6.1 — GitOps deploy lane + secretless CI + public evaluator access
+
+- **Blue/green + rollback + drift gate, measured live (AC-1272/1273)**: scripts/gitops_deploy.py drives
+  ACA revision traffic with a smoke that asserts the served revision, rolls back from a ledger (flip
+  while the previous revision lives, rebuild from the recorded image otherwise), and diffs the committed
+  applied YAML against the live app without ever printing env values.
+- **CI image lane with no stored secrets**: GitHub OIDC federation -> build -> Trivy CRITICAL=0 gate ->
+  ACR push with rollback tag rotation (latest -> previous, v<version> + sha-<commit>).
+- **ubuntu CI green** after five measured runner-environment repairs (Linux gcc's Unicode quotes
+  normalized in both parsers among them).
+- **Open to evaluators**: the access-token wall was removed by owner decision (the re-enable is one
+  az call); patches still need the HITL approval chain and the LLM spend stays under the daily ledger.
 
 ## What's new in 0.6.0 — course re-analysis shipped + CRA compliance + incident response + governance/chat ops
 
