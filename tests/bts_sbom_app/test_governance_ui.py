@@ -32,7 +32,7 @@ WEB = server.WEB_DIR
 TODAY = "2026-11-17"
 SCRIPTS = ["/static/sca_app.js", "/static/bts_ui.js", "/static/bts_governance.js", "/static/bts_report.js", "/static/bts_console.js",
            "/static/bts_chat_panel.js", "/static/oss_scanner.js", "/static/arch_intel_render.js", "/static/arch_intel.js",
-           "/static/bts_books.js"]   # + the OSS Scanner, Arch Intel, Book KB, Report screens, and the bottom chat dock
+           "/static/bts_books.js", "/static/bts_ccd.js"]   # + the OSS Scanner, Arch Intel, Book KB, Report screens, and the bottom chat dock
 
 
 # ------------------------------------------------------------------ helpers

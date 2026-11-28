@@ -151,7 +151,13 @@
   function setBar() {
     bar.textContent = '';
     var mark = el('span', { 'class': 'bts-cd-mark', text: '\uD83D\uDCAC SBOM 어시스턴트' });
-    var status = el('span', { 'class': 'bts-cd-status', text: busy ? '응답 생성 중…' : (open ? '' : '클릭해서 열기') });
+    var status = el('span', { 'class': 'bts-cd-status' });
+    if (busy) {
+      status.textContent = '응답 생성 중…';
+      status.appendChild(el('span', { 'class': 'bts-streaming', text: '\u258D' }));   // the CCD streaming caret
+    } else {
+      status.textContent = open ? '' : '클릭해서 열기';
+    }
     bar.appendChild(mark);
     bar.appendChild(status);
     bar.appendChild(el('span', { 'class': 'bts-cd-caret', text: open ? '\u25BC' : '\u25B2' }));
@@ -228,6 +234,15 @@
     msgs.appendChild(emptyHint());
   });
   document.addEventListener('bts:project', function (e) { followProject(e && e.detail); });
+  document.addEventListener('bts:chat-new', function (e) {           // the CCD center header's ＋ 새 대화
+    var key = e && e.detail && e.detail.key;
+    if (!key || key === shownKey) {
+      msgs.textContent = '';
+      msgs.appendChild(emptyHint());
+      saveShown();
+      scrollEnd();
+    }
+  });
 
   /* ---------- rendering ---------- */
   function userLine(text) {
@@ -368,13 +383,21 @@
   }
   function approveRow(token) {
     var row = el('div', { 'class': 'bts-cd-approve' });
-    row.appendChild(el('span', { text: '승인 대기 토큰: ' }));
-    row.appendChild(el('code', { text: token }));
+    row.appendChild(el('span', { 'class': 'bts-cd-approve-title', text: '승인 대기 — 사람이 결정합니다 (권한 프롬프트)' }));
+    row.appendChild(el('span', { text: '화면에 본 플랜의 다이제스트: ' }));
+    row.appendChild(el('code', { 'class': 'bts-cd-token', text: token }));
     var btn = el('button', { type: 'button', 'class': 'run', text: '\u2713 이 토큰으로 승인' });
     btn.setAttribute('aria-label', '화면에 본 패치 계획을 이 토큰으로 승인');
     btn.addEventListener('click', function () { send('계획 적용 승인 ' + token); });
     row.appendChild(btn);
-    row.appendChild(el('span', { 'class': 'sub', text: '승인은 사람이 - 서버가 --chat-actions로 열렸을 때만 실제 적용된다' }));
+    var deny = el('button', { type: 'button', 'class': 'bts-cd-deny', text: '\u2715 기각' });
+    deny.setAttribute('aria-label', '이 플랜을 기각하고 적용하지 않음');
+    deny.addEventListener('click', function () {
+      Array.prototype.forEach.call(row.querySelectorAll('button'), function (b) { b.disabled = true; });
+      send('이 플랜은 기각합니다. 적용하지 마세요. 대신 가장 위험한 취약점 1건의 수정 방향만 요약해 주세요.');
+    });
+    row.appendChild(deny);
+    row.appendChild(el('div', { 'class': 'sub', text: '승인 토큰 = 화면에 본 플랜의 다이제스트 - 플랜이 바뀌면 토큰은 무효가 됩니다. 서버가 --chat-actions로 열렸을 때만 실제 적용되고, 시도 전부가 감사 대장에 남습니다.' }));
     return row;
   }
 
