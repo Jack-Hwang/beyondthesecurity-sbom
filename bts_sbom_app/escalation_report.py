@@ -82,3 +82,28 @@ def report(evidence: str, *, now: Optional[Any] = None) -> Dict[str, Any]:
         out["resolution"]["mean_minutes"] = round(sum(resolutions) / len(resolutions), 1)
         out["resolution"]["median_minutes"] = _median(resolutions)
     return out
+
+
+def eval_candidates(evidence: str, *, min_note_chars: int = 10) -> Dict[str, Any]:
+    """C71: resolved escalations read back as an eval-candidate feed. A resolution note short enough to say
+    nothing (or no note at all) is NOT a usable eval row - it is left out and counted. Report-only: importing
+    the rows into ``evals/`` is a deliberate human step (a feed that silently becomes a test would smuggle the
+    reviewer's own wording into the golden set without anyone reading it first)."""
+    state = escalation.load(evidence)
+    rows: List[Dict[str, Any]] = []
+    skipped = 0
+    for eid, row in sorted(state.items()):
+        if row.get("status") != "resolved":
+            continue
+        res = row.get("resolution") or {}
+        note = str(res.get("note") or "").strip()
+        if len(note) < min_note_chars:
+            skipped += 1
+            continue
+        p = row.get("payload") or {}
+        rows.append({"id": eid, "kind": p.get("kind"), "trigger": p.get("trigger"), "project": p.get("project"),
+                     "question": p.get("triggering_question"), "question_trust": p.get("triggering_question_trust"),
+                     "resolution_note": note, "resolved_by": res.get("by") or "unattributed", "resolved_at": row.get("resolved_at")})
+    return {"schema": "bts-sbom.escalation-eval-candidates.v1", "candidates": rows, "count": len(rows), "skipped": skipped,
+            "note": "report-only feed: a human reads these and decides which become eval cases (C71); the question text is "
+                    "already PII/secret-redacted at escalation build time"}

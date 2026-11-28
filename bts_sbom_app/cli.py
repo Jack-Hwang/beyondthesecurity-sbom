@@ -410,8 +410,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cli_ext.chat_main(a)
     if a.cmd == "serve":
         from . import server
+        # the action session can also be opened by the operator's environment (containers set envs, not CLI flags;
+        # BTS_SBOM_CHAT_ACTIONS=1 enables - the value can never force it OFF over an explicit --chat-actions)
+        acts = bool(getattr(a, "chat_actions", False)) or os.environ.get("BTS_SBOM_CHAT_ACTIONS") == "1"
         return server.serve(a.root, a.host, a.port, a.evidence or os.path.join(a.root, "evidence", "runs"), getattr(a, "llm_config", None),
-                            chat_actions=bool(getattr(a, "chat_actions", False)))
+                            chat_actions=acts)
     return 2
 
 

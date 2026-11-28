@@ -857,8 +857,10 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
             return [_plain(tool, "diagrams:catalog", diagramsmod.catalog_lines())]
         out = diagramsmod.draw_for_chat(kind, rec, arch_dir, target=args.get("target"), spec=args.get("spec"))
         res = _plain(tool, "diagrams:%s" % kind.lower(), [out["note"]] if out["note"] else ["그릴 내용이 없습니다."])
+        # the drawn diagram travels as a diagram_ref CARD (A2UI catalog kind) - one render path, no ad-hoc payload
         if out.get("diagram"):
-            res["diagrams"] = [out["diagram"]]                       # the UI renders it under the answer
+            from . import ui_cards as uicards
+            res["cards"] = uicards.cards_for("draw_diagram", args, rec, {"diagrams": [out["diagram"]]})
         return [res]
     if tool == "decide":                                             # DMN-style inference over measured facts
         from . import decision as dmn

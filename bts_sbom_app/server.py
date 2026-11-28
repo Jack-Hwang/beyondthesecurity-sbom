@@ -377,22 +377,23 @@ class State:
         d["saved"] = os.path.exists(self._llm_config_path())
         return d
 
-    def bot(self, trace_id: Optional[str] = None) -> chatmod.Chatbot:
+    def bot(self, trace_id: Optional[str] = None, actor: Optional[str] = None) -> chatmod.Chatbot:
         projs = load_projects(self.evidence)
         client = self.client if self.client.available else None
-        acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
+        acts = actionsmod.ChatActions(self.root, self.evidence, client=client, actor=actor or "unattributed") if self.chat_actions else None
         return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
                                projs, client, acts, self.triage(),
                                arch_dir=os.path.join(self.evidence, "archintel"), books=self.books_index(),
                                memory=self.chat_memory, db_path=self.db_path(), escalations=self.evidence,
                                trace_id=trace_id)
 
-    def stream_bot(self, sink: Any, cancelled: Optional[Any] = None, trace_id: Optional[str] = None) -> chat_stream.StreamingChatbot:
+    def stream_bot(self, sink: Any, cancelled: Optional[Any] = None, trace_id: Optional[str] = None,
+                   actor: Optional[str] = None) -> chat_stream.StreamingChatbot:
         """The same wiring as :meth:`bot`, as the observing subclass: the 7 chat-level events go to ``sink``.
         ``cancelled`` (C32) is the reader-gone predicate; ``trace_id`` (C25) rides into escalations and the final event."""
         projs = load_projects(self.evidence)
         client = self.client if self.client.available else None
-        acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
+        acts = actionsmod.ChatActions(self.root, self.evidence, client=client, actor=actor or "unattributed") if self.chat_actions else None
         return chat_stream.StreamingChatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
                                             projs, client, acts, self.triage(), arch_dir=os.path.join(self.evidence, "archintel"), db_path=self.db_path(),
                                             books=self.books_index(), memory=self.chat_memory, sink=sink, escalations=self.evidence,
@@ -1060,7 +1061,8 @@ def make_handler(st: State):
                 if release is None:
                     return
                 try:
-                    res = st.bot(trace_id=self._cid).ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
+                    res = st.bot(trace_id=self._cid, actor=_caller_id(self)) \
+                        .ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
                 finally:
                     release()
                 _annotate_budget_note(res, st.client)        # C33: budget tier -> the existing llm_note field
@@ -1109,7 +1111,7 @@ def make_handler(st: State):
                         _w(chat_stream.format_stream_sse(ev).encode("utf-8"))
 
                     try:
-                        st.stream_bot(sink, cancelled=gone.is_set, trace_id=self._cid) \
+                        st.stream_bot(sink, cancelled=gone.is_set, trace_id=self._cid, actor=_caller_id(self)) \
                           .ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
                     except Exception:                          # noqa: BLE001 - the bot already emitted its fatal error envelope
                         pass

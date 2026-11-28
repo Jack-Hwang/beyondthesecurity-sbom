@@ -57,13 +57,29 @@ class ChatActions:
     """Capabilities a chat session may use. Construct it only for a session the user opened with actions enabled."""
 
     def __init__(self, root: str, evidence: str, *, client: Any = None, work_root: Optional[str] = None, cache_dir: Optional[str] = None,
-                 offline: bool = False, scanner: Any = None, use_llm: bool = True, today: Optional[datetime.date] = None):
+                 offline: bool = False, scanner: Any = None, use_llm: bool = True, today: Optional[datetime.date] = None,
+                 actor: str = "unattributed"):
         self.root, self.evidence, self.client = root, evidence, client
         self.work_root, self.offline, self.scanner, self.use_llm = work_root, offline, scanner, use_llm
         self.cache_dir = cache_dir or os.path.join(root, "evidence", "cache")
         self.today = today
+        self.actor = actor                            # C26: who the embedding says is acting (a caller id); never invented
         self.triage_path = os.path.join(evidence, ".triage.json")
         self.pending_path = os.path.join(evidence, ".pending_decisions.json")
+        self.audit_path = os.path.join(evidence, "approvals.jsonl")
+
+    def _audit(self, kind: str, **row: Any) -> None:
+        """C26: one append-only line per EFFECTFUL attempt - applied, refused, or mismatched (a digest mismatch
+        attempt is exactly what an audit exists to show). A log failure never blocks the action itself; the
+        response carries the outcome either way."""
+        try:
+            entry = {"ts": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), "kind": kind,
+                     "actor": self.actor, **row}
+            os.makedirs(self.evidence, exist_ok=True)
+            with open(self.audit_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
+        except OSError:
+            pass
 
     # ---------------------------------------------------------------- records
     def _folder_and_record(self, name: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
@@ -94,12 +110,16 @@ class ChatActions:
 
     # ---------------------------------------------------------------- patch
     def patch_apply(self, rec: Dict[str, Any], token: str, components: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Apply EXACTLY the plan the token was computed for. One round; re-scan; revert on regression; result recorded in the project record."""
+        """Apply EXACTLY the plan the token was computed for. One round; re-scan; revert on regression; result recorded in the project record.
+        Every attempt lands in the C26 approval ledger - applied, refused, or mismatched."""
         plans = plan_selection(rec, components)
         digest = patchmod.approval_digest(plans)
         if not plans:
+            self._audit("patch_apply", project=rec.get("name", ""), digest=digest, outcome="nothing_to_patch")
             return {"status": "nothing_to_patch", "digest": digest}
         if token != digest:
+            self._audit("patch_apply", project=rec.get("name", ""), digest=digest, outcome="digest_mismatch",
+                        token_supplied=bool(token))
             return {"status": "digest_mismatch", "digest": digest}
         work = self.work_root or tempfile.mkdtemp(prefix="bts_sbom_fix_")
         ws = workspace.prepare(rec["source"], work, ref=rec.get("ref") or None, name=safe_name(rec["name"]) + "_fix")
@@ -111,6 +131,7 @@ class ChatActions:
         out = pipeline._patch_loop(scoped, ws["path"], approved=True, token=token, rounds=1, offline=self.offline,     # ... and runs ONE round
                                    scanner=self.scanner, verify_rounds=3)
         out["at"] = datetime.datetime.now().isoformat(timespec="seconds")   # when this approved run happened (the display labels stale statuses)
+        self._audit("patch_apply", project=rec.get("name", ""), digest=digest, outcome=str(out.get("status") or "unknown"))
         out["work_copy"] = ws["path"] if out.get("status") == "applied" else None
         if out.get("status") != "applied":
             shutil.rmtree(work if not self.work_root else ws["path"], onerror=workspace._force_remove)
@@ -164,6 +185,7 @@ class ChatActions:
         cur = self.store()
         key = decision_key(d)
         if key not in cur and len(cur) >= console.TRIAGE_MAX_ENTRIES:
+            self._audit("vex_decision", key=key, outcome="store_full", status=str(d.get("status") or ""))
             return {"ok": False, "error": "triage store is full (%d entries)" % console.TRIAGE_MAX_ENTRIES}
         entry: Dict[str, Any] = {"status": d["status"], "note": d["reason"], "ts": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
                                  "via": "chat"}
@@ -173,6 +195,7 @@ class ChatActions:
         cur[key] = entry
         os.makedirs(self.evidence, exist_ok=True)
         write_json(self.triage_path, cur)
+        self._audit("vex_decision", key=key, outcome="committed", status=str(d.get("status") or ""))
         return {"ok": True, "key": key, "path": self.triage_path}
 
     def export_vex(self, rec: Dict[str, Any]) -> Dict[str, Any]:

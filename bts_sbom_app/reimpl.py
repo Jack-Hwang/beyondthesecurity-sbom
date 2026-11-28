@@ -419,8 +419,10 @@ def _reconcile_adopted_test(text: str, module_name: str) -> Tuple[str, Dict[str,
             notes["rebound"] = True
         out_lines.append(line)
     text = "".join(out_lines)
-    has_cases = bool(_re.search(r"class\s+\w+\(.*(TestCase|unittest\.TestCase)", text))
-    calls_main = bool(_re.search(r"unittest\.main\s*\(", text))
+    has_cases = bool(_re.search(r"class\s+\w+\(.*(TestCase|unittest\.TestCase)", text)) \
+        or "unittest.FunctionTestCase" in text          # mimeparse-style: cases built at run time, no class in sight
+    calls_main = bool(_re.search(r"unittest\.main\s*\(", text)) \
+        or bool(_re.search(r"if\s+__name__\s*==\s*['\"]__main__['\"]", text))   # a self-running guard already executes the suite
     if has_cases and not calls_main:
         # argv[0] is the program name in unittest.main; with no further names the whole module runs
         text += "\n\nif __name__ == \"__main__\":\n    unittest.main(argv=[\"reimpl-oracle\"], verbosity=2)\n"
@@ -439,7 +441,10 @@ def run_adopted_tests(work: str, adopted: Dict[str, List[str]], module_name: str
     reimplementation), test-only helper packages resolve from the source tree (PYTHONPATH), and a pytest-collected
     TestCase suite without its own main tail gets one injected - all measured on u-boot 2026-11-23, where
     ``test_src_scan.py`` has 18 TestCase methods, no main tail, and imports ``from dtoc import src_scan``.
-    A file that would run zero tests is recorded as skipped instead of reading as a pass."""
+    A file that would run zero tests is recorded as skipped instead of reading as a pass - but the shim's
+    own output is the authority on "zero": a FunctionTestCase suite (mimeparse 0.1.3) has no TestCase class
+    yet runs 29 cases, and the static skip note alone was silently skipping that oracle (measured 2026-11-28;
+    the runtime-evidence-first rule below)."""
     work = os.path.abspath(work)
     for src in adopted.get("tests", []) + adopted.get("data", []):
         shutil.copyfile(src, os.path.join(work, os.path.basename(src)))
@@ -466,7 +471,11 @@ def run_adopted_tests(work: str, adopted: Dict[str, List[str]], module_name: str
         tail = ((p.stdout or "") + (p.stderr or "")).strip()[-3000:]   # the FULL failure list rides to the retry
         m = _re.search(r"Ran (\d+) test", tail)
         ran = int(m.group(1)) if m else 0
-        if notes.get("no_runnable_tests") or (p.returncode == 0 and ran == 0):
+        # Runtime evidence outranks the static scan: a FunctionTestCase suite (mimeparse 0.1.3 - 29
+        # FunctionTestCases, zero TestCase classes) RUNS under the shim, and the static note alone
+        # silently skipped that 29-test oracle (measured 2026-11-28). The skip needs the runtime to
+        # agree: nothing ran AND (a clean exit or a statically helper-shaped file).
+        if ran == 0 and (p.returncode == 0 or notes.get("no_runnable_tests")):
             skipped.append({"file": base, "why": "no runnable unittest cases in this file"})
             tails.append("%s -> SKIPPED (no runnable tests)" % base)
             continue
@@ -649,8 +658,14 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
             if atr["ok"]:
                 verdict = "ok"
                 break
-            m = _re.search(r"FAILED \(failures=(\d+), errors=(\d+)\)", atr["tail"] or "")
-            failed_total = (int(m.group(1)) + int(m.group(2))) if m else 10 ** 6
+            m = _re.search(r"FAILED \(([^)]*)\)", atr["tail"] or "")
+            if m:                                              # "failures=N" alone, or "failures=N, errors=M"
+                failed_total = sum(int(p.split("=", 1)[1]) for p in m.group(1).split(",")
+                                   if "=" in p and p.split("=", 1)[0].strip() in ("failures", "errors"))
+                if failed_total == 0:
+                    failed_total = 10 ** 6                     # a FAILED line whose counts will not parse: rank it, never free-pass it
+            else:
+                failed_total = 10 ** 6
             if best is None or failed_total < best["failed"]:
                 best = {"attempt": attempt, "failed": failed_total, "code": code}
             if generated_by == "scaffold" or attempt >= max(1, attempts):

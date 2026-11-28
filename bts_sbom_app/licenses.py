@@ -18,7 +18,7 @@ import time
 import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import audit, net
+from . import audit, net, resilience
 from .util import read_json, read_text, write_json
 
 # --------------------------------------------------------------------------- SPDX normalisation
@@ -346,7 +346,7 @@ _DEPSDEV = {"pypi": "pypi", "npm": "npm", "go": "go", "maven": "maven", "crates.
             "rubygems": "rubygems"}
 
 
-def _depsdev(eco: str, name: str, version: str) -> Optional[str]:
+def _depsdev(eco: str, name: str, version: str, meta: Optional[Dict[str, Any]] = None) -> Optional[str]:
     sysname = _DEPSDEV.get(eco.lower())
     if not sysname:
         return None
@@ -355,10 +355,12 @@ def _depsdev(eco: str, name: str, version: str) -> Optional[str]:
         ver = "v" + ver
     url = "https://api.deps.dev/v3/systems/%s/packages/%s/versions/%s" % (
         sysname, urllib.parse.quote(name, safe=""), urllib.parse.quote(ver, safe=""))
-    doc = net.http_json(url)
-    if not isinstance(doc, dict):
+    oc = net.http_json_oc(url)
+    if meta is not None and oc.state != resilience.SUCCESS:
+        meta["deps.dev"] = {"state": oc.state, "reason": oc.reason}          # C07: why we never asked / got nothing
+    if not isinstance(oc.data, dict):
         return None
-    lic = doc.get("licenses") or []
+    lic = oc.data.get("licenses") or []
     lic = [x for x in lic if x and x.lower() not in ("non-standard", "noassertion")]
     return " OR ".join(lic) if lic else None
 
@@ -382,11 +384,15 @@ def _maven_pom(name: str, version: str, depth: int = 3) -> Optional[Any]:
     return _maven_pom("%s:%s" % (m.group(1), m.group(2)), m.group(3), depth - 1) if m else None
 
 
-def _registry(eco: str, name: str, version: str, extra: bool = True) -> Optional[Any]:
-    """Registry-specific lookup. ``extra`` enables the wider fallbacks (npm legacy ``licenses`` array, Maven Central POM)."""
+def _registry(eco: str, name: str, version: str, extra: bool = True, meta: Optional[Dict[str, Any]] = None) -> Optional[Any]:
+    """Registry-specific lookup. ``extra`` enables the wider fallbacks (npm legacy ``licenses`` array, Maven Central POM).
+    ``meta`` (C07) collects {state, reason} per failed source so the caller can say WHY nothing was learned."""
     e = eco.lower()
     if e == "pypi":
-        doc = net.http_json("https://pypi.org/pypi/%s/%s/json" % (urllib.parse.quote(name), urllib.parse.quote(version)))
+        oc = net.http_json_oc("https://pypi.org/pypi/%s/%s/json" % (urllib.parse.quote(name), urllib.parse.quote(version)))
+        if meta is not None and oc.state != resilience.SUCCESS:
+            meta["registry:pypi"] = {"state": oc.state, "reason": oc.reason}
+        doc = oc.data
         info = (doc or {}).get("info") or {}
         raw = info.get("license_expression") or info.get("license") or ""
         if raw and len(str(raw)) <= 120:
@@ -395,7 +401,10 @@ def _registry(eco: str, name: str, version: str, extra: bool = True) -> Optional
             if cl.startswith("License :: OSI Approved :: "):
                 return cl.split("::")[-1].strip()
     elif e == "npm":
-        doc = net.http_json("https://registry.npmjs.org/%s/%s" % (urllib.parse.quote(name, safe="@"), urllib.parse.quote(version)))
+        oc = net.http_json_oc("https://registry.npmjs.org/%s/%s" % (urllib.parse.quote(name, safe="@"), urllib.parse.quote(version)))
+        if meta is not None and oc.state != resilience.SUCCESS:
+            meta["registry:npm"] = {"state": oc.state, "reason": oc.reason}
+        doc = oc.data
         if extra:
             return (doc or {}).get("license") or (doc or {}).get("licenses") or None      # old packages: [{"type": "MIT", "url": ...}]
         return (doc or {}).get("license") or None
@@ -460,30 +469,35 @@ def resolve(components: List[Dict[str, Any]], root: str, *, online: bool = True,
             continue
         todo.append(c)
 
-    def look(c: Dict[str, Any]) -> Tuple[Dict[str, Any], Any, str, bool]:
+    def look(c: Dict[str, Any]) -> Tuple[Dict[str, Any], Any, str, bool, Dict[str, Any]]:
         fails_before = net.thread_access_failures()
         first: Tuple[Any, str] = (None, "")
-        for src, fn in (("deps.dev", _depsdev), ("registry", lambda e, n, v: _registry(e, n, v, extra_registries))):
+        blocked: Dict[str, Any] = {}                          # C07: {source: {state, reason}} for the asks that never happened
+        for src, fn in (("deps.dev", _depsdev), ("registry", lambda e, n, v, meta=None: _registry(e, n, v, extra_registries, meta))):
             if src not in sources:
                 continue
-            raw = fn(c["ecosystem"], c["name"], c["version"])
+            raw = fn(c["ecosystem"], c["name"], c["version"], blocked)
             label = "deps.dev" if src == "deps.dev" else "registry:" + c["ecosystem"].lower()
             if raw and normalize(raw)[0]:
-                return c, raw, label, False                   # first source whose evidence we can actually read
+                return c, raw, label, False, {}
             if raw and first[0] is None:
                 first = (raw, label)                          # keep unreadable evidence for the report, keep looking
-        return c, first[0], first[1], net.thread_access_failures() > fails_before     # True: some lookup could not be made
+        return c, first[0], first[1], net.thread_access_failures() > fails_before, blocked  # True: some lookup could not be made
 
     if online and todo:
         todo = todo[:max_remote]
         with cf.ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
-            for c, raw, src, unavailable in ex.map(look, todo):
+            for c, raw, src, unavailable, blocked in ex.map(look, todo):
                 stats["remote_lookups"] += 1
                 apply(c, raw, src)
                 if unavailable and not raw:
                     # a source could not be reached (outage, or the circuit breaker was open): that is "could not check", not
                     # "no license" - caching it as a miss would hide the component from every run for the next ttl_s
                     stats["lookup_unavailable"] = stats.get("lookup_unavailable", 0) + 1
+                    for label, why in (blocked or {}).items():     # C07: name WHY - circuit_open, http_500, ...
+                        stats.setdefault("lookup_blocked_reasons", {}).setdefault(str(why.get("reason") or "unknown"), 0)
+                        stats["lookup_blocked_reasons"][str(why.get("reason") or "unknown")] += 1
+                        break                                     # one reason per component: the first blocked source
                     continue
                 cache[ckey(c)] = {"raw": raw, "source": src, "extra": extra_registries, "ts": time.time()}
         if cpath:
