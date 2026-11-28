@@ -211,13 +211,15 @@ def analyze(root: str, *, max_files: int = MAX_FILES, max_functions: int = MAX_F
                     "params": len(node.args.args),
                     "loc": (getattr(node, "end_lineno", node.lineno) - node.lineno + 1),
                     "sloc": _sloc(node, lines),
-                    "complexity": _complexity(node),
+                    **_cc_variants(node),
                     "decisions": decisions,
                     "path_count": min(2 ** decisions, 65536),
                     "essential": _essential(node),
                     "knots": _knots(node),
                     "nesting": _max_nesting(node),
                     "eloc": _eloc(node, lines),
+                    **_line_taxonomy(node, lines),
+                    **_stmt_counts(node),
                     "halstead": _halstead(node),
                     "decorators": len(node.decorator_list),
                     "calls": _calls(node),
@@ -228,7 +230,7 @@ def analyze(root: str, *, max_files: int = MAX_FILES, max_functions: int = MAX_F
                 bases = [ast.unparse(b) if hasattr(ast, "unparse") else getattr(b, "id", "?") for b in node.bases]
                 methods = [n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
                 classes.append({"name": node.name, "file": rel, "line": node.lineno,
-                                "bases": bases[:4], "methods": methods[:20]})
+                                "bases": bases[:4], "methods": methods[:20], "_node": node})
         if truncated_functions:
             break
         funcs.extend(defs)
@@ -283,6 +285,9 @@ def analyze(root: str, *, max_files: int = MAX_FILES, max_functions: int = MAX_F
         notes.append(f"call edges truncated at {max_call_edges} (measured cap)")
     for f in funcs:
         f["fan_in"], f["fan_out"] = fan_in[f["id"]], fan_out[f["id"]]
+        # Understand's CountInput / CountOutput: callers + globals read / callees + globals set
+        f["count_input"] = f["fan_in"] + f["gvar_reads"]
+        f["count_output"] = f["fan_out"] + f["gvar_writes"]
         f.pop("calls", None)
 
     # dead code: defined but never called and not an entry by construction (rules listed for the reader)
@@ -323,6 +328,12 @@ def analyze(root: str, *, max_files: int = MAX_FILES, max_functions: int = MAX_F
         notes.append(f"functions truncated at {max_functions} (measured cap)")
 
     # deep tier (Understand's next catalog tier, adopted 2026-11-28)
+    project_class_names = {c["name"] for c in classes}
+    for c in classes:
+        node = c.pop("_node", None)
+        if node is not None:
+            c["lcom"] = _lcom(node)
+            c["cbo"] = _cbo(node, project_class_names)
     self_recursive = sorted({caller for caller, callee in calls_raw if callee == caller.split("::")[-1]})
     chains = _call_chains(resolved_edges[:max_call_edges], self_recursive=self_recursive)
     hier = _hierarchy(classes)
@@ -485,6 +496,116 @@ def _eloc(fn: ast.AST, lines: List[str]) -> int:
             continue
         out += 1
     return out
+
+
+def _cc_variants(fn: ast.AST) -> Dict[str, int]:
+    """Understand's three cyclomatic flavours (measured from its conf/understand/metrics catalog,
+    2026-11-28): standard (a boolean chain adds n-1), modified (a chain adds ONE), strict (every
+    boolean operand counts)."""
+    base, mod_extra, strict_extra = 1, 0, 0
+    for node in ast.walk(fn):
+        if isinstance(node, _DEX_DECISION_NODES):
+            base += 1
+            mod_extra += 1
+            strict_extra += 1
+        elif isinstance(node, ast.BoolOp):
+            extra = max(0, len(node.values) - 1)
+            base += extra
+            mod_extra += 1
+            strict_extra += extra
+        elif isinstance(node, ast.match_case):
+            base += 1
+            mod_extra += 1
+            strict_extra += 1
+        elif isinstance(node, ast.comprehension):
+            base += 1 + len(node.ifs)
+            mod_extra += 1 + len(node.ifs)
+            strict_extra += 1 + len(node.ifs)
+        elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            strict_extra += 1                        # strict counts every boolean operator, unary not included
+    return {"complexity": base, "complexity_modified": 1 + mod_extra, "complexity_strict": 1 + strict_extra}
+
+
+def _stmt_counts(fn: ast.AST) -> Dict[str, int]:
+    """Understand's statement taxonomy: CountStmt total, declarative (AnnAssign), executable, empty
+    (a bare pass - Python's only no-op statement), assignments, and the flow keywords Understand
+    reports alongside Knots (returns/breaks/continues)."""
+    stmt = decl = exe = empty = assigns = rets = brk = cont = 0
+    for node in ast.walk(fn):
+        if node is fn:
+            continue                                 # the FunctionDef itself is not one of its statements
+        if isinstance(node, ast.stmt):
+            stmt += 1
+            if isinstance(node, ast.AnnAssign):
+                decl += 1
+            elif isinstance(node, ast.Pass):
+                empty += 1
+            else:
+                exe += 1
+            if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+                assigns += 1
+            elif isinstance(node, ast.Return):
+                rets += 1
+            elif isinstance(node, ast.Break):
+                brk += 1
+            elif isinstance(node, ast.Continue):
+                cont += 1
+    return {"stmt_total": stmt, "stmt_decl": decl, "stmt_exe": exe, "stmt_empty": empty,
+            "stmt_assigns": assigns, "returns": rets, "breaks": brk, "continues": cont}
+
+
+def _line_taxonomy(fn: ast.AST, lines: List[str]) -> Dict[str, Any]:
+    """CountLine / CountLineCode / CountLineComment / CountLineBlank / RatioCommentToCode over the
+    function's span (Understand's line taxonomy; Python has no preprocessor lines to count)."""
+    start = getattr(fn, "lineno", 1)
+    end = getattr(fn, "end_lineno", start)
+    code = comment = blank = 0
+    for line in lines[start - 1:end]:
+        s = line.strip()
+        if not s:
+            blank += 1
+        elif s.startswith("#"):
+            comment += 1
+        elif set(s) <= set(")]}"):
+            continue                                   # pure closing syntax: neither code nor comment
+        else:
+            code += 1
+    return {"count_line": end - start + 1, "count_line_code": code, "count_line_comment": comment,
+            "count_line_blank": blank, "ratio_comment_to_code": (round(comment / code, 2) if code else None)}
+
+
+def _lcom(cls_node: ast.ClassDef) -> Optional[int]:
+    """PercentLackOfCohesion (Henderson-Sellers LCOM*): 100 * (1 - sum(a)/(m*d)) where m = methods,
+    d = instance attributes assigned in __init__, a = methods accessing each attribute. None when the
+    class has no methods or no instance attributes - the metric is undefined there, stated not faked."""
+    methods = [n for n in cls_node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    attrs: List[str] = []
+    for init in [n for n in methods if n.name == "__init__"]:
+        for node in ast.walk(init):
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) \
+                    and node.value.id == "self" and isinstance(node.ctx, ast.Store) \
+                    and node.attr not in attrs:
+                attrs.append(node.attr)
+    if not methods or not attrs:
+        return None
+    reach = sum(min(sum(1 for m in methods
+                        if any(isinstance(nd, ast.Attribute) and isinstance(nd.value, ast.Name)
+                               and nd.value.id == "self" and nd.attr == a for nd in ast.walk(m))),
+                     len(methods)) for a in attrs)
+    m, d = len(methods), len(attrs)
+    return max(0, round(100 * (1 - reach / (m * d))))
+
+
+def _cbo(cls_node: ast.ClassDef, project_classes: set) -> int:
+    """CountClassCoupled (CBO approximation): distinct OTHER project classes this class's source names."""
+    names: set = set()
+    for node in ast.walk(cls_node):
+        if isinstance(node, ast.Name) and node.id in project_classes and node.id != cls_node.name:
+            names.add(node.id)
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) \
+                and node.value.id in project_classes and node.value.id != cls_node.name:
+            names.add(node.value.id)
+    return len(names)
 
 
 def _call_chains(edges: List[Tuple[str, str]], self_recursive: Optional[List[str]] = None,

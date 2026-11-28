@@ -3,7 +3,9 @@ Halstead, essential complexity, knots, decisions+path counts, call chains and cy
 (DIT/NOC), file dependency cycles, module-variable usage, the entity inventory, the information-browser
 dossier, and Understand-style changed-entities snapshot diffing - all with hand-computed expectations.
 AC: BSA-AC-1274 (extended function metrics + entity inventory), AC: BSA-AC-1275 (chains, cycles incl.
-self-recursion, hierarchy DIT/NOC, file deps, the dossier, and the changed-entities snapshot diff)."""
+self-recursion, hierarchy DIT/NOC, file deps, the dossier, and the changed-entities snapshot diff),
+AC: BSA-AC-1278 (the Understand-catalog tier: three cyclomatic flavours, statement and line taxonomies,
+CountInput/Output, LCOM, CBO)."""
 from __future__ import annotations
 
 import os
@@ -142,3 +144,86 @@ def test_dossier_information_browser_function_and_class(tmp_path):
     assert dc["kind"] == "class" and dc["dit"] == 1 and dc["noc"] == 1
     assert dc["methods"] == ["run"] and dc["external_bases"] == []
     assert code_intel.dossier(r, "no-such-entity") is None
+
+
+def test_understand_catalog_metrics_cc_variants_stmts_lines(tmp_path):
+    """AC: BSA-AC-1278. The Understand catalog tier measured from conf/understand/metrics (8.1.1269):
+    the three cyclomatic flavours, the statement taxonomy (CountStmt/Decl/Exe/Empty), the line taxonomy
+    (CountLine/Code/Comment/Blank/RatioCommentToCode), and CountInput/CountOutput (callers + globals
+    read / callees + globals set) - hand-computed expectations."""
+    src = "\n".join([
+        "GV = 0",
+        "",
+        "",
+        "def ccv(a, b, c):",
+        "    if a and b and c:",
+        "        return 1",
+        "    if not a:",
+        "        return 2",
+        "    return 3",
+        "",
+        "",
+        "def stmts(x):",
+        "    y: int = 0",
+        "    y = x + 1",
+        "    if x:",
+        "        pass",
+        "    return y",
+        "",
+        "",
+        "def lines(x):",
+        "    # a comment",
+        "    return x  # note",
+        "",
+        "",
+        "def touch():",
+        "    global GV",
+        "    GV = GV + 1",
+    ]) + "\n"
+    (tmp_path / "cat.py").write_text(src, encoding="utf-8")
+    r = code_intel.analyze(str(tmp_path))
+    ccv = _fn(r, "ccv")
+    assert ccv["complexity"] == 5 and ccv["complexity_modified"] == 4 and ccv["complexity_strict"] == 6
+    st = _fn(r, "stmts")
+    assert st["stmt_total"] == 5 and st["stmt_decl"] == 1 and st["stmt_empty"] == 1
+    assert st["stmt_exe"] == 3 and st["stmt_assigns"] == 2 and st["returns"] == 1
+    ln = _fn(r, "lines")
+    assert ln["count_line"] == 3 and ln["count_line_code"] == 2 and ln["count_line_comment"] == 1
+    assert ln["count_line_blank"] == 0 and ln["ratio_comment_to_code"] == 0.5
+    touch = _fn(r, "touch")
+    assert touch["gvar_reads"] == 1 and touch["gvar_writes"] == 1
+    assert touch["count_input"] == 1 and touch["count_output"] == 1
+
+
+def test_understand_catalog_metrics_lcom_and_cbo(tmp_path):
+    """AC: BSA-AC-1278. PercentLackOfCohesion (Henderson-Sellers LCOM*) and CountClassCoupled (CBO)
+    per class - hand-computed: Widget m=3 d=2 reach=5 -> LCOM* = 100*(1-5/6) -> 17; Car couples Motor."""
+    src = "\n".join([
+        "class Widget:",
+        "    def __init__(self):",
+        "        self.a = 0",
+        "        self.b = 0",
+        "",
+        "    def tick(self, x):",
+        "        self.a += x",
+        "",
+        "    def both(self, x):",
+        "        self.a += x",
+        "        self.b += x",
+        "",
+        "",
+        "class Motor:",
+        "    pass",
+        "",
+        "",
+        "class Car:",
+        "    def __init__(self):",
+        "        self.motor = Motor()",
+    ]) + "\n"
+    (tmp_path / "cls.py").write_text(src, encoding="utf-8")
+    r = code_intel.analyze(str(tmp_path))
+    rows = {c["name"]: c for c in r["classes"]}
+    assert rows["Widget"]["lcom"] == 17 and rows["Widget"]["cbo"] == 0
+    assert rows["Car"]["cbo"] == 1 and rows["Car"]["lcom"] == 0      # m=1 d=1 reach=1: fully cohesive by the formula
+    assert rows["Motor"]["lcom"] is None                            # no methods, no attrs: undefined
+    assert rows["Motor"]["cbo"] == 0
