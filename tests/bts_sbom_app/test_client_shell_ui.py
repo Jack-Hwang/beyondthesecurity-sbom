@@ -21,7 +21,7 @@ def test_the_rail_is_a_session_list_with_five_collapsed_feature_sections():
     """AC: BSA-AC-583"""
     con = _read("bts_console.js")
     sections = re.search(r"var SECTIONS = \[(.*?)\];", con, re.S)
-    assert sections and sections.group(1).count("groups:") == 5, "five collapsed sections must be declared"
+    assert sections and sections.group(1).count("groups:") == 6, "six collapsed sections must be declared"
     for token in ("bts-rail-new", "railSessions", "bts-rail-grp", "bts-rail-assist"):
         assert token in con
     body = re.search(r"function buildSideNav\(\) \{(.*?)\n  \}", con, re.S).group(1)
@@ -31,7 +31,7 @@ def test_the_rail_is_a_session_list_with_five_collapsed_feature_sections():
     assert 'data-act="session"' in sess and 'class="bts-rail-session' in sess     # the session rows open their report
     groups_block = con[con.index("var GROUPS"):con.index("var SECTIONS")]
     for m in ("git", "oss", "lock", "container", "risk", "ssvc", "epss", "exploit-mat", "report", "archintel",
-              "diagrams", "dep-graph", "arch", "code", "supply-chain", "books", "ntia", "conformance", "vex",
+              "diagrams", "dep-graph", "arch", "code", "supply-chain", "books", "ntia", "conformance", "vex", "ir",
               "license-risk", "sectors", "fix-plan", "fix-pr", "more", "fleet", "changes"):
         assert "'" + m + "'" in groups_block, "panel member %s lost" % m   # nothing removed: all 26 panes stay reachable
     handler = re.search(r"else if \(act === 'session'\).*activate\('report', true\);", con, re.S)

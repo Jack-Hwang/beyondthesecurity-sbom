@@ -329,6 +329,14 @@ def fetch_json(url: str, *, body: Optional[Dict[str, Any]] = None, headers: Opti
     return _fetch(url, method_headers=hdrs, body=body, timeout=timeout, retries=retries, limit=None, as_text=False)
 
 
+def http_json_oc(url: str, *, body: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None,
+                 timeout: float = 20.0, retries: int = 2) -> resilience.Outcome:
+    """fetch_json passthrough for callers that must tell 'no such data' from 'we never asked' (C07): the full
+    Outcome carries ``state`` and ``reason`` (e.g. ``circuit_open``), which plain ``http_json`` collapses to
+    None. No new transport path - exactly what fetch_json learned, nothing invented."""
+    return fetch_json(url, body=body, headers=headers, timeout=timeout, retries=retries)
+
+
 def http_text(url: str, *, timeout: float = 20.0, retries: int = 1, limit: int = 400_000) -> Optional[str]:
     """GET -> text or None on 404/failure. Unchanged contract: kept as a thin wrapper over fetch_text()."""
     oc = fetch_text(url, timeout=timeout, retries=retries, limit=limit)

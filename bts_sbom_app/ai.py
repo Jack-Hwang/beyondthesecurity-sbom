@@ -218,13 +218,26 @@ def _parse_json(text: str) -> Any:
     try:
         return json.loads(t)
     except ValueError:
-        m = re.search(r"\{.*\}", t, re.S)
-        if m:
-            return json.loads(m.group(0))
-        m = re.search(r"\[.*\]", t, re.S)
-        if m:
-            return json.loads(m.group(0))
-        raise
+        pass
+    # salvage ladder, only after strict parsing failed: extract the outer object, then repair the one
+    # defect that actually occurs in the wild - bare backslashes inside strings ("\\d" in a regex,
+    # "\\n" in a docstring) which strict JSON refuses (measured 2026-11-28: one mimeparse generation
+    # died on it and the whole attempt degraded to a scaffold). Valid pairs (\\\\, \\n, \\t ...) are
+    # never touched; strict=False additionally forgives literal control characters.
+    m = re.search(r"\{.*\}", t, re.S)
+    outer = m.group(0) if m else None
+    for base in ([outer] if outer else []) + ([t] if t != outer else []):
+        fixed = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', r'\\\\', base)   # the lookbehind sits BEFORE the match: an after-position assertion would always see the backslash just consumed
+        try:
+            return json.loads(fixed, strict=False)
+        except ValueError:
+            continue
+    if outer:
+        return json.loads(outer)
+    m = re.search(r"\[.*\]", t, re.S)
+    if m:
+        return json.loads(m.group(0))
+    raise ValueError("no JSON object found in the model output")
 
 
 def propose(rec: Dict[str, Any], *, client: Optional[ChatClient] = None, cache_dir: Optional[str] = None,

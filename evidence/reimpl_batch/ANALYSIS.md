@@ -25,3 +25,42 @@ Skipped before the lane (py2-era syntax, no root module, no fitting release): 32
 ## Reproduce
 
 `python scripts/batch_reimpl.py --limit 60 --attempts 2 --skip-scan` then this script. Raw rows: dataset.jsonl (append-only).
+
+## Mimeparse deep round (2026-11-28): the oracle regression, fixed, then measured live
+
+Preparing the structured-feedback live run caught a REAL oracle regression: since the u-boot round, a
+legacy suite shaped like mimeparse 0.1.3 (module-level test functions wired through
+`unittest.FunctionTestCase` inside `run_tests()`, a self-running `__main__` guard, ZERO TestCase classes)
+was being skipped by the static "no runnable tests" note even though the shim's own output said
+`Ran 29 tests`. The static note outranked measured runtime evidence; every FunctionTestCase-style oracle
+in the batch had silently graded nothing (mimeparse's batch row above reads "contract-only evidence"
+because of exactly this). Fixes, all measured:
+
+- `run_adopted_tests`: runtime evidence now outranks the static note - the skip needs the runtime to agree
+  (nothing ran AND a clean exit or a statically helper-shaped file).
+- `_reconcile_adopted_test`: FunctionTestCase suites count as runnable cases; a suite with its own
+  `__main__` guard needs no injected `unittest.main` tail (injected into a FunctionTestCase suite it
+  would run 0 tests and exit 5, flipping a pass into a fail).
+- the best-of-N bookkeeping parsed only `FAILED (failures=N, errors=M)`; suites printing
+  `FAILED (failures=N)` alone read as 10**6 and never engaged best-of-N. Now any counts list parses.
+
+Live measurements on mimeparse 0.1.3, azure gpt-5-mini, oracle restored (report.json in evidence/reimpl/,
+local-only):
+
+| run | attempts | legacy failures (of 29) | note |
+|---|---|---|---|
+| e2e2 (pre-regression code, re-measured today) | 2 | 14 | the 7/29 previously reported was measured before the skip rule existed |
+| e2e4 | 4 | **4** | best attempt 3, copy gate 0.0, contract tests pass |
+| e2e5 | 4 | **4** | independent re-run: the plateau reproduces |
+| e2e6 | 8 | 7 | attempt degraded: one generation returned a bare `\d` inside the JSON envelope, strict parse refused, scaffold fallback broke the loop |
+
+Structured feedback (assertion lines ride the retry prompt) + working best-of-N moved 14 -> 4. The
+remaining 4 are algorithm subtleties the model does not reach in 4 attempts: the legacy `q=2` clamp
+(parse_media_range normalises q>1 to '1'), two `level=3` exact-param quality rows (unmatched params must
+not inherit the bare type's q), and the wildcard best_match label row (`image/*` must be returned, not
+the empty string). Attempts=8 additionally exposed a second measured defect - the JSON envelope salvage
+in `ai._parse_json` (bare backslashes inside strings, lookbehind placed BEFORE the match - an
+after-position assertion always sees the backslash it just consumed) - now unit-tested.
+
+Batch impact: FunctionTestCase-style oracles across the dataset now grade honestly; the 31 'ok' verdicts
+were contract-only evidence and stay so until each is re-run - no verdict is retroactively upgraded here.

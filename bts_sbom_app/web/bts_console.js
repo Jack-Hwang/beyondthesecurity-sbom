@@ -18,7 +18,7 @@
     'git': ['git', 'oss', 'lock', 'container'], 'risk': ['risk', 'changes'], 'prioritize': ['ssvc', 'epss', 'exploit-mat'],
     'graph-health': ['dep-graph', 'arch', 'code', 'db', 'supply-chain'], 'compliance': ['ntia', 'conformance', 'cra', 'vex', 'license-risk', 'sectors'],
     'fix': ['fix-plan', 'fix-pr', 'reimpl'], 'report': ['report'], 'archintel': ['archintel'], 'diagrams': ['diagrams'],
-    'books': ['books'], 'more': ['more', 'fleet']
+    'books': ['books'], 'more': ['more', 'fleet'], 'ir': ['ir']
   };
   /* the Claude-client rail (CCD "Code 탭 화면 해부" + IF-B04): the sidebar is a SESSION list first and the
      feature panels live inside five collapsed sections - every pane stays reachable, but the menu no longer
@@ -28,7 +28,8 @@
     { icon: '📊', label: '결과와 우선순위', groups: ['risk', 'prioritize'] },
     { icon: '🗄', label: '리포트와 구조', groups: ['report', 'archintel', 'diagrams', 'graph-health'] },
     { icon: '📚', label: '지식과 컴플라이언스', groups: ['books', 'compliance'] },
-    { icon: '🔧', label: '수정과 운영', groups: ['fix', 'more'] }
+    { icon: '🔧', label: '수정과 운영', groups: ['fix', 'more'] },
+    { icon: '🚨', label: '사고 대응', groups: ['ir'] }
   ];
   var LABELS = {
     'git': '🌐 Scan', 'lock': '📦 Lockfile / path', 'container': '🐳 Container', 'risk': '📊 Findings', 'changes': '🔔 What changed',
@@ -38,7 +39,7 @@
     'vex': '📋 VEX · Decisions', 'license-risk': '⚖ License Risk', 'sectors': '🏭 Industry reports', 'fix-plan': '🔧 Fix Plan',
     'cra': '🇪🇺 CRA',
     'fix-pr': '🔧 Patch', 'reimpl': '🧬 Clean-Room', 'oss': '📜 OSS 결과', 'report': '📊 Report', 'archintel': '🏛 Arch Intel', 'diagrams': '🖼 Diagrams',
-    'books': '📚 Book KB', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected'
+    'books': '📚 Book KB', 'more': '⚙️ CI/CD · History', 'fleet': '🗂 Fleet · Affected', 'ir': '🚨 사고 대응'
   };
   var SEVS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
   var SEV_COLOR = U.SEV_COLOR;
@@ -987,6 +988,104 @@
     }).join('');
     return out + note('Findings are name-based risk signals, not proof of compromise: verify the publisher and the intended package before acting.');
   }
+  /* ---------- 🚨 사고 대응 (incident-response lane): 접수→초동→증거수집→원인분석→보고서→종결 + SLA 진척 ---------- */
+  var IR_STAGES = { intake: '접수', interview: '초동', evidence: '증거수집', analysis: '원인분석', report: '보고서', closed: '종결' };
+  function irBadge(r) {
+    var b = [];
+    var sla = r.sla || {};
+    if (sla.assign_breach) { b.push('<span class="bts-pill bad">담당자 SLA 초과</span>'); }
+    if (sla.analysis_breach) { b.push('<span class="bts-pill bad">7일 SLA 초과</span>'); }
+    if (sla.long_stalled) { b.push('<span class="bts-pill warn">장기 미완료</span>'); }
+    if (!r.assignee) { b.push('<span class="bts-pill warn">미배정</span>'); }
+    return b.join(' ');
+  }
+  function renderIrPane(data) {
+    var box = $('#paneIr');
+    if (!box) { return; }
+    var d = data || { incidents: [], rollup: { total: 0, open: 0, by_stage: {} } };
+    var ru = d.rollup || {};
+    var h = heading('🚨 침해사고 대응', '접수 → 초동 → 증거수집 → 원인분석 → 보고서 → 종결 · 7일 SLA · 담당자 지정 1일');
+    h += '<div class="bts-cards">' +
+      '<div class="bts-card"><div class="v">' + esc(ru.total || 0) + '</div><div class="l">전체</div></div>' +
+      '<div class="bts-card"><div class="v">' + esc(ru.open || 0) + '</div><div class="l">진행</div></div>' +
+      '<div class="bts-card"><div class="v">' + esc(ru.assign_sla_breach || 0) + '</div><div class="l">담당자 SLA 초과</div></div>' +
+      '<div class="bts-card"><div class="v">' + esc(ru.analysis_sla_breach || 0) + '</div><div class="l">7일 SLA 초과</div></div>' +
+      '<div class="bts-card"><div class="v">' + esc(ru.long_stalled || 0) + '</div><div class="l">장기 미완료</div></div>' +
+      '<div class="bts-card"><div class="v">' + esc(ru.not_started || 0) + '</div><div class="l">미착수</div></div></div>';
+    h += '<div class="pathbox"><label>사고 접수</label>' +
+      '<div class="bts-actions"><input id="irOrg" placeholder="피해기업" style="width:180px"> ' +
+      '<input id="irTitle" placeholder="사고 개요 (예: 랜섬웨어 감염 신고)" style="flex:1;min-width:240px"> ' +
+      '<input id="irAssignee" placeholder="담당자" style="width:120px"> ' +
+      '<select id="irSrc"><option value="ioc">IoC</option><option value="report">제보</option><option value="agency">유관기관</option><option value="customer">고객</option><option value="other">기타</option></select> ' +
+      '<button type="button" class="run" data-act="ir-create">접수</button></div>' +
+      '<div class="bts-note">RFP 계약: 접수 후 1영업일 이내 담당자 지정, 증거수집 완료 후 7일 이내 원인분석·보고서. 지연은 사전 기록이 원칙이다.</div></div>';
+    (d.incidents || []).forEach(function (r) {
+      var badge = IR_STAGES[r.stage] || r.stage;
+      var due = r.due_at ? String(r.due_at).replace('T', ' ').slice(0, 16) : '미정';
+      h += '<div class="pathbox"><label>' + esc(r.id) + ' · ' + esc(r.org) + ' <span class="sub">접수 ' + esc(String(r.received_at).slice(0, 16)) + '</span></label>' +
+        '<div class="bts-kv"><dt>개요</dt><dd>' + esc(r.title) + '</dd>' +
+        '<dt>단계</dt><dd>' + esc(badge) + (r.assignee ? ' · 담당 ' + esc(r.assignee) : ' · 담당 미지정') + ' · 분석기한 ' + esc(due) + ' · IoC ' + esc(r.iocs) + '건</dd></div>' +
+        irBadge(r) +
+        '<div class="bts-actions">' +
+        (r.stage !== 'closed' ? '<button type="button" class="bts-mini" data-act="ir-advance" data-id="' + esc(r.id) + '">다음 단계 ▶</button>' +
+        '<button type="button" class="bts-mini" data-act="ir-close" data-id="' + esc(r.id) + '">종결</button>' : '') +
+        '<a class="bts-mini" href="/api/incidents/' + esc(r.id) + '/report?kind=intake" download>초동 보고서</a>' +
+        '<a class="bts-mini" href="/api/incidents/' + esc(r.id) + '/report?kind=cause" download>원인분석 보고서</a>' +
+        '<a class="bts-mini" href="/api/incidents/' + esc(r.id) + '/checklist?env=' + esc((r.envs && r.envs[0]) || 'other') + '" download>체크리스트</a>' +
+        '<button type="button" class="bts-mini" data-act="ir-impact" data-id="' + esc(r.id) + '">SBOM 대조</button></div>' +
+        '<div class="bts-actions"><input id="irIocV_' + esc(r.id) + '" placeholder="IoC 값 (패키지명·해시·IP·C2)" style="flex:1;min-width:200px"> ' +
+        '<select id="irIocT_' + esc(r.id) + '"><option value="package">package</option><option value="hash">hash</option><option value="ip">ip</option><option value="c2">c2</option><option value="domain">domain</option></select> ' +
+        '<button type="button" class="bts-mini" data-act="ir-ioc" data-id="' + esc(r.id) + '">IoC 등록</button>' +
+        '<button type="button" class="bts-mini" data-act="ir-impact" data-id="' + esc(r.id) + '">교차조회</button></div>' +
+        '<div class="bts-actions"><select id="irFKey_' + esc(r.id) + '"><option value="interview">초동 인터뷰</option><option value="initial">초기 판단</option><option value="plan">분석 계획</option><option value="entry">침투 경로</option><option value="actions">공격 행위</option><option value="scope">피해 범위</option><option value="cause">원인 분석</option><option value="response">대응 방안</option><option value="detection">식별 기준</option></select></div>' +
+        '<textarea id="irFVal_' + esc(r.id) + '" rows="3" placeholder="보고서 입력란 - 채우지 않은 칸은 미확인으로 나간다" style="width:100%"></textarea>' +
+        '<div class="bts-actions"><button type="button" class="bts-mini" data-act="ir-findings" data-id="' + esc(r.id) + '">입력란 저장</button></div>' +
+        '<div id="irImpact_' + esc(r.id) + '"></div></div>';
+    });
+    box.innerHTML = h;
+  }
+  function loadIrPane() {
+    api('/api/incidents').then(function (r) { renderIrPane(r.ok ? r.data : { incidents: [], rollup: {} }); });
+  }
+  function irImpact(id) {
+    var box = $('#irImpact_' + id);
+    if (box) { box.innerHTML = note('교차조회 중…'); }
+    api('/api/incidents/' + id + '/sbom-impact').then(function (r) {
+      if (!box) { return; }
+      if (!r.ok) { box.innerHTML = note(esc((r.data && r.data.error) || 'failed'), 'bad'); return; }
+      var h = '';
+      (r.data.matches || []).forEach(function (m) {
+        h += note('<b>일치</b> IoC ' + esc(m.ioc) + ' → ' + esc(m.project) + ' / ' + esc(m.component) + ' ' + esc(m.version || '') + (m.advisories && m.advisories.length ? ' · ' + esc(m.advisories.join(', ')) : ''), 'bad');
+      });
+      (r.data.unmatched || []).forEach(function (u) {
+        h += note('IoC ' + esc(u.value) + ' — ' + esc(u.reason), 'warn');
+      });
+      box.innerHTML = h || note('대조할 IoC가 등록되지 않았다.', 'warn');
+    });
+  }
+  function irAction(act, id) {
+    var body = {};
+    if (act === 'ir-create') {
+      body = { org: $('#irOrg').value.trim(), title: $('#irTitle').value.trim(), assignee: $('#irAssignee').value.trim(), source: $('#irSrc').value };
+    } else if (act === 'ir-ioc') {
+      body = { value: $('#irIocV_' + id).value.trim(), type: $('#irIocT_' + id).value };
+    } else if (act === 'ir-findings') {
+      var fk = $('#irFKey_' + id), fv = $('#irFVal_' + id);
+      if (!fk || !fv || !fv.value.trim()) { return; }
+      var pbody = {};
+      pbody[fk.value] = fv.value.trim();
+      api('/api/incidents/' + id + '/findings', pbody).then(function (r) {
+        if (r.ok && fv) { fv.value = ''; }
+      });
+      return;
+    }
+    var seg = { 'ir-advance': 'advance', 'ir-close': 'close', 'ir-ioc': 'iocs', 'ir-create': '' }[act] || act.slice(3);
+    var url = act === 'ir-create' ? '/api/incidents' : ('/api/incidents/' + id + '/' + seg);
+    api(url, body).then(function (r) {
+      if (!r.ok) { var box = $('#paneIr'); if (box) { box.insertAdjacentHTML('afterbegin', note(esc((r.data && r.data.error) || 'failed'), 'bad')); } return; }
+      loadIrPane();
+    });
+  }
   function renderPanes() {
     var v = S.view;
     $('#paneContainer').innerHTML = '<b>Container image scanning is not supported by BTS-SBOM.</b> Analyse the repository or lockfile the image is built from instead.';
@@ -997,6 +1096,7 @@
     Object.keys(map).forEach(function (id) { $('#' + id).innerHTML = v ? map[id](v) : needProject(); });
     renderHistory();
     renderGovernance();
+    loadIrPane();
     bindDbPane();
     bindCraPane();
     bindReimplPane();
@@ -1160,6 +1260,12 @@
     else if (act === 'triage-save') { saveDecision(); }
     else if (act === 'affected') { searchAffected(); }
     else if (act === 'open') { selectProject(t.getAttribute('data-name')).then(function () { activate('risk'); }); }
+    else if (act === 'ir-create') { irAction('ir-create', ''); }
+    else if (act.slice(0, 3) === 'ir-' && t.getAttribute('data-id')) {
+      var iid = t.getAttribute('data-id');
+      if (act === 'ir-impact') { irImpact(iid); }
+      else { irAction(act, iid); }
+    }
     else if (act === 'session') { selectProject(t.getAttribute('data-name')).then(function () { activate('report', true); }); }   // a rail session opens its report
     else if (act === 'new') { activate('git', true); }                             // ＋ 새 분석: the Scan landing
     else if (act === 'assist') { focusAssistant(); }                               // 💬 어시스턴트: the main conversation surface

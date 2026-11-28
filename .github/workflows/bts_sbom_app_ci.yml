@@ -5,6 +5,8 @@ name: BTS-SBOM app CI
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "bts_sbom_app/**"
       - "bts_sbom/**"
@@ -24,6 +26,12 @@ on:
       - "evals/**"
       - "pyproject.toml"
       - ".github/workflows/bts_sbom_app_ci.yml"
+  workflow_dispatch: {}
+
+# quota discipline: one push = these two jobs only; superseded runs cancel (private-repo minutes)
+concurrency:
+  group: appci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -38,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.12"]
+        python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

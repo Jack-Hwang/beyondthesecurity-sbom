@@ -18,7 +18,8 @@ ENV = {"IMAGE": "reg.azurecr.io/bts-sbom-app:t1", "FQDN": "bts-sbom.env.koreacen
 def _render(tmp_path, **extra):
     out = tmp_path / "rendered.yaml"
     env = dict(os.environ, **ENV, **extra)
-    p = subprocess.run([sys.executable, "-X", "utf8", "-I", SCRIPT, TEMPLATE, str(out)], capture_output=True, text=True, env=env, timeout=60)
+    p = subprocess.run([sys.executable, "-X", "utf8", "-I", SCRIPT, TEMPLATE, str(out)], capture_output=True,
+                       text=True, encoding="utf-8", errors="replace", env=env, timeout=60)   # the child is -X utf8: decode explicitly (a cp949 parent would crash on Korean stderr)
     return p, out
 
 
@@ -47,5 +48,6 @@ def test_the_replica_floor_week_and_owner_are_parameters_and_a_missing_secret_st
     env = {k: v for k, v in os.environ.items()}
     env.update({k: v for k, v in ENV.items() if k != "LLM_KEY"})
     env.pop("LLM_KEY", None)
-    bad = subprocess.run([sys.executable, "-X", "utf8", "-I", SCRIPT, TEMPLATE, str(tmp_path / "x.yaml")], capture_output=True, text=True, env=env, timeout=60)
+    bad = subprocess.run([sys.executable, "-X", "utf8", "-I", SCRIPT, TEMPLATE, str(tmp_path / "x.yaml")], capture_output=True,
+                         text=True, encoding="utf-8", errors="replace", env=env, timeout=60)
     assert bad.returncode != 0 and "LLM_KEY" in bad.stderr and not (tmp_path / "x.yaml").exists()                 # no half-rendered file with a missing secret

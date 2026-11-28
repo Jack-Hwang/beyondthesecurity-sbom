@@ -269,7 +269,8 @@ def test_the_full_approval_chain_runs_over_http_and_the_readonly_server_refuses(
     tok = _token(rec)
     real = actionsmod.ChatActions
 
-    def offline_actions(root, evidence, client=None):        # the State builds real ChatActions; the test needs no network
+    def offline_actions(root, evidence, client=None, **kw):  # the State builds real ChatActions; the test needs no network
+        # **kw: the server passes actor= (C26) - accepted and dropped, the ledger row stays unattributed here
         return real(root, evidence, client=None, scanner=FakeScanner(), offline=True, use_llm=False,
                     work_root=str(env["tmp"] / "work"), cache_dir=str(env["tmp"] / "cache"), today=TODAY)
     monkeypatch.setattr(server.actionsmod, "ChatActions", offline_actions)

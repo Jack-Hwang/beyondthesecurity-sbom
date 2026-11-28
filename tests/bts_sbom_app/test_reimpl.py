@@ -7,7 +7,7 @@ import os
 
 import pytest
 
-from bts_sbom_app import evals, llm, reimpl
+from bts_sbom_app import ai, evals, llm, reimpl
 
 ORIGINAL = '''"""A tiny GPL-licensed helper we must stop depending on."""
 
@@ -256,6 +256,69 @@ def test_adopted_suite_skips_files_without_runnable_tests():
     atr = reimpl.run_adopted_tests(work, reimpl.discover_adopted_tests(src), module_name="thing", source_root=src)
     assert atr["ok"] and {s["file"] for s in atr["skipped"]} == {"test_util.py"}
     assert "SKIPPED" in atr["tail"]
+
+
+def test_adopted_oracle_runs_functiontestcase_suites_the_static_note_once_skipped():
+    """AC: BSA-AC-616. The mimeparse 0.1.3 shape, measured 2026-11-28: module-level test functions wired
+    through unittest.FunctionTestCase inside run_tests(), a self-running __main__ guard, and NO TestCase
+    class anywhere. The u-boot-era static skip note alone silently skipped that oracle; now the shim's
+    runtime output is the authority and the suite grades the reimplementation honestly."""
+    root = _tmp()
+    src = os.path.join(root, "src")
+    os.makedirs(src)
+    with open(os.path.join(src, "thing.py"), "w", encoding="utf-8") as fh:
+        fh.write('def double(x):\n    """Double."""\n    return x * 2\n')
+    suite = "\n".join([
+        "import unittest",
+        "from functools import partial",
+        "import thing",
+        "",
+        "def test_double(args, expected):",
+        "    result = thing.double(args)",
+        "    assert expected == result, 'Expected: %s but got %s' % (expected, result)",
+        "",
+        "def add_tests(s, rows):",
+        "    for args, expected in rows:",
+        "        s.addTest(unittest.FunctionTestCase(partial(test_double, args, expected)))",
+        "",
+        "def run_tests():",
+        "    s = unittest.TestSuite()",
+        "    add_tests(s, [(2, 4), (3, 6), (5, 10)])",
+        "    unittest.TextTestRunner(verbosity=1).run(s)",
+        "",
+        "if __name__ == '__main__':",
+        "    run_tests()",
+    ]) + "\n"
+    with open(os.path.join(src, "thing_test.py"), "w", encoding="utf-8") as fh:
+        fh.write(suite)
+    work = os.path.join(root, "work")
+    os.makedirs(work)
+    with open(os.path.join(work, "thing.py"), "w", encoding="utf-8") as fh:
+        fh.write('def double(x):\n    return x * 3\n')         # the oracle must grade this WRONG implementation
+    atr = reimpl.run_adopted_tests(work, reimpl.discover_adopted_tests(src), module_name="thing", source_root=src)
+    assert not atr["ok"] and not atr["skipped"]                # graded, never skipped (the old bug)
+    assert "Ran 3 tests" in atr["tail"]
+    copied = open(os.path.join(work, "thing_test.py"), encoding="utf-8").read()
+    assert "unittest.main(argv" not in copied                  # no injection: the suite self-runs under its own guard
+    # and the behaviour-correct implementation passes the same oracle:
+    work2 = os.path.join(root, "work2")
+    os.makedirs(work2)
+    with open(os.path.join(work2, "thing.py"), "w", encoding="utf-8") as fh:
+        fh.write('def double(x):\n    return x * 2\n')
+    atr2 = reimpl.run_adopted_tests(work2, reimpl.discover_adopted_tests(src), module_name="thing", source_root=src)
+    assert atr2["ok"] and "Ran 3 tests" in atr2["tail"]
+
+
+def test_llm_json_envelope_salvages_bare_backslashes():
+    """Measured 2026-11-28: one mimeparse generation returned a code field containing a bare backslash-d
+    (a regex). Strict JSON refuses that escape, the old parser raised, and the whole attempt degraded to
+    a scaffold. The envelope salvage decodes exactly the backslash the Python source wanted, and valid
+    envelopes still parse identically."""
+    good = json.dumps({"code": "r = re.split('\\d+', s)"})
+    corrupt = good.replace("\\\\d", "\\d")                     # undo the escaping: now invalid JSON
+    obj = ai._parse_json(corrupt)
+    assert obj["code"] == "r = re.split('\\d+', s)"            # the source backslash survives the roundtrip
+    assert ai._parse_json(good)["code"] == obj["code"]
 
 
 def _pattern_source(root):

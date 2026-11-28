@@ -1,0 +1,77 @@
+........................................................................ [  5%]
+...............................F........................................ [ 11%]
+........................F............................................... [ 17%]
+........................................................................ [ 22%]
+........................................................................ [ 28%]
+........................................................................ [ 34%]
+........................................................................ [ 40%]
+........................................................................ [ 45%]
+........................................................................ [ 51%]
+........................................................................ [ 57%]
+........................................................................ [ 63%]
+........................................................................ [ 68%]
+........................................................................ [ 74%]
+.........................F.............................................. [ 80%]
+........................................................................ [ 85%]
+........................................................................ [ 91%]
+........................................................................ [ 97%]
+.................................                                        [100%]
+================================== FAILURES ===================================
+E   TypeError: argument of type 'NoneType' is not iterable
+C:\firebaseprojects\beyondthesecurity-sbom\tests\bts_sbom_app\test_azure_render.py:51: TypeError: argument of type 'NoneType' is not iterable
+E   urllib.error.HTTPError: HTTP Error 500: Internal Server Error
+---------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+  File "C:\firebaseprojects\beyondthesecurity-sbom\bts_sbom_app\server.py", line 928, in do_POST
+    self._do_post()
+  File "C:\firebaseprojects\beyondthesecurity-sbom\bts_sbom_app\server.py", line 1064, in _do_post
+    res = st.bot(trace_id=self._cid, actor=_caller_id(self)) \
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\firebaseprojects\beyondthesecurity-sbom\bts_sbom_app\server.py", line 383, in bot
+    acts = actionsmod.ChatActions(self.root, self.evidence, client=client, actor=actor or "unattributed") if self.chat_actions else None
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: test_the_full_approval_chain_runs_over_http_and_the_readonly_server_refuses.<locals>.offline_actions() got an unexpected keyword argument 'actor'
+C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\urllib\request.py:639: urllib.error.HTTPError: HTTP Error 500: Internal Server Error
+E   TypeError: the JSON object must be str, bytes or bytearray, not NoneType
+C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\json\__init__.py:339: TypeError: the JSON object must be str, bytes or bytearray, not NoneType
+============================== warnings summary ===============================
+tests/bts_sbom_app/test_azure_render.py::test_the_replica_floor_week_and_owner_are_parameters_and_a_missing_secret_stops_the_render
+  C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-275 (_readerthread)
+  
+  Traceback (most recent call last):
+    File "C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+      self.run()
+    File "C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+      self._target(*self._args, **self._kwargs)
+    File "C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 1599, in _readerthread
+      buffer.append(fh.read())
+                    ^^^^^^^^^
+  UnicodeDecodeError: 'cp949' codec can't decode byte 0xe2 in position 174: illegal multibyte sequence
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/test_bts_sbom_pkg.py::test_cli_sector_all_six_sectors
+  C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-3738 (_readerthread)
+  
+  Traceback (most recent call last):
+    File "C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+      self.run()
+    File "C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+      self._target(*self._args, **self._kwargs)
+    File "C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 1599, in _readerthread
+      buffer.append(fh.read())
+                    ^^^^^^^^^
+  UnicodeDecodeError: 'cp949' codec can't decode byte 0xe2 in position 335: illegal multibyte sequence
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/bts_sbom_app/test_azure_render.py::test_the_replica_floor_week_and_owner_are_parameters_and_a_missing_secret_stops_the_render
+FAILED tests/bts_sbom_app/test_chat_actions.py::test_the_full_approval_chain_runs_over_http_and_the_readonly_server_refuses
+FAILED tests/test_bts_sbom_pkg.py::test_cli_sector_all_six_sectors - TypeErro...
+3 failed, 1254 passed, 2 warnings in 488.37s (0:08:08)

@@ -57,7 +57,7 @@
   ];
   var SLASH_GO = { scan: 'git', oss: 'oss', report: 'report', risk: 'risk', findings: 'risk', prioritize: 'ssvc',
                    arch: 'archintel', code: 'code', diagrams: 'diagrams', books: 'books', compliance: 'ntia',
-                   vex: 'vex', fix: 'fix-plan', history: 'more', fleet: 'fleet', reimpl: 'reimpl', 'license-risk': 'license-risk' };
+                   vex: 'vex', fix: 'fix-plan', history: 'more', fleet: 'fleet', reimpl: 'reimpl', 'license-risk': 'license-risk', ir: 'ir' };
   function openPanel(sv, noteText) {
     document.dispatchEvent(new CustomEvent('bts:activate', { detail: sv }));
     if (noteText) {
@@ -109,6 +109,7 @@
     sbom_conformance: ['conformance', '📐 SBOM conformance 판 보기'], what_changed: ['changes', '🔔 What changed 판 보기'],
     coverage: ['ntia', '✅ SBOM checks 판 보기'], license_risks: ['license-risk', '⚖ License Risk 판 보기'],
     draw_diagram: ['diagrams', '🗺 Diagrams 판 보기'], overview: ['report', '📊 Report 판 보기'],
+    ioc_impact: ['ir', '🚨 사고 대응 판 보기'],
     supply_chain: ['supply-chain', '⛓ Supply Chain 판 보기'], nl2sql: ['db', '🗄 DB 질의 판 보기']
   };
 
@@ -260,6 +261,12 @@
       h += note('<b>[conflict]</b> ' + esc(c.label) + ': ' + esc(c.a.value) + ' (' + esc(c.a.source) + ') vs ' +
         esc(c.b.value) + ' (' + esc(c.b.source) + ') - the sources disagree; the judgement stays with you.', 'warn');
     });
+    if (fin.cancelled) {                                   // C32: the turn stopped early because the reader left
+      h += note('<b>[취소됨]</b> 연결이 끊겨 남은 도구 호출을 중단했다 - 여기까지의 부분 결과만 표시된다.', 'warn');
+    }
+    if (fin.trace_id) {                                    // C25: one id across the request, this stream and any escalation
+      h += '<div class="bts-chat-src">trace ' + esc(fin.trace_id) + '</div>';
+    }
     h += (U && U.chatExtras) ? U.chatExtras(fin) : '';   // handoff / clarification / partial coverage / partial turn / reviewer notes / version stamp
     /* A2UI-style UI cards (docs/A2UI_INTEGRATION.md): data-only payloads from the server's card catalog,
        string-rendered with esc() like every other dynamic value - a card cannot carry markup, scripts or

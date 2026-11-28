@@ -14,6 +14,8 @@ name: bts-sbom CI
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "bts_sbom/**"
       - "tests/test_bts_sbom_pkg.py"
@@ -23,6 +25,13 @@ on:
       - "bts_sbom/**"
       - "tests/test_bts_sbom_pkg.py"
       - ".github/workflows/ci.yml"
+  workflow_dispatch: {}
+
+# quota discipline (private repo: macOS x10 / windows x2 minutes): a push runs ONE cheap linux job;
+# the full matrix runs on PRs and manual dispatch only.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   package:
@@ -37,8 +46,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.12"]
+        os: [ubuntu-latest]
+        python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v4
 
@@ -110,6 +119,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bts-sbom-${{ matrix.os }}-py${{ matrix.python-version }}
+          retention-days: 7
           path: |
             bts-sbom-self.cdx.json
             bts-sbom-demo.spdx.json

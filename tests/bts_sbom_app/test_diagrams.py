@@ -200,9 +200,10 @@ def test_custom_node_ids_are_stable_across_nodes_and_edges():
 
 
 # --------------------------------------------------------------------------- chat + policy integration
-def test_draw_diagram_tool_returns_lines_and_a_diagram():
+def test_draw_diagram_tool_returns_lines_and_a_diagram_card():
     res = chatmod.run_tool(REC, "draw_diagram", {"kind": "class"}, None, None)
-    assert res[0]["lines"] and res[0]["diagrams"][0]["mermaid"]
+    assert res[0]["lines"] and res[0]["cards"][0]["kind"] == "diagram_ref"   # the card IS the render payload
+    assert res[0]["cards"][0]["mermaid"].startswith("classDiagram")
     assert res[0]["source"] == "diagrams:class"
 
 
@@ -214,7 +215,7 @@ def test_draw_diagram_catalog_kind_needs_no_project():
 
 def test_draw_diagram_custom_without_a_project_draws_the_spec():
     res = chatmod.run_tool(None, "draw_diagram", {"kind": "custom", "spec": "A -> B"}, None, None)
-    assert res[0]["diagrams"][0]["mermaid"].startswith("flowchart")
+    assert res[0]["cards"][0]["mermaid"].startswith("flowchart")          # the card is the render payload
 
 
 def test_decide_tool_runs_inference_and_attaches_the_decision_diagram():
@@ -239,7 +240,8 @@ def test_ask_attaches_diagrams_to_the_answer(monkeypatch):
     bot = chatmod.Chatbot(DummyIndex(), projects={"demo": REC})
     res = bot.ask("A -> B -> C 사용자 게이트웨이 스캐너 리포트 다이어그램 그려줘")
     assert "draw_diagram" in res["tools"]
-    assert res["diagrams"] and res["diagrams"][0]["mermaid"].startswith("flowchart")
+    drawn = res["cards"][0] if (res.get("cards") or []) else (res.get("diagrams") or [{}])[0]
+    assert drawn["mermaid"].startswith("flowchart")                       # card path since the diagram_ref kind
 
 
 def test_facts_from_record_prefers_explicit_overrides():

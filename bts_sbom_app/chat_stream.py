@@ -50,6 +50,9 @@ class StreamingChatbot(chatmod.Chatbot):
     def _run(self, rec: Optional[Dict[str, Any]], calls: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
         for c in calls:
+            if self.cancelled is not None and self.cancelled():   # C32: the reader is gone - do not spend the budget
+                self.turn_cancelled = True
+                break
             self._emit("tool_call", tool=c["tool"], args=c.get("args", {}))
             try:
                 produced = super()._run(rec, [c])
@@ -115,7 +118,9 @@ class StreamingChatbot(chatmod.Chatbot):
                    coverage=res.get("coverage"),                            # partial-scan gaps of the answered project (None = no tool asked)
                    escalation=res.get("escalation"), clarify=res.get("clarify"),   # a handoff payload / the candidate projects of a clarifying question
                    reviewer_notes=res.get("reviewer_notes") or [],
-                   status=res.get("status") or "complete",                  # partial = at least one tool call in this turn raised (C02)
+                   status=res.get("status") or "complete",                  # partial = a tool raised; cancelled = the reader left mid-turn (C32)
                    tool_errors=res.get("tool_errors") or [],
+                   cancelled=bool(res.get("cancelled")),                    # C32: the turn stopped early because the reader is gone
+                   trace_id=self.trace_id or "",                            # C25: the HTTP correlation id of this turn
                    versions=res.get("versions") or {})                      # app/model/prompt/spec audit stamp (C38)
         return res

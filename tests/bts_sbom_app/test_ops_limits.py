@@ -193,9 +193,9 @@ def test_global_concurrency_cap_refuses_with_429_retry_after_and_recovers_after_
     calls = {"n": 0}
     orig_bot = st.bot
 
-    def counting_bot():
+    def counting_bot(*args, **kwargs):                 # the handler now passes trace_id= (C25) - accept and forward
         calls["n"] += 1
-        return orig_bot()
+        return orig_bot(*args, **kwargs)
     monkeypatch.setattr(st, "bot", counting_bot)
     try:
         assert st.chat_sem.acquire(blocking=False) is True          # simulate one chat turn already in flight

@@ -13,7 +13,7 @@ standard library (Python >= 3.10). The package can prove it:
 
 ```console
 $ python -m bts_sbom selfsbom
-{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.5.0", "dependsOn": [] }],
+{ "bomFormat": "CycloneDX", ... "dependencies": [{ "ref": "pkg:pypi/bts-sbom@0.6.0", "dependsOn": [] }],
   "compositions": [{ "aggregate": "complete", ... }] }
 ```
 
@@ -46,7 +46,21 @@ library only, binds to localhost and shows what BTS-SBOM did not compute as abse
 _The screenshots show a demo workspace of three small projects pinned to old dependency versions (captured 2026-11-21). The advisories are real
 [OSV.dev](https://osv.dev) results for those versions at that time; the project names and the decisions in the VEX screenshot are illustrative._
 
-## What's new since 0.5.0 (unreleased) — u-boot clean-room E2E + workbench UI + honest banners
+## What's new in 0.6.0 — course re-analysis shipped + CRA compliance + incident response + governance/chat ops
+
+- **Metanet course re-analysis, shipped (AC-1100..1263)**: all 37 course documents re-read in 27 agent
+  groups, 116 gaps merged into 87 scored candidates, 40 upgrades built and adversarially reviewed; the
+  CRA compliance lane (security.txt, Article 14 clocks, Annex J registers — u-boot readiness 37.5% -> 75%),
+  the KISA incident-response lane (SLA stage machine, 4 report builders, IoC cross-check), governance
+  evidence (approval ledger, overridable policy), and chat-turn operations (cancel / SSE heartbeat /
+  trace_id).
+- **A2UI-style cards on 19 of 27 chat tools**, the approval chain measured live on Azure behind Easy Auth,
+  and the oracle-honesty round in the clean-room lane (FunctionTestCase suites run; mimeparse measured
+  14 -> 4 of 29 legacy failures, reproduced twice).
+- **Azure operations**: ACR pulls via system-assigned managed identity (admin user OFF), a nightly drift
+  workflow, the self-dogfood gate proving the stdlib-only claim, and a public repository.
+
+## What's new since 0.5.0 — u-boot clean-room E2E + workbench UI + honest banners
 
 - **u-boot v2026.10 real-world E2E** (`evidence/uboot_e2e/E2E.md`): scanned 68 components / 43 advisories
   (CRITICAL certifi, urllib3, jinja2) out of a 388 MB C tree, project license GPL-2.0-or-later from SPDX-header
@@ -63,7 +77,7 @@ _The screenshots show a demo workspace of three small projects pinned to old dep
   the source tree, mainless TestCase suites get a runner tail injected, zero-test files are recorded skips, and
   the generation budget covers reasoning deployments (16384).
 
-## What's new since 0.5.0 (unreleased) — chat quality gates + the approval loop + supply-chain pane
+## What's new since 0.5.0 — chat quality gates + the approval loop + supply-chain pane
 
 - **Chat 품질 TOP-10 스코어카드** (`python -m bts_sbom_app.evals_top10`, `evals/top10_report.md`): grounding F
   (claim support × source coverage), completeness of procedure answers, tool-call accuracy from the live suite

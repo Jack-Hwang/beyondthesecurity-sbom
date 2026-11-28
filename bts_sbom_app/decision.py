@@ -11,6 +11,8 @@ this module stays pure: tables in, verdicts out.
 """
 from __future__ import annotations
 
+import json
+import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -190,11 +192,76 @@ def table_lines(table: DecisionTable, limit: int = 12) -> List[str]:
 
 
 # ------------------------------------------------------------------------- the product's own remediation policy
+REMEDIATION_OVERRIDES_ENV = "BTS_SBOM_REMEDIATION_OVERRIDES"   # a JSON file path; the org's documented deviations
+_OVERRIDES_STATUS: Dict[str, Any] = {"overrides": "none", "detail": ""}   # last load outcome, read via remediation_policy_status()
+
+
+def remediation_policy_status() -> Dict[str, Any]:
+    """How the last remediation_policy() build treated the overrides file: none / applied / rejected (with why).
+    A malformed override file must NEVER be silently half-applied - the status names it."""
+    return dict(_OVERRIDES_STATUS)
+
+
+def _apply_overrides(table: "DecisionTable", spec: Dict[str, Any], path: str) -> "DecisionTable":
+    """Apply one validated overrides spec to the default table. Allowed: disable rules by id, change a rule's
+    priority or action text, and append new rules (``when`` keys must be declared inputs, ``then`` keys its
+    outputs). Anything invalid rejects the WHOLE file (the defaults stand, the status says why) - a
+    half-applied policy is a lie about what the tool will recommend."""
+    global _OVERRIDES_STATUS
+    known = {r.rid for r in table.rules}
+    disable = spec.get("disable") or []
+    prio = spec.get("priority") or {}
+    action = spec.get("action") or {}
+    append = spec.get("append") or []
+    ok = isinstance(disable, list) and all(r in known for r in disable) \
+        and isinstance(prio, dict) and all(k in known and isinstance(v, int) and 0 <= v <= 9 for k, v in prio.items()) \
+        and isinstance(action, dict) and all(k in known and isinstance(v, str) and v.strip() for k, v in action.items())
+    new_rules: List[Rule] = []
+    for r in append if isinstance(append, list) else []:
+        try:
+            rid = str(r["id"])
+            when = {k: str(v) for k, v in dict(r["when"]).items()}
+            then = {str(k): str(v) for k, v in dict(r["then"]).items()}
+            pr = int(r["priority"])
+            assert rid and rid not in known and when and all(k in table.inputs for k in when) \
+                and then and all(k in table.outputs for k in then) and 0 <= pr <= 9
+            new_rules.append(Rule(rid, when, then, pr))
+        except (KeyError, TypeError, ValueError, AssertionError):
+            ok = False
+            break
+    if not ok:
+        _OVERRIDES_STATUS = {"overrides": "rejected", "detail": "%s is malformed - the documented defaults stand" % os.path.basename(path)}
+        return table
+    rules: List[Rule] = []
+    for r in table.rules:
+        if r.rid in disable:
+            continue
+        if r.rid in prio or r.rid in action:
+            rules.append(Rule(r.rid, dict(r.conditions),
+                              {"action": action.get(r.rid, r.outputs.get("action", "")),
+                               "priority": r.outputs.get("priority", "")},
+                              prio[r.rid] if r.rid in prio else r.priority))
+        else:
+            rules.append(r)
+    rules.extend(new_rules)
+    rules.sort(key=lambda r: -r.priority)
+    _OVERRIDES_STATUS = {"overrides": "applied", "detail": "disable=%s priority=%s action=%s append=%d" % (
+        sorted(disable), sorted(prio), sorted(action), len(new_rules))}
+    return DecisionTable(name=table.name, inputs=table.inputs, outputs=table.outputs, rules=rules,
+                         hit_policy=table.hit_policy, default_outputs=table.default_outputs)
+
+
 def remediation_policy() -> DecisionTable:
     """Our engineering policy for what to do about one finding, as a first-match decision table. The table is
     OURS (this tool's documented defaults, same thresholds the triage lane enforces); the facts are the project's
-    measured ones. Editing the table changes only what this tool recommends - never what it measured."""
-    return DecisionTable(
+    measured ones. Editing the table changes only what this tool recommends - never what it measured.
+
+    An org may document its deviations in a JSON file named by ``BTS_SBOM_REMEDIATION_OVERRIDES``
+    (``{"disable": ["R6"], "priority": {"R4": 5}, "action": {"R4": "..."}, "append": [...]}``); a malformed
+    file rejects the WHOLE override set (defaults stand - see :func:`remediation_policy_status`), never a
+    half-applied policy."""
+    global _OVERRIDES_STATUS
+    table = DecisionTable(
         name="remediation-policy",
         hit_policy="F",
         inputs={"severity": "LOW|MEDIUM|HIGH|CRITICAL", "malicious": "true|false",
@@ -213,3 +280,17 @@ def remediation_policy() -> DecisionTable:
         ],
         default_outputs={"action": "monitor: no rule matched (facts were incomplete)", "priority": "P5"},
     )
+    path = os.environ.get(REMEDIATION_OVERRIDES_ENV, "").strip()
+    if not path:
+        _OVERRIDES_STATUS = {"overrides": "none", "detail": ""}
+        return table
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            spec = json.load(fh)
+        if not isinstance(spec, dict):
+            raise ValueError("not a JSON object")
+    except (OSError, ValueError) as exc:
+        _OVERRIDES_STATUS = {"overrides": "rejected",
+                             "detail": "%s unreadable (%s) - the documented defaults stand" % (os.path.basename(path), type(exc).__name__)}
+        return table
+    return _apply_overrides(table, spec, path)

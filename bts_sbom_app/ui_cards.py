@@ -183,12 +183,20 @@ def _sev_counts(rec: Optional[Dict[str, Any]]) -> Dict[str, int]:
 def cards_for(tool: str, args: Dict[str, Any], rec: Optional[Dict[str, Any]], result: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Tool result -> validated cards. Called ONLY from the chatbot's deterministic post-processor - the
     model never supplies card content. Unknown tools simply produce no cards."""
+    if tool == "draw_diagram":                                  # a drawn diagram IS a diagram_ref card - the
+        d = (result.get("diagrams") or [{}])[0]                 # catalog kind replaces the ad-hoc payload
+        if d.get("mermaid"):
+            return validate_cards([{"kind": "diagram_ref", "title": d.get("name") or "diagram",
+                                    "name": d.get("name") or "diagram", "mermaid": d["mermaid"]}])[0]
+        return []
     builders = {
         "overview": _c_overview, "top_vulns": _c_top_vulns, "vuln_lookup": _c_vuln,
         "component_lookup": _c_component, "decide": _c_decision, "decision": _c_decision,
         "plan_patch": _c_plan, "record_decision": _c_decision_preview,
         "coverage": _c_coverage, "sbom_conformance": _c_conformance,
         "license": _c_license, "what_if_upgrade": _c_whatif, "architecture": _c_arch,
+        "license_risks": _c_license_risks, "proposals": _c_proposals, "what_changed": _c_changed,
+        "export_vex": _c_vex, "supply_chain": _c_supply, "nl2sql": _c_nl2sql,
     }
     fn = builders.get(tool)
     if fn is None:
@@ -267,14 +275,27 @@ def _c_decision(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
 def _c_plan(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
     plans = rec.get("plans") or []
     up = [p for p in plans if p.get("status") == "upgrade"]
+    # the approval covers the SHOWN selection: when the plan line names a component subset, the card
+    # must count that subset - not every upgrade plan in the record (live-measured overstatement)
+    import re as _re
+    head = next((ln for ln in result.get("lines") or [] if ln.startswith("Patch plan for")), "")
+    m = _re.search(r"for ([\w., -]+): (\d+) upgrade", head)
+    shown: Optional[int] = None
+    scope = ""
+    if m:
+        scope = _clip(m.group(1), 40)
+        shown = int(m.group(2))
+        up = up[:shown] if shown else up
     if not up:
         return []
     tok = result.get("approval_token") or ""
     import re as _re
     m = _re.search(r"Approval token ([0-9a-f]{16})", "\n".join(result.get("lines") or []))
-    out: Dict[str, Any] = {"kind": "approval_request", "title": "패치 승인 대기", "gate": "patch",
-                           "summary": _clip("업그레이드 %d건 (검증 통과 %d건)" % (
-                               len(up), sum(1 for p in up if (p.get("verification") or {}).get("clean") is True)))}
+    out: Dict[str, Any] = {"kind": "approval_request", "title": "패치 승인 대기" + (" - " + scope if scope else ""),
+                           "gate": "patch",
+                           "summary": _clip("이 승인이 다루는 선택: 업그레이드 %d건 (검증 통과 %d건)%s" % (
+                               len(up), sum(1 for p in up if (p.get("verification") or {}).get("clean") is True),
+                               "" if not shown else " - 계획 전체 %d건이 아니다" % (len([p for p in plans if p.get("status") == "upgrade"]))))}
     if m:
         out["code"] = m.group(1)
     return [out]
@@ -345,6 +366,79 @@ def _c_arch(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
         {"k": "import edges", "v": str(g.get("import_edges", "?"))},
         {"k": "cycles", "v": str(g.get("cycle_count", "?"))},
         {"k": "max depth", "v": str(g.get("max_depth", "?"))},
+    ]}]
+
+
+def _c_license_risks(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
+    comps = rec.get("components") or []
+    if not comps:
+        return []
+    from . import licenses as _lic
+    cats: Dict[str, int] = {}
+    for c in comps[:200]:
+        lic = str(c.get("license") or c.get("license_raw") or "unknown")
+        try:
+            cat = _lic.category(lic)
+        except Exception:                                      # noqa: BLE001
+            cat = "unknown"
+        cats[cat or "unknown"] = cats.get(cat or "unknown", 0) + 1
+    return [{"kind": "kv", "title": "라이선스 리스크 (배포 모델: %s)" % _clip(args.get("distribution") or "binary", 16), "items": [
+        {"k": "copyleft", "v": str(cats.get("copyleft", 0))},
+        {"k": "weak-copyleft", "v": str(cats.get("weak-copyleft", 0))},
+        {"k": "unknown/미해결", "v": str(cats.get("unknown", 0) + cats.get("none", 0))},
+        {"k": "permissive", "v": str(cats.get("permissive", 0))},
+    ]}]
+
+
+def _c_proposals(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
+    pr = rec.get("proposals") or {}
+    items = pr.get("items") or []
+    if not items:
+        return []
+    rows = [[_clip(i.get("action"), 14), _clip(i.get("risk"), 12), _clip(i.get("title"), 44)] for i in items[:MAX_ROWS]]
+    return [{"kind": "table", "title": "수정 제안 (%s 생성, 증거 검증 통과)" % _clip(pr.get("source") or "deterministic", 14),
+             "head": ["action", "risk", "제목"], "rows": rows}]
+
+
+def _c_changed(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
+    ch = rec.get("changes")
+    if not ch:
+        return []
+    return [{"kind": "stat_row", "title": "이전 분석 대비 (%s)" % _clip(ch.get("compared_at", "?"), 16), "items": [
+        {"label": "신규", "value": str(len(ch.get("new") or []))},
+        {"label": "해소", "value": str(len(ch.get("resolved") or []))},
+        {"label": "재채점", "value": str(len(ch.get("rescored") or []))},
+        {"label": "경보", "value": str(len(ch.get("alerts") or []))},
+    ]}]
+
+
+def _c_vex(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
+    written = next((ln for ln in result.get("lines") or [] if "Written to" in ln), None)
+    if not written:
+        return []
+    return [{"kind": "kv", "title": "OpenVEX 내보내기", "items": [{"k": "결과", "v": _clip(written, 70)}]}]
+
+
+def _c_supply(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
+    fs = rec.get("supply_chain") or []
+    if not fs:
+        return []
+    rows = [[_clip(f.get("package"), 22), _clip(f.get("kind"), 18), _clip(f.get("resembles"), 18),
+             _clip(f.get("recommendation"), 40)] for f in fs[:MAX_ROWS]]
+    return [{"kind": "table", "title": "공급망 대체 리스크 %d건" % len(fs), "head": ["패키지", "종류", "유사 대상", "권고"], "rows": rows}]
+
+
+def _c_nl2sql(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
+    lines = result.get("lines") or []
+    status = next((ln for ln in lines if ln.startswith("status:")), "")
+    sql = next((ln for ln in lines if ln.startswith("sql:")), "")
+    nrows = sum(1 for ln in lines if ln and not ln.startswith(("status:", "sql:")))
+    if not status and not sql:
+        return []
+    return [{"kind": "kv", "title": "로컬 OSV DB 질의", "items": [
+        {"k": "상태", "v": _clip(status.replace("status: ", ""), 24)},
+        {"k": "SQL", "v": _clip(sql.replace("sql: ", ""), 60)},
+        {"k": "행", "v": str(nrows)},
     ]}]
 
 
