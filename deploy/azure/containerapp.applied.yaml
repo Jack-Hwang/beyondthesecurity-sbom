@@ -225,6 +225,8 @@ properties:
         value: bts-sbom.wittyforest-2c8fae00.koreacentral.azurecontainerapps.io
       - name: BTS_SBOM_LLM_DAILY_BUDGET
         value: '80'
+      - name: BTS_SBOM_LLM_LEDGER
+        value: /tmp/evidence/.llm_ledger.json
       - name: BTS_SBOM_UNICODE
         value: '1'
       - name: BTS_SBOM_OSV_DB_PATH
@@ -241,7 +243,7 @@ properties:
         value: /tmp/evidence/bts_sbom_osv_local.db
       - name: BTS_SBOM_TRUST_FORWARDED
         value: '1'
-      image: btsbomacr1126.azurecr.io/bts-sbom-app:sha-f824a9f
+      image: btsbomacr1126.azurecr.io/bts-sbom-app:sha-fdc8a20
       name: bts-sbom-app
       probes:
       - failureThreshold: 24
