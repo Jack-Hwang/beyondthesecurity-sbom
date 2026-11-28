@@ -12,20 +12,20 @@ S.push({
   id: "inv_state", kind: "table", then: "table2", split: 188,
   t1: { title: "inventory", fs: 9, cols: [{ t: "리소스 (측정)", w: 3.0 }, { t: "규모 · 이중화", w: 3.2 }, { t: "아키텍트가 본 점", w: 5.8 }], rows: [
     ["ACA 환경 bts-sbom-env", "Consumption · 영역 중복 아님", I("VNet 통합·영역 중복은 환경 재창출이 필요 — 프로덕션 전환의 전제")],
-    ["앱 bts-sbom · 리비전 0000016", "0.5 vCPU · 1Gi · 2Gi · 0→1", M("리비전 17개 보존(전부 Healthy) · ACR 태그 15 · 롤백 = 트래픽 전환(훈련 0회)")],
+    ["앱 bts-sbom · 리비전 bg20261128143011", "0.5 vCPU · 1Gi · 2Gi · 0→1", M("리비전 20개 · ACR 태그 37 · 자동 롤백 실증 5회(11-28 원장) · 이미지 sha-5dbf5df")],
     ["ACR btsbomacr1126", "Basic · 공용 엔드포인트", G("서명·신뢰 정책·소프트 삭제 모두 OFF — 공급망 증명 없음")],
-    ["Storage btsbomstg1127 · evidence", "Standard_LRS 단일 리전 · 2GB", G("백업 0 · 프라이빗 엔드포인트 0 — 사용 5.4MB")],
-    ["Log Analytics btsbom-logs", "보존 30일 · 한도 없음", G("HTTP 요청 로그 꺼짐 · 앱 메트릭 미수집")],
-    ["Azure OpenAI (별도 RG)", "gpt-5-mini · GlobalStandard", M("일일 호출 예산 80회 — 장부는 컨테이너 로컬(아래)")],
+    ["Storage btsbomstg1127 · evidence", "Standard_LRS 단일 리전 · 2GB", M("백업 자격증명 1(11-28) · 잔여 갭: 프라이빗 엔드포인트 0 — 사용 5.4MB")],
+    ["Log Analytics btsbom-logs", "보존 30일 · 한도 없음", M("HTTP 요청 로그·앱 메트릭 수집 켬(11-28) · 경고 3건·액션 그룹 1")],
+    ["Azure OpenAI (별도 RG)", "gpt-5-mini · GlobalStandard", M("일일 호출 예산 80회 — 장부는 Files 볼륨(11-28, 아래)")],
   ] },
   t2: { title: "state", fs: 9, cols: [{ t: "상태 — 무엇이 살아남나", w: 2.6 }, { t: "내구성", w: 2.4 }, { t: "재시작 · 스케일 0에서", w: 3.6 }, { t: "RPO — 판단", w: 3.4 }], rows: [
-    [M("Azure Files 'evidence' — 유일한 영속 계층"), M("단일 리전 · 백업 0"), M("보존"), I("지역 장애·삭제 시 전체 유실 가능 — 백업은 선택이 아니라 전제")],
-    [M("로컬 디스크 — OSV DB·격리 복사본·LLM 장부"), M("휘발성"), M("매 기동 재생성 — 'OSV snapshot: copied' 로그 확인"), I("LLM 일일 예산이 기동마다 0으로 — '일일 상한'이 사실상 '기동당 상한'")],
+    [M("Azure Files 'evidence' — 유일한 영속 계층"), M("단일 리전 · 백업 자격증명 1(11-28)"), M("보존"), I("지역 장애·삭제 시 일일 백업이 완충 — 리전 이중화·복원 훈련은 잔여")],
+    [M("로컬 디스크 — OSV DB·격리 복사본"), M("휘발성"), M("매 기동 재생성 — 'OSV snapshot: copied' 로그 확인"), M("LLM 장부는 11-28부터 공유 볼륨에 영속 — '일일 상한'이 이제 유효(라이브 실측)")],
     [M("프로세스 메모리 — 잡·SSE 버스·속도 제한 표"), M("휘발성"), M("실행 중 스캔은 중단, 재요청"), I("단일 레플리카라 허용 — 레플리카 ≥ 2면 큐·외부 저장으로")],
     [M("외부 — OSV·deps.dev·Git 호스트"), M("외부"), M("회로차단기 3회 실패 → 60초 개방 · 결과는 gap 공시"), I("RPO 개념 없음 — '오프라인 폴백 시 갭 공시'가 가용성 전략")],
   ] },
   verdict: I("영속 계층이 '폴더 하나'인 것은 의도된 단순함이다 — 그렇다면 그 폴더의 백업은 전제다."),
-  notes: "출처: az resource list(5개), az containerapp show·env show, az acr show, az storage share-rm show --expand stats, REST /revisions(17개), 진단 설정(HTTPLogs off), Dockerfile 주석(LLM 장부 경로 /app/evidence), 콜드 스타트 콘솔 로그. 2026-11-28 실측.",
+  notes: "출처: az resource list(5개), az containerapp show·env show, az acr show, az storage share-rm show --expand stats, REST /revisions(20개), 진단 설정(HTTPLogs·앱 AllMetrics on, 11-28), 경고 3·액션 그룹 1·백업 자격증명 1(11-28 az 실측), LLM 장부 env(b2bdff2 → /tmp/evidence Files 볼륨, 챗 1턴 cost 0.017442 exec 실측), 콜드 스타트 콘솔 로그. 2026-11-28 실측.",
 });
 S.push({ id: "cred", ...by("자격 증명·비밀·네트워크 경계"), dy: 50 });
 S.push({ id: "modules", ...by("모듈 지도 (C4-3)") });
@@ -250,7 +250,7 @@ S.push({
     ["H3", "정책 배포", "규정이 내려옴", "server-managed · MDM · managed 파일", "둘 다", M("환경변수 15개 · 배포 yaml — 라이브가 진실")],
     ["H4", "실행 통제", "방마다 잠금", "모드 · deny→ask→allow · 훅 · 분류기", "로컬", M("소스 경계 · 승인 토큰 · 속도 제한")],
     ["H5", "격리", "출입 통제된 작업실", "샌드박스 · dev container · VM · 프록시", "둘 다", M("격리 워크카피 · 비루트 UID 10001 컨테이너")],
-    ["H6", "데이터", "문서 보관함", "학습 정책 · 보존 · 텔레메트리", "둘 다", M("evidence 영속 · PII 마스킹 · 백업 0(갭)")],
+    ["H6", "데이터", "문서 보관함", "학습 정책 · 보존 · 텔레메트리", "둘 다", M("evidence 영속 · PII 마스킹 · 백업 1(11-28 도입)")],
     ["H7", "확장", "외부 업체 출입", "managed MCP · 마켓플레이스 · .mcpb", "둘 다", M("MCP 서버 · A2UI 카드 — 허용목록 없음(갭)")],
     ["H8", "감사", "CCTV · 출입 기록", "OTel · Compliance API · 지출 한도", "둘 다", M("approvals.jsonl · 에스컬레이션 로그 · LA 로그")],
   ],

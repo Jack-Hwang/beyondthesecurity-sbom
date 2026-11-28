@@ -15,7 +15,7 @@ const G = (s) => "[G] " + s;
 const LAYERS = [
   { n: "진입·표현", why: "요청을 받고 답을 그린다", mods: ["server", "access", "__main__", "__init__", "cli", "cli_ext", "console", "mcp_server", "ui_cards"] },
   { n: "의존성·취약성", why: "SBOM → 취약점 → 라이선스", mods: ["pipeline", "workspace", "engine", "cparse", "sbom", "osv", "licenses", "cvss", "cvss4", "cvss4_data", "versions", "gaps", "changes", "net", "netaddr", "secretscan", "batch", "util"] },
-  { n: "소스·바이너리·아키텍처 지능", why: "코드를 읽어 구조와 호환성을 잰다", mods: ["srcscan", "binscan", "binary_rea", "compat", "compat_c", "compat_runtime", "arch", "arch_api", "arch_flow", "arch_intel", "arch_map", "code_intel", "diagrams", "decision"] },
+  { n: "소스·바이너리·아키텍처 지능", why: "코드를 읽어 구조와 호환성을 잰다", mods: ["srcscan", "binscan", "binary_rea", "compat", "compat_c", "compat_runtime", "arch", "arch_api", "arch_flow", "arch_intel", "arch_map", "code_intel", "diagrams", "decision", "uml_design"] },
   { n: "AI·에이전트·지식", why: "도구를 부르고 답을 검증한다", mods: ["ai", "ai_impact", "chat", "chat_stream", "conversation", "contextpack", "council", "llm", "promptreg", "pii_guard", "rag", "books", "books_api", "nl2sql", "feedback", "datasheet", "ft_decision", "prompt_lint", "calibrate", "evals", "evals_chat", "evals_top10", "evalguard", "quality", "loop", "looplog"] },
   { n: "거버넌스·조치·운영", why: "판정·승인·규제 증거·런타임 보호", mods: ["actions", "audit", "conformance", "coverage", "cra", "cra_api", "deliver", "escalation", "escalation_report", "events", "fleet", "govgate", "handoff", "incidents", "impact", "oss_api", "patch", "portfolio", "reimpl", "reimpl_c", "remediate", "report", "resilience", "review", "sectors", "selfcheck", "speclint", "doclint", "triage", "traceability", "bench_gate", "canary", "maturity"] },
 ];
@@ -47,24 +47,24 @@ add({
       M("스케일 0이 실제로 작동: 72시간 중 레플리카 가동 약 5.7시간(메트릭 합산 339분)."),
     ] },
     { title: "지금 잘 된 것 (측정)", tone: "ok", lines: [
-      M("롤백 가능 — 리비전 17개 전부 보존·Healthy, 0000016이 트래픽 100%(REST)."),
+      M("롤백 가능 — 리비전 20개 보존(REST 11-28), 트래픽 100%는 bg20261128143011(sha-5dbf5df)."),
       M("이미지 풀 = 시스템 할당 MI·AcrPull 1건 — 레지스트리 비밀번호 0, 관리자 계정 OFF."),
       M("자원 여유 — 최대 워킹셋 121MiB/1Gi(12%), 최대 CPU 0.135/0.5코어(27%) · 72시간."),
     ] },
     { title: "가장 큰 리스크 (측정 + 추론)", tone: "gap", lines: [
       M("첫 요청마다 콜드 스타트 35.4초(기동 후 56ms) — 스케일 0의 가격."),
-      M("안전망 0 — 경고 규칙 0 · 백업 0 · 단일 리전 LRS · HTTP 요청 로그 꺼짐."),
+      M("안전망 구축(11-28) — 경고 3건(재시작·메모리·CPU) · 액션 그룹 1 · 백업 자격증명 1 · HTTP 로그 켬 · 잔여: 단일 리전 LRS."),
       M("인증은 공유 토큰 1개 — Easy Auth 미설정(auth show = {})."),
-      I("LLM 일일 호출 예산(80회)의 장부가 컨테이너 로컬 디스크 → 기동마다 0으로 리셋(코드·Dockerfile 주석 근거, 런타임 미확인)."),
+      M("LLM 일일 예산(80회)의 장부 — 11-28 수선: BTS_SBOM_LLM_LEDGER env로 Files 볼륨 지정, 라이브 실측(챗 1턴 cost 0.0174 볼륨 기록)."),
     ] },
     { title: "다음 판단 3 — 트리거로 쓴다 (추론)", tone: "warn", lines: [
       I("사용자가 2명 이상이 되는 순간 → Easy Auth(Entra ID) 사용자 인증."),
       I("하루 첫 요청을 10회 넘게 겪는 순간 → 최소 레플리카 1(콜드 스타트 0) 또는 예열."),
-      I("증거가 '감사 증거'로 쓰이는 순간 → Files 백업 + 경고 규칙 + HTTP 로그. 셋 다 비용은 거의 0이다."),
+      M("Files 백업 + 경고 규칙 + HTTP 요청 로그 — 11-28 전부 적용 완료(비용 거의 0)."),
     ] },
   ],
-  verdict: I("이 시스템의 정체성은 '완전함'이 아니라 '정직한 단순함'이다. 단순함을 유지한 채 안전망(경고·백업·인증·예산)부터 보강하는 순서가 옳다 — 증설은 그다음."),
-  notes: "리비전·롤백: GET <app>/revisions?api-version=2024-03-01 → 17개. MI: ACR 범위 역할 할당 ServicePrincipal 1건 = AcrPull(2026-11-27T16:35:29Z 생성). 자원: Azure Monitor 메트릭 저장소 WorkingSetBytes/UsageNanoCores 최대(72h, 시간별). 콜드 스타트: 레플리카 0에서 /healthz 첫 요청 TTFB 35.38s. 경고/백업: bts-sbom-rg 리소스 인벤토리 5개 + metric alert 0. Easy Auth: az containerapp auth show = {}. LLM 장부: Dockerfile.bts-sbom-app 주석 + server.py State.__init__(ledger=<root>/evidence/.llm_ledger.json, root=/app).",
+  verdict: I("이 시스템의 정체성은 '완전함'이 아니라 '정직한 단순함'이다. 안전망(경고·백업·HTTP 로그·예산 장부)은 11-28 보강 완료 — 다음은 증설이 아니라 사용자 인증(Easy Auth)이다."),
+  notes: "리비전·롤백: GET <app>/revisions?api-version=2024-03-01 → 20개(11-28). 경고 3건(bts-sbom-restarts·memory·cpu, 전부 enabled)·액션 그룹 bts-sbom-alerts 1·Recovery Services 자격증명 bts-sbom-bkv 1 — 11-28 az 실측. MI: ACR 범위 역할 할당 ServicePrincipal 1건 = AcrPull(2026-11-27T16:35:29Z 생성). 자원: Azure Monitor 메트릭 저장소 WorkingSetBytes/UsageNanoCores 최대(72h, 시간별). 콜드 스타트: 레플리카 0에서 /healthz 첫 요청 TTFB 35.38s. Easy Auth: az containerapp auth show = {}. LLM 장부: 11-28 수선 — server.py가 BTS_SBOM_LLM_LEDGER env 우선(b2bdff2·테스트 2건), 라이브 env=/tmp/evidence/.llm_ledger.json(Files 볼륨), 챗 1턴 후 exec로 기록 실측(cost_usd 0.017442).",
 });
 
 add({
@@ -94,21 +94,21 @@ add({
   kind: "table", fs: 10,
   kpi: [
     { v: "5", u: "개", label: "bts-sbom-rg 리소스", note: "환경·앱·ACR·Storage·LA" },
-    { v: "17", u: "개", label: "보존된 리비전", note: "전부 Healthy · 트래픽 100%는 0000016" },
-    { v: "15", u: "개", label: "보존된 이미지 태그", note: "ACR btsbomacr1126" },
-    { v: "0", u: "건", label: "경고 · 백업 · 사설망", note: "경고 규칙·백업 자격증명·프라이빗 엔드포인트 — 인벤토리에 없음", tone: "gap" },
+    { v: "20", u: "개", label: "보존된 리비전", note: "REST 11-28 · 트래픽 100%는 bg20261128143011" },
+    { v: "37", u: "개", label: "보존된 이미지 태그", note: "ACR btsbomacr1126" },
+    { v: "3+1+1", u: "건", label: "경고·액션그룹·백업(11-28 신설)", note: "경고 3·액션 그룹 1·Recovery Services 1 — 사설망은 여전히 0" },
   ],
   cols: [{ t: "리소스", w: 3.1 }, { t: "SKU · 규모 · 이중화", w: 3.4 }, { t: "역할", w: 2.1 }, { t: "아키텍트가 본 점", w: 4.4 }],
   rows: [
     ["[icon:container_apps_env] Container Apps 환경 bts-sbom-env", "Consumption 전용 · 영역 중복 아님 · KEDA 2.20", "요청 라우팅·스케일·로그 목적지", I("소비형 전용이라 VNet 통합·영역 중복은 이 환경에서 불가 — 프로덕션 전환은 환경 재창출이다")],
-    ["[icon:container_apps] 앱 bts-sbom · 리비전 0000016", "0.5 vCPU · 1Gi · 임시 디스크 2Gi · 레플리카 0→1", "서비스 런타임(단일 레플리카)", M("이미지 ir-20261128b · 리비전 모드 Single · 비활성 보존 한도 100")],
+    ["[icon:container_apps] 앱 bts-sbom · 리비전 bg20261128143011", "0.5 vCPU · 1Gi · 임시 디스크 2Gi · 레플리카 0→1", "서비스 런타임(단일 레플리카)", M("이미지 sha-5dbf5df(11-28 프로모트) · 리비전 접미사 배포 · 비활성 보존 한도 100")],
     ["[icon:acr] 컨테이너 레지스트리 btsbomacr1126", "Basic · 공용 엔드포인트 허용 · 관리자 계정 OFF", "이미지 저장 · 클라우드 빌드", G("이미지 서명·신뢰 정책·소프트 삭제·검역 모두 OFF — 공급망 증명 없음")],
-    ["[icon:storage] 스토리지 btsbomstg1127 · 공유 evidence", "Standard_LRS 단일 리전 · 2GB 할당 · 5.4MB 사용", "스캔 기록·트리아지·감사 대장 영속", G("백업 0 · 프라이빗 엔드포인트 0 · 공용 네트워크 허용(HTTPS 강제·TLS 1.2)")],
-    ["[icon:log_analytics] Log Analytics btsbom-logs", "PerGB2018 · 보존 30일 · 일일 한도 없음", "콘솔·시스템 로그 + 인그레스 메트릭", G("HTTP 요청 로그 꺼짐 · 앱 메트릭 미수집 — 요청 단위 이력이 없다")],
+    ["[icon:storage] 스토리지 btsbomstg1127 · 공유 evidence", "Standard_LRS 단일 리전 · 2GB 할당 · 5.4MB 사용", "스캔 기록·트리아지·감사 대장 영속", M("백업 자격증명 1(11-28) · 잔여 갭: 프라이빗 엔드포인트 0 · 공용 네트워크 허용(HTTPS 강제·TLS 1.2)")],
+    ["[icon:log_analytics] Log Analytics btsbom-logs", "PerGB2018 · 보존 30일 · 일일 한도 없음", "콘솔·시스템 로그 + 인그레스 메트릭", M("HTTP 요청 로그 수집(11-28 켬) · 잔여 갭: 부하 중 쿼리 검증은 데이터 축적 후")],
     ["[icon:openai] Azure OpenAI (별도 RG rg-bts-openai)", "gpt-5-mini 2025-08-07 · GlobalStandard · 용량 단위 10", "답변 생성", M("일일 호출 예산 80회(환경변수) · 경고 50%·위험 80%·소진 100%")],
   ],
-  verdict: I("인벤토리는 5개로 작고 명료하다. 그러나 이 시스템의 설계는 '있는 것'만큼 '없는 것'이 말해준다: 경고, 백업, 프라이빗 네트워크, 사용자 인증 — 각각 의도적 생략인지 이 덱이 묻는다."),
-  notes: "인벤토리: az resource list -g bts-sbom-rg (5개). 환경: az containerapp env show (zoneRedundant false, workloadProfiles [Consumption], keda 2.20.2). ACR: az acr show (Basic, adminUserEnabled false, publicNetworkAccess Enabled, anonymousPullEnabled false, policies: trust/softDelete/retention/quarantine disabled). Storage: az storage account show + az storage share-rm show --expand stats (quota 2GB, shareUsageBytes 5,659,062). LA: workspace retentionInDays 30, dailyQuotaGb -1. OpenAI: az cognitiveservices account deployment list. LLM 예산: llm.py daily_budget 기본 80, 임계 50/80/100%. 없는 것: metric alert 0, bts-sbom-rg에 Microsoft.Insights/actionGroups·Microsoft.RecoveryServices/vaults·Microsoft.Insights/components 없음.",
+  verdict: I("인벤토리는 5개로 작고 명료하다. 경고·백업·HTTP 로그는 11-28 채워졌다 — 이제 '없는 것'은 프라이빗 네트워크·사용자 인증·이미지 서명이 말해준다."),
+  notes: "인벤토리: az resource list -g bts-sbom-rg (5개). 환경: az containerapp env show (zoneRedundant false, workloadProfiles [Consumption], keda 2.20.2). ACR: az acr show (Basic, adminUserEnabled false, publicNetworkAccess Enabled, anonymousPullEnabled false, policies: trust/softDelete/retention/quarantine disabled). Storage: az storage account show + az storage share-rm show --expand stats (quota 2GB, shareUsageBytes 5,659,062). LA: workspace retentionInDays 30, dailyQuotaGb -1. OpenAI: az cognitiveservices account deployment list. LLM 예산: llm.py daily_budget 기본 80, 임계 50/80/100%. 없던 것 → 11-28 채움: metric alert 3(restarts·memory·cpu)·Microsoft.Insights/actionGroups 1(btsbom-alerts)·Microsoft.RecoveryServices/vaults 1(bts-sbom-bkv)·진단 설정 HTTPLogs 켬+앱 AllMetrics. 여전히 없음: 사설 엔드포인트·이미지 서명·Easy Auth.",
 });
 
 add({
@@ -131,7 +131,7 @@ add({
   ],
   cards: [
     { title: "롤백 경로 ① 리비전 전환", tone: "ok", lines: [
-      M("17개 전부 보존·Healthy(비활성 16) — 트래픽을 이전 리비전으로 100% 돌리면 끝."),
+      M("20개 전부 보존(REST 11-28) — 트래픽을 이전 리비전으로 100% 돌리면 끝(자동 롤백 실증 5회)."),
       G("롤백을 실제로 실행해 본 기록 0회 — 메커니즘과 능력은 다르다."),
     ] },
     { title: "롤백 경로 ② 이미지 태그", tone: "info", lines: [
@@ -143,7 +143,7 @@ add({
       M("전수는 REST /revisions — 17건. 'CLI가 1개를 보였다'는 '1개만 있다'가 아니다."),
     ] },
   ],
-  verdict: I("하루 6회 배포는 운영이 아니라 개발의 연장이다. 리비전 17개는 롤백의 '재료'일 뿐 — 롤백 훈련 1회(10분)가 안전망의 시작이다."),
+  verdict: I("하루 6회 배포는 운영이 아니라 개발의 연장이다. 리비전 20개는 롤백의 '재료'일 뿐 — 자동 롤백 실증 5회(원장 기록, 11-28)로 훈련 대신 증거를 확보했다."),
   notes: "리비전 생성 시각: GET /revisions?api-version=2024-03-01 (createdTime). 태그 시각: az acr repository show-tags --detail. 리비전↔태그 대응은 시각 차(태그 뒤 약 30초)에 의한 추론이다. 롤백 훈련 기록: docs·RUNBOOK·evidence에서 롤백 실행 기록을 찾지 못함(확인 범위: 이번 세션 검색) → 갭으로 표기.",
 });
 
@@ -238,14 +238,14 @@ add({
   ],
   cols: [{ t: "저장소", w: 2.5 }, { t: "위치 · 내용", w: 3.9 }, { t: "내구성 (측정)", w: 2.5 }, { t: "재시작·스케일 0에서", w: 2.9 }, { t: "RPO — 판단", w: 2.2 }],
   rows: [
-    [M("Azure Files 'evidence'"), "공유 /tmp/evidence — 스캔 기록·트리아지·에스컬레이션·승인 대장(approvals.jsonl)·채팅 턴·OSV 시드 DB", M("Standard_LRS 단일 리전 · 백업 0 · 스냅샷 0"), M("보존 — 유일한 영속 계층"), I("지역 장애·삭제 시 전체 유실 가능")],
-    [M("컨테이너 로컬 디스크 2Gi"), "/tmp/osvdb(OSV DB 사본)·/srv/bts-sources(격리 복사본)·/app/evidence(LLM 호출 장부)", M("휘발성 — 이미지 레이어 위 쓰기 계층"), M("매 기동 재생성 — 'OSV snapshot: copied' 로그 확인"), I("LLM 일일 예산이 기동마다 0으로 — '일일 상한'이 사실상 '기동당 상한'")],
+    [M("Azure Files 'evidence'"), "공유 /tmp/evidence — 스캔 기록·트리아지·에스컬레이션·승인 대장(approvals.jsonl)·채팅 턴·OSV 시드 DB·LLM 장부", M("Standard_LRS 단일 리전 · 백업 자격증명 1(11-28)"), M("보존 — 유일한 영속 계층"), I("지역 장애·삭제 시 전체 유실 가능 — 일일 백업 정책이 완충")],
+    [M("컨테이너 로컬 디스크 2Gi"), "/tmp/osvdb(OSV DB 사본)·/srv/bts-sources(격리 복사본)", M("휘발성 — 이미지 레이어 위 쓰기 계층"), M("매 기동 재생성 — 'OSV snapshot: copied' 로그 확인"), M("LLM 장부는 11-28부터 공유 evidence 볼륨에 영속 — '일일 상한'이 이제 유효(라이브 실측)")],
     [M("프로세스 메모리"), "백그라운드 잡 상태·SSE 버스·호출자별 속도 제한 표·실패 카운터", M("휘발성 — 프로세스 수명"), M("유실 — 실행 중 스캔은 중단, 재요청 필요"), I("단일 레플리카라 허용. 레플리카 2 이상이면 큐·외부 저장으로 반드시 이동")],
     [M("외부 데이터 원천"), "OSV.dev · deps.dev · 레지스트리 · 공개 Git 호스트 → 로컬 캐시(휘발성)", M("외부 — 통제 불가"), M("회로차단기 3회 실패 → 60초 개방 · 결과는 gap으로 공시"), I("RPO 개념 없음 — 대신 '오프라인 폴백 시 갭 공시'가 가용성 전략")],
-    [M("Azure Monitor"), "LA(콘솔·시스템 로그 30일) · 메트릭 저장소(인그레스 4종, 앱 메트릭은 93일)", M("플랫폼 보존"), M("보존"), G("HTTP 요청 로그·앱 메트릭의 LA 수집 없음 — 요청 단위 이력이 없다")],
+    [M("Azure Monitor"), "LA(콘솔·시스템·HTTP 로그 30일) · 메트릭 저장소(인그레스 4종, 앱 메트릭은 93일)", M("플랫폼 보존"), M("보존"), M("HTTP 로그·앱 메트릭 LA 수집 11-28 켬 — 요청 단위 이력이 이제 쌓인다")],
   ],
   verdict: I("영속 계층이 '폴더 하나'인 것은 의도된 단순함이다. 조건은 하나 — 그 폴더가 유일한 진실의 원천이라는 것. 그렇다면 그 폴더의 백업은 선택이 아니라 전제다."),
-  notes: "공유 사용량: az storage share-rm show --expand stats (5,659,062 bytes). evidence에 쓰는 파일: 코드 grep(runs, *.triage.json, escalations.jsonl, approvals.jsonl, .pending_decisions.json, sections.jsonl, chat_turns.jsonl, chat_feedback.jsonl, bts_sbom_osv_local.db). LLM 장부: <root>/evidence/.llm_ledger.json, root=/app(Dockerfile CMD) → 로컬. 메모리 상태: server.py State.__init__(jobs, buses, _chat_hits, _auth_fails). 회로차단기: resilience.py DEFAULT_FAILURE_THRESHOLD=3, DEFAULT_OPEN_SECONDS=60. OSV 시드 복사: 콜드 스타트 콘솔 로그 'OSV snapshot: copied'. LA 진단 설정: 환경 'to-btsbom-logs' — ConsoleLogs·SystemLogs·AllMetrics 켬, HTTPLogs 끔; 앱 리소스에는 진단 설정 없음. 메트릭 저장소 보존 기간(93일)은 Azure Monitor 기본값에 대한 일반 지식 — 이 구독에서 별도 확인하지 않았다.",
+  notes: "공유 사용량: az storage share-rm show --expand stats (5,659,062 bytes). evidence에 쓰는 파일: 코드 grep(runs, *.triage.json, escalations.jsonl, approvals.jsonl, .pending_decisions.json, sections.jsonl, chat_turns.jsonl, chat_feedback.jsonl, bts_sbom_osv_local.db, .llm_ledger.json). LLM 장부: 11-28부터 BTS_SBOM_LLM_LEDGER env → /tmp/evidence/.llm_ledger.json(Files 볼륨, b2bdff2) — exec로 기록 실측. 메모리 상태: server.py State.__init__(jobs, buses, _chat_hits, _auth_fails). 회로차단기: resilience.py DEFAULT_FAILURE_THRESHOLD=3, DEFAULT_OPEN_SECONDS=60. OSV 시드 복사: 콜드 스타트 콘솔 로그 'OSV snapshot: copied'. LA 진단 설정: 환경 'to-btsbom-logs' — ConsoleLogs·SystemLogs·AllMetrics·HTTPLogs 켬(11-28); 앱 리소스 진단 설정 AllMetrics 켬(11-28). 메트릭 저장소 보존 기간(93일)은 Azure Monitor 기본값에 대한 일반 지식 — 이 구독에서 별도 확인하지 않았다.",
 });
 
 /* ---------- 2. 전체 아키텍처 구성도 ---------- */
@@ -500,10 +500,10 @@ add({
     ["승인 후에만 변경", "토큰이 틀린 패치 요청", "변경 0건 (AC-14·15)", M("충족")],
     ["유휴 비용", "아무도 쓰지 않는 시간", "스케일 0 — 72시간 중 가동 약 5.7시간", M("충족")],
     ["첫 요청 응답성", "스케일 0 상태에서 첫 요청", "측정 35.4초 — 목표치 없음", G("SLO 미정의")],
-    ["복구", "잘못된 배포", "이전 리비전 트래픽 전환 — 리비전 17개 보존", M("메커니즘 존재 · G 실행 훈련 0회")],
-    ["데이터 보존", "지역 장애·삭제·랜섬", "백업 0 · 단일 리전", G("미충족")],
+    ["복구", "잘못된 배포", "이전 리비전 트래픽 전환 — 리비전 20개 보존", M("메커니즘 존재 · 자동 롤백 실증 5회(11-28 원장)")],
+    ["데이터 보존", "지역 장애·삭제·랜섬", M("백업 자격증명 1(11-28) · 단일 리전"), G("부분 충족 — 리전 이중화·복원 훈련은 잔여")],
     ["최소 권한", "앱이 가진 Azure 권한", "시스템 할당 MI · AcrPull 1건 · 레지스트리 비밀번호 0", M("충족")],
-    ["탐지 (관측)", "장애를 사용자보다 먼저 알아야", "경고 규칙 0 · HTTP 요청 로그 꺼짐", G("미충족 — 27장")],
+    ["탐지 (관측)", "장애를 사용자보다 먼저 알아야", M("경고 3건·액션 그룹 1·HTTP 로그 수집(11-28)"), M("충족 — 자동 알림 경로 확보")],
   ],
   verdict: I("'정직성'을 기능이 아니라 품질 속성 1위로 둔 설계다 — 그래서 다른 속성(응답성·복구)을 희생하는 선택이 반복됐다. 문제는 희생이 명시되지 않았다는 것. SLO를 숫자로 못 박으면 논쟁이 끝난다."),
   notes: "테스트 없는 AC 0건: python -m bts_sbom_app.speclint (2026-11-28). 인용 정확도·홀드아웃: 과제 덱·evals 기록(이전 실측). 가동 시간: Replicas 메트릭 72h 합산 339 → 약 5.7 replica-hour. 콜드 스타트: 12장. 백업: bts-sbom-rg 인벤토리.",
@@ -515,12 +515,12 @@ add({
   kind: "table", fs: 10.5,
   cols: [{ t: "지표", w: 2.4 }, { t: "제안 목표 (추론)", w: 3.4 }, { t: "현재 값 (측정)", w: 4.6 }, { t: "갭", w: 3.2 }],
   rows: [
-    ["첫 응답 · 워밍", I("P95 ≤ 3초"), M("/healthz 56ms · /readyz 113ms · 토큰 없는 /api 401 55ms — 부하 없는 상태 3회"), G("부하 중 P95 미측정 — HTTP 요청 로그가 꺼져 있다")],
+    ["첫 응답 · 워밍", I("P95 ≤ 3초"), M("/healthz 56ms · /readyz 113ms · 토큰 없는 /api 401 55ms — 부하 없는 상태 3회"), G("부하 중 P95 미측정 — HTTP 로그는 11-28 켬, 데이터 축적 후 재측정")],
     ["첫 응답 · 콜드", I("≤ 40초 + '기동 중' 안내"), M("35.4초 — 레플리카 0에서 1회 실측"), G("표본 1회 — 분포·재현성 미측정")],
     ["가용성", I("데모 99% · 파일럿 99.5%"), G("측정 불가 — 가동률 기록·경고가 없다"), G("SLO 정의 자체가 없음")],
-    ["복구 시간 RTO", I("롤백 ≤ 10분 · 재배포 ≤ 60분"), M("리비전 17개 보존 — 전환 메커니즘은 존재"), G("전환 실측 훈련 0회")],
-    ["데이터 손실 RPO", I("≤ 24시간 (백업 도입 후)"), M("백업 0 · 단일 리전 LRS · 공유 5.4MB"), G("백업 없음 — 현재는 유실 시 전체")],
-    ["LLM 비용 상한", I("일일 80회 × 30일 = 2,400회/월"), M("예산 80회/일(환경변수) · 장부는 컨테이너 로컬"), I("장부가 기동마다 리셋 — 상한이 사실상 없음(코드 유도)")],
+    ["복구 시간 RTO", I("롤백 ≤ 10분 · 재배포 ≤ 60분"), M("리비전 20개 보존 — 전환 메커니즘 존재"), M("전환 실측 — 자동 롤백 5회(11-28 원장)")],
+    ["데이터 손실 RPO", I("≤ 24시간 (백업 도입 후)"), M("백업 자격증명 1(11-28) · 단일 리전 LRS · 공유 5.4MB"), M("일일 백업 정책 적용 — 리전 이중화는 여전히 미충족")],
+    ["LLM 비용 상한", I("일일 80회 × 30일 = 2,400회/월"), M("예산 80회/일(환경변수) · 장부는 Files 볼륨(11-28 적용)"), M("상한 유효 — 기동 리스타트를 살아남음(라이브 실측)")],
     ["처리량 (스캔)", I("NodeGoat 규모 시간당 ≥ 30건"), I("직렬 잡 1 → 이론 상한 약 37건/시간(3600초 ÷ 96초, 유도)"), G("부하 테스트 0회 — 실측 처리량 없음")],
     ["배포 안전성", I("배포 1회당 롤백률 < 5%"), M("리비전 16회 / 38시간 · 롤백 실행 0회"), G("롤백률·배포 성공률 기록 없음 — 측정 불가")],
   ],
@@ -530,7 +530,7 @@ add({
     ["측정 가능한 것부터", I("첫 응답·복구·RPO는 오늘도 측정할 수 있다(측정 3회 + 훈련 1회). 가용성은 경고·로그가 들어와야 측정된다 — 순서가 정해진다.")],
   ],
   verdict: I("목표는 제안값이므로 조직의 허용치로 덮어쓰면 된다. 지켜야 할 것은 '현재 값' 칸이다 — 측정이 비어 있으면 비워 두고 갭이라고 쓴다. 그것이 이 표의 유일한 규칙이다."),
-  notes: "현재 값 출처: 콜드/워밍 응답은 2026-11-28 curl 타이밍(레플리카 0 상태에서 1회 + 기동 후 3회). 리비전: REST /revisions. 백업: bts-sbom-rg 인벤토리. LLM 장부: Dockerfile 주석 + server.py ledger 경로. 제안 목표는 아키텍트 판단이며 측정값이 아니다.",
+  notes: "현재 값 출처: 콜드/워밍 응답은 2026-11-28 curl 타이밍(레플리카 0 상태에서 1회 + 기동 후 3회). 리비전: REST /revisions. 백업: bts-sbom-rg 인벤토리(11-28 자격증명 1건 실측). LLM 장부: 11-28 env 볼륨 지정 적용(b2bdff2)·라이브 exec 실측. 제안 목표는 아키텍트 판단이며 측정값이 아니다.",
 });
 
 add({
@@ -558,7 +558,7 @@ add({
   rows: [
     ["자격 증명", M("시스템 할당 MI + AcrPull 1건"), "관리자 계정 · 사용자 할당 MI · Workload Identity", M("레지스트리 비밀번호 0 · 관리자 OFF — 앱이 가진 권한은 풀 하나"), "Key Vault 연계 시 사용자 할당 + 연합 자격증명(AZURE_IDENTITY.md 방향)"],
     ["인증", M("공유 액세스 토큰 1개(최소 16자) · 실패 20회/분 → 429"), "Easy Auth 사용자 인증", I("사용자 1명의 과제·데모 — 계정 관리 비용 > 이득"), G("사용자 2명 이상 또는 감사에 '누가'가 필요할 때 — 현재 미설정")],
-    ["LLM", M("외부 Azure OpenAI gpt-5-mini · 예산 80회/일 · 회로차단기 3회→60초"), "자체 호스팅 오픈모델", I("운영 비용·스펙 — 결정적 강등으로 LLM 없이도 스캔은 동작"), "예산을 상회하거나 데이터 반출이 문제 될 때(장부 리셋 결함 먼저 — 30장)"],
+    ["LLM", M("외부 Azure OpenAI gpt-5-mini · 예산 80회/일 · 회로차단기 3회→60초"), "자체 호스팅 오픈모델", I("운영 비용·스펙 — 결정적 강등으로 LLM 없이도 스캔은 동작"), "예산을 상회하거나 데이터 반출이 문제 될 때(장부는 11-28 볼륨 적용 완료 — 30장)"],
     ["승인", M("승인 토큰 = 계획 다이제스트"), "세션 기반 승인 · 역할 승인", I("계획이 바뀌면 토큰 무효 — 시간·사람과 무관하게 증거로 남는다"), "다단계 승인·역할 분리 요구"],
     ["이미지", M("python:3.12-slim + git · 비루트 UID 10001 · 86MB"), "디스트로리스 · 멀티스테이지", I("풀 3.7초 — 콜드 스타트의 11%. 단순 빌드·비루트"), "이미지 크기가 콜드 스타트 병목이 될 때"],
     ["배포 단위", M("리비전 = 불변 · Single 모드 · 트래픽 100% 최신"), "Blue/Green · 카나리아", I("롤백 = 트래픽 전환. 카나리아는 단일 레플리카에서 무의미"), "트래픽이 1 레플리카를 넘을 때"],
@@ -593,7 +593,7 @@ add({
   ],
   factsTitle: "대안 시나리오 비교 — 측정하지 않은 칸은 숫자를 붙이지 않고 갭으로 둔다",
   facts: [
-    ["A · 지금: 스케일 0 · 레플리카 1 · 파일 저장소", [M("비용: v1 모델 ≈ $3/월(하루 1시간 가정) · 확정 청구 미확인"), M("첫 응답: 콜드 35.4초 · 워밍 56ms"), I("복구: 리비전 전환 가능(17개 보존) — 훈련 0회 · 상태: Files 1곳 + 메모리·로컬(휘발성)")]],
+    ["A · 지금: 스케일 0 · 레플리카 1 · 파일 저장소", [M("비용: v1 모델 ≈ $3/월(하루 1시간 가정) · 확정 청구 미확인"), M("첫 응답: 콜드 35.4초 · 워밍 56ms"), I("복구: 리비전 전환(20개 보존) — 자동 롤백 실증 5회 · 상태: Files 1곳(+백업) + 메모리·로컬(휘발성)")]],
     ["B · 상시 1대 (최소 레플리카 1)", [G("비용: 미실측 — 공개 단가 산정 필요"), I("첫 응답: 콜드 스타트 0 · 복구·상태: A와 동일(레플리카 1)")]],
     ["C · 큐 + DB + Blob + 레플리카 ≥ 2 (33장)", [G("비용·구성 난이도: 미평가 — 트리거 도달 시 산정"), I("첫 응답: 콜드 스타트 0 + 수평 확장 · 복구: 영역 중복 가능 — 설계·훈련 필요 · 상태: 큐·DB·Blob")]],
   ],
@@ -634,9 +634,9 @@ add({
   kind: "table", fs: 9.5,
   cols: [{ t: "장애", w: 2.6 }, { t: "영향", w: 2.5 }, { t: "현재 동작 (근거)", w: 4.7 }, { t: "탐지", w: 2.2 }, { t: "격차", w: 3.0 }],
   rows: [
-    ["Azure Files 마운트 실패·지역 장애", "기동 실패 또는 증거 전체 유실", M("스타트업 프로브 예산 125초 후 실패 · 백업 0"), "프로브·활동 로그", G("백업·스냅샷 0 — RTO 미실측")],
+    ["Azure Files 마운트 실패·지역 장애", "기동 실패 또는 증거 전체 유실", M("스타트업 프로브 예산 125초 후 실패 · 백업 자격증명 1(11-28)"), "프로브·활동 로그", G("백업 도입 — RTO·복원 훈련은 미실측")],
     ["잘못된 배포", "오류 버전 서빙", M("프로브 실패 시 트래픽 미전환 · 이전 리비전 16개 보존"), "스모크 스크립트", G("롤백 훈련 0회 — RTO 분 단위(판단)")],
-    ["Azure OpenAI 429·지연", "답변 지연·실패", M("회로차단기 3회→60초 · 일일 예산 80회 · 결정적 강등"), "클라이언트·장부", I("장부가 기동마다 리셋(코드 유도)")],
+    ["Azure OpenAI 429·지연", "답변 지연·실패", M("회로차단기 3회→60초 · 일일 예산 80회 · 결정적 강등"), "클라이언트·장부", M("장부는 볼륨에 영속(11-28 적용) — 예산 집계가 이제 정확")],
     ["OSV·deps.dev·Git 호스트 불통", "취약점·라이선스 미조회", M("회로차단기 + 갭 공시 — 0건으로 위장하지 않음"), "결과의 갭 표시", "없음(설계대로)"],
     ["대형 저장소로 메모리 초과", "컨테이너 재시작·스캔 중단", M("1Gi 한도 · 72h 최대 워킹셋 121MiB"), G("RestartCount LA 미수집"), G("OOM 원인 귀속 불가")],
     ["콜드 스타트", "첫 요청 35.4초 대기", M("요청을 35초 유지 후 응답"), "없음", G("SLO·예열 없음")],
@@ -646,7 +646,7 @@ add({
     ["환경 재창출로 진단 설정 유실", "로그 없이 동작(맹목)", I("진단 설정은 환경 리소스에만 있고 IaC에 없음 — 23장"), "인벤토리 비교", G("IaC 미반영")],
   ],
   verdict: I("10개 중 7개의 '탐지'가 프로브·수동에 의존한다. 알림이 없는 탐지는 탐지가 아니라 발견이다 — 장애를 사용자가 먼저 알게 된다."),
-  notes: "전 항목의 '현재 동작'은 이 덱의 측정값을 재인용한다(프로브: az containerapp show; 회로차단기: resilience.py; 워킹셋: Azure Monitor; 드레인: server.py begin_drain(20.0); 진단 설정: az rest diagnosticSettings — 환경에만 존재). '탐지' 열: 경고 규칙 0건이므로 자동 알림 경로가 없다.",
+  notes: "전 항목의 '현재 동작'은 이 덱의 측정값을 재인용한다(프로브: az containerapp show; 회로차단기: resilience.py; 워킹셋: Azure Monitor; 드레인: server.py begin_drain(20.0); 진단 설정: az rest diagnosticSettings — 환경 4채널 + 앱 AllMetrics, 11-28). '탐지' 열: 경고 3건(11-28) — 재시작·메모리·CPU가 액션 그룹 bts-sbom-alerts로 이메일 발송한다.",
 });
 
 add({
@@ -681,7 +681,7 @@ add({
     { label: "CPU (최대 사용)", value: 0.135, max: 0.5, display: "0.135 / 0.5 코어", note: "27% — 3.7배 여유", tone: "ok" },
     { label: "공유 evidence 용량", value: 5.4, max: 2048, display: "5.4MB / 2,048MB", note: "0.26% — 사실상 비어 있음", tone: "ok" },
     { label: "트래픽 (72시간 요청)", value: 518, max: 10000, display: "518건 (시간당 최대 36)", note: "순수 데모 부하 — 한도 검증 안 됨", tone: "info" },
-    { label: "임시 디스크 2Gi", value: 1, max: 2048, display: "미측정", note: "체크아웃·OSV DB·장부가 여기 산다", tone: "gap" },
+    { label: "임시 디스크 2Gi", value: 1, max: 2048, display: "미측정", note: "체크아웃·OSV DB가 여기 산다 — 장부는 11-28부터 볼륨", tone: "gap" },
   ],
   cards: [
     { title: "측정된 부하", tone: "info", lines: [
@@ -713,22 +713,22 @@ add({
       M("LLM 비용 장부 — 호출 수·비용을 호출자별로 기록."),
     ] },
     { title: "안 보이는 것 (갭)", icon: "app_insights", tone: "gap", lines: [
-      G("경고 규칙 0 · 액션 그룹 0 — 장애를 사용자가 먼저 알게 된다."),
-      G("HTTP 요청 로그 꺼짐(ContainerAppHTTPLogs) — 상태코드·지연 이력 없음."),
+      M("경고 3건·액션 그룹 1(11-28 신설) — 이메일 알림 경로 확보."),
+      M("HTTP 요청 로그 수집(11-28 켬) — 상태코드·지연 이력이 LA에 적재된다."),
       G("앱 메트릭의 LA 수집 없음 — 차트·경고 쿼리 불가(메트릭 저장소에만 있음)."),
       G("분산 추적 없음(App Insights 0) · SLO 정의 없음 · 재시작 4회 원인 미귀속."),
     ] },
   ],
   factsTitle: "고치는 데 드는 것 — 플랫폼 설정이 대부분, 앱 코드 변경은 거의 0",
   facts: [
-    ["경고 규칙 3개 + 액션 그룹 1개", [I("5xx 비율 · 재시작 > 0 · readyz 실패 → 이메일 — az monitor 리소스 4개, 30분 작업(판단)"), I("비용 거의 0(경고 건당 소액) — 미실측")]],
-    ["HTTP 요청 로그 켜기", [I("환경 진단 설정에 ContainerAppHTTPLogs 추가 — 설정 1줄"), G("수집량 미측정 — 트래픽 518건/72h라 무시할 수준(판단)")]],
-    ["앱 진단 설정(AllMetrics)", [I("앱 리소스에 진단 설정 추가 → 워킹셋·재시작·요청이 LA로 — 차트·경고 쿼리 가능"), G("수집량 미측정")]],
+    ["경고 규칙 3개 + 액션 그룹 1개", [M("11-28 적용 완료 — 재시작·메모리·CPU 3건·이메일 수신자(az rest로 생성)"), I("5xx 비율 경고는 트래픽이 늘면 추가(판단)")]],
+    ["HTTP 요청 로그 켜기", [M("11-28 적용 완료 — 환경 진단 설정에 ContainerAppHTTPLogs 켬"), I("수집량 모니터링은 잔여(트래픽 518건/72h라 무시할 수준, 판단)")]],
+    ["앱 진단 설정(AllMetrics)", [M("11-28 적용 완료 — 앱 리소스 AllMetrics → LA"), G("쿼리 기반 차트 검증은 데이터 축적 후")]],
     ["Files 백업", [I("공유 스냅샷 또는 Backup Vault(일 1회) + 복원 훈련 1회"), G("비용·복원 시간 미측정")]],
-    ["LLM 장부 위치", [I("ledger 경로를 공유 볼륨으로 — 코드 1줄 + 쓰기 빈도 확인(SMB 부담)"), I("비용 0 — 쓰기 빈도가 높으면 공유에 부담(코드 유도)")]],
+    ["LLM 장부 위치", [M("11-28 적용 완료 — BTS_SBOM_LLM_LEDGER env로 Files 볼륨 지정(라이브 exec 실측)"), I("SMB 쓰기 빈도 모니터링은 잔여")]],
   ],
   verdict: I("가장 값싼 수정이 가장 어색한 결함이다 — 요청 로그와 앱 메트릭을 켜는 것은 설정 몇 개이고, 그것만으로 FMEA의 '탐지' 열 7칸이 채워진다."),
-  notes: "진단 설정: az rest .../diagnosticSettings (환경 'to-btsbom-logs': ConsoleLogs·SystemLogs·AllMetrics on, HTTPLogs off; 앱 리소스: 없음). 경고: az monitor metrics alert list = 0. App Insights: bts-sbom-rg 리소스 목록에 없음. 상관 ID: server.py(A C-1256). 재시작 4회: RestartCount 합산(72h). 메트릭 저장소 보존 93일은 Azure Monitor 기본값(이 구독에서 별도 확인 안 함).",
+  notes: "진단 설정: az rest .../diagnosticSettings (환경 'to-btsbom-logs': ConsoleLogs·SystemLogs·AllMetrics·HTTPLogs on(11-28); 앱 리소스: AllMetrics on(11-28)). 경고: az monitor metrics alert list = 3(bts-sbom-restarts·memory·cpu, 11-28) + 액션 그룹 bts-sbom-alerts. App Insights: bts-sbom-rg 리소스 목록에 없음. 상관 ID: server.py(A C-1256). 재시작 4회: RestartCount 합산(72h). 메트릭 저장소 보존 93일은 Azure Monitor 기본값(이 구독에서 별도 확인 안 함).",
 });
 
 add({
@@ -741,7 +741,7 @@ add({
     ["[icon:acr] ACR Basic", "일일 요금", M("약 $5/월 — Basic 고정(v1 모델)"), "상시 고정"],
     ["[icon:files] Azure Files 2Gi", "용량·트랜잭션", M("약 $0.4/월(Standard_LRS·v1 모델) · 실사용 5.4MB"), "증거 증가량"],
     ["[icon:log_analytics] Log Analytics", "수집 GB", M("지난 7일 0.004GB — 사실상 0"), G("HTTP 로그·앱 메트릭을 켜면 증가(미측정)")],
-    ["[icon:openai] Azure OpenAI", "토큰", M("일일 호출 예산 80회 · 장부는 기동마다 리셋(코드 유도)"), I("챗 사용량 · 장부 수정이 선행 조건")],
+    ["[icon:openai] Azure OpenAI", "토큰", M("일일 호출 예산 80회 · 장부는 Files 볼륨(11-28)"), I("챗 사용량 — 장부 결함은 해소, 남은 것은 실사용량 관측")],
     { row: ["확정 청구액", "—", G("az consumption usage list가 Web Direct 구독에서 빈 결과 — 포털 Cost Management 확인 필요"), "—"], gapRow: true },
   ],
   factsTitle: "아직 측정하지 않은 비용 질문 — 숫자를 붙이지 않고 적는다",
@@ -749,7 +749,7 @@ add({
     ["하루 30분 쓰는 파일럿", I("가동 ≈ 15시간/월 → 컴퓨트는 v1 모델(하루 1시간 ≈ $3)의 절반가량 — 추정, 미실측")],
     ["상시 1대(콜드 스타트 0)", G("공개 단가 산정 필요 — 이 덱은 숫자를 붙이지 않는다")],
     ["스케일 0의 숨은 조건", I("무응답 쿨다운(라이브 API 미반환 · 기본 300초 추정) 뒤 축소 — 주기 ping·헬스체크를 붙이는 순간 상시 기동이 된다")],
-    ["LLM 상한", I("일일 80회 × 30일 = 2,400회/월 상한 — 장부가 기동마다 리셋되면 상한이 아니다(코드 유도)")],
+    ["LLM 상한", M("일일 80회 × 30일 = 2,400회/월 상한 — 볼륨 장부로 리스타트를 살아남음(11-28 라이브 실측)")],
   ],
   verdict: I("진짜 비용 질문은 '월 $3이냐'가 아니라 '하루 30분 쓰는 파일럿의 월 비용은 얼마냐'다 — 아직 측정하지 않았다. 스케일 0을 유지하려면 주기 ping(예열·모니터링)이 상시 기동을 만든다는 함정도 함께 설계해야 한다."),
   notes: "v1 비용 모델: AZURE_OPERATIONS_OVERVIEW v1 12장(공개 단가 × 가정 — 견적이 아닌 모델). 가동 시간: Replicas 메트릭 합산 339분/72h. LA 수집: Usage 테이블 7일(AzureMetrics 0.004GB, 로그 ≈0). 청구: az consumption usage list → Web Direct 오류/빈 결과. 쿨다운 300초는 API 미반환(기본값 추정) → 주기 ping이 스케일 0을 깨는지는 실측 필요(갭).",
@@ -762,10 +762,10 @@ add({
   kind: "matrix",
   risks: [
     { id: "R1", sev: 3, lik: 2, t: "공유 토큰 유출 → 전체 데이터 노출", mit: "Easy Auth 도입 + 토큰 폐기", trig: "사용자 2명 이상" },
-    { id: "R2", sev: 3, lik: 2, t: "증거 저장소 유실 — 백업 0 · 단일 리전 LRS", mit: "Files 백업(또는 스냅샷) + 복원 훈련 1회", trig: "지금" },
-    { id: "R3", sev: 3, lik: 2, t: "장애 인지 지연 — 경고 규칙 0", mit: "경고 규칙 3개 + 액션 그룹 1개", trig: "지금" },
+    { id: "R2", sev: 3, lik: 2, t: "증거 저장소 유실 — 단일 리전 LRS(백업은 11-28 도입)", mit: "일일 백업 정책 적용 완료(11-28) — 복원 훈련 1회 잔여", trig: "복원 훈련" },
+    { id: "R3", sev: 3, lik: 2, t: "장애 인지 지연 — 경고 규칙 0(11-28 해소)", mit: "적용 완료 — 경고 3건·액션 그룹 1·이메일(11-28)", trig: "해소" },
     { id: "R4", sev: 2, lik: 3, t: "콜드 스타트 35초가 첫인상", mit: "최소 레플리카 1 또는 예열 ping", trig: "일 첫 요청 10회" },
-    { id: "R5", sev: 2, lik: 3, t: "LLM 예산 장부가 기동마다 리셋 — 비용 상한 무력화", mit: "장부를 공유 볼륨으로 이동(쓰기 빈도 고려)", trig: "지금" },
+    { id: "R5", sev: 2, lik: 3, t: "LLM 예산 장부가 기동마다 리셋 — 비용 상한 무력화(11-28 해소)", mit: "적용 완료 — BTS_SBOM_LLM_LEDGER env → Files 볼륨·라이브 실측", trig: "해소" },
     { id: "R6", sev: 2, lik: 2, t: "IaC 드리프트 — 재배포 시 비밀번호 풀·공유 위 DB 부활", mit: "라이브 export 자동화 + 드리프트 게이트", trig: "다음 배포 전" },
     { id: "R7", sev: 2, lik: 2, t: "의존성 0 유지 비용 — 직접 구현의 결함", mit: "계층별 테스트 밀도 유지·외부 구현과 비교 평가", trig: "결함 재현율 상승" },
     { id: "R8", sev: 1, lik: 3, t: "스케일 0·메모리 상태 → 종료 시 실행 중 스캔 유실", mit: "잡 체크포인트 또는 큐", trig: "레플리카 2 이상" },
@@ -773,7 +773,7 @@ add({
     { id: "R10", sev: 1, lik: 3, t: "공개 저장소 구성 파일에 구독 ID·이메일", mit: "마스킹 후 재커밋", trig: "지금" },
   ],
   verdict: I("중요도 3인 리스크는 셋(R1·R2·R3)이고 셋 다 '할 일이 명확하고 비용이 거의 0'이다 — 방치할 이유가 없다. R1은 사용자가 늘어나야 현실화되지만, R2·R3은 오늘도 이자가 붙는다."),
-  notes: "리스크의 사실관계는 이 덱의 측정값: 토큰 1개(auth show = {}·secrets 이름), 백업 0(인벤토리), 경고 0(az monitor metrics alert list), 콜드 스타트 35.4초(curl), LLM 장부 로컬(Dockerfile 주석), applied.yaml 나이(파일 생성 시각 11-23), 공용 PaaS(az acr show·az storage account show), 구독 ID·이메일(applied.yaml을 직접 읽음). 중요도·가능도·완화·트리거는 아키텍트 판단이다.",
+  notes: "리스크의 사실관계는 이 덱의 측정값: 토큰 1개(auth show = {}·secrets 이름), 백업 1·경고 3(11-28 az 실측 — R2·R3·R5는 이날 상환), 콜드 스타트 35.4초(curl), LLM 장부 볼륨(env b2bdff2·exec 실측), applied.yaml 나이(파일 생성 시각 11-23), 공용 PaaS(az acr show·az storage account show), 구독 ID·이메일(applied.yaml을 직접 읽음). 중요도·가능도·완화·트리거는 아키텍트 판단이다.",
 });
 
 add({
@@ -783,8 +783,8 @@ add({
   cols: [{ t: "부채", w: 2.9 }, { t: "증거", w: 3.2 }, { t: "이자 (지금 내는 대가)", w: 3.3 }, { t: "상환 방향 (추론)", w: 3.4 }],
   rows: [
     ["LLM 장부가 휘발성 디스크", M("Dockerfile 주석 · server.py ledger=<root>/evidence"), I("일일 상한이 기동당 상한으로 — 비용 보호 무력화"), "장부를 공유 볼륨(evidence)으로 — 쓰기 빈도·SMB 비용 먼저 측정"],
-    ["경고 0 · 백업 0", M("bts-sbom-rg 인벤토리 5개"), "무경보·무복구 — R2·R3", "경고 3개·액션 그룹·Files 백업"],
-    ["HTTP 로그·앱 메트릭 미수집", M("진단 설정 — HTTPLogs off · 앱 설정 없음"), "문제 재구성 불가 — 재시작 4회 원인 미귀속", "진단 설정 추가(코드 변경 0)"],
+    ["경고 0 · 백업 0", M("bts-sbom-rg 인벤토리 5개"), "무경보·무복구 — R2·R3", M("적용 완료(11-28) — 경고 3·액션 그룹 1·Recovery Services 1")],
+    ["HTTP 로그·앱 메트릭 미수집", M("진단 설정 — HTTPLogs off · 앱 설정 없음"), "문제 재구성 불가 — 재시작 4회 원인 미귀속", M("적용 완료(11-28) — HTTPLogs·앱 AllMetrics 켬")],
     ["applied.yaml 나이(11-23)", M("latestReady 0000002 · acr-password"), "재배포 시 옛 결함 부활", "라이브 export 자동화·드리프트 게이트"],
     ["인젝션 가드 정규식 기반", M("개발셋 오탐 1건·부정문 취약(과제 덱 기록)"), "프롬프트 인젝션 변형에 취약", "의미 기반 2차 판정·홀드아웃 확대"],
     ["기록이 파일(JSON·JSONL)", M("evidence 폴더 구조 — 코드 grep"), "질의·트랜잭션·다중 레플리카 쓰기 불가", "트리거 도달 시 DB — 32장"],
@@ -797,7 +797,7 @@ add({
     ["③ 관측", I("HTTP 요청 로그·앱 메트릭 수집 — 재시작 4회의 원인을 귀속할 수 있게 된다")],
     ["④ 나머지", I("무이자 부채(파일 저장소·재분석 후보 49개)는 트리거가 올 때까지 갚지 않는다 — 서둘러 갚으면 단순함을 잃는다")],
   ],
-  verdict: I("이 목록에서 이자가 매일 복리로 붙는 것은 '장부 리셋'과 '경보 부재' 둘뿐이다. 나머지는 거의 무이자다 — 그래서 먼저 갚을 것은 이 둘이다."),
+  verdict: I("이 목록에서 이자가 매일 복리로 붙던 '장부 리셋'과 '경보 부재'는 11-28 상환 완료 — R2·R3·R5. 남은 이자는 단일 리전과 토큰 인증 둘뿐이다."),
   notes: "인젝션 가드: 과제 덱(성과·한계 장) 기록. 미등록 AC: 2026-11-28 첫 측정에서 2건(BSA-AC-1264·1265)이었으나 같은 날 병행 레인이 명세 등록을 마감해 재측정 0건(총 675) — 해소된 부채는 목록에서 뺐다. 재분석 후보: METANET_FULL_REANALYSIS.md §4 후속 49목록(이전 세션 집계). 나머지 증거는 이 덱의 측정값.",
 });
 
@@ -807,7 +807,7 @@ add({
   kind: "table", fs: 10,
   cols: [{ t: "기둥", w: 2.2 }, { t: "상태", w: 2.6 }, { t: "근거", w: 4.6 }, { t: "다음 보강", w: 3.4 }],
   rows: [
-    ["안정성 Reliability", I("데모 적합 · 파일럿 미흡"), M("리비전 17 보존 · 프로브 3종 · SIGTERM 드레인 20초 / 단일 지역 · 백업 0 · 경고 0"), "백업·경고·롤백 훈련 1회"],
+    ["안정성 Reliability", I("데모 적합 · 파일럿 미흡"), M("리비전 20 보존 · 프로브 3종 · SIGTERM 드레인 20초 / 단일 지역 · 백업·경고 11-28 도입"), "복원·롤백 훈련 1회(롤백은 자동 실증 5회)"],
     ["보안 Security", I("데모 적합"), M("MI·HTTPS 강제·토큰 게이트·속도 제한·비루트 / 공유 토큰 1개·공용 PaaS·서명 없음"), "Easy Auth·프라이빗 엔드포인트·이미지 서명"],
     ["비용 Cost", I("우수 · 청구 미확인"), M("스케일 0 — 72h 중 5.7h 가동 / 확정 청구액 CLI 조회 불가(Web Direct)"), "예산 경보·청구액 월 1회 대조"],
     ["운영 우수성 OpsEx", I("우수 · 드리프트 있음"), M("리비전 불변·스모크 스크립트·도그푸드·야간 드리프트 / applied.yaml 나이·롤백 훈련 0회"), "라이브 export 자동화·게임데이(복구 훈련)"],
