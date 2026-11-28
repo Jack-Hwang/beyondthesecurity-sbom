@@ -876,9 +876,14 @@ def make_handler(st: State):
                 fns = ((rec.get("arch") or {}).get("code") or {}).get("functions") or []
                 if not fns:
                     return self._send(404, {"error": "this project has no function-level analysis (Python-only lane)"})
-                head = "name,file,line,complexity,nesting,loc,sloc,fan_in,fan_out"
-                rows = "\n".join(",".join(str(f.get(k)) for k in
-                                          ("name", "file", "line", "complexity", "nesting", "loc", "sloc", "fan_in", "fan_out"))
+                head = "name,file,line,complexity,essential,knots,decisions,path_count,nesting,eloc,loc,sloc,halstead_volume,halstead_effort,fan_in,fan_out,gvar_reads,gvar_writes"
+                rows = "\n".join(",".join(str((f.get("halstead") or {}).get("volume") if k == "halstead_volume"
+                                          else (f.get("halstead") or {}).get("effort") if k == "halstead_effort"
+                                          else f.get(k))
+                                          for k in ("name", "file", "line", "complexity", "essential", "knots",
+                                                    "decisions", "path_count", "nesting", "eloc", "loc", "sloc",
+                                                    "halstead_volume", "halstead_effort", "fan_in", "fan_out",
+                                                    "gvar_reads", "gvar_writes"))
                                  for f in fns)
                 return self._send(200, head + "\n" + rows, "text/csv",
                                   {"Content-Disposition": 'attachment; filename="%s-code-metrics.csv"' % rec.get("name", "project")})
@@ -899,6 +904,23 @@ def make_handler(st: State):
                 if bf is None:
                     return self._send(404, {"error": "unknown function %r in this project's code intel" % fname})
                 return self._send(200, bf)
+            if path.startswith("/api/code-dossier/"):
+                hit = st.project(urllib.parse.unquote(path[len("/api/code-dossier/"):]))
+                if hit is None:
+                    return self._send(404, {"error": "unknown project"})
+                folder, rec = hit
+                code = (rec.get("arch") or {}).get("code") or {}
+                fname = (q.get("function") or [""])[0].strip()
+                if not fname:
+                    return self._send(400, {"error": "function required (?function=<name>)"})
+                try:
+                    from . import code_intel as _ci
+                    ds = _ci.dossier(code, fname)
+                except ImportError:
+                    ds = None
+                if ds is None:
+                    return self._send(404, {"error": "unknown entity %r in this project's code intel" % fname})
+                return self._send(200, ds)
             if path == "/api/ui/catalog":                            # A2UI-style card-catalog negotiation (docs/A2UI_INTEGRATION.md)
                 from . import ui_cards as _uic
                 return self._send(200, {"catalog": _uic.catalog_doc()})

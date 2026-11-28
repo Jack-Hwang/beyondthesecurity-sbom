@@ -27,7 +27,7 @@ import subprocess
 import sys
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from . import __version__, arch_map
+from . import __version__, arch_map, uml_design
 from .binscan import _LICENSE_STRINGS
 
 SCHEMA = "bts-sbom.reimpl.v1"
@@ -555,6 +555,18 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
                         "classes": [c["name"] for c in iface["classes"]], "imports": iface["imports"]}
     _emit(progress, "interface_ready", functions=iface["functions"], classes=iface["classes"])
 
+    # the UML design pack (EA 17.2 REA round 2): the measured class/sequence/package/state diagrams the
+    # developer designs FROM - built here in Wall 1 from the parsed source, structure only, bounded
+    try:
+        uml = uml_design.design_pack(src_path, source_root)
+        if "error" not in uml:
+            res["uml"] = {"module": uml["module"], "diagrams": uml["diagrams"], "measured": uml["measured"],
+                          "ea_basis": uml["ea_basis"], "caps": uml["caps"], "clean_room": uml["clean_room"],
+                          **({"state_note": uml["state_note"]} if uml.get("state_note") else {})}
+            _emit(progress, "uml_ready", diagrams=sorted(uml["diagrams"]), measured=uml["measured"])
+    except Exception as exc:                                   # noqa: BLE001 - a design pack failure never kills the lane
+        res["uml_error"] = "%s: %s" % (type(exc).__name__, str(exc)[:160])
+
     # stage B: spec + diagram (pattern inference rides the SPEC channel only and is never an operand of the
     # copy gate: a caller-computed pattern_pack, or a patterns_provider run on the interface, whichever is given)
     pack: Optional[Dict[str, Any]] = None
@@ -570,6 +582,10 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
             {"name": p.get("name"), "ref": p.get("ref")} for p in pack["patterns"]]}
         _emit(progress, "patterns_ready", tier=pack.get("tier"), count=len(pack["patterns"]))
     spec = spec_document(iface, why)
+    if isinstance(res.get("uml"), dict):
+        design_view = uml_design.spec_section({"diagrams": res["uml"].get("diagrams") or {}})
+        if design_view:
+            spec += design_view                                # structure is contract: the measured shape rides the spec channel
     if pack and res.get("patterns"):
         section = patterns_section(pack)
         if section:

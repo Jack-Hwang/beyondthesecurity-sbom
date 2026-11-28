@@ -248,7 +248,9 @@ def test_code_metrics_csv_and_butterfly_api(tmp_path, make_repo, world):
         with urllib.request.urlopen(base + "/api/code-metrics/" + rec["name"], timeout=10) as r:
             body = r.read().decode("utf-8")
             cd = r.headers.get("Content-Disposition", "")
-        assert r.status == 200 and body.startswith("name,file,line,complexity,nesting,loc,sloc,fan_in,fan_out\n")
+        assert r.status == 200 and body.startswith(
+            "name,file,line,complexity,essential,knots,decisions,path_count,nesting,eloc,loc,sloc,"
+            "halstead_volume,halstead_effort,fan_in,fan_out,gvar_reads,gvar_writes\n")
         assert "calc" in body and "svc.py" in body and "code-metrics.csv" in cd
         fn = "calc"
         with urllib.request.urlopen(base + "/api/code-butterfly/" + rec["name"] + "?function=" + fn, timeout=10) as r:

@@ -574,8 +574,8 @@
 
   /* ---------- panes ---------- */
   /* ---------- 클린룸 재구현 워크벤치 (brief 6, /api/reimpl): 두 개의 벽 — 명세만 생성기로, 카피 게이트+원본 오라클 ---------- */
-  var REIMPL_STAGES = ['interface_ready', 'patterns_ready', 'spec_ready', 'diagram_ready', 'code_ready', 'copy_gate', 'tests_running', 'tests_passed', 'adopted_tests_running', 'adopted_tests_passed'];
-  var REIMPL_LABEL = { interface_ready: '인터페이스', patterns_ready: '패턴 추론', spec_ready: '명세', diagram_ready: 'DGML', code_ready: '코드 생성', copy_gate: '카피 게이트', tests_running: '계약 테스트', tests_passed: '계약 통과', adopted_tests_running: '원본 오라클', adopted_tests_passed: '원본 통과' };
+  var REIMPL_STAGES = ['interface_ready', 'uml_ready', 'patterns_ready', 'spec_ready', 'diagram_ready', 'code_ready', 'copy_gate', 'tests_running', 'tests_passed', 'adopted_tests_running', 'adopted_tests_passed'];
+  var REIMPL_LABEL = { interface_ready: '인터페이스', uml_ready: '설계 UML', patterns_ready: '패턴 추론', spec_ready: '명세', diagram_ready: 'DGML', code_ready: '코드 생성', copy_gate: '카피 게이트', tests_running: '계약 테스트', tests_passed: '계약 통과', adopted_tests_running: '원본 오라클', adopted_tests_passed: '원본 통과' };
   var REIMPL_FAIL_AT = { copy_gate_failed: 'copy_gate', tests_failed: 'tests_running', adopted_tests_failed: 'adopted_tests_running', refused: 'interface_ready' };
   /* job SSE consumer shared by the reimpl pane and the scan step bar: the server streams bts-sbom.events.v1 frames */
   function watchJobEvents(jid, onEvent) {
@@ -634,6 +634,25 @@
              ['패턴 주입', pt ? ('tier ' + pt.tier + ' · ' + (pt.patterns || []).map(function (p) { return p.name; }).join(', ')) : '—']]);
     if (d.reason) { h += note('<b>이유:</b> ' + esc(d.reason), v === 'ok' ? 'ok' : 'warn'); }
     if (d.published_to) { h += note('발행: <code>' + esc(d.published_to) + '</code>'); }
+    /* the UML design pack (Sparx EA 17.2 REA round 2): the measured diagrams the developer designs FROM,
+       EA notation projected to Mermaid - structure only, the same diagrams Wall 1 handed Wall 2 */
+    var uml = d.uml || {};
+    var diags = uml.diagrams || {};
+    var order = ['class', 'sequence', 'package', 'state'];
+    var titles = { 'class': 'UML 클래스 (EA UML::Class)', 'sequence': 'UML 시퀀스 (EA UML::Interaction)',
+                   'package': 'UML 패키지 (EA UML Structural)', 'state': 'UML 상태 (EA UML::State)' };
+    var drawn = order.filter(function (k) { return diags[k]; });
+    if (drawn.length) {
+      h += heading('설계 UML (레거시에서 측정)', 'EA 노테이션 매핑 · ' + esc(JSON.stringify(uml.measured || {})));
+      drawn.forEach(function (k) {
+        h += '<div class="bts-diagram arc-dwrap"><div class="arc-diagram"></div><pre class="arc-mermaid-src" hidden>' + esc(diags[k]) + '</pre>' +
+          '<div class="bts-diagram-note">' + esc(titles[k] || k) + '</div></div>';
+      });
+      if (uml.state_note) { h += note(esc(uml.state_note), 'warn'); }
+      h += note('클린룸: 설계 UML은 구조(시그니처+관계)만 담는다 — 구현 본문은 벽 1을 나가지 않는다.');
+    } else if (uml.state_note) {
+      h += note(esc(uml.state_note), 'warn');
+    }
     return h;
   }
   function bindReimplPane() {
@@ -662,6 +681,7 @@
             api('/api/jobs/' + encodeURIComponent(jid)).then(function (jr) {
               var d = jr.data || {};
               out.innerHTML = reimplVerdict(d);
+              renderDiagramsIn(out);                    // the UML design pack renders after the verdict markup lands
               if (d.verdict === 'ok') {
                 REIMPL_STAGES.forEach(function (s) {
                   var e = document.getElementById('ri-st-' + s);

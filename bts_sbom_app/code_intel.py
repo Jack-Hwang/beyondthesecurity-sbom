@@ -148,7 +148,8 @@ def _enclosing_class(parents: Dict[int, ast.AST], node: ast.AST) -> Optional[str
 
 # ---------------------------------------------------------------------------------------------------- analyze
 def analyze(root: str, *, max_files: int = MAX_FILES, max_functions: int = MAX_FUNCTIONS,
-            max_call_edges: int = MAX_CALL_EDGES, max_clones: int = MAX_CLONES) -> Dict[str, Any]:
+            max_call_edges: int = MAX_CALL_EDGES, max_clones: int = MAX_CLONES,
+            prev_snapshot: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Function-level comprehension of the Python sources under ``root``. Deterministic; bounded caps reported."""
     notes: List[str] = []
     py_files, other_notes = _py_files(root)
@@ -157,6 +158,9 @@ def analyze(root: str, *, max_files: int = MAX_FILES, max_functions: int = MAX_F
     funcs: List[Dict[str, Any]] = []
     calls_raw: List[Tuple[str, str]] = []
     classes: List[Dict[str, Any]] = []
+    file_imports: Dict[str, List[str]] = {}
+    module_vars: Dict[str, List[str]] = {}
+    import_count = 0
     truncated_functions = False
     for path in py_files:
         try:
@@ -170,12 +174,34 @@ def analyze(root: str, *, max_files: int = MAX_FILES, max_functions: int = MAX_F
             continue
         lines = src.splitlines()
         parents = _parent_links(tree)
+        imports_here = 0
+        mod_names: List[str] = []
+        for node in tree.body:                                  # module level only: the file's own variables
+            if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                for t in (getattr(node, "targets", None) or [getattr(node, "target", None)]):
+                    for nm in ast.walk(t) if t is not None else []:
+                        if isinstance(nm, ast.Name) and nm.id not in mod_names:
+                            mod_names.append(nm.id)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                imports_here += 1
+                for a in node.names:
+                    mod_names.append(a.asname or a.name.split(".")[0])
+        module_vars[rel] = mod_names
+        file_imports[rel] = [a.name for node in ast.walk(tree) if isinstance(node, ast.Import)
+                             for a in node.names] + [node.module or "" for node in ast.walk(tree)
+                                                     if isinstance(node, ast.ImportFrom)]
+        import_count += imports_here
         defs: List[Dict[str, Any]] = []
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if len(funcs) + len(defs) >= max_functions:
                     truncated_functions = True
                     break
+                decisions = _decisions(node)
+                gv = {"reads": 0, "writes": 0}
+                for nm in ast.walk(node):
+                    if isinstance(nm, ast.Name) and nm.id in module_vars.get(rel, []):
+                        gv["reads" if isinstance(nm.ctx, ast.Load) else "writes"] += 1
                 defs.append({
                     "id": f"{rel}::{node.name}",
                     "name": node.name,
@@ -186,9 +212,16 @@ def analyze(root: str, *, max_files: int = MAX_FILES, max_functions: int = MAX_F
                     "loc": (getattr(node, "end_lineno", node.lineno) - node.lineno + 1),
                     "sloc": _sloc(node, lines),
                     "complexity": _complexity(node),
+                    "decisions": decisions,
+                    "path_count": min(2 ** decisions, 65536),
+                    "essential": _essential(node),
+                    "knots": _knots(node),
                     "nesting": _max_nesting(node),
+                    "eloc": _eloc(node, lines),
+                    "halstead": _halstead(node),
                     "decorators": len(node.decorator_list),
                     "calls": _calls(node),
+                    "gvar_reads": gv["reads"], "gvar_writes": gv["writes"],
                     "_tokens": _norm_tokens(node),
                 })
             elif isinstance(node, ast.ClassDef):
@@ -288,9 +321,33 @@ def analyze(root: str, *, max_files: int = MAX_FILES, max_functions: int = MAX_F
     }
     if truncated_functions:
         notes.append(f"functions truncated at {max_functions} (measured cap)")
+
+    # deep tier (Understand's next catalog tier, adopted 2026-11-28)
+    self_recursive = sorted({caller for caller, callee in calls_raw if callee == caller.split("::")[-1]})
+    chains = _call_chains(resolved_edges[:max_call_edges], self_recursive=self_recursive)
+    hier = _hierarchy(classes)
+    fdeps = _file_deps(file_imports)
+    methods_n = sum(1 for f in funcs if f.get("cls"))
+    deep = {
+        "call_chains": chains,
+        "hierarchy": hier,
+        "file_deps": fdeps,
+        "variables": {"module_vars": sum(len(v) for v in module_vars.values()),
+                      "top_shared": sorted(
+                          ({"file": rel, "vars": len(v)} for rel, v in module_vars.items()),
+                          key=lambda x: -x["vars"])[:6]},
+        "entities": {"modules": len(file_imports), "classes": len(classes), "methods": methods_n,
+                     "functions": len(funcs) - methods_n, "module_vars": sum(len(v) for v in module_vars.values()),
+                     "imports": import_count},
+    }
+    snap = snapshot({"functions": funcs})
+    if prev_snapshot is not None:
+        deep["changed_entities"] = snapshot_diff(prev_snapshot, snap)
+    deep["snapshot_entities"] = len(snap.get("entities") or {})
+
     return {"language": "python", "functions": funcs, "dead_code": dead, "clones": clones,
             "classes": classes[:200], "call_edges": resolved_edges[:max_call_edges],
-            "metrics": metrics, "notes": notes}
+            "metrics": metrics, "deep": deep, "notes": notes}
 
 
 def butterfly(r: Dict[str, Any], name: str) -> Optional[Dict[str, Any]]:
@@ -320,3 +377,296 @@ def butterfly(r: Dict[str, Any], name: str) -> Optional[Dict[str, Any]]:
 
 def _norm_tokens_of_cached(f: Dict[str, Any]) -> List[str]:
     return f.get("_tokens") or []
+
+
+# ============================================================================================ deep tier
+# The "down 500 floors" round (2026-11-28): the next tier of Understand's public metric catalog and
+# information browser, adopted onto the stdlib-ast lane. Every approximation is documented where it is
+# computed - no number pretends to be something it is not.
+
+_DEX_DECISION_NODES = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.ExceptHandler, ast.IfExp, ast.Assert)
+_DEX_STRUCTURED = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.ExceptHandler, ast.match_case)
+
+
+def _decisions(fn: ast.AST) -> int:
+    """The raw decision-point count (= cyclomatic complexity - 1), same node set as _complexity."""
+    n = 0
+    for node in ast.walk(fn):
+        if isinstance(node, _DEX_DECISION_NODES):
+            n += 1
+        elif isinstance(node, ast.BoolOp):
+            n += max(0, len(node.values) - 1)
+        elif isinstance(node, ast.match_case):
+            n += 1
+        elif isinstance(node, ast.comprehension):
+            n += 1 + len(node.ifs)
+    return n
+
+
+def _essential(fn: ast.AST) -> int:
+    """Essential complexity (documented approximation): complexity minus the statement-level structured
+    decisions (if/loops/except/match - reducible primitives), keeping the expression-level contributions
+    (boolean-operator alternatives, ternaries, asserts, comprehension clauses) which no structured
+    reduction removes. Understand computes this on the reduced flow graph; the ast approximation is honest
+    about the same idea."""
+    extra = 0
+    for node in ast.walk(fn):
+        if isinstance(node, ast.BoolOp):
+            extra += max(0, len(node.values) - 1)
+        elif isinstance(node, (ast.IfExp, ast.Assert)):
+            extra += 1
+        elif isinstance(node, ast.comprehension):
+            extra += 1 + len(node.ifs)
+    return 1 + extra
+
+
+def _knots(fn: ast.AST) -> int:
+    """Knots (documented approximation): flow-crossing jumps a structured reader must track - every
+    break/continue, plus every return except the function's final return in source order. Loop-else
+    and except fall-through are not counted."""
+    knots = 0
+    returns = 0
+    for node in ast.walk(fn):
+        if isinstance(node, (ast.Break, ast.Continue)):
+            knots += 1
+        elif isinstance(node, ast.Return):
+            returns += 1
+    return knots + max(0, returns - 1)
+
+
+def _halstead(fn: ast.AST) -> Dict[str, Any]:
+    """Halstead derived metrics from the AST (documented approximation of Understand's token-level
+    counts): operators are the operator/keyword-node kinds, operands are the name/constant/literal
+    positions. n1 distinct operators, n2 distinct operands, N1 total operators, N2 total operands,
+    vocabulary n = n1 + n2, length N = N1 + N2, volume V = N * log2(n), difficulty D = (n1/2) * (N2/n2),
+    effort E = D * V."""
+    ops: Dict[str, int] = {}
+    ops_total = 0
+    operands: Dict[str, int] = {}
+    operands_total = 0
+    for node in ast.walk(fn):
+        kind = type(node).__name__
+        if isinstance(node, ast.operator) or isinstance(node, ast.boolop) or isinstance(node, ast.unaryop) \
+                or isinstance(node, ast.cmpop) or kind in ("AugAssign", "AnnAssign", "Assign"):
+            ops[kind] = ops.get(kind, 0) + 1
+            ops_total += 1
+        elif isinstance(node, ast.Name):
+            operands[node.id] = operands.get(node.id, 0) + 1
+            operands_total += 1
+        elif isinstance(node, ast.Constant):
+            key = "CONST:" + (node.value.__class__.__name__)
+            operands[key] = operands.get(key, 0) + 1
+            operands_total += 1
+        elif isinstance(node, ast.Attribute):
+            operands[node.attr] = operands.get(node.attr, 0) + 1
+            operands_total += 1
+        elif isinstance(node, ast.arg):
+            operands[node.arg] = operands.get(node.arg, 0) + 1
+            operands_total += 1
+    n1, n2 = len(ops), len(operands)
+    N1, N2 = ops_total, operands_total
+    n, N = n1 + n2, N1 + N2
+    import math
+    vol = round(N * math.log2(n), 1) if n else 0.0
+    diff = round((n1 / 2) * (N2 / n2), 1) if n2 else 0.0
+    return {"n": n, "N": N, "volume": vol, "difficulty": diff,
+            "effort": round(diff * vol, 1) if vol else 0.0}
+
+
+def _eloc(fn: ast.AST, lines: List[str]) -> int:
+    """Effective lines of code within the function's span: non-blank, non-comment-only, and lines that
+    are nothing but closing braces/brackets (Understand's eLOC idea, computed from the source text)."""
+    start = getattr(fn, "lineno", 1)
+    end = getattr(fn, "end_lineno", start)
+    out = 0
+    for line in lines[start - 1:end]:
+        s = line.strip()
+        if not s or s.startswith("#") or set(s) <= set(")]}"):
+            continue
+        out += 1
+    return out
+
+
+def _call_chains(edges: List[Tuple[str, str]], self_recursive: Optional[List[str]] = None,
+                 max_depth: int = 32, max_visits: int = 20000) -> Dict[str, Any]:
+    """Longest call chain (bounded DFS - the lane's edges are a sampled subset, so the chain is a
+    measured LOWER bound, never claimed complete) and cyclic call groups (bounded)."""
+    adj: Dict[str, List[str]] = {}
+    for a, b in edges:
+        adj.setdefault(a, []).append(b)
+    best: List[str] = []
+    visits = 0
+
+    def dfs(path: List[str], onpath: set) -> None:
+        nonlocal best, visits
+        visits += 1
+        if visits > max_visits or len(path) > max_depth:
+            return
+        if len(path) > len(best):
+            best = list(path)
+        for nxt in adj.get(path[-1], ()):
+            if nxt in onpath:
+                continue
+            onpath.add(nxt)
+            path.append(nxt)
+            dfs(path, onpath)
+            path.pop()
+            onpath.discard(nxt)
+
+    roots = [f for f in adj if f not in {b for _, b in edges}]
+    for start in (roots or list(adj.keys())):
+        dfs([start], {start})
+        if visits > max_visits:
+            break
+
+    cycles: List[List[str]] = []
+    seen_cycles: set = set()
+    # self-recursion first: the resolver excludes self edges on purpose, so the caller passes the
+    # functions that call themselves (measured from the raw call list, not from the resolved edges)
+    for sid in self_recursive or []:
+        if sid not in seen_cycles:
+            seen_cycles.add((sid,))
+            cycles.append([sid.split("::")[-1], sid.split("::")[-1]])
+    # small cycles via one restricted search per node (bounded)
+    for start in list(adj.keys())[:400]:
+        stack = [(start, [start])]
+        while stack and len(cycles) < 12:
+            node, path = stack.pop()
+            for nxt in adj.get(node, ()):
+                if nxt == start:
+                    key = tuple(sorted(path))
+                    if key not in seen_cycles:
+                        seen_cycles.add(key)
+                        cycles.append(path + [start])
+                elif nxt not in path and len(path) < 12:
+                    stack.append((nxt, path + [nxt]))
+    return {"longest_depth": len(best), "longest": [p.split("::")[-1] for p in best[:8]],
+            "cycles": len(seen_cycles), "cycle_examples": [c[::-1] for c in cycles[:4]]}  # short names
+
+
+def _hierarchy(classes: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Class hierarchy: DIT (depth of inheritance tree within the project) and NOC (number of direct
+    children), resolved by base NAME against the project's classes - external bases are stated, never
+    resolved."""
+    by_name: Dict[str, Dict[str, Any]] = {c["name"]: c for c in classes}
+    children: Dict[str, List[str]] = {}
+    for c in classes:
+        for b in c.get("bases") or []:
+            if b in by_name:
+                children.setdefault(b, []).append(c["name"])
+
+    def dit(name: str, depth: int = 0) -> int:
+        c = by_name.get(name)
+        if c is None or depth > 8:
+            return depth
+        parents = [b for b in c.get("bases") or [] if b in by_name]
+        return max([dit(p, depth + 1) for p in parents], default=depth)
+
+    out = []
+    for c in classes:
+        kids = children.get(c["name"]) or []
+        out.append({"name": c["name"], "file": c["file"], "dit": dit(c["name"]),
+                    "noc": len(kids), "children": kids[:8],
+                    "external_bases": [b for b in c.get("bases") or [] if b not in by_name]})
+    return {"classes": out, "max_dit": max((x["dit"] for x in out), default=0),
+            "roots": sum(1 for x in out if x["noc"] == 0 and not x["external_bases"])}
+
+
+def _file_deps(file_imports: Dict[str, List[str]]) -> Dict[str, Any]:
+    """Project-internal file dependency edges (an import resolved to a sibling file by module stem),
+    their cycles (bounded) and the top-coupled files."""
+    stems: Dict[str, List[str]] = {}
+    for rel in file_imports:
+        stem = os.path.splitext(os.path.basename(rel))[0]
+        stems.setdefault(stem, []).append(rel)
+    edges: List[Tuple[str, str]] = []
+    for src, mods in file_imports.items():
+        for m in mods:
+            leaf = m.split(".")[-1]
+            for dst in stems.get(leaf, []):
+                if dst != src:
+                    edges.append((src, dst))
+    cycles: List[List[str]] = []
+    seen: set = set()
+    for start in sorted(stems):
+        stack = [(start, [start])]
+        while stack and len(cycles) < 6:
+            node, path = stack.pop()
+            for a, b in edges:
+                if a == node:
+                    if b == start:
+                        key = tuple(sorted(path))
+                        if key not in seen:
+                            seen.add(key)
+                            cycles.append(path + [start])
+                    elif b not in path and len(path) < 10:
+                        stack.append((b, path + [b]))
+    coupling: Dict[str, int] = {}
+    for a, b in edges:
+        coupling[a] = coupling.get(a, 0) + 1
+        coupling[b] = coupling.get(b, 0) + 1
+    top = sorted(coupling.items(), key=lambda kv: -kv[1])[:6]
+    return {"edges": len(edges), "cycles": len(seen), "cycle_examples": cycles[:3],
+            "top_coupled": [{"file": f, "degree": d} for f, d in top]}
+
+
+def _snapshot_digest(f: Dict[str, Any]) -> str:
+    basis = (f["id"], f["complexity"], f["sloc"], f["fan_in"], f["fan_out"], len(f.get("_tokens") or []))
+    return hashlib.sha256(repr(basis).encode("utf-8")).hexdigest()[:12]
+
+
+def snapshot(r: Dict[str, Any]) -> Dict[str, Any]:
+    """The per-entity digest map for Understand-style changed-entities diffing between two analyses."""
+    return {"schema": "bts-sbom.codeintel-snapshot.v1",
+            "entities": {f["id"]: _snapshot_digest(f) for f in r.get("functions") or []}}
+
+
+def snapshot_diff(prev: Dict[str, Any], now: Dict[str, Any]) -> Dict[str, Any]:
+    """Changed / added / removed entities between a previous snapshot and the current analysis
+    (Understand's between-builds compare)."""
+    pe, ne = prev.get("entities") or {}, now.get("entities") or {}
+    changed = [k for k in ne if k in pe and pe[k] != ne[k]]
+    added = [k for k in ne if k not in pe]
+    removed = [k for k in pe if k not in ne]
+    return {"changed": sorted(changed), "added": sorted(added), "removed": sorted(removed),
+            "changed_count": len(changed), "added_count": len(added), "removed_count": len(removed)}
+
+
+def dossier(r: Dict[str, Any], name: str) -> Optional[Dict[str, Any]]:
+    """Understand's Information Browser for one entity: every lane fact about one function or class in
+    one record - identity, full metric set, callers, callees, contained-by, hierarchy position, clones
+    involving it. Function first; a class falls back to its hierarchy row plus its methods."""
+    fn = next((f for f in r.get("functions") or [] if f["name"] == name), None)
+    if fn is None:
+        cls = next((c for c in r.get("classes") or [] if c["name"] == name), None)
+        if cls is None:
+            return None
+        hier = _hierarchy(r.get("classes") or [])
+        row = next((x for x in hier["classes"] if x["name"] == name), None) or {}
+        methods = [f for f in r.get("functions") or [] if f.get("cls") == name]
+        return {"kind": "class", "name": name, "file": cls["file"], "line": cls["line"],
+                "bases": cls.get("bases") or [], "methods": [m["name"] for m in methods],
+                "dit": row.get("dit"), "noc": row.get("noc"),
+                "children": row.get("children") or [], "external_bases": row.get("external_bases") or [],
+                "method_metrics": [{k: m.get(k) for k in ("name", "complexity", "sloc", "eloc", "fan_in", "fan_out")} for m in methods]}
+    fid = fn["id"]
+
+    def _ends(e: Any) -> Tuple[Optional[str], Optional[str]]:
+        if isinstance(e, dict):
+            return e.get("from"), e.get("to")
+        if isinstance(e, (list, tuple)) and len(e) == 2:
+            return e[0], e[1]
+        return None, None
+
+    callers = sorted({a for a, b in (_ends(e) for e in r.get("call_edges") or []) if a and b == fid})
+    callees = sorted({b for a, b in (_ends(e) for e in r.get("call_edges") or []) if b and a == fid})
+    clone_groups = [g["hash"] for g in r.get("clones") or []
+                    if any(m.get("name") == name for m in g.get("members") or [])]
+    return {"kind": "function", "id": fid, "name": fn["name"], "file": fn["file"], "line": fn["line"],
+            "cls": fn.get("cls"), "params": fn["params"], "loc": fn["loc"], "sloc": fn["sloc"],
+            "metrics": {k: fn.get(k) for k in ("complexity", "essential", "knots", "decisions",
+                                               "path_count", "nesting", "eloc", "fan_in", "fan_out")},
+            "halstead": fn.get("halstead"),
+            "callers": [{"name": c.split("::")[-1], "file": c.split("::")[0]} for c in callers],
+            "callees": [{"name": c.split("::")[-1], "file": c.split("::")[0]} for c in callees],
+            "clone_groups": clone_groups}
