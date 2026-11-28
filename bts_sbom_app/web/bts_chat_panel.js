@@ -109,6 +109,7 @@
     sbom_conformance: ['conformance', '📐 SBOM conformance 판 보기'], what_changed: ['changes', '🔔 What changed 판 보기'],
     coverage: ['ntia', '✅ SBOM checks 판 보기'], license_risks: ['license-risk', '⚖ License Risk 판 보기'],
     draw_diagram: ['diagrams', '🗺 Diagrams 판 보기'], overview: ['report', '📊 Report 판 보기'],
+    ioc_impact: ['ir', '🚨 사고 대응 판 보기'],
     supply_chain: ['supply-chain', '⛓ Supply Chain 판 보기'], nl2sql: ['db', '🗄 DB 질의 판 보기']
   };
 

@@ -37,6 +37,17 @@ _FLEET_Q = re.compile(r"영향.{0,8}프로젝트|(어느|어떤|몇).{0,4}프로
 # a source the user typed: URL, github shorthand, or an absolute / relative / drive path (bare owner/repo is left to the LLM planner: "and/or" matches it)
 _SRC = re.compile(r"(?:https?://|ssh://|git@|file://)[^\s\"']+|github\.com/[\w.-]+/[\w.-]+|github:[\w.-]+/[\w.-]+|(?:[A-Za-z]:[\\/]|\.{1,2}[\\/]|~[\\/]|/)[^\s\"']+")
 _PATCH_ACT = re.compile(r"(패치|수정|업그레이드|고쳐|고치|patch|fix|upgrade).{0,14}(해|적용|진행|apply|하자|it\b)|apply.{0,12}patch|patch it")
+_IOC_HASH = re.compile(r'[0-9a-f]{32}(?:[0-9a-f]{32}|[0-9a-f]{8})?')   # md5(32) / sha1(40) / sha256(64), longest first
+_IOC_QUOTED = re.compile(r'''["']([A-Za-z0-9_.@:-]{3,64})["']''')
+
+
+def _ioc_values(low: str) -> List[str]:
+    """IoC values a question actually carries: hex hashes and quoted tokens (never invented from bare words)."""
+    vals = [m.group(0) for m in _IOC_HASH.finditer(low)]
+    vals += [m.group(1) for m in _IOC_QUOTED.finditer(low)]
+    return list(dict.fromkeys(vals))[:6]
+
+
 _PLAN_ASK = re.compile(r"승인 ?토큰|approval token|패치 ?계획|patch plan|수정 ?계획|업그레이드 ?계획|remediation plan|계획을 ?세워")
 _APPROVE = re.compile(r"승인|approve|apply|적용|진행|go ahead")
 _CONFIRM = re.compile(r"확정|confirm|기록해|record it")
@@ -272,6 +283,34 @@ def _license(rec: Dict[str, Any]) -> List[str]:
         lines.append("Project license detected: %s (%s)." % (lic["project_license"], lic.get("project_license_source") or "n/a"))
     for f in (lic.get("policy") or [])[:4]:
         lines.append("Policy finding: %s - %s." % (f["verdict"], f["detail"]))
+    return lines
+
+
+def _ioc_impact(rec: Dict[str, Any], values: List[str]) -> List[str]:
+    """Cross-check incident IoC values against this project's components (the RFP's IoC -> 추가 피해지 확인,
+    on the supply-chain surface we own). Package names match canonically; a hash matches only when the scan
+    recorded a component checksum - a hash with nothing to compare against is answered as such, never a guess."""
+    from .fleet import canon_name
+    comps = {}
+    for c in rec.get("components") or []:
+        comps[canon_name(str(c.get("name") or "").lower())] = c
+    adv_by_comp: Dict[str, set] = {}
+    for v in rec.get("vulns") or []:
+        adv_by_comp.setdefault(canon_name(str(v.get("package") or "").lower()), set()).add(str(v.get("id")))
+    lines = []
+    for v in values:
+        canon = canon_name(v.lower())
+        hit = comps.get(canon)
+        if hit:
+            advs = sorted(adv_by_comp.get(canon, set()))
+            lines.append("IoC %s -> 구성요소 %s %s 이(가) 이 프로젝트에 존재한다%s." % (
+                v, hit.get("name"), hit.get("version") or "", (" 대조 advisory: " + ", ".join(sorted(advs)[:5])) if advs else " (이 스캔에서 해당 advisory 없음)"))
+        elif re.fullmatch(r"[0-9a-f]{32}|[0-9a-f]{40}|[0-9a-f]{64}", v.lower()):
+            lines.append("IoC %s(해시) -> 이 스캔은 대조 가능한 컴포넌트 체크섬을 기록하지 않았다 - 존재 여부를 지어내지 않는다." % v)
+        else:
+            lines.append("IoC %s -> 이 프로젝트의 구성요소에 없다." % v)
+    if not lines:
+        lines.append("대조할 IoC 값이 없다 - 패키지명 또는 파일 해시를 쉼표로 나열해 다시 요청한다.")
     return lines
 
 
@@ -598,6 +637,8 @@ TOOL_CATALOG: Dict[str, Dict[str, Any]] = {
     "proposals": {"args": {}, "doc": "the fix proposals recorded for this project (LLM-written ones were validated against the evidence)"},
     "supply_chain": {"args": {}, "doc": "supply-chain substitution risks measured on the components: typosquatting, namespace confusion, dependency confusion (kind, resemblance, CWE, recommendation)"},
     "plan_patch": {"args": {"components": "optional: comma-separated component names"}, "doc": "preview of the patch plan and its approval token; changes nothing"},
+    "ioc_impact": {"args": {"values": "comma-separated IoC values from the question: malicious PACKAGE names (or file hashes when the scan recorded them)"},
+                   "doc": "cross-check incident IoCs against THIS project's supply chain: which scanned components (and their advisories) match each value - a hash with no recorded component checksum is answered honestly as not comparable"},
     "export_vex": {"args": {}, "doc": "OpenVEX of this project with the recorded VEX decisions applied"},
     "record_decision": {"args": {"id": "advisory id", "status": "|".join(actionsmod.DECISION_STATUSES),
                                  "reason": "the user's own words, copied verbatim from the question",
@@ -948,6 +989,9 @@ def run_tool(rec: Optional[Dict[str, Any]], tool: str, args: Dict[str, Any], pro
         return [_result(rec, tool, _license(rec))]
     if tool == "patch":
         return [_result(rec, tool, _patch(rec))]
+    if tool == "ioc_impact":
+        vals = [v.strip() for v in str(args.get("values") or "").replace(";", ",").split(",") if v.strip()]
+        return [_result(rec, tool, _ioc_impact(rec, vals))]
     if tool == "architecture":
         return [_result(rec, tool, _arch(rec))]
     if tool == "sector":
@@ -1191,6 +1235,9 @@ class Chatbot:
                 calls.append(("what_if_upgrade", {"component": what_if, "version": ver.group(1)}))
         if re.search(r"패치|수정|업그레이드|patch|fix|upgrade|remediat", low):
             calls.append(("patch", {}))
+        ioc_vals = _ioc_values(low)
+        if ioc_vals and rec:
+            calls.append(("ioc_impact", {"values": ioc_vals}))
         if re.search(r"아키텍처|레거시|순환|핫스팟|architecture|legacy|cycle|hotspot|현대화|런타임|eol", low):
             calls.append(("architecture", {}))
         if re.search(r"(?<!해결)(?<!대책)(?<!방책)책|서적|도서|\bbooks?\b", low):   # the ingested book library (no project needed)

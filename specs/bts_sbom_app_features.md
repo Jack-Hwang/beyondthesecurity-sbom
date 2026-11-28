@@ -1245,3 +1245,21 @@ binscan에 통합: 바이너리마다 구조 증거가 붙고 components_from이
 
 - BSA-AC-645 [Event] When a card payload is validated it shall enforce a closed catalog of 8 kinds with per-kind declared fields (additionalProperties false - one undeclared field drops the whole card and names it), scalar-only values (a dict that stringifies is not a scalar), hex-only approval codes, per-kind caps (4 cards/turn, 8 table rows, 6 list items, 90-char strings, 4000-char Mermaid), and drop any card that fails while the prose lines that always accompany cards carry the answer unchanged (2 of 2 unknown-kind/field drops, 2 of 2 scalar/clip cases, 1 of 1 cap case, 1 of 1 hex-gate case).
 - BSA-AC-646 [Event] When a chat tool result is post-processed the system shall build cards ONLY deterministically from the measured record (the model never supplies card content), attach them to the tool result, collect at most 4 per turn into the JSON answer and the SSE final event, serve the catalog for negotiation at GET /api/ui/catalog, and render them natively in the chat dock and the non-stream answer with esc()/textContent only - an unknown kind on the renderer is skipped and the approval button stays exclusively on the awaiting_approval event path (1 of 1 _run attachment, 1 of 1 collection case, 1 of 1 negotiation route, 2 of 2 renderer surfaces).
+
+### 침해사고 대응 레인 — KISA 침해사고 대응 RFP 매핑 (사용자 지시 "계획 수립 후 루프 방식 구현", 2026-11-28, docs/INCIDENT_RESPONSE_PLAN.md)
+
+KISA 제안요청서(27년 침해사고 원인분석 및 대응조치 지원)를 전수 분석해 우리 공급망 보안 서비스에 접목 가능한
+기능을 3루프로 구현했다. 루프1(AC-1261): incidents.py의 사고 레코드(접수→초동→증거수집→원인분석→보고서→종결,
+전진 전용 상태기계)와 SLA 시계 — 접수 후 1일 내 담당자 미지정(assign_breach), 증거수집 완료 후 7일 내
+보고서 단계 미도달(analysis_breach), 종결 아닌 사고 14일 경과(long_stalled) — 를 순수 함수로 산출하고
+/api/incidents 목록 응답에 진척 롤업(단계별 건수·위반·미착수)을 함께 돌려준다. 루프2(AC-1262): 초동보고서·
+원인분석 결과보고서·피해 대상별 증거수집 체크리스트(web/db/app/mobile-iot/other)·대응방안 모음집 4종 생성기 —
+입력 없는 칸은 "미확인"으로, 모음집은 기록된 대응방안만 누적한다(지어내지 않음). 루프3(AC-1263): 사고에
+IoC(해시/IP/C2/도메인/패키지)를 등록하고 스캔된 프로젝트 전체의 구성요소·알림과 교차조회(supply-chain 표면) —
+패키지 IoC는 정규화 이름 대조+해당 advisory 나열, 해시는 스캔에 체크섬이 있을 때만 대조(없으면 대조 불가로
+정직 응답), IP/C2/도메인은 SBOM 표면이 없음을 사실로 응답. 챗 도구 ioc_impact(읽기 전용)와 dock 다음 단계,
+레일 🚨 사고 대응 섹션·판이 같은 API를 본다.
+
+- BSA-AC-1261 [Event] When an incident is opened the lane shall create an IR-dated record with a forward-only stage machine (intake/interview/evidence/analysis/report/closed - one step per advance, skips and backwards refused), stamp every stage move, start the 7-day analysis clock when the evidence stage is left with collection_complete, and refuse a missing org/title, an unknown source and an env outside the closed set - while GET /api/incidents returns the summaries plus a roll-up counting stages, assign-SLA breaches (no assignee past 1 day), analysis-SLA breaches (due date passed before the report stage), long stalls (open past 14 days) and unstarted incidents (5 of 5 stage rules, 3 of 3 clocks, 3 of 3 refusals, 1 of 1 roll-up).
+- BSA-AC-1262 [Event] When an incident report or checklist is requested the lane shall assemble it deterministically from the recorded fields only - the 초동보고서 (사고개요·주요 확인사항·초기 판단·증거수집 대상·향후 분석계획 with the target-env checklist), the 원인분석 결과보고서 (사고개요·침투경로·공격행위·피해범위·IoC·원인·대응방안·식별기준), the per-target evidence checklist and the 대응방안 모음집 (only incidents with a recorded response) - rendering every unfilled field as 미확인 and accumulating nothing that was never written (2 of 2 reports, 1 of 1 checklists over the closed env set, 1 of 1 playbook, 0 invented fields).
+- BSA-AC-1263 [Event] When IoCs are attached to an incident the lane shall validate the type against the closed set (hash/ip/c2/domain/package), hashes against md5/sha1/sha256 hex, dedupe case-insensitively, and the sbom-impact cross-check shall match package IoCs canonically against every scanned project's components listing the component's advisories, answer a hash honestly as not comparable when no component checksum was recorded, and state that ip/c2/domain have no SBOM surface - while the same data is reachable from the chat through the read-only ioc_impact tool with values taken only from the user's question (5 of 5 IoC types, 1 of 1 hash policy, 1 of 1 canonical match with advisories, 2 of 2 honest non-matches, 1 of 1 read-only tool).

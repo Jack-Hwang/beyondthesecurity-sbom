@@ -275,14 +275,27 @@ def _c_decision(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
 def _c_plan(args: Dict, rec: Dict, result: Dict) -> List[Dict[str, Any]]:
     plans = rec.get("plans") or []
     up = [p for p in plans if p.get("status") == "upgrade"]
+    # the approval covers the SHOWN selection: when the plan line names a component subset, the card
+    # must count that subset - not every upgrade plan in the record (live-measured overstatement)
+    import re as _re
+    head = next((ln for ln in result.get("lines") or [] if ln.startswith("Patch plan for")), "")
+    m = _re.search(r"for ([\w., -]+): (\d+) upgrade", head)
+    shown: Optional[int] = None
+    scope = ""
+    if m:
+        scope = _clip(m.group(1), 40)
+        shown = int(m.group(2))
+        up = up[:shown] if shown else up
     if not up:
         return []
     tok = result.get("approval_token") or ""
     import re as _re
     m = _re.search(r"Approval token ([0-9a-f]{16})", "\n".join(result.get("lines") or []))
-    out: Dict[str, Any] = {"kind": "approval_request", "title": "패치 승인 대기", "gate": "patch",
-                           "summary": _clip("업그레이드 %d건 (검증 통과 %d건)" % (
-                               len(up), sum(1 for p in up if (p.get("verification") or {}).get("clean") is True)))}
+    out: Dict[str, Any] = {"kind": "approval_request", "title": "패치 승인 대기" + (" - " + scope if scope else ""),
+                           "gate": "patch",
+                           "summary": _clip("이 승인이 다루는 선택: 업그레이드 %d건 (검증 통과 %d건)%s" % (
+                               len(up), sum(1 for p in up if (p.get("verification") or {}).get("clean") is True),
+                               "" if not shown else " - 계획 전체 %d건이 아니다" % (len([p for p in plans if p.get("status") == "upgrade"]))))}
     if m:
         out["code"] = m.group(1)
     return [out]
