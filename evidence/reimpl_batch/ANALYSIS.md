@@ -75,3 +75,14 @@ configurations now converge on 4: the remaining cases (the legacy q=2 clamp, the
 the wildcard best_match label) need the legacy oracle's EXAMPLES, not more shape information. Next
 levers: oracle example rows through the spec channel (measured once already - counterproductive at full
 table, untested bounded), or a different deployment model for one attempt.
+
+## Targeted-example round (2026-11-28 night, AC-1280): the plateau is MODEL-bound
+
+The retry feedback now carries the FAIL blocks' exact (function, args, expected) pairs - the failing
+rows only, capped at eight, prompt budget 800->1200. Live mimeparse: **4 of 29 remain, best attempt 3**
+- identical to every previous configuration. Four configurations (plain feedback / best-of-N / metrics
+envelope / targeted examples) all converge on exactly 4: with assertion lines, shape facts AND exact
+input-output pairs all delivered, the residual 4 cases (the legacy q=2 clamp, the two level-param rows,
+the wildcard best_match label) are beyond gpt-5-mini's reach in this prompt family. The lever was
+implemented and measured honestly; the next lever is a stronger deployment model for one attempt, not
+more prompt engineering.
