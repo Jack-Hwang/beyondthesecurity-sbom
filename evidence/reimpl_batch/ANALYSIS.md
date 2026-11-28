@@ -86,3 +86,23 @@ input-output pairs all delivered, the residual 4 cases (the legacy q=2 clamp, th
 the wildcard best_match label) are beyond gpt-5-mini's reach in this prompt family. The lever was
 implemented and measured honestly; the next lever is a stronger deployment model for one attempt, not
 more prompt engineering.
+
+## Model-upgrade ladder (2026-11-28 night): 4 -> 3 -> 1
+
+All levers held constant (targeted examples + metrics envelope + best-of-N); only the deployment moved:
+
+| deployment | attempts | legacy failures (of 29) | what it fixed |
+|---|---|---|---|
+| gpt-5-mini (baseline, all four prompt configurations) | 4-8 | **4** | - |
+| **gpt-5.1** (GlobalStandard cap 3, e2e9) | 4 | **3** | the wildcard best_match label row ('image/*') |
+| **gpt-6-luna** (e2e10) | 6 | **1** | the wildcard label + one more; closest ever |
+| gpt-6-luna (e2e11, variance) | 6 | 2 | - |
+| gpt-6-luna (e2e12, variance) | 8 | 2 | - |
+
+The plateau was model-bound exactly as the targeted-example round concluded: gpt-5.1 solved the
+wildcard case immediately; gpt-6-luna reached 1/29. The stubborn survivors across runs are the
+double-wildcard tie-break row (best_match([['image/*','application/xml'],'image/*']) must return
+'image/*') and occasionally the text/html quality-tie row. Publish stays gated at verdict "ok"
+(zero failures) per the honest doctrine - 1/29 with the case named is still compatibility_failed.
+Deployments left in place for the lane: gpt-5-1 and gpt-6-luna (GlobalStandard, capacity 3 K-TPM each,
+PAYG - idle costs nothing); the LIVE app still serves gpt-5-mini until an owner decision switches it.
