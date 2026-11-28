@@ -48,7 +48,11 @@ def test_manifest_parses_with_kubectl_dry_run():
     if p.returncode != 0 and "unable to recognize" in p.stderr and ("dial tcp" in p.stderr or "connection" in p.stderr.lower()):
         # kubectl >=1.36 needs API discovery for the REST mapper even with --dry-run=client + --validate=false;
         # on a cluster-less host the same parseability contract is enforced client-side, document by document.
-        import yaml
+        try:
+            import yaml                                    # optional fixture helper, not a runtime dep
+        except ImportError:
+            pytest.skip("PyYAML absent on this host - the kubectl dry-run parse needs it for the fixture; "
+                        "the static policy checks above still ran (skip is not a pass)")
         docs = [d for d in yaml.safe_load_all(open(MANIFEST, encoding="utf-8")) if d]
         assert len(docs) == 4, docs
         for d in docs:

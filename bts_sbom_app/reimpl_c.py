@@ -1214,8 +1214,11 @@ def run(source_root: str, component: str, out_dir: str, *, client: Any = None, w
             verdict = "ok"
         else:
             verdict = "contract_only"
-            res["reason"] = "compiled and exports its API, but no oracle was available (%s) - behaviour is NOT verified" % (
-                (dr.get("reason") or "no upstream tests and no differential") if dr else "no upstream tests")
+            reason = (dr.get("reason") or "no upstream tests and no differential") if dr else "no upstream tests"
+            logtail = " / ".join([x for x in (dr.get("log") or []) if x][-2:])   # the compiler's own words: WHY standalone failed
+            if logtail:
+                reason += " | compile tail: " + logtail
+            res["reason"] = "compiled and exports its API, but no oracle was available (%s) - behaviour is NOT verified" % reason
         break
 
     if verdict == "ok" and publish_dest:
