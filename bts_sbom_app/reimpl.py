@@ -201,7 +201,7 @@ def llm_generate(spec: str, client: Any, prior_fail: Optional[str] = None) -> st
               "module. Original code was never shown to you and must not be guessed at or quoted.")
     if prior_fail:
         system += (" IMPORTANT: your previous implementation failed the legacy acceptance suite. The failures "
-                   "were:\n%s\n\nFix exactly those behaviours while keeping the rest of the contract." % prior_fail[:800])
+                   "were:\n%s\n\nFix exactly those behaviours while keeping the rest of the contract." % prior_fail[:1200])
     raw = client.complete(
         system + "\n\nRespond with ONLY valid JSON, no prose, no code fences.",
         "SPEC:\n" + spec, max_tokens=16384, json_mode=True)   # reasoning deployments burn budget before the code
@@ -509,6 +509,19 @@ def _run_py(test_file: str, work: str) -> Dict[str, Any]:
 # ------------------------------------------------------------------ orchestrator
 
 
+def _failing_examples(tail: str, limit: int = 8) -> List[Tuple[str, str, str]]:
+    """Failing behaviour pairs from a legacy TextTestRunner tail: the FAIL blocks' description lines
+    carry the exact call and the oracle's expected result ('func(args) with expected result: X'). This
+    is the TARGETED version of the behavioural-example injection - only the failing rows ride the
+    retry prompt, never the full table (measured counterproductive: 29/29 failures, 2026-11-22)."""
+    out: List[Tuple[str, str, str]] = []
+    for m in _re.finditer(r"^(\w+)\((.*)\) with expected result: (.*)$", tail, _re.M):
+        if len(out) >= limit:
+            break
+        out.append((m.group(1), m.group(2), m.group(3)))
+    return out
+
+
 def _emit(progress: Optional[Callable[[Dict[str, Any]], None]], event: str, **fields: Any) -> None:
     if progress:
         ev = {"event": event, "ts": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), **fields}
@@ -705,8 +718,16 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
                 break
             # loop engineering: the structured failures ride along (assertion per case, full list)
             assert_lines = _re.findall(r"AssertionError: [^\n]*", atr["tail"])
-            prior_fail = "legacy suite: %d failure(s). %s" % (
+            feedback = "legacy suite: %d failure(s). %s" % (
                 failed_total, " | ".join(a[:160] for a in assert_lines[:7]) or atr["tail"][-400:])
+            # targeted behavioural examples (AC-1280): the FAIL blocks name the exact call and the
+            # oracle's expected result - only the FAILING rows ride the retry, never the full table
+            # (the full table measured counterproductive: 29/29 failures on 2026-11-22)
+            examples = _failing_examples(atr["tail"])
+            if examples:
+                feedback += "\nThe oracle expects these exact behaviours:\n" + "\n".join(
+                    "- %s(%s) -> %s" % (f, a, e) for f, a, e in examples[:8])
+            prior_fail = feedback
             _emit(progress, "regenerating", failed=failed_total)
             continue
         verdict = "ok"

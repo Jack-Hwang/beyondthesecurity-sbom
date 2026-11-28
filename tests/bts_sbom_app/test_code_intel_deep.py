@@ -6,12 +6,13 @@ AC: BSA-AC-1274 (extended function metrics + entity inventory), AC: BSA-AC-1275 
 self-recursion, hierarchy DIT/NOC, file deps, the dossier, and the changed-entities snapshot diff),
 AC: BSA-AC-1278 (the Understand-catalog tier: three cyclomatic flavours, statement and line taxonomies,
 CountInput/Output, LCOM, CBO), AC: BSA-AC-1279 (the behavioral envelope: one file -> shape facts + totals,
-the spec section that carries numbers without source text, and the scaffold-lane spec assertion)."""
+the spec section that carries numbers without source text, and the scaffold-lane spec assertion),
+AC: BSA-AC-1280 (the targeted behavioural-example injection into the retry feedback)."""
 from __future__ import annotations
 
 import os
 
-from bts_sbom_app import code_intel
+from bts_sbom_app import code_intel, reimpl
 
 
 MOD_A = '''import mod_b
@@ -280,3 +281,27 @@ def test_reimpl_spec_carries_the_envelope_without_source_text(tmp_path):
 def code_intel_reimpl_run(source_root, component, out_dir):
     from bts_sbom_app import reimpl
     return reimpl.reimpl(source_root, component, out_dir, client=None, attempts=1)
+
+
+def test_failing_examples_targeted_oracle_pairs():
+    """AC: BSA-AC-1280. The targeted behavioural-example injection: the FAIL blocks' description lines
+    yield (function, args, expected) pairs - ONLY failing rows ride the retry prompt, which is the
+    measured-safe variant (the full testdata table measured 29/29 failures on 2026-11-22)."""
+    tail = "\n".join([
+        "mimeparse_test.py -> FAILED",
+        "======================================================================",
+        "FAIL: unittest.case.FunctionTestCase (legacy_partial_test)",
+        "parse_media_range(application/xml ; q=2;b=other) with expected result: ['application', 'xml', {'q': '1', 'b': 'other'}]",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "AssertionError: Expected: '('application', 'xml', {'q': '1', 'b': 'other'})' but got ('application', 'xml', {'q': '2', 'b': 'other'})",
+        "======================================================================",
+        "FAIL: unittest.case.FunctionTestCase (legacy_partial_test)",
+        "best_match(['image/*', 'application/xml'], 'image/png') with expected result: image/*",
+    ]) + "\n"
+    ex = reimpl._failing_examples(tail)
+    assert ex[0] == ("parse_media_range", "application/xml ; q=2;b=other",
+                     "['application', 'xml', {'q': '1', 'b': 'other'}]")
+    assert ex[1] == ("best_match", "['image/*', 'application/xml'], 'image/png'", "image/*")
+    assert len(ex) == 2                                              # only FAIL rows, no traceback noise
+    assert len(reimpl._failing_examples(tail * 20, limit=8)) == 8    # the cap holds on a huge tail
