@@ -1,0 +1,23 @@
+{
+ "assigned_at": null,
+ "assignee": "",
+ "closed_at": null,
+ "delay": [],
+ "due_at": null,
+ "envs": [],
+ "evidence_done_at": null,
+ "findings": {},
+ "id": "IR-20261128-32b8",
+ "iocs": [],
+ "notes": [],
+ "org": "A",
+ "received_at": "2026-11-28T02:04:45+00:00",
+ "satisfaction": null,
+ "source": "other",
+ "stage": "interview",
+ "stage_at": {
+  "intake": "2026-11-28T02:04:45+00:00",
+  "interview": "2026-11-28T02:04:45+00:00"
+ },
+ "title": "B"
+}

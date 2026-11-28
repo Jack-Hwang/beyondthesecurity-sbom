@@ -57,7 +57,7 @@
   ];
   var SLASH_GO = { scan: 'git', oss: 'oss', report: 'report', risk: 'risk', findings: 'risk', prioritize: 'ssvc',
                    arch: 'archintel', code: 'code', diagrams: 'diagrams', books: 'books', compliance: 'ntia',
-                   vex: 'vex', fix: 'fix-plan', history: 'more', fleet: 'fleet', reimpl: 'reimpl', 'license-risk': 'license-risk' };
+                   vex: 'vex', fix: 'fix-plan', history: 'more', fleet: 'fleet', reimpl: 'reimpl', 'license-risk': 'license-risk', ir: 'ir' };
   function openPanel(sv, noteText) {
     document.dispatchEvent(new CustomEvent('bts:activate', { detail: sv }));
     if (noteText) {

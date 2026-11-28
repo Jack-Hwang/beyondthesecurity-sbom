@@ -220,6 +220,11 @@ def advance_incident(evidence: str, iid: str, body: Dict[str, Any], now: Optiona
     if rec is None:
         return None, "unknown incident"
     stage = str(body.get("stage") or "").strip()
+    if not stage:                                            # the "다음 단계 ▶" button: auto-advance one step
+        cur = STAGES.index(rec["stage"])
+        if cur + 1 >= len(STAGES):
+            return None, "이미 종결된 사고다"
+        stage = STAGES[cur + 1]
     if stage not in STAGES:
         return None, "stage는 %s 중 하나다" % (STAGES,)
     cur = STAGES.index(rec["stage"])
@@ -525,12 +530,6 @@ def route(method: str, path: str, query: Dict[str, List[str]], body: Dict[str, A
         if m:
             out = sbom_impact(evidence, m.group(1))
             return _err(404, "unknown incident") if out.get("error") == "unknown incident" else _ok(out)
-        m = re.fullmatch(r"/(IR-\d{8}-[0-9a-f]{4})/findings", rest)
-        if m:
-            rec, why = record_findings(evidence, m.group(1), body)
-            if rec is None:
-                return _err(400, why or "invalid")
-            return _ok(rec)
         m = re.fullmatch(r"/(IR-\d{8}-[0-9a-f]{4})/report", rest)
         if m:
             rec = _load(evidence, m.group(1))
@@ -562,7 +561,7 @@ def route(method: str, path: str, query: Dict[str, List[str]], body: Dict[str, A
             if rec is None:
                 return _err(400, why or "invalid")
             return _ok(rec, 201)
-        m = re.fullmatch(r"/(IR-\d{8}-[0-9a-f]{4})/(advance|delay|iocs|close)", rest)
+        m = re.fullmatch(r"/(IR-\d{8}-[0-9a-f]{4})/(advance|delay|iocs|close|findings)", rest)
         if not m:
             return _err(404, "not found")
         iid, action = m.group(1), m.group(2)
@@ -578,6 +577,11 @@ def route(method: str, path: str, query: Dict[str, List[str]], body: Dict[str, A
             return _ok(rec)
         if action == "iocs":
             rec, why = add_ioc(evidence, iid, body)
+            if rec is None:
+                return _err(400, why or "invalid")
+            return _ok(rec)
+        if action == "findings":
+            rec, why = record_findings(evidence, iid, body)
             if rec is None:
                 return _err(400, why or "invalid")
             return _ok(rec)

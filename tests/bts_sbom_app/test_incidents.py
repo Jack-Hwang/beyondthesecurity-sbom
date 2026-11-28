@@ -57,6 +57,35 @@ def test_create_defaults_and_stage_walk(tmp_path):
     assert code == 200 and obj["rollup"]["closed"] == 1 and obj["incidents"][0]["stage"] == "closed"
 
 
+def test_advance_without_stage_auto_advances_one_step(tmp_path):
+    """AC: BSA-AC-1261 — the 다음 단계 ▶ button sends no stage: the lane auto-advances exactly one step."""
+    st = _st(tmp_path)
+    rec = _rec(tmp_path)
+    import bts_sbom_app.incidents as _m
+    print("DBG module:", _m.__file__)
+    code, obj = _req(st, "POST", "/api/incidents/%s/advance" % rec["id"], {})
+    print("DBG resp:", code, obj.get("stage"), obj.get("error"))
+    assert code == 200 and obj["stage"] == "interview"
+    code, obj = _req(st, "POST", "/api/incidents/%s/advance" % rec["id"], {})
+    assert code == 200 and obj["stage"] == "evidence"
+    for stg in ("analysis", "report", "closed"):
+        code, obj = _req(st, "POST", "/api/incidents/%s/advance" % rec["id"], {})
+        assert code == 200, (stg, obj.get("error"))
+        assert obj["stage"] == stg
+    code, obj = _req(st, "POST", "/api/incidents/%s/advance" % rec["id"], {})
+    assert code == 400 and "종결" in obj["error"]
+
+
+def test_findings_route_takes_post_and_refuses_wrong_method(tmp_path):
+    """AC: BSA-AC-1262 — findings는 POST 전용 (GET 분기에 잘못 붙었던 리뷰 결함 수선)."""
+    st = _st(tmp_path)
+    rec = _rec(tmp_path)
+    code, obj = _req(st, "POST", "/api/incidents/%s/findings" % rec["id"], {"cause": "웹셸 경로 확인"})
+    assert code == 200 and obj["findings"]["cause"] == "웹셸 경로 확인"
+    code, obj = _req(st, "GET", "/api/incidents/%s/findings" % rec["id"])
+    assert code == 404                                            # findings answers POST only; GET is a flat 404
+
+
 def test_advance_rejects_skips_backwards_and_unknown(tmp_path):
     """AC: BSA-AC-1261"""
     st = _st(tmp_path)
