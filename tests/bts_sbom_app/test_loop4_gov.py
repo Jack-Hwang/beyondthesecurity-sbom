@@ -1,4 +1,4 @@
-"""Overnight feature-loop round 4 (backlog C26·C50·C07·C71): governance evidence the records already hold but
+"""AC: BSA-AC-1257, BSA-AC-1258, BSA-AC-1259, BSA-AC-1260. Overnight feature-loop round 4 (backlog C26·C50·C07·C71): governance evidence the records already hold but
 nothing surfaced - an append-only approval ledger that records EVERY effectful attempt (a digest mismatch is
 exactly what an audit exists to show), the org-overridable remediation decision table (a malformed override file
 rejects the WHOLE set - a half-applied policy is a lie), the license lookup's honest block reason (circuit_open
