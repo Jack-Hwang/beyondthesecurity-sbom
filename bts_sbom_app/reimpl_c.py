@@ -116,7 +116,10 @@ def toolchain() -> Dict[str, Optional[str]]:
 def _run(cmd: List[str], cwd: Optional[str] = None, timeout: float = COMPILE_TIMEOUT) -> Dict[str, Any]:
     try:
         p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
-        return {"rc": p.returncode, "out": (p.stdout or ""), "err": (p.stderr or ""), "timeout": False}
+        # Linux gcc prints Unicode quotes unconditionally since gcc 8 ('u16', expected ';') - the repair
+        # loop's patterns match ASCII, so normalize at the single capture point (measured on CI 2026-11-28)
+        err = (p.stderr or "").replace(chr(0x2018), "'").replace(chr(0x2019), "'")
+        return {"rc": p.returncode, "out": (p.stdout or ""), "err": err, "timeout": False}
     except subprocess.TimeoutExpired as exc:
         return {"rc": None, "out": "", "err": "timeout after %ds" % int(timeout), "timeout": True}
     except OSError as exc:
