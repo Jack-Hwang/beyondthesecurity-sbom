@@ -1,6 +1,46 @@
 /* BTS-SBOM additions to the platform screen (the platform files next to this one are copied unmodified). */
+
+/* === design tokens (ui-ux-pro-max audit, 2026-11-28): the CURRENT palette named as semantic tokens so new
+   rules bind to roles, not raw hex. Values are the shipped palette — this layer names it, it does not repaint. === */
+:root{
+  --bts-bg:#0d1117;            /* page background (dark CCD shell) */
+  --bts-panel:#161b22;         /* card / chip surface */
+  --bts-border:#30363d;        /* default border on dark */
+  --bts-border-light:#d0d7de;  /* default border on light */
+  --bts-fg:#1f2328;            /* primary text on light panels */
+  --bts-fg-dark:#e6edf3;       /* primary text on dark rail */
+  --bts-muted:#57606a;         /* secondary text on LIGHT (6.39:1 on white) */
+  --bts-muted-dark:#8b949e;    /* secondary text on DARK rail (5.96:1 on #11151a) */
+  --bts-accent:#1f6feb;        /* focus ring / primary action */
+  --bts-ok:#2da44e;            --bts-ok-bg:#dafbe1;
+  --bts-warn:#d4a72c;          --bts-warn-bg:#fff8c5;
+  --bts-bad:#cf222e;           --bts-bad-bg:#ffebe9;
+  --bts-speed:150ms;           /* the one transition duration (skill: context timing 150-300ms) */
+}
+
+/* === accessibility (priority 1): visible keyboard focus everywhere — the audit found NO :focus-visible
+   rule in any shipped stylesheet; the browser default was the only ring and it varies per control. === */
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{
+  outline:2px solid var(--bts-accent);outline-offset:2px;border-radius:6px}
+
+/* every clickable element shows the pointer (the audit found cursor set on only a handful of rules) */
+button{cursor:pointer}
+button:disabled{cursor:default}
+
+/* interaction feedback (priority 2): hover/active states transition at one duration instead of flipping
+   instantly (the audit found 0 transition declarations — every state change was 0ms). */
+button,.rtab,.scan-subchip,.bts-rail-chip,input,select,textarea,.egchip{transition:background-color var(--bts-speed) ease,border-color var(--bts-speed) ease,color var(--bts-speed) ease,box-shadow var(--bts-speed) ease}
+
+/* touch targets (priority 2, web minimum): icon-scale buttons keep a 24px CSS floor */
+.bts-mini,.bts-cd-clear,.bts-cd-fb-b{min-height:24px}
+
+/* motion (priority 7): respect the user's motion preference — the skeleton sweep and every transition
+   collapse to instant when the OS asks for reduced motion. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
+}
 .bts-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 6px;font-size:11.5px;color:#858585}
-.bts-mini{padding:2px 10px;font-size:11px;border:1px solid #444;background:#222;color:#ccc;border-radius:4px;cursor:pointer}
+.bts-mini{padding:2px 10px;font-size:12px;border:1px solid #444;background:#222;color:#ccc;border-radius:4px;cursor:pointer}
 .bts-mini:disabled{opacity:.5;cursor:default}
 
 .bts-note{border:1px solid #d0d7de;background:#f6f8fa;color:#24292f;border-radius:8px;padding:12px 14px;margin:6px 0 12px;font-size:12.5px;line-height:1.55}
@@ -40,14 +80,14 @@ table.bts-table tr:hover td{background:#fafbfc}
 details.bts-chat{margin-top:22px;border:1px solid #d0d7de;border-radius:8px;padding:10px 14px;background:#fff}
 details.bts-chat summary{cursor:pointer;font-weight:600;color:#1f2328}
 .bts-chat-out{margin-top:10px;font-size:12.5px;line-height:1.55;color:#1f2328;white-space:pre-wrap}
-.bts-chat-src{color:#57606a;font-size:11px;margin-top:6px}
+.bts-chat-src{color:#57606a;font-size:12px;margin-top:6px}
 .bts-chat-degraded{margin-top:8px;font-size:11.5px;padding:5px 8px;border:1px solid #d4a72c;border-radius:6px;background:#fff8c5;color:#4d2d00;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
 .bts-cd-fb{margin-top:8px;display:flex;align-items:center;gap:6px}
 .bts-cd-fb-b{border:1px solid #d0d7de;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:13px;line-height:1.4}
 .bts-cd-fb-b:disabled{opacity:.45;cursor:default}
 .bts-chat-chips{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
 .bts-chat-chip{display:inline-block;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid #d0d7de;border-radius:999px;
-  background:#f6f8fa;color:#1f2328;font-size:11px;padding:2px 9px}
+  background:#f6f8fa;color:#1f2328;font-size:12px;padding:2px 9px}
 .bts-chat-chip-src{color:#57606a;font-size:10px}
 .bts-link{color:#0969da;cursor:pointer;background:none;border:0;padding:0;font:inherit;text-decoration:underline}
 
@@ -70,7 +110,7 @@ table.bts-table td code{word-break:break-all}
    platform's horizontal .rtab styling for the sidebar scope only - the pinned css/app.css stays untouched). */
 .bts-shell{display:flex;align-items:flex-start;gap:0}
 .bts-sidenav{position:sticky;top:8px;flex:0 0 196px;display:flex;flex-direction:column;gap:2px;background:#11151a;border:1px solid #262c33;border-radius:10px;padding:8px 6px;margin-right:18px}
-.bts-sidenav-brand{font-size:11px;font-weight:700;letter-spacing:.6px;color:#8b949e;text-transform:uppercase;padding:4px 10px 8px}
+.bts-sidenav-brand{font-size:12px;font-weight:700;letter-spacing:.6px;color:#8b949e;text-transform:uppercase;padding:4px 10px 8px}
 .bts-sidenav .rtab{display:block;border-bottom:0;border-left:2px solid transparent;border-radius:6px;color:#adbac7;font-size:12.5px;padding:7px 10px;white-space:nowrap;cursor:pointer}
 .bts-sidenav .rtab:hover{background:#1c2128;color:#e6edf3}
 .bts-sidenav .rtab.active{background:#1f6feb33;border-left-color:#4493f8;color:#f0f6fc}
@@ -82,7 +122,7 @@ table.bts-table td code{word-break:break-all}
 .bts-rail-new:hover{background:#1f6feb55}
 .bts-rail-h{font-size:10px;font-weight:700;letter-spacing:.6px;color:#8b949e;text-transform:uppercase;padding:6px 10px 4px}
 .bts-rail-sessions{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}
-.bts-rail-empty{color:#8b949e;font-size:11px;padding:2px 10px 6px}
+.bts-rail-empty{color:#8b949e;font-size:12px;padding:2px 10px 6px}
 .bts-rail-session{display:block;width:100%;text-align:left;background:none;border:0;border-radius:6px;color:#adbac7;font:inherit;font-size:12px;padding:6px 10px;cursor:pointer}
 .bts-rail-session:hover{background:#1c2128;color:#e6edf3}
 .bts-rail-session.on{background:#1f6feb33;color:#f0f6fc}
@@ -111,9 +151,9 @@ table.bts-table td code{word-break:break-all}
 .bts-govcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:14px 0}
 .bts-govcard{border:1px solid #d0d7de;border-radius:10px;background:#fff;padding:12px 14px;min-width:0}
 .bts-gc-title{font-size:13px;font-weight:700;color:#1f2328}
-.bts-gc-sub{font-size:11px;color:#57606a;margin:2px 0 8px}
+.bts-gc-sub{font-size:12px;color:#57606a;margin:2px 0 8px}
 .bts-gc-big{font-size:26px;font-weight:800;color:#1f2328;line-height:1.15}
-.bts-gc-big .bts-gc-unit{font-size:11px;font-weight:400;color:#57606a;margin-left:8px}
+.bts-gc-big .bts-gc-unit{font-size:12px;font-weight:400;color:#57606a;margin-left:8px}
 .bts-gc-line{font-size:11.5px;color:#24292f;margin-top:4px;line-height:1.5;word-break:break-word}
 .bts-gc-actions{margin-top:10px}
 
@@ -137,7 +177,7 @@ table.bts-table td code{word-break:break-all}
 .bts-cd-turn-user{align-self:flex-end;background:#1f6feb33;color:#e6edf3;border-radius:10px;padding:6px 12px;max-width:80%;white-space:pre-wrap;font-size:12.5px}
 .bts-cd-turn{border:1px solid #262c33;border-radius:10px;background:#0d1117;padding:8px 12px;max-width:96%}
 .bts-cd-card{margin:6px 0}
-.bts-cd-card summary{cursor:pointer;color:#8b949e;font-size:11px}
+.bts-cd-card summary{cursor:pointer;color:#8b949e;font-size:12px}
 .bts-cd-card-body{display:flex;flex-direction:column;gap:3px;margin-top:6px}
 .bts-cd-act{display:flex;gap:8px;align-items:baseline;border-left:3px solid #8b949e;background:#161b22;border-radius:4px;padding:3px 8px;font-size:11.5px;color:#adbac7}
 .bts-cd-act-kind{flex:0 0 auto;font-weight:700;color:#e6edf3}
@@ -155,14 +195,14 @@ table.bts-table td code{word-break:break-all}
 .bts-cd-input input[type=text],.bts-cd-input input:not([type]){flex:1;min-width:240px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;padding:8px 10px;font:inherit;font-size:12.5px}
 .bts-cd-llm{color:#8b949e;font-size:11.5px;white-space:nowrap}
 .bts-cd-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.bts-cd-chip{background:#161b22;border:1px solid #30363d;color:#adbac7;border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer}
+.bts-cd-chip{background:#161b22;border:1px solid #30363d;color:#adbac7;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer}
 .bts-cd-chip:hover{color:#e6edf3;border-color:#4493f8}
 .bts-cd-empty{color:#8b949e;font-size:12px;padding:10px 2px;line-height:1.5}
 .bts-skel{height:10px;border-radius:6px;margin:6px 0;background:linear-gradient(90deg,#8b949e22 25%,#8b949e44 37%,#8b949e22 63%);background-size:400% 100%;animation:bts-skel 1.2s ease infinite}
 @keyframes bts-skel{0%{background-position:100% 50%}100%{background-position:0 50%}}
 /* job stage strip (clean-room workbench, scan progress) */
 .bts-stages{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
-.bts-stage{background:#161b22;border:1px solid #30363d;color:#8b949e;border-radius:999px;padding:3px 10px;font-size:11px}
+.bts-stage{background:#161b22;border:1px solid #30363d;color:#8b949e;border-radius:999px;padding:3px 10px;font-size:12px}
 .bts-stage.ok{color:#7ee2b8;border-color:#2ea04366}
 .bts-stage.fail{color:#f85149;border-color:#f8514966}
 /* honest pass banner: the pinned sca_app.js only styles pass/fail - an unknown must not look green */
@@ -173,7 +213,7 @@ table.bts-table td code{word-break:break-all}
 .bts-diagram-title{font-weight:700;color:#e6edf3;font-size:12.5px;margin-bottom:4px}
 .bts-diagram .arc-diagram svg{max-width:100%;height:auto}
 .bts-diagram-note{color:#8b949e;font-size:11.5px;margin-top:6px;white-space:pre-wrap}
-.bts-diagram-lines{color:#adbac7;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:6px 10px;font-size:11px;overflow-x:auto;white-space:pre}
+.bts-diagram-lines{color:#adbac7;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:6px 10px;font-size:12px;overflow-x:auto;white-space:pre}
 /* ---------- A2UI-style UI cards (docs/A2UI_INTEGRATION.md): chat dock + non-stream answers ---------- */
 .bts-card2{border:1px solid #30363d;border-left:3px solid #4493f8;border-radius:10px;background:#0d1117;padding:8px 12px;margin:8px 0;max-width:96%}
 .bts-card2-title{font-weight:700;color:#e6edf3;font-size:12.5px;margin-bottom:6px}

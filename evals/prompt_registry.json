@@ -82,7 +82,7 @@
   "reimpl.llm_generate#1": {
    "kind": "inline",
    "module": "reimpl",
-   "fingerprint": "89b8bf08344b",
+   "fingerprint": "7848086e3996",
    "version": null
   },
   "reimpl_c.llm_generate_c#1": {
@@ -119,6 +119,19 @@
     "rag_test": "bcfd2d9f65f2"
    },
    "digest": "d4b64f1a53b9"
+  },
+  {
+   "at": "2026-11-28T14:37:27+00:00",
+   "reason": "AC-1280 (parallel lane): the legacy-suite retry feedback now parses the FAIL rows into targeted (function,args,expected) example pairs - capped at eight - and the retry prompt budget widens 800->1200 characters; the pinned fingerprint of reimpl.llm_generate#1 rides to the new template",
+   "changed": [
+    "reimpl.llm_generate#1"
+   ],
+   "eval_sets": {
+    "rag_golden": "d60c939bb542",
+    "rag_dev": "4b7823e570fc",
+    "rag_test": "bcfd2d9f65f2"
+   },
+   "digest": "6f59345a6d79"
   }
  ]
 }

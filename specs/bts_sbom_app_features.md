@@ -1336,3 +1336,21 @@ self 모듈의 import가 최상위 에지), 상태(UML::State 어휘 — 필드�
 - BSA-AC-1278 [Event] When the code-intel Understand-catalog tier runs, the lane shall carry the three cyclomatic flavours from Understand's own conf/understand/metrics catalog (standard n-1 per chain, modified one per chain, strict per operand including unary not), the statement taxonomy (CountStmt/Decl/Exe/Empty + assigns/returns/breaks/continues, the function definition itself never counted as its own statement), the line taxonomy (CountLine/Code/Comment/Blank/RatioCommentToCode), CountInput and CountOutput (callers + globals read / callees + globals set), and per-class PercentLackOfCohesion (Henderson-Sellers LCOM*, undefined - stated as None - when a class has no methods or no instance attributes) and CountClassCoupled (CBO, project-internal class references) (C96: 4 of 4 catalog cases with hand-computed fixture values; catalog source measured at understand_rea/install/conf/understand/metrics/metrics.json, Understand 8.1.1269).
 - BSA-AC-1279 [Event] When the clean-room lane builds the spec, the measured behavioral envelope of the original component (per-function params/complexity/essential/statements/eLOC/Halstead-volume/knots/paths from code_intel.metrics_envelope_file, plus file totals) shall ride the spec channel as a "Behavioral envelope" section whose stated rule is that the numbers are shape facts and fidelity targets, never source text - an unparsable original degrades to no envelope with the reason at wall 1, the emitted record carries metrics_envelope with the totals and a metrics_ready progress event fires, and neither the section nor the spec.md carries implementation text (statement bodies, control-flow keywords of the original) (C97: 2 of 2 envelope cases incl. the wall-2 no-source-text probe and the scaffold-lane spec assertion).
 - BSA-AC-1280 [Event] When the compatibility loop regenerates after a legacy-suite failure, the retry feedback shall carry the TARGETED behavioural examples parsed from the FAIL blocks' description lines - (function, args, expected) pairs of exactly the failing rows, capped at eight, never the full testdata table (measured counterproductive 29/29 on 2026-11-22) - and the retry prompt budget for prior_fail widens 800->1200 characters to carry them (C98: 2 of 2 parsing cases incl. the cap on a multiplied tail).
+
+### UI/UX 스킬 적용 라운드 — ui-ux-pro-max 분석·적용 (사용자 지시 "스킬을 싹다 분석해서 우리 서비스 UI/UX에 최적화된 것으로 적용해", 2026-11-28)
+
+github nextlevelbuilder/ui-ux-pro-max-skill을 통째로 클론해 검색 도구(design-system·ux 도메인·css 토큰·
+html-tailwind 스택)를 전부 돌리고, 그 우선순위 규칙(접근성→터치→스타일→타이포→모션→폼)으로 우리 콘솔을
+실측 감사했다. 이미 통과(측정): 테이블 .bts-wrap 오버플로 래퍼·비동기 표면의 빈 상태+스켈레톤·다크 레일
+뮤트 대비 5.96:1과 9.27:1·챗 소스 줄 6.39:1(전부 4.5:1 이상)·outline:none 부재·모든 컨트롤이 실제
+<button>. 갭 수선(AC-1281): 어떤 스타일시트에도 :focus-visible 링이 없었음(키보드 링은 브라우저 기본값에
+의존) — 토큰 백 링 추가; prefers-reduced-motion 블록 부재(스켈레톤 스윕이 무조건 돌았음) — 블록 추가;
+전환 선언이 0개(모든 hover/active가 0ms에 반전) — --bts-speed 150ms 단일 듀레이션; 11px 메타 텍스트가
+12px 바닥 미만 — 전부 12px로; 아이콘 전용 지우기 버튼의 접근 이름이 title 툴팁에만 의존 — aria-label
+추가; note() 피드백이 SR에 조용함 — role="status"; 시맨틱 토큰 레이어 부재 — 현재 팔레트를 이름 붙이는
+:root 레이어(값은 현행 유지, 리페인트 아님); 소형 버튼 24px 터치 바닥. **선언된 편차**(조용히가 아니라):
+이모지 레일 아이콘은 유지(제품 비주얼 아이덴티티, 전부 텍스트 라벨 동반 — SVG 전면 교체는 이 라운드가
+안 하는 비주얼 리디자인), 스킬 추천 Google Fonts(JetBrains Mono/IBM Plex Sans) 미가져옴 — 오프라인
+우선 서비스라 폰트 CDN은 원칙 위반, 10px 대문자 섹션 마이크로헤더 유지(본문이 아닌 라벨).
+
+- BSA-AC-1281 [Event] When the console stylesheet ships it shall carry a semantic token layer naming the CURRENT palette (values unchanged - the layer names, it does not repaint), a :focus-visible ring on every operable control backed by the accent token, a prefers-reduced-motion block that collapses animations and transitions to instant, ONE transition duration variable applied to interactive elements so hover/active states no longer flip at 0ms, a 24px min-height floor on the small icon-scale buttons, and a global button pointer cursor - while the metadata text steps up to the 12px floor with no 11px left, the icon-only clear button carries an aria-label, and the shared note() feedback helper is announced via role=status (4 of 4 audit assertions, 10 of 10 tokens, 1 of 1 floor sweep, 1 of 1 aria-label, 1 of 1 live region, 3 of 3 declared deviations recorded in the test docstring).

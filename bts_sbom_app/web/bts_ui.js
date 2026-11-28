@@ -41,7 +41,7 @@
   }
   var PILL_CLASSES = ['ok', 'bad', 'warn', 'muted', 'pass', 'gap', 'not_evidence'];
   function pill(text, cls) { return H('<span class="bts-pill ' + (PILL_CLASSES.indexOf(cls) >= 0 ? cls : 'muted') + '">' + esc(text) + '</span>'); }
-  function note(html, cls) { return '<div class="bts-note ' + (cls || '') + '">' + html + '</div>'; }   // html: already escaped by the caller
+  function note(html, cls) { return '<div class="bts-note ' + (cls || '') + '" role="status">' + html + '</div>'; }   // role=status: async feedback and errors are announced (ui-ux audit); html: already escaped by the caller
   function heading(t, sub) { return '<div class="bts-h">' + esc(t) + (sub ? ' <span class="sub">' + esc(sub) + '</span>' : '') + '</div>'; }
   function kv(pairs) {
     return '<dl class="bts-kv">' + pairs.map(function (p) { return '<dt>' + esc(p[0]) + '</dt><dd>' + cell(p[1]) + '</dd>'; }).join('') + '</dl>';

@@ -128,6 +128,7 @@
   var llmLab = el('label', { 'class': 'bts-cd-llm', title: llmChk.title }, [llmChk, document.createTextNode(' LLM')]);
   var sendBtn = el('button', { type: 'button', 'class': 'run', id: 'chatDockSend', text: '\u27A4 보내기' });
   var clearBtn = el('button', { type: 'button', 'class': 'bts-cd-clear', id: 'chatDockClear', title: '이 프로젝트의 대화를 지운다', text: '\u232B' });
+  clearBtn.setAttribute('aria-label', '이 프로젝트의 대화 지우기');   // icon-only button: the accessible name cannot ride on the glyph (ui-ux audit)
   var inputRow = el('div', { 'class': 'bts-cd-input' }, [input, clearBtn, llmLab, sendBtn]);
   /* a chatbot answers conversationally: the LLM lane turns on by itself whenever a client is configured,
      and the toggle's state is stated next to the input so "raw tool dump" turns are never a surprise */
