@@ -41,11 +41,13 @@ def title_of(s):
     return ""
 
 
-def find(sub):
-    for i, s in enumerate(prs.slides):
-        if sub in title_of(s):
-            return i
-    raise SystemExit("anchor not found: " + sub)
+def find(*subs):
+    """first slide whose title contains any of the given substrings (a replaced slide keeps the plan working on a re-run)"""
+    for sub in subs:
+        for i, s in enumerate(prs.slides):
+            if sub in title_of(s):
+                return i
+    raise SystemExit("anchor not found: " + " | ".join(subs))
 
 
 def duplicate(index0):
@@ -126,11 +128,24 @@ changed = []
 import re  # noqa: E402
 AC_COUNT = len(re.findall(r"^- BSA-AC-\d+", io.open(os.path.join(ROOT, "specs", "bts_sbom_app_features.md"), encoding="utf-8").read(), re.M))
 for item in plan:
-    key = item["title"].splitlines()[0][:14]
-    if any(key in title_of(s) for s in prs.slides):
-        print("skip (already in deck):", item["id"])
+    key = item.get("title", "").splitlines()[0][:14] if item.get("title") else ""
+    if item["action"] == "remove":                      # retire a slide an upgraded one supersedes
+        try:
+            delete(find(item["target"]))
+            print("removed:", item["target"])
+        except SystemExit:
+            pass
         continue
-    i = find(item["target"])
+    exist = next((k for k, s in enumerate(prs.slides) if key and key in title_of(s)), None)
+    replacing = item["action"] == "replace"
+    if item["action"].startswith("insert") and exist is not None:
+        if os.environ.get("REFRESH") != "1":          # default: a planned slide that is already present is left alone
+            print("skip (already in deck):", item["id"])
+            continue
+        i = exist                                   # REFRESH=1: regenerate it in place (clone, then delete the old)
+        replacing = True
+    else:
+        i = find(item["target"], key)
     new = duplicate(i)
     template = prs.slides[i]
     max_id = max(int(c.get("id")) for c in new._element.iter(qn("p:cNvPr")))
@@ -141,7 +156,7 @@ for item in plan:
     prs.slides._sldIdLst.remove(el)
     pos = i if item["action"] == "insert_before" else i + 1
     prs.slides._sldIdLst.insert(pos, el)
-    if item["action"] == "replace":
+    if replacing:
         delete(i)                     # the old slide now sits right after the new one
         pos = i
     changed.append(pos)
