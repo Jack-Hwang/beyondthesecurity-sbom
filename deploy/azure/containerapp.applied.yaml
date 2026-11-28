@@ -241,9 +241,7 @@ properties:
         value: /tmp/evidence/bts_sbom_osv_local.db
       - name: BTS_SBOM_TRUST_FORWARDED
         value: '1'
-      - name: BTS_SBOM_ACCESS_TOKEN
-        value: '<masked: set at deploy time>'
-      image: btsbomacr1126.azurecr.io/bts-sbom-app:sha-5c7484b
+      image: btsbomacr1126.azurecr.io/bts-sbom-app:sha-b03650a
       name: bts-sbom-app
       probes:
       - failureThreshold: 24

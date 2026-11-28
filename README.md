@@ -31,7 +31,7 @@ $ python -m bts_sbom selfsbom
   the KISA incident-response lane (SLA stage machine, 4 report builders, IoC cross-check), governance
   evidence (approval ledger, overridable policy), and chat-turn operations (cancel / SSE heartbeat /
   trace_id).
-- **A2UI-style cards on 19 of 27 chat tools**, the approval chain measured live on Azure behind Easy Auth,
+- **A2UI-style cards on 19 of 27 chat tools**, the approval chain measured live on Azure (the access-token gate was later removed by owner decision for direct evaluator access),
   and the oracle-honesty round in the clean-room lane (FunctionTestCase suites run; mimeparse measured
   14 -> 4 of 29 legacy failures, reproduced twice).
 - **Azure operations**: ACR pulls via system-assigned managed identity (admin user OFF), a nightly drift
@@ -324,8 +324,11 @@ stdlib HTTP service (`bts-sbom-app serve`) with **no authentication** that must 
 >   was measured live (stale token refused, source-boundary refusal, 80.7 s isolated apply).
 > - **Deployed instances** set `BTS_SBOM_ACCESS_TOKEN`: every request but `/healthz`·`/readyz` must then
 >   present the 256-bit token (`bts-sbom-app access-token` prints one; Basic / Bearer / X-BTS-Token).
-> - **The Azure deployment** (`deploy/azure/`) puts **Easy Auth** in front of the app and pulls images
->   via a system-assigned **managed identity** with the ACR admin account disabled.
+> - **The Azure deployment** (`deploy/azure/`) served behind the app's own access-token gate until
+>   **2026-11-28, when the gate was removed by owner decision** so evaluators open the app directly
+>   (re-enable with one `az containerapp update --set-env-vars BTS_SBOM_ACCESS_TOKEN=...` call);
+>   effectful patches still require the approval chain's token, and images are pulled via a
+>   system-assigned **managed identity** with the ACR admin account disabled.
 > - **Planned**: OIDC authentication for the local server, so the localhost rule stays a dev default,
 >   never the production story. Details: `docs/AZURE_DEPLOYMENT.md`, `docs/AZURE_IDENTITY.md`.
 

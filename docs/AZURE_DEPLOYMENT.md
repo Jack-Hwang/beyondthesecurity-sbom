@@ -30,7 +30,7 @@ RUNBOOK의 서비스 범위 선언: **"localhost, single-process, no authenticat
 
 | 제약 | Azure에서의 함의 | 닫는 방법 |
 |---|---|---|
-| **무인증** | 공개 ingress는 인터넷에 관리 화면·분석·패치 승인을 여는 것 — 계약 위반 | Container Apps **Easy Auth(AAD)** 필수, 또는 VNet 내부 ingress만. 인증 전까지는 internal ingress + VPN/Bastion |
+| **무인증** | 공개 ingress는 인터넷에 관리 화면·분석·패치 승인을 여는 것 — 계약 위반 | 권장: Easy Auth(AAD) 또는 내부 ingress. **현재 상태(2026-11-28): 소유자 결정으로 토큰 게이트 제거·공개 운영 중** — 평가자 직접 접근용; 재활성화는 `az containerapp update --set-env-vars BTS_SBOM_ACCESS_TOKEN=...`, 승인 체인과 LLM 일일 예산이 위험 경로를 각각 방어 |
 | **단일 프로세스·evidence 공유** | 레플리카 2개는 evidence를 공유해 손상 | replicas **1 고정**, KEDA 0스케일 배제(콜드스타트·볼륨 재부착) |
 | **evidence 임시 볼륨** | 재시작 시 분석 기록 소실 | **Azure Files 2Gi** 마운트(RWX 불필요, RWO) — deploy/kind의 PVC 선례와 동일 |
 | **Host 검사(oss/arch/books sub-API)** | ingress가 Host를 FQDN으로 바꿔 403 | env **`BTS_OSS_ALLOWED_HOSTS=<배포 FQDN>`** (기존 knob — 코드 변경 0) |
