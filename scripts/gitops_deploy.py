@@ -142,7 +142,7 @@ def _http(path: str, timeout: float = SMOKE_TIMEOUT_S) -> Tuple[int, Dict[str, A
         raise ValueError("probe target unknown: pass BTS_AZ_FQDN or let `show` resolve it")
     url = base.rstrip("/") + path
     with urllib.request.urlopen(url, timeout=timeout) as r:
-        return r.status, json.loads(r.read().decode("utf-8"))
+        return r.status, json.loads(r.read().decode("utf-8", errors="replace"))
 
 
 def _suffix(kind: str) -> str:
