@@ -18,6 +18,12 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 
+try:                                   # stdlib from Python 3.11; the package guards every import of it
+    import tomllib  # noqa: F401
+    HAS_TOMLLIB = True
+except ImportError:                    # Python 3.10
+    HAS_TOMLLIB = False
+
 # ── fixtures: small, real documents ──────────────────────────────────────────
 
 SPDX_SBOM = {
@@ -99,7 +105,8 @@ def test_package_compiles_and_is_stdlib_only():
     """Every module in the package imports only stdlib or bts_sbom itself."""
     import bts_sbom
     pkg_dir = Path(bts_sbom.__file__).parent
-    allowed_roots = set(sys.stdlib_module_names) | {"bts_sbom"}
+    # tomllib is stdlib only from 3.11 (so it is missing from 3.10's list) and the package guards every import of it
+    allowed_roots = set(sys.stdlib_module_names) | {"bts_sbom", "tomllib"}
     offenders = []
     for py in pkg_dir.rglob("*.py"):
         if "__pycache__" in py.parts:
@@ -700,6 +707,8 @@ def test_npm_lock_nested_transitive_entries(tmp_path):
     assert pkgs[0].depth == 0 and rel["minipass"] == "transitive"
 
 
+@pytest.mark.skipif(not HAS_TOMLLIB, reason="TOML manifests need tomllib (Python >= 3.11); see "
+                                            "test_toml_manifests_say_unsupported_without_tomllib for 3.10")
 def test_cargo_lock_direct_transitive_from_sibling_manifest(tmp_path):
     """E1: Cargo.lock is a resolved closure; the direct set comes from the
     sibling Cargo.toml. Without it, relationship is honestly 'unknown'."""
@@ -810,6 +819,39 @@ def test_vex_check_is_honest_about_unknown_formats(tmp_path):
     demo = run_cli("vex", "--check", str(REPO / "examples" / "demo.vex.json"))
     assert demo.returncode == 0 and json.loads(demo.stdout)["statements"] == 1    # the shipped fixture is a real OpenVEX document
 
+
+# ── Python 3.10: TOML manifests are reported honestly, not as "corrupt" ─────────
+
+def _scan_completeness(tmp_path, monkeypatch, name, text):
+    import bts_sbom
+    monkeypatch.setenv("BTS_SBOM_OSV_DB_PATH", str(tmp_path / "osv.db"))
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / name).write_text(text, encoding="utf-8")
+    result = bts_sbom.OsvScanner(offline=True).scan(str(proj), with_licenses=False, guided_remediation=False)
+    c = result.get("completeness") or {}
+    return c, json.dumps(c, ensure_ascii=False)
+
+
+_CARGO_LOCK = ('[[package]]\nname = "serde"\nversion = "1.0.193"\n'
+               'source = "registry+https://github.com/rust-lang/crates.io-index"\n')
+
+
+def test_toml_manifests_say_unsupported_without_tomllib(tmp_path, monkeypatch):
+    """Without tomllib (Python 3.10, or simulated) a Cargo.lock is NOT reported as corrupt and NOT as 'no findings':
+    the scan ends as parse_failed / presence unknown and the reason names tomllib and Python 3.11."""
+    monkeypatch.setitem(sys.modules, "tomllib", None)          # `import tomllib` now raises ImportError, as on 3.10
+    c, text = _scan_completeness(tmp_path, monkeypatch, "Cargo.lock", _CARGO_LOCK)
+    assert c.get("data_status") == "parse_failed" and c.get("vulnerability_presence") == "unknown", c
+    assert "need tomllib" in text and "3.11" in text
+    assert "corrupt toml manifest" not in text                 # a healthy file must not be blamed
+
+
+@pytest.mark.skipif(not HAS_TOMLLIB, reason="needs tomllib to see a real syntax error")
+def test_truly_corrupt_toml_is_still_reported_as_corrupt(tmp_path, monkeypatch):
+    c, text = _scan_completeness(tmp_path, monkeypatch, "Cargo.lock", '[[package\nname = "serde"\n')
+    assert c.get("data_status") == "parse_failed", c
+    assert "corrupt toml manifest" in text
 
 def test_setup_py_is_disclosed_not_silent(tmp_path):
     """u-boot's tools ship several setup.py files (AC: BSA-AC-615): they have no lock-grade pins so they are not

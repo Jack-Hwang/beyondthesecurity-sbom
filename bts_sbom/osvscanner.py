@@ -216,12 +216,20 @@ def _probe_manifest_integrity(path: str, stype: str) -> Optional[str]:
     fmt = "json" if stype == "sbom" else _MANIFEST_FORMAT.get(os.path.basename(path).lower())
     if fmt is None:
         return None
+    tomllib = None
+    if fmt == "toml":
+        try:
+            import tomllib  # stdlib from Python 3.11
+        except ImportError:
+            # Python 3.10: say so. This used to be reported as "corrupt toml manifest: No module named 'tomllib'",
+            # which blames a healthy file. The scan still ends as parse_failed / presence unknown - never as "no findings".
+            return ("unsupported on this Python: %s manifests (Cargo.lock/Cargo.toml, poetry.lock, pyproject.toml) "
+                    "need tomllib, which exists from Python 3.11" % fmt)
     try:
         if fmt == "json":
             with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
                 json.load(fh)
         else:
-            import tomllib
             with open(path, "rb") as fh:
                 tomllib.load(fh)
     except Exception as e:

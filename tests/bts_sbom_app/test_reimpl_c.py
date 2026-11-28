@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import textwrap
 from typing import Any, Dict, List
 
@@ -469,3 +470,40 @@ def test_real_u_boot_crc16_table_and_function_are_verified_and_a_wrong_table_ent
     assert r["verdict"] == "ok" and r["copy_gate"]["passed"] and r["oracle"]["differential"]["functions"] == 2
     r2, _, _ = _run(UBOOT, tmp_path, Fake(good.replace("0xC0C1", "0xC0C0", 1), good), component="lib/crc16.c")
     assert r2["verdict"] == "ok" and r2["attempts"] == 2
+
+
+def test_the_compiler_runs_in_the_c_locale_so_the_repair_loop_reads_ascii_quotes(monkeypatch):
+    """AC: BSA-AC-638. The standalone-build repair loop matches gcc's `conflicting types for 'x'` style messages with ASCII quotes; a UTF-8 locale (the CI runners'
+    LANG=C.UTF-8) makes gcc print curly quotes and no repair ever matches, so every compiler call must carry LC_ALL=C."""
+    seen: Dict[str, Any] = {}
+
+    def fake_run(cmd, **kw):
+        seen["env"] = kw.get("env")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(reimpl_c.subprocess, "run", fake_run)
+    r = reimpl_c._run(["gcc", "--version"])
+    assert r["rc"] == 0 and seen["env"] is not None and seen["env"]["LC_ALL"] == "C" and seen["env"]["LANGUAGE"] == "C"
+
+
+def test_a_failing_nm_is_retried_once_and_a_second_failure_keeps_its_reason(monkeypatch):
+    """AC: BSA-AC-639. The export proof reads `nm`: one failed call (a transient process failure on a loaded CI runner) is retried instead of turning the
+    export list into `unchecked`, and when nm fails twice the verdict card keeps nm's own rc/stderr rather than the bare "nm is not available"."""
+    calls: List[Any] = []
+
+    def flaky(cmd, cwd=None, timeout=30):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return {"rc": 1, "out": "", "err": "nm: transient", "timeout": False}
+        return {"rc": 0, "out": "0000000000000000 T crc32\n", "err": "", "timeout": False}
+
+    monkeypatch.setattr(reimpl_c, "_run", flaky)
+    syms, why = reimpl_c.exported_symbols_why({"nm": "nm"}, "x.o")
+    assert syms == {"crc32"} and why == "" and len(calls) == 2
+
+    monkeypatch.setattr(reimpl_c, "_run", lambda cmd, cwd=None, timeout=30: {"rc": 1, "out": "", "err": "nm: boom", "timeout": False})
+    syms, why = reimpl_c.exported_symbols_why({"nm": "nm"}, "x.o")
+    iface = {"language": "c", "functions": [], "variables": []}
+    assert syms is None and reimpl_c.export_check(syms, iface, why) == {"checked": False, "reason": "nm failed (rc=1): nm: boom"}
+    assert reimpl_c.export_check(None, iface)["reason"] == "nm is not available"
+    assert reimpl_c.exported_symbols({"nm": None}, "x.o") is None

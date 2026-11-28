@@ -103,6 +103,10 @@ Path handling is `os.path`/`pathlib` throughout (no string concatenation),
 and manifest rel-path routing normalizes `/` ↔ `\` at parser boundaries
 (`bts_sbom/_internal/pathutil.py`).
 
+**Python 3.10 limit:** TOML manifests (`Cargo.lock`, `Cargo.toml`, `poetry.lock`, `pyproject.toml`) need `tomllib`, which exists from
+Python 3.11. On 3.10 a scan that meets one ends as `parse_failed` with presence `unknown` and says "unsupported on this Python"; it never
+reports such a project as clean. Everything else (JSON/line-format manifests, SBOM input, sector reports) works on 3.10.
+
 ## The 6-sector requirement matrix
 
 `bts-sbom sector --sector <name>` checks each sector's SBOM-relevant

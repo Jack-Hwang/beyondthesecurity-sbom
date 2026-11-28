@@ -388,6 +388,14 @@ The data of the governance features above is now visible without calling the end
   degraded to `?`; `--out FILE` always writes UTF-8. Tests: every sub-command's
   `--help` under ascii / cp949 / cp1252 with `PYTHONUTF8` unset, and a strict
   decode + `json.loads` round-trip of `sector --sector finance`.
+* **Fix: the core CI was still red after the lint fix, for two older reasons that the lint failure had been hiding.** (1) On Python 3.10
+  (declared supported, in the CI matrix) the package used `tomllib`, which exists from 3.11: a TOML manifest was reported as
+  "corrupt toml manifest: No module named 'tomllib'", blaming a healthy file. It is now reported as "unsupported on this Python ...
+  need tomllib" (the scan still ends `parse_failed` / presence `unknown`, never as no findings), the stdlib-only test accepts the guarded
+  `tomllib` import, and the Cargo direct/transitive test runs only where `tomllib` exists. Two new tests pin both the honest message and
+  that a truly corrupt TOML file is still called corrupt. (2) The CI lockfile demo wrote `demo-requirements.txt`, a name the parser
+  does not recognise ("no parser for ..."); it now writes `demo-lock/requirements.txt`. The remaining CI steps (policy gate smoke,
+  artifact upload) had never run before and were replayed locally.
 * **Fix: emitted documents claimed a stale (or no) tool version.** CycloneDX
   `metadata.tools[].version`, the SPDX `creators` entry (`bts-sbom sbom` emitted
   `Tool: bts-sbom` with no version at all; the internal builder hard-coded

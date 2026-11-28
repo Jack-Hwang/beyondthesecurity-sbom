@@ -85,8 +85,10 @@ jobs:
 
       - name: SBOM-from-lockfile demo (minimal requirements.txt, workspace-local)
         run: |
-          printf 'bts-sbom==0.1.0\n' > demo-requirements.txt
-          bts-sbom sbom demo-requirements.txt --name bts-sbom-demo --out bts-sbom-demo.spdx.json
+          # the parser is chosen by FILE NAME ('requirements.txt'); 'demo-requirements.txt' was rejected with "no parser for ..."
+          mkdir -p demo-lock
+          printf 'bts-sbom==0.1.0\n' > demo-lock/requirements.txt
+          bts-sbom sbom demo-lock/requirements.txt --name bts-sbom-demo --out bts-sbom-demo.spdx.json
           python - <<'PY'
           import json
           doc = json.load(open("bts-sbom-demo.spdx.json", encoding="utf-8"))
