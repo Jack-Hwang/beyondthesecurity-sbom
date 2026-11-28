@@ -659,6 +659,20 @@ def _repair_prelude(errors: str, prelude: Dict[str, Any]) -> bool:
         else:
             continue                                                # a real project type we cannot invent: not repairable here
         changed = True
+    # `__rcode static int f(...)`: an unknown marker word in front of a declaration reads as "expected ';' before 'static'" - the word that ends
+    # just before the reported column is the marker (measured on Linux CI 2026-11-28: the system <linux/types.h> shadowed the fixture's u16 and
+    # THIS shape - not "unknown type name" - was what exhausted every attempt; MinGW passes by the header-absent path instead)
+    for m in re.finditer(r"^(.+?):(\d+):(\d+): error: expected [^\n]*? before '(\w+)'", errors, re.M):
+        try:
+            with open(m.group(1), "r", encoding="utf-8", errors="replace") as fh:
+                line = fh.read().split("\n")[int(m.group(2)) - 1]
+        except (OSError, IndexError):
+            continue
+        words = re.findall(r"[A-Za-z_]\w*", line[:max(0, int(m.group(3)) - 1)])
+        word = words[-1] if words else ""
+        if word and word not in _C_KEYWORDS and word not in prelude["empty"] and word not in prelude["typedefs"] and (word.startswith("__") or word.isupper()):
+            prelude["empty"].add(word)
+            changed = True
     # `#if CONFIG_IS_ENABLED(FOO)` with the macro undefined: "missing binary operator before token '('" - the offending line names the macro
     for m in re.finditer(r"^(.+?):(\d+):(\d+): error: missing binary operator before token '\('", errors, re.M):
         try:
