@@ -770,7 +770,11 @@ def make_handler(st: State):
                 rel = urllib.parse.unquote(path[len("/static/"):])
                 return self._file(files[rel]) if rel in files else self._send(404, {"error": "not found"})
             if path == "/healthz":
-                return self._send(200, {"ok": True})
+                # the serving revision name: ACA injects CONTAINER_APP_REVISION (measured 2026-11-28 -
+                # K_REVISION is Cloud Run's variable and stays absent here); the blue/green smoke asserts
+                # THIS field, so a traffic shift is verified against the revision that actually answers.
+                rev = os.environ.get("CONTAINER_APP_REVISION") or os.environ.get("K_REVISION") or "local"
+                return self._send(200, {"ok": True, "revision": rev})
             if path == "/readyz":
                 failed = readyz_checks(st)
                 return self._send(503 if failed else 200, {"ready": not failed, "failed": failed})

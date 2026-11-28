@@ -1,0 +1,79 @@
+# CI image lane - the URecA2.0 CI column adopted without its secrets: the build runs on GitHub
+# Actions, authenticates to Azure with OIDC workload-identity federation (github-main credential on
+# the bts-sbom-ci app registration - NO stored secret anywhere), gates the image on Trivy CRITICAL=0
+# (the same bar as scripts/supply_chain_gate.py), then pushes to ACR with the rollback tag rotation:
+# the old :latest becomes :previous on every successful build, the new one lands as :v<version>,
+# :sha-<commit> and :latest. Deploy stays out of CI on purpose: scripts/gitops_deploy.py does the
+# measured blue/green from a human-invoked lane (record -> deploy -> smoke -> promote/flip-back).
+name: CI image (ACR, OIDC federation, no secrets)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile.bts-sbom-app"
+      - "bts_sbom/**"
+      - "bts_sbom_app/**"
+      - "pyproject.toml"
+      - ".github/workflows/ci-image.yml"
+  workflow_dispatch: {}
+
+# quota discipline (kept even now the repo is public): one push = one image job; superseded runs cancel
+concurrency:
+  group: ci-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write            # the OIDC token azure/login exchanges - the whole point of this lane
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC federation, no stored secrets)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: az acr login --name "${ACR_REGISTRY%%.*}"
+        env:
+          ACR_REGISTRY: ${{ vars.ACR_REGISTRY }}
+
+      - name: Version from the single source
+        run: echo "VER=$(sed -n 's/^version = \"\([^\"]*\)\".*/\1/p' pyproject.toml | head -1)" >> "$GITHUB_ENV"
+
+      - name: Rollback tag rotation (old :latest -> :previous)
+        run: |
+          docker pull "$ACR_REGISTRY/bts-sbom-app:latest" \
+            && docker tag "$ACR_REGISTRY/bts-sbom-app:latest" "$ACR_REGISTRY/bts-sbom-app:previous" \
+            && docker push "$ACR_REGISTRY/bts-sbom-app:previous" \
+            || echo "no previous latest (first build) - :previous skipped honestly"
+
+      - name: Build
+        run: |
+          docker build -f Dockerfile.bts-sbom-app \
+            -t "$ACR_REGISTRY/bts-sbom-app:v$VER" \
+            -t "$ACR_REGISTRY/bts-sbom-app:sha-${GITHUB_SHA::7}" \
+            -t "$ACR_REGISTRY/bts-sbom-app:latest" .
+
+      - name: Trivy gate (CRITICAL = 0, same bar as the supply-chain gate)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ vars.ACR_REGISTRY }}/bts-sbom-app:v${{ env.VER }}
+          format: table
+          exit-code: "1"
+          severity: CRITICAL
+          ignore-unfixed: true
+
+      - name: Push (gate passed)
+        run: |
+          docker push "$ACR_REGISTRY/bts-sbom-app:v$VER"
+          docker push "$ACR_REGISTRY/bts-sbom-app:sha-${GITHUB_SHA::7}"
+          docker push "$ACR_REGISTRY/bts-sbom-app:latest"

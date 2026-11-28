@@ -1,0 +1,41 @@
+# Official Azure architecture icons - rasterised subset (256x256 transparent PNG)
+# Source: https://arch-center.azureedge.net/icons/Azure_Public_Service_Icons_V25.zip
+# Fetched: 2026-11-28   Tool: chrome.exe
+# Terms: Microsoft permits use of these icons in architectural diagrams, training materials,
+#        or documentation. Do not distort, crop, flip or rotate; name the product near the icon.
+# key            <- zip member
+
+container_apps     <- Azure_Public_Service_Icons/Icons/other/02884-icon-service-Worker-Container-App.svg
+container_apps_env <- Azure_Public_Service_Icons/Icons/other/02989-icon-service-Container-Apps-Environments.svg
+acr                <- Azure_Public_Service_Icons/Icons/containers/10105-icon-service-Container-Registries.svg
+storage            <- Azure_Public_Service_Icons/Icons/storage/10086-icon-service-Storage-Accounts.svg
+files              <- Azure_Public_Service_Icons/Icons/storage/10400-icon-service-Azure-Fileshares.svg
+blob               <- Azure_Public_Service_Icons/Icons/general/10780-icon-service-Blob-Block.svg
+queue              <- Azure_Public_Service_Icons/Icons/general/10840-icon-service-Storage-Queue.svg
+log_analytics      <- Azure_Public_Service_Icons/Icons/monitor/00009-icon-service-Log-Analytics-Workspaces.svg
+monitor            <- Azure_Public_Service_Icons/Icons/monitor/00001-icon-service-Monitor.svg
+app_insights       <- Azure_Public_Service_Icons/Icons/monitor/00012-icon-service-Application-Insights.svg
+alerts             <- Azure_Public_Service_Icons/Icons/management + governance/00002-icon-service-Alerts.svg
+managed_identity   <- Azure_Public_Service_Icons/Icons/identity/10227-icon-service-Managed-Identities.svg
+key_vault          <- Azure_Public_Service_Icons/Icons/security/10245-icon-service-Key-Vaults.svg
+defender           <- Azure_Public_Service_Icons/Icons/security/10241-icon-service-Microsoft-Defender-for-Cloud.svg
+openai             <- Azure_Public_Service_Icons/Icons/ai + machine learning/03438-icon-service-Azure-OpenAI.svg
+front_door         <- Azure_Public_Service_Icons/Icons/networking/10073-icon-service-Front-Door-and-CDN-Profiles.svg
+waf                <- Azure_Public_Service_Icons/Icons/networking/10362-icon-service-Web-Application-Firewall-Policies(WAF).svg
+vnet               <- Azure_Public_Service_Icons/Icons/networking/10061-icon-service-Virtual-Networks.svg
+private_link       <- Azure_Public_Service_Icons/Icons/networking/00427-icon-service-Private-Link.svg
+service_bus        <- Azure_Public_Service_Icons/Icons/integration/10836-icon-service-Azure-Service-Bus.svg
+cosmos             <- Azure_Public_Service_Icons/Icons/databases/10121-icon-service-Azure-Cosmos-DB.svg
+sql                <- Azure_Public_Service_Icons/Icons/databases/10130-icon-service-SQL-Database.svg
+backup             <- Azure_Public_Service_Icons/Icons/other/02361-icon-service-Backup-Vault.svg
+policy             <- Azure_Public_Service_Icons/Icons/management + governance/10316-icon-service-Policy.svg
+cost               <- Azure_Public_Service_Icons/Icons/general/10019-icon-service-Cost-Management.svg
+devops             <- Azure_Public_Service_Icons/Icons/devops/10261-icon-service-Azure-DevOps.svg
+api_management     <- Azure_Public_Service_Icons/Icons/devops/10042-icon-service-API-Management-Services.svg
+browser            <- Azure_Public_Service_Icons/Icons/general/10783-icon-service-Browser.svg
+resource_group     <- Azure_Public_Service_Icons/Icons/general/10007-icon-service-Resource-Groups.svg
+app_service        <- Azure_Public_Service_Icons/Icons/containers/10035-icon-service-App-Services.svg
+kubernetes         <- Azure_Public_Service_Icons/Icons/containers/10023-icon-service-Kubernetes-Services.svg
+container_instances <- Azure_Public_Service_Icons/Icons/containers/10104-icon-service-Container-Instances.svg
+function_apps      <- Azure_Public_Service_Icons/Icons/compute/10029-icon-service-Function-Apps.svg
+event_grid         <- Azure_Public_Service_Icons/Icons/integration/10206-icon-service-Event-Grid-Topics.svg
