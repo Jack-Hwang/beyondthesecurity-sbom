@@ -70,6 +70,7 @@ HANDLER_TIMEOUT = float(os.environ.get("BTS_SBOM_HANDLER_TIMEOUT", "15"))   # se
 MAX_CONNECTIONS = max(1, int(os.environ.get("BTS_SBOM_MAX_CONNECTIONS", "128")))   # accepted sockets served at once; the rest get an immediate 503
 TRUST_FORWARDED_ENV = "BTS_SBOM_TRUST_FORWARDED"                       # =1 only when a trusted proxy (the Container Apps ingress) is the TCP peer
 AUTH_FAIL_LIMIT = max(1, int(os.environ.get("BTS_SBOM_AUTH_FAIL_LIMIT", "20")))     # failed credentials per caller per window before 429 (no verification)
+HEARTBEAT_SECONDS = max(5.0, float(os.environ.get("BTS_SBOM_SSE_HEARTBEAT_SECONDS", "15")))   # C69: silent-gap SSE keep-alive interval
 AUTH_FAIL_WINDOW = max(1.0, float(os.environ.get("BTS_SBOM_AUTH_FAIL_WINDOW_SECONDS", "60")))
 MAX_CHAT_RATE_CALLERS = 4096                                  # cap on distinct caller identities tracked by State._chat_hits at once (C10 follow-up);
                                                                # stale/oldest entries are pruned first once exceeded, mirroring MAX_BUSES/_prune_buses above
@@ -376,23 +377,26 @@ class State:
         d["saved"] = os.path.exists(self._llm_config_path())
         return d
 
-    def bot(self) -> chatmod.Chatbot:
+    def bot(self, trace_id: Optional[str] = None) -> chatmod.Chatbot:
         projs = load_projects(self.evidence)
         client = self.client if self.client.available else None
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
         return chatmod.Chatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
                                projs, client, acts, self.triage(),
                                arch_dir=os.path.join(self.evidence, "archintel"), books=self.books_index(),
-                               memory=self.chat_memory, db_path=self.db_path(), escalations=self.evidence)
+                               memory=self.chat_memory, db_path=self.db_path(), escalations=self.evidence,
+                               trace_id=trace_id)
 
-    def stream_bot(self, sink: Any) -> chat_stream.StreamingChatbot:
-        """The same wiring as :meth:`bot`, as the observing subclass: the 7 chat-level events go to ``sink``."""
+    def stream_bot(self, sink: Any, cancelled: Optional[Any] = None, trace_id: Optional[str] = None) -> chat_stream.StreamingChatbot:
+        """The same wiring as :meth:`bot`, as the observing subclass: the 7 chat-level events go to ``sink``.
+        ``cancelled`` (C32) is the reader-gone predicate; ``trace_id`` (C25) rides into escalations and the final event."""
         projs = load_projects(self.evidence)
         client = self.client if self.client.available else None
         acts = actionsmod.ChatActions(self.root, self.evidence, client=client) if self.chat_actions else None
         return chat_stream.StreamingChatbot(evals.build_index(self.root, evidence_chunks(projs) + books.load_notes(self.root)),
                                             projs, client, acts, self.triage(), arch_dir=os.path.join(self.evidence, "archintel"), db_path=self.db_path(),
-                                            books=self.books_index(), memory=self.chat_memory, sink=sink, escalations=self.evidence)
+                                            books=self.books_index(), memory=self.chat_memory, sink=sink, escalations=self.evidence,
+                                            cancelled=cancelled, trace_id=trace_id)
 
     def triage(self) -> Dict[str, Any]:
         with self.lock:
@@ -979,7 +983,7 @@ def make_handler(st: State):
                                           headers={"Retry-After": "60"})
                     return self._send(429, {"error": "another background job is running on this single-replica service - retry shortly",
                                             "job": None}, headers={"Retry-After": "30"})
-                st.jobs[jid] = {"state": "running", "source": src}
+                st.jobs[jid] = {"state": "running", "source": src, "trace": self._cid}
                 bus = events.EventBus(jid)
                 _prune_buses(st.buses, MAX_BUSES - 1)
                 st.buses[jid] = bus                                   # registered before the thread starts: an immediate GET .../events never 404s
@@ -1056,7 +1060,7 @@ def make_handler(st: State):
                 if release is None:
                     return
                 try:
-                    res = st.bot().ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
+                    res = st.bot(trace_id=self._cid).ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
                 finally:
                     release()
                 _annotate_budget_note(res, st.client)        # C33: budget tier -> the existing llm_note field
@@ -1069,26 +1073,49 @@ def make_handler(st: State):
                 release = self._chat_admit()                # C10: concurrency cap + per-caller rate limit
                 if release is None:
                     return
+                wlock = threading.Lock()                    # C69: the frame writer and the heartbeat share one socket
+                gone = threading.Event()                    # C32: set when a write learns the reader left
+
+                def _w(raw: bytes) -> bool:
+                    try:
+                        with wlock:
+                            self.wfile.write(raw)
+                            self.wfile.flush()
+                        return True
+                    except (BrokenPipeError, ConnectionResetError, OSError):
+                        gone.set()                          # the turn's remaining tools are cancelled from here
+                        return False
                 try:
                     self.send_response(200)
                     self.send_header("Content-Type", "text/event-stream; charset=utf-8")
                     self.send_header("Cache-Control", "no-store")
                     self.send_header("X-Content-Type-Options", "nosniff")
+                    self.send_header("X-Correlation-ID", self._cid)    # C25: the same id the final event carries
                     self.end_headers()
+
+                    stop_beat = threading.Event()
+
+                    def beat() -> None:                     # C69: SSE comment lines during long silent gaps (a slow LLM
+                        while not stop_beat.wait(HEARTBEAT_SECONDS):   # call, say) keep proxies from cutting the stream
+                            if not _w(b": heartbeat\n\n"):
+                                return
+
+                    beat_t = threading.Thread(target=beat, daemon=True)
+                    beat_t.start()
 
                     def sink(ev: Dict[str, Any]) -> None:      # live flush per event; a gone reader must not fail the turn
                         if ev.get("kind") == "final":
                             _annotate_budget_note(ev, st.client)    # C33
-                        try:
-                            self.wfile.write(chat_stream.format_stream_sse(ev).encode("utf-8"))
-                            self.wfile.flush()
-                        except (BrokenPipeError, ConnectionResetError, OSError):
-                            pass
+                        _w(chat_stream.format_stream_sse(ev).encode("utf-8"))
 
                     try:
-                        st.stream_bot(sink).ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
+                        st.stream_bot(sink, cancelled=gone.is_set, trace_id=self._cid) \
+                          .ask(q, project=b.get("project"), use_llm=bool(b.get("use_llm")))
                     except Exception:                          # noqa: BLE001 - the bot already emitted its fatal error envelope
                         pass
+                    finally:
+                        stop_beat.set()
+                        beat_t.join(timeout=2)
                 finally:
                     release()
                 return
@@ -1111,7 +1138,7 @@ def make_handler(st: State):
                                           headers={"Retry-After": "60"})
                     return self._send(429, {"error": "another background job is running on this single-replica service - retry shortly"},
                                       headers={"Retry-After": "30"})
-                st.jobs[jid] = {"state": "running", "kind": "reimpl", "source": src, "component": comp}
+                st.jobs[jid] = {"state": "running", "kind": "reimpl", "source": src, "component": comp, "trace": self._cid}
                 bus = events.EventBus(jid)
                 _prune_buses(st.buses, MAX_BUSES - 1)
                 st.buses[jid] = bus

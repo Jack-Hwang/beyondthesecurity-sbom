@@ -23,7 +23,7 @@ import hashlib
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import __version__, escalation as escmod, gaps as gapsmod, actions as actionsmod, ai, conformance, conversation, coverage as coverage_mod, fleet, licenses, pii_guard, promptreg as promptregmod, rag, sbom, triage, workspace
 from .llm import ChatClient, LLMError, LLMUnavailable
@@ -1113,7 +1113,8 @@ def parse_decision(q: str) -> Optional[Dict[str, str]]:
 class Chatbot:
     def __init__(self, index: rag.Index, projects: Optional[Dict[str, Dict[str, Any]]] = None, client: Optional[ChatClient] = None,
                  actions: Any = None, triage_store: Optional[Dict[str, Any]] = None, arch_dir: Optional[str] = None,
-                 books: Any = None, memory: Optional[Any] = None, db_path: Optional[str] = None, escalations: Optional[str] = None):
+                 books: Any = None, memory: Optional[Any] = None, db_path: Optional[str] = None, escalations: Optional[str] = None,
+                 cancelled: Optional[Callable[[], bool]] = None, trace_id: Optional[str] = None):
         self.index = index
         self.projects = projects or {}
         self.client = client
@@ -1125,6 +1126,9 @@ class Chatbot:
         self.db_path = db_path                        # the local OSV database path, for the nl2sql tool                            # the serve-time book index (rag.Index, kind="books"), for book_search
         self.memory = memory                          # conversation memory (conversation.ConversationMemory), shared by the server's State
         self.escalations = escalations                # the evidence folder that holds escalations.jsonl (None = escalations are returned, not logged)
+        self.cancelled = cancelled                    # C32: a callable checked BETWEEN tool calls; None = never cancelled (tests / CLI)
+        self.trace_id = trace_id                      # C25: the request correlation id that rides into escalation entries
+        self.turn_cancelled = False                   # set inside _run when the callable fired; ask() turns it into status "cancelled"
 
     def _no_client_note(self, use_llm: bool) -> str:
         """Honesty: when EXAONE was requested but there is no client, say so instead of silently answering extractively."""
@@ -1272,9 +1276,20 @@ class Chatbot:
     def _run(self, rec: Optional[Dict[str, Any]], calls: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """One failing tool call must never drop the other results of the same turn (C02, 4주차 '에러 전파 -
         전체 종료는 안티패턴'): each call is isolated in its own try/except, and an unhandled
-        exception becomes one structured error passage instead of aborting the rest of the plan."""
+        exception becomes one structured error passage instead of aborting the rest of the plan.
+
+        C32: when a ``cancelled`` callable was supplied and it fires BETWEEN two calls, the remaining calls are
+        NOT run - the caller (a disconnected SSE reader, say) is gone, so spending its LLM/tool budget is waste.
+        The skipped calls become honest ``cancelled`` result rows (never silently dropped), and the turn reports
+        ``status: cancelled``."""
         out: List[Dict[str, Any]] = []
         for c in calls:
+            if self.cancelled is not None and self.cancelled():
+                self.turn_cancelled = True
+                out.append({"tool": c["tool"], "source": "cancelled:%s" % c["tool"],
+                            "lines": ["[cancelled] 이 도구는 호출이 취소되어 실행되지 않았다 - 여기까지의 부분 결과만 응답에 반영된다."],
+                            "trust": "untrusted-quote", "cancelled": True})
+                break
             try:
                 produced = run_tool(rec, c["tool"], c["args"], self.projects, self.actions, self.triage_store, self.arch_dir, self.books, self.client, self.db_path)
             except Exception as exc:
@@ -1359,7 +1374,8 @@ class Chatbot:
         coverage gaps into ``evidence_refs.root_cause`` (week 5 lesson 1 D1.4: a handoff summary names the root cause,
         not just the question) - backward compatible, ``rec`` stays optional and keyword-only on the receiving end."""
         rec = self._pick_project(asked, project)
-        payload = escmod.build(kind, asked, rec["name"] if rec else project, attempted, misses=misses, rec=rec)
+        payload = escmod.build(kind, asked, rec["name"] if rec else project, attempted, misses=misses, rec=rec,
+                               trace_id=self.trace_id)
         try:
             payload = escmod.record(self.escalations, payload) if self.escalations else dict(payload, logged=False, duplicate=False)
         except OSError as exc:
@@ -1475,7 +1491,8 @@ class Chatbot:
         meta = {"routing": routing, "routing_note": routing_note, "plan_dropped": plan_dropped,
                 "followup": followup, "decomposed": parts if len(parts) > 1 else [],
                 "injection": conversation.scan_injection(docs),
-                "status": "partial" if tool_errors else "complete", "tool_errors": tool_errors,
+                "status": "cancelled" if self.turn_cancelled else ("partial" if tool_errors else "complete"),
+                "cancelled": bool(self.turn_cancelled), "tool_errors": tool_errors,
                 "versions": self._versions()}
         if rec is not None:
             meta["coverage"] = gapsmod.summary(rec)         # partial results carry their gap annotation (week 5-4 / 6-1), never a bare "found"

@@ -260,6 +260,12 @@
       h += note('<b>[conflict]</b> ' + esc(c.label) + ': ' + esc(c.a.value) + ' (' + esc(c.a.source) + ') vs ' +
         esc(c.b.value) + ' (' + esc(c.b.source) + ') - the sources disagree; the judgement stays with you.', 'warn');
     });
+    if (fin.cancelled) {                                   // C32: the turn stopped early because the reader left
+      h += note('<b>[취소됨]</b> 연결이 끊겨 남은 도구 호출을 중단했다 - 여기까지의 부분 결과만 표시된다.', 'warn');
+    }
+    if (fin.trace_id) {                                    // C25: one id across the request, this stream and any escalation
+      h += '<div class="bts-chat-src">trace ' + esc(fin.trace_id) + '</div>';
+    }
     h += (U && U.chatExtras) ? U.chatExtras(fin) : '';   // handoff / clarification / partial coverage / partial turn / reviewer notes / version stamp
     /* A2UI-style UI cards (docs/A2UI_INTEGRATION.md): data-only payloads from the server's card catalog,
        string-rendered with esc() like every other dynamic value - a card cannot carry markup, scripts or

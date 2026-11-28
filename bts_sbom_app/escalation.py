@@ -111,7 +111,7 @@ _NEXT = {
 
 
 def build(kind: str, question: str, project: Optional[str], attempted: Iterable[Dict[str, Any]] = (), *, misses: int = 0,
-          rec: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+          rec: Optional[Dict[str, Any]] = None, trace_id: Optional[str] = None) -> Dict[str, Any]:
     """The structured handoff payload (``bts-sbom.escalation.v1``). ``kind`` is a key of DESTINATION (e.g. ``policy_gap:legal``).
 
     ``rec`` is the optional analysed project record of ``project`` (week 5 lesson 1 D1.4: a handoff summary names the
@@ -142,11 +142,14 @@ def build(kind: str, question: str, project: Optional[str], attempted: Iterable[
         root_cause = gaps.of(rec)
         if root_cause:
             evidence_refs["root_cause"] = root_cause
-    return {"schema": SCHEMA, "id": "E-" + h, "trigger": trigger, "kind": kind, "destination": DESTINATION[kind], "project": project,
-            "summary": summary, "triggering_question": q, "triggering_question_trust": "untrusted-quote",
-            "attempted_actions": [{"tool": str(a.get("tool")), "lines": int(a.get("lines") or 0)} for a in attempted],
-            "suggested_next_step": _NEXT[kind], "evidence_refs": evidence_refs,
-            "status": "open", "resolution": None}
+    payload: Dict[str, Any] = {"schema": SCHEMA, "id": "E-" + h, "trigger": trigger, "kind": kind, "destination": DESTINATION[kind], "project": project,
+                               "summary": summary, "triggering_question": q, "triggering_question_trust": "untrusted-quote",
+                               "attempted_actions": [{"tool": str(a.get("tool")), "lines": int(a.get("lines") or 0)} for a in attempted],
+                               "suggested_next_step": _NEXT[kind], "evidence_refs": evidence_refs,
+                               "status": "open", "resolution": None}
+    if trace_id:                                                  # C25: the HTTP correlation id of the turn that raised it
+        payload["trace_id"] = str(trace_id)[:64]
+    return payload
 
 
 def validate(p: Dict[str, Any]) -> List[str]:
