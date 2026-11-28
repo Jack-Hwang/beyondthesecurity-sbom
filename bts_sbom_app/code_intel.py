@@ -791,3 +791,68 @@ def dossier(r: Dict[str, Any], name: str) -> Optional[Dict[str, Any]]:
             "callers": [{"name": c.split("::")[-1], "file": c.split("::")[0]} for c in callers],
             "callees": [{"name": c.split("::")[-1], "file": c.split("::")[0]} for c in callees],
             "clone_groups": clone_groups}
+
+
+def metrics_envelope_file(src_path: str) -> Dict[str, Any]:
+    """The measured behavioral envelope of ONE file: per-function shape facts (sizes, complexity
+    flavours, statement counts, Halstead volume) and the file totals. Numbers only - no source text,
+    no identifiers beyond the function names and their parameter counts - so the envelope can ride the
+    clean-room SPEC channel as structure-is-contract (the same channel the UML design view uses)."""
+    with open(src_path, "r", encoding="utf-8", errors="replace") as fh:
+        src = fh.read()
+    lines = src.splitlines()
+    tree = ast.parse(src)
+    rows: List[Dict[str, Any]] = []
+    for node in tree.body:                                  # top-level functions and class methods
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            cls = ""
+            who = [node]
+        elif isinstance(node, ast.ClassDef):
+            cls = node.name
+            who = [n for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        else:
+            continue
+        for fn in who:
+            decisions = _decisions(fn)
+            h = _halstead(fn)
+            rows.append({"name": (cls + "." if cls else "") + fn.name, "params": len(fn.args.args),
+                         "complexity": _complexity(fn), "essential": _essential(fn),
+                         "stmt_total": _stmt_counts(fn)["stmt_total"], "eloc": _eloc(fn, lines),
+                         "halstead_volume": h["volume"], "knots": _knots(fn),
+                         "decisions": decisions, "path_count": min(2 ** decisions, 65536)})
+    return {"schema": "bts-sbom.metrics-envelope.v1",
+            "functions": rows,
+            "totals": {"functions": len(rows),
+                       "complexity": sum(x["complexity"] for x in rows),
+                       "essential": sum(x["essential"] for x in rows),
+                       "stmt_total": sum(x["stmt_total"] for x in rows),
+                       "eloc": sum(x["eloc"] for x in rows),
+                       "halstead_volume": round(sum(x["halstead_volume"] for x in rows), 1),
+                       "knots": sum(x["knots"] for x in rows),
+                       "path_count": sum(x["path_count"] for x in rows)}}
+
+
+def envelope_spec_section(env: Dict[str, Any]) -> str:
+    """The Wall-1 -> Wall-2 metrics view: the measured behavioral envelope as spec text. The section
+    states its own clean-room rule - the numbers describe SHAPE (sizes and control-flow), never source
+    text, and a matching implementation is free to reach the same shape any honest way."""
+    rows = env.get("functions") or []
+    t = env.get("totals") or {}
+    if not rows:
+        return ""
+    out = ["", "## Behavioral envelope (measured metrics of the reference - structure facts only)",
+           "",
+           "The numbers below describe the SHAPE of each public function (sizes, control-flow effort, "
+           "computational density). They are facts about behavior, not source text: reach the same "
+           "shape any honest way - the numbers are a fidelity target, not a transcription.",
+           "",
+           "file totals: functions=%(functions)d complexity=%(complexity)d essential=%(essential)d "
+           "statements=%(stmt_total)d eLOC=%(eloc)d halstead_volume=%(halstead_volume)s knots=%(knots)d "
+           "paths=%(path_count)d" % t,
+           "",
+           "| function | params | complexity | essential | stmts | eLOC | halstead_volume | knots | paths |",
+           "|---|---|---|---|---|---|---|---|---|"]
+    for x in rows:
+        out.append("| {name} | {params} | {complexity} | {essential} | {stmt_total} | {eloc} | "
+                   "{halstead_volume} | {knots} | {path_count} |".format(**x))
+    return "\n".join(out)

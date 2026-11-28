@@ -5,7 +5,8 @@ dossier, and Understand-style changed-entities snapshot diffing - all with hand-
 AC: BSA-AC-1274 (extended function metrics + entity inventory), AC: BSA-AC-1275 (chains, cycles incl.
 self-recursion, hierarchy DIT/NOC, file deps, the dossier, and the changed-entities snapshot diff),
 AC: BSA-AC-1278 (the Understand-catalog tier: three cyclomatic flavours, statement and line taxonomies,
-CountInput/Output, LCOM, CBO)."""
+CountInput/Output, LCOM, CBO), AC: BSA-AC-1279 (the behavioral envelope: one file -> shape facts + totals,
+the spec section that carries numbers without source text, and the scaffold-lane spec assertion)."""
 from __future__ import annotations
 
 import os
@@ -227,3 +228,55 @@ def test_understand_catalog_metrics_lcom_and_cbo(tmp_path):
     assert rows["Car"]["cbo"] == 1 and rows["Car"]["lcom"] == 0      # m=1 d=1 reach=1: fully cohesive by the formula
     assert rows["Motor"]["lcom"] is None                            # no methods, no attrs: undefined
     assert rows["Motor"]["cbo"] == 0
+
+
+def test_metrics_envelope_file_and_spec_section(tmp_path):
+    """AC: BSA-AC-1279. The behavioral envelope: one file -> per-function shape facts + totals, and the
+    spec section renders numbers only. Wall-2 honesty: the section carries NO source text - no
+    statement bodies, no keywords from the implementation - just names, counts and derived values."""
+    src = "\n".join([
+        "def widen(items):",
+        "    total = 0",
+        "    for i in items:",
+        "        if i > 0 and i < 9:",
+        "            total += i",
+        "    return total",
+        "",
+        "",
+        "def shallow(x):",
+        "    return x",
+    ]) + "\n"
+    f = tmp_path / "shape.py"
+    f.write_text(src, encoding="utf-8")
+    env = code_intel.metrics_envelope_file(str(f))
+    widen = next(x for x in env["functions"] if x["name"] == "widen")
+    assert widen["complexity"] == 4 and widen["essential"] == 2 and widen["stmt_total"] == 5
+    assert widen["knots"] == 0 and widen["eloc"] == 6 and widen["params"] == 1
+    assert widen["path_count"] == 8
+    assert env["totals"]["functions"] == 2 and env["totals"]["eloc"] == 8   # widen 6 + shallow 2
+    sec = code_intel.envelope_spec_section(env)
+    assert "Behavioral envelope" in sec and "widen" in sec and "| shallow | 1 |" in sec
+    # wall-2 honesty: implementation TEXT never rides the spec channel
+    assert "total += i" not in sec and "for i in items" not in sec and "def widen" not in sec
+    assert "return x" not in sec.replace("reach the same shape any honest way", "")
+
+
+def test_reimpl_spec_carries_the_envelope_without_source_text(tmp_path):
+    """AC: BSA-AC-1279. Even the scaffold lane writes the spec - assert the envelope section landed in
+    the spec.md and the original source text did not."""
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    (src_dir / "widener.py").write_text(
+        "def widen(items):\n    total = 0\n    for i in items:\n        if i > 0:\n            total += i\n    return total\n",
+        encoding="utf-8")
+    out = tmp_path / "out"
+    res = code_intel_reimpl_run(str(src_dir), "widener.py", str(out))
+    spec = (out / "spec.md").read_text(encoding="utf-8")
+    assert "Behavioral envelope" in spec and "| widen | 1 | 3 | 1 | 5 | 6 |" in spec
+    assert "total += i" not in spec and "for i in items" not in spec
+    assert res["metrics_envelope"]["totals"]["complexity"] == 3
+
+
+def code_intel_reimpl_run(source_root, component, out_dir):
+    from bts_sbom_app import reimpl
+    return reimpl.reimpl(source_root, component, out_dir, client=None, attempts=1)

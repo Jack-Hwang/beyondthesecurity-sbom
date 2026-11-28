@@ -27,7 +27,7 @@ import subprocess
 import sys
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from . import __version__, arch_map, uml_design
+from . import __version__, arch_map, code_intel, uml_design
 from .binscan import _LICENSE_STRINGS
 
 SCHEMA = "bts-sbom.reimpl.v1"
@@ -586,6 +586,16 @@ def reimpl(source_root: str, component: str, out_dir: str, *, client: Any = None
         design_view = uml_design.spec_section({"diagrams": res["uml"].get("diagrams") or {}})
         if design_view:
             spec += design_view                                # structure is contract: the measured shape rides the spec channel
+    try:
+        env = code_intel.metrics_envelope_file(src_path)
+        env_section = code_intel.envelope_spec_section(env)
+    except (OSError, SyntaxError, ValueError):
+        env_section = ""                                       # unparsable original: no envelope, stated at wall 1
+    if env_section:
+        spec += env_section                                    # numbers are shape facts: same channel, same rule
+        res["metrics_envelope"] = {"totals": env["totals"], "functions": len(env["functions"])}
+        _emit(progress, "metrics_ready", functions=len(env["functions"]),
+              total_complexity=env["totals"]["complexity"])
     if pack and res.get("patterns"):
         section = patterns_section(pack)
         if section:
