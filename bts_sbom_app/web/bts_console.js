@@ -992,9 +992,10 @@
   var IR_STAGES = { intake: '접수', interview: '초동', evidence: '증거수집', analysis: '원인분석', report: '보고서', closed: '종결' };
   function irBadge(r) {
     var b = [];
-    if (r.sla.assign_breach) { b.push('<span class="bts-pill bad">담당자 SLA 초과</span>'); }
-    if (r.sla.analysis_breach) { b.push('<span class="bts-pill bad">7일 SLA 초과</span>'); }
-    if (r.sla.long_stalled) { b.push('<span class="bts-pill warn">장기 미완료</span>'); }
+    var sla = r.sla || {};
+    if (sla.assign_breach) { b.push('<span class="bts-pill bad">담당자 SLA 초과</span>'); }
+    if (sla.analysis_breach) { b.push('<span class="bts-pill bad">7일 SLA 초과</span>'); }
+    if (sla.long_stalled) { b.push('<span class="bts-pill warn">장기 미완료</span>'); }
     if (!r.assignee) { b.push('<span class="bts-pill warn">미배정</span>'); }
     return b.join(' ');
   }
@@ -1030,12 +1031,15 @@
         '<button type="button" class="bts-mini" data-act="ir-close" data-id="' + esc(r.id) + '">종결</button>' : '') +
         '<a class="bts-mini" href="/api/incidents/' + esc(r.id) + '/report?kind=intake" download>초동 보고서</a>' +
         '<a class="bts-mini" href="/api/incidents/' + esc(r.id) + '/report?kind=cause" download>원인분석 보고서</a>' +
-        '<a class="bts-mini" href="/api/incidents/' + esc(r.id) + '/checklist?env=web" download>체크리스트</a>' +
+        '<a class="bts-mini" href="/api/incidents/' + esc(r.id) + '/checklist?env=' + esc((r.envs && r.envs[0]) || 'other') + '" download>체크리스트</a>' +
         '<button type="button" class="bts-mini" data-act="ir-impact" data-id="' + esc(r.id) + '">SBOM 대조</button></div>' +
         '<div class="bts-actions"><input id="irIocV_' + esc(r.id) + '" placeholder="IoC 값 (패키지명·해시·IP·C2)" style="flex:1;min-width:200px"> ' +
         '<select id="irIocT_' + esc(r.id) + '"><option value="package">package</option><option value="hash">hash</option><option value="ip">ip</option><option value="c2">c2</option><option value="domain">domain</option></select> ' +
         '<button type="button" class="bts-mini" data-act="ir-ioc" data-id="' + esc(r.id) + '">IoC 등록</button>' +
         '<button type="button" class="bts-mini" data-act="ir-impact" data-id="' + esc(r.id) + '">교차조회</button></div>' +
+        '<div class="bts-actions"><select id="irFKey_' + esc(r.id) + '"><option value="interview">초동 인터뷰</option><option value="initial">초기 판단</option><option value="plan">분석 계획</option><option value="entry">침투 경로</option><option value="actions">공격 행위</option><option value="scope">피해 범위</option><option value="cause">원인 분석</option><option value="response">대응 방안</option><option value="detection">식별 기준</option></select></div>' +
+        '<textarea id="irFVal_' + esc(r.id) + '" rows="3" placeholder="보고서 입력란 - 채우지 않은 칸은 미확인으로 나간다" style="width:100%"></textarea>' +
+        '<div class="bts-actions"><button type="button" class="bts-mini" data-act="ir-findings" data-id="' + esc(r.id) + '">입력란 저장</button></div>' +
         '<div id="irImpact_' + esc(r.id) + '"></div></div>';
     });
     box.innerHTML = h;
@@ -1046,7 +1050,7 @@
   function irImpact(id) {
     var box = $('#irImpact_' + id);
     if (box) { box.innerHTML = note('교차조회 중…'); }
-    api('/api/incidents/' + id + '/sbom-impact', {}).then(function (r) {
+    api('/api/incidents/' + id + '/sbom-impact').then(function (r) {
       if (!box) { return; }
       if (!r.ok) { box.innerHTML = note(esc((r.data && r.data.error) || 'failed'), 'bad'); return; }
       var h = '';
@@ -1065,8 +1069,18 @@
       body = { org: $('#irOrg').value.trim(), title: $('#irTitle').value.trim(), assignee: $('#irAssignee').value.trim(), source: $('#irSrc').value };
     } else if (act === 'ir-ioc') {
       body = { value: $('#irIocV_' + id).value.trim(), type: $('#irIocT_' + id).value };
+    } else if (act === 'ir-findings') {
+      var fk = $('#irFKey_' + id), fv = $('#irFVal_' + id);
+      if (!fk || !fv || !fv.value.trim()) { return; }
+      var pbody = {};
+      pbody[fk.value] = fv.value.trim();
+      api('/api/incidents/' + id + '/findings', pbody).then(function (r) {
+        if (r.ok && fv) { fv.value = ''; }
+      });
+      return;
     }
-    var url = act === 'ir-create' ? '/api/incidents' : ('/api/incidents/' + id + '/' + act.slice(3));
+    var seg = { 'ir-advance': 'advance', 'ir-close': 'close', 'ir-ioc': 'iocs', 'ir-create': '' }[act] || act.slice(3);
+    var url = act === 'ir-create' ? '/api/incidents' : ('/api/incidents/' + id + '/' + seg);
     api(url, body).then(function (r) {
       if (!r.ok) { var box = $('#paneIr'); if (box) { box.insertAdjacentHTML('afterbegin', note(esc((r.data && r.data.error) || 'failed'), 'bad')); } return; }
       loadIrPane();
@@ -1246,6 +1260,7 @@
     else if (act === 'triage-save') { saveDecision(); }
     else if (act === 'affected') { searchAffected(); }
     else if (act === 'open') { selectProject(t.getAttribute('data-name')).then(function () { activate('risk'); }); }
+    else if (act === 'ir-create') { irAction('ir-create', ''); }
     else if (act.slice(0, 3) === 'ir-' && t.getAttribute('data-id')) {
       var iid = t.getAttribute('data-id');
       if (act === 'ir-impact') { irImpact(iid); }

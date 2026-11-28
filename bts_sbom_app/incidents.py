@@ -48,6 +48,7 @@ LONG_STALL_DAYS = 14.0           # 장기 미완료 경계
 ENVS = ("web", "db", "app", "mobile-iot", "other")
 SOURCES = ("ioc", "report", "agency", "customer", "other")
 IOC_TYPES = ("hash", "ip", "c2", "domain", "package")
+IOC_CAP = 50                                  # per incident: the cross-check is O(IoCs x components), keep it bounded
 _LIMITS = {"org": 120, "title": 200, "assignee": 80, "reason": 500, "eta": 40, "ioc": 256,
            "field": 4000, "score_max": 5}
 
@@ -123,6 +124,15 @@ def _parse(ts: Optional[str]) -> Optional[datetime.datetime]:
 
 
 def sla_view(rec: Dict[str, Any], now: Optional[datetime.datetime] = None) -> Dict[str, Any]:
+    """A torn/hand-edited record degrades to all-false clocks (the row stays listed, never crashes the list)."""
+    try:
+        return _sla_view(rec, now)
+    except (TypeError, ValueError):
+        return {"assign_breach": False, "analysis_breach": False, "long_stalled": False,
+                "due_at": rec.get("due_at"), "assignee": rec.get("assignee") or ""}
+
+
+def _sla_view(rec: Dict[str, Any], now: Optional[datetime.datetime] = None) -> Dict[str, Any]:
     """The RFP's clocks for one incident, computed - never remembered:
     assign_breach  접수 후 1일 내 담당자 미지정
     analysis_breach 증거수집 완료 후 7일 내 보고서 단계 미도달
@@ -224,8 +234,8 @@ def advance_incident(evidence: str, iid: str, body: Dict[str, Any], now: Optiona
     if assignee and not rec.get("assignee"):
         rec["assignee"] = assignee
         rec["assigned_at"] = ts
-    if prev_stage == "evidence" and body.get("collection_complete"):
-        # 증거수집 완료 후 7일 이내: the clock starts when the evidence stage is left complete
+    if prev_stage == "evidence":
+        # 증거수집 완료 후 7일 이내: the clock starts when the lane leaves the evidence stage (the RFP default)
         rec["evidence_done_at"] = ts
         due = now + datetime.timedelta(days=ANALYSIS_SLA_DAYS)
         rec["due_at"] = due.isoformat(timespec="seconds")
@@ -234,7 +244,7 @@ def advance_incident(evidence: str, iid: str, body: Dict[str, Any], now: Optiona
         sat = body.get("satisfaction")
         if isinstance(sat, dict):
             score = sat.get("score")
-            rec["satisfaction"] = {"score": int(score) if isinstance(score, int) and 0 <= score <= _LIMITS["score_max"] else None,
+            rec["satisfaction"] = {"score": int(score) if type(score) is int and 0 <= score <= _LIMITS["score_max"] else None,
                                    "comments": str(sat.get("comments") or "")[:_LIMITS["field"]]}
     note = str(body.get("note") or "").strip()[:_LIMITS["reason"]]
     if note:
@@ -260,6 +270,27 @@ def record_delay(evidence: str, iid: str, body: Dict[str, Any], now: Optional[da
 
 
 # --------------------------------------------------------------------------- IoC + supply-chain cross-check
+FINDING_KEYS = ("interview", "initial", "plan", "entry", "actions", "scope", "cause", "response", "detection")
+
+
+def record_findings(evidence: str, iid: str, body: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """보고서 입력란 기록: 알려진 키만 반영(부분 갱신), 값은 길이 한도 안에서 그대로 저장 - 빈 칸은 미확인으로 렌더된다."""
+    rec = _load(evidence, iid)
+    if rec is None:
+        return None, "unknown incident"
+    changed = 0
+    f = rec.setdefault("findings", {})
+    for k, v in (body or {}).items():
+        if k not in FINDING_KEYS:
+            continue
+        f[k] = str(v or "").strip()[:_LIMITS["field"]]
+        changed += 1
+    if not changed:
+        return None, "반영할 필드가 없다 - %s 중 하나로 보내야 한다" % (FINDING_KEYS,)
+    _save(evidence, rec)
+    return rec, None
+
+
 def add_ioc(evidence: str, iid: str, body: Dict[str, Any], now: Optional[datetime.datetime] = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     now = now or datetime.datetime.now(datetime.timezone.utc)
     rec = _load(evidence, iid)
@@ -276,11 +307,28 @@ def add_ioc(evidence: str, iid: str, body: Dict[str, Any], now: Optional[datetim
     if typ in ("ip",) and not re.fullmatch(r"(\d{1,3}\.){3}\d{1,3}|[0-9a-fA-F:]{2,45}", value):
         return None, "ip IoC는 IPv4/IPv6 형태다"
     entry = {"type": typ, "value": value, "added_at": now.isoformat(timespec="seconds")}
-    if any(x.get("type") == typ and x.get("value").lower() == value.lower() for x in rec.get("iocs") or []):
+    existing = rec.get("iocs") or []
+    if len(existing) >= IOC_CAP:
+        return None, "사고당 IoC는 %d개까지다" % IOC_CAP
+    if any(x.get("type") == typ and str(x.get("value") or "").lower() == value.lower() for x in existing):
         return rec, None                                        # idempotent duplicate: keep the first stamp
     rec.setdefault("iocs", []).append(entry)
     _save(evidence, rec)
     return rec, None
+
+
+def _component_hashes(c: Dict[str, Any]) -> List[str]:
+    """Every recorded checksum of one component, prefix-stripped (sha256:... -> the bare hex)."""
+    out = []
+    for h in c.get("hashes") or []:
+        v = str(h.get("content") or "") if isinstance(h, dict) else str(h)
+        v = v.split(":", 1)[1] if ":" in v else v
+        if v:
+            out.append(v.lower())
+    if c.get("checksum"):
+        v = str(c["checksum"])
+        out.append((v.split(":", 1)[1] if ":" in v else v).lower())
+    return out
 
 
 def sbom_impact(evidence: str, iid: str) -> Dict[str, Any]:
@@ -291,46 +339,75 @@ def sbom_impact(evidence: str, iid: str) -> Dict[str, Any]:
     rec = _load(evidence, iid)
     if rec is None:
         return {"error": "unknown incident"}
-    from .server import project_records                       # local import: server imports this module's siblings
-    from .fleet import canon_name
-    projects = {n: r for n, (f, r) in project_records(evidence).items()}
+    try:
+        from .server import project_records                   # local import: server imports this module's siblings
+        from .fleet import canon_name
+        projects = {n: r for n, (f, r) in project_records(evidence).items()}
+    except Exception as exc:                                  # noqa: BLE001 - degrade honestly, never 500
+        return {"id": rec["id"], "iocs": len(rec.get("iocs") or []), "matches": [], "unmatched": [],
+                "error": "교차조회 불가: %s" % exc}
+    comps: List[Dict[str, Any]] = []                          # canon-indexed once per call, not per IoC
+    for pname, rec2 in projects.items():
+        for c in rec2.get("components") or []:
+            comps.append({"project": pname, "record": rec2, "component": c,
+                          "canon": canon_name(str(c.get("name") or "").lower())})
+    hashes: Dict[str, Dict[str, Any]] = {}
+    for e in comps:
+        for hv in _component_hashes(e["component"]):
+            hashes[hv] = e
     hits: List[Dict[str, Any]] = []
     unmatched: List[Dict[str, str]] = []
     for ioc in rec.get("iocs") or []:
         typ, value = ioc.get("type"), str(ioc.get("value") or "")
+        matched = False
         if typ == "package":
-            canon = canon_name(value)
-            for pname, rec2 in projects.items():
-                for c in rec2.get("components") or []:
-                    if canon_name(str(c.get("name") or "")) == canon:
-                        adv = sorted({str(v.get("id")) for v in (rec2.get("vulns") or [])
-                                      if canon_name(str(v.get("package") or "")) == canon})
-                        hits.append({"ioc": value, "project": pname, "component": c.get("name"),
-                                     "version": c.get("version"), "advisories": adv})
-            if not any(h.get("ioc") == value for h in hits):
+            canon = canon_name(value.lower())
+            for e in comps:
+                if e["canon"] != canon:
+                    continue
+                adv = sorted({str(v.get("id")) for v in (e["record"].get("vulns") or [])
+                              if canon_name(str(v.get("package") or "").lower()) == canon})
+                hits.append({"ioc": value, "type": typ, "project": e["project"],
+                             "component": e["component"].get("name"), "version": e["component"].get("version"),
+                             "advisories": adv})
+                matched = True
+            if not matched:
                 unmatched.append({"type": typ, "value": value, "reason": "스캔된 프로젝트의 컴포넌트에 없다"})
         elif typ == "hash":
-            matched = False
-            for pname, rec2 in projects.items():
-                for c in rec2.get("components") or []:
-                    ch = str((c.get("hashes") or [{}])[0].get("content") or "") if isinstance(c.get("hashes"), list) else str(c.get("checksum") or "")
-                    if ch and ch.lower() == value.lower():
-                        hits.append({"ioc": value, "project": pname, "component": c.get("name"),
-                                     "version": c.get("version"), "advisories": []})
-                        matched = True
-            if not matched:
+            e = hashes.get(value.lower())
+            if e is not None:
+                hits.append({"ioc": value, "type": typ, "project": e["project"],
+                             "component": e["component"].get("name"), "version": e["component"].get("version"),
+                             "advisories": []})
+                matched = True
+            elif not hashes:
                 unmatched.append({"type": typ, "value": value,
                                   "reason": "스캔 기록에 비교 가능한 컴포넌트 해시가 없어 대조 불가"})
+            else:
+                unmatched.append({"type": typ, "value": value, "reason": "기록된 컴포넌트 해시와 일치하지 않는다"})
         else:
             unmatched.append({"type": typ, "value": value,
                               "reason": "IP/C2/도메인은 SBOM 표면이 없다 - 로그·방화벽 대상이며 프로젝트 대조 불가"})
+        if not matched and all(u.get("value") != value or u.get("type") != typ for u in unmatched):
+            unmatched.append({"type": typ, "value": value, "reason": "대조 결과 없음"})
     return {"id": rec["id"], "iocs": len(rec.get("iocs") or []), "projects": len(projects),
             "matches": hits, "unmatched": unmatched}
 
 # --------------------------------------------------------------------------- reports (루프 2)
+def _md_safe(text: str) -> str:
+    """Neutralize markdown-active line starts (#/!/[) and control chars in user text so a report stays prose."""
+    out = []
+    for ln in text.replace("\r", "").split("\n"):
+        ln = ln.lstrip()
+        if ln.startswith(("#", "!", "[")):
+            ln = "\\" + ln                       # a backslash escape keeps the character, kills the markup meaning
+        out.append(ln)
+    return "\n".join(out)
+
+
 def _f(rec: Dict[str, Any], key: str) -> str:
     v = str((rec.get("findings") or {}).get(key) or "").strip()
-    return v if v else "미확인"
+    return _md_safe(v) if v else "미확인"
 
 
 def intake_report(rec: Dict[str, Any]) -> str:
@@ -446,7 +523,14 @@ def route(method: str, path: str, query: Dict[str, List[str]], body: Dict[str, A
             return _ok(rec) if rec else _err(404, "unknown incident")
         m = re.fullmatch(r"/(IR-\d{8}-[0-9a-f]{4})/sbom-impact", rest)
         if m:
-            return _ok(sbom_impact(evidence, m.group(1)))
+            out = sbom_impact(evidence, m.group(1))
+            return _err(404, "unknown incident") if out.get("error") == "unknown incident" else _ok(out)
+        m = re.fullmatch(r"/(IR-\d{8}-[0-9a-f]{4})/findings", rest)
+        if m:
+            rec, why = record_findings(evidence, m.group(1), body)
+            if rec is None:
+                return _err(400, why or "invalid")
+            return _ok(rec)
         m = re.fullmatch(r"/(IR-\d{8}-[0-9a-f]{4})/report", rest)
         if m:
             rec = _load(evidence, m.group(1))

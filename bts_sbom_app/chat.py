@@ -37,7 +37,7 @@ _FLEET_Q = re.compile(r"영향.{0,8}프로젝트|(어느|어떤|몇).{0,4}프로
 # a source the user typed: URL, github shorthand, or an absolute / relative / drive path (bare owner/repo is left to the LLM planner: "and/or" matches it)
 _SRC = re.compile(r"(?:https?://|ssh://|git@|file://)[^\s\"']+|github\.com/[\w.-]+/[\w.-]+|github:[\w.-]+/[\w.-]+|(?:[A-Za-z]:[\\/]|\.{1,2}[\\/]|~[\\/]|/)[^\s\"']+")
 _PATCH_ACT = re.compile(r"(패치|수정|업그레이드|고쳐|고치|patch|fix|upgrade).{0,14}(해|적용|진행|apply|하자|it\b)|apply.{0,12}patch|patch it")
-_IOC_HASH = re.compile(r'[0-9a-f]{32}(?:[0-9a-f]{32}|[0-9a-f]{8})?')   # md5(32) / sha1(40) / sha256(64), longest first
+_IOC_HASH = re.compile(r'\b(?:[0-9a-f]{64}|[0-9a-f]{40}|[0-9a-f]{32})\b')   # exact md5(32)/sha1(40)/sha256(64) with boundaries (commit SHAs are 40-hex, so this stays exact)
 _IOC_QUOTED = re.compile(r'''["']([A-Za-z0-9_.@:-]{3,64})["']''')
 
 
@@ -288,12 +288,25 @@ def _license(rec: Dict[str, Any]) -> List[str]:
 
 def _ioc_impact(rec: Dict[str, Any], values: List[str]) -> List[str]:
     """Cross-check incident IoC values against this project's components (the RFP's IoC -> 추가 피해지 확인,
-    on the supply-chain surface we own). Package names match canonically; a hash matches only when the scan
-    recorded a component checksum - a hash with nothing to compare against is answered as such, never a guess."""
+    on the supply-chain surface we own). Package names match canonically; a hash is compared against every
+    recorded component checksum, and the answer says WHICH case held: matched / recorded-but-mismatched /
+    no checksum recorded - it never claims a comparison that did not happen."""
     from .fleet import canon_name
     comps = {}
     for c in rec.get("components") or []:
         comps[canon_name(str(c.get("name") or "").lower())] = c
+    hashes: Dict[str, Dict[str, Any]] = {}
+    for c in rec.get("components") or []:
+        for h in c.get("hashes") or []:
+            hv = str(h.get("content") or "") if isinstance(h, dict) else str(h)
+            hv = hv.split(":", 1)[1] if ":" in hv else hv
+            if hv:
+                hashes[hv.lower()] = c
+        cs = str(c.get("checksum") or "")
+        if cs:
+            cs = cs.split(":", 1)[1] if ":" in cs else cs
+            if cs:
+                hashes[cs.lower()] = c
     adv_by_comp: Dict[str, set] = {}
     for v in rec.get("vulns") or []:
         adv_by_comp.setdefault(canon_name(str(v.get("package") or "").lower()), set()).add(str(v.get("id")))
@@ -305,7 +318,15 @@ def _ioc_impact(rec: Dict[str, Any], values: List[str]) -> List[str]:
             advs = sorted(adv_by_comp.get(canon, set()))
             lines.append("IoC %s -> 구성요소 %s %s 이(가) 이 프로젝트에 존재한다%s." % (
                 v, hit.get("name"), hit.get("version") or "", (" 대조 advisory: " + ", ".join(sorted(advs)[:5])) if advs else " (이 스캔에서 해당 advisory 없음)"))
-        elif re.fullmatch(r"[0-9a-f]{32}|[0-9a-f]{40}|[0-9a-f]{64}", v.lower()):
+            continue
+        is_hash = re.fullmatch(r"[0-9a-f]{32}|[0-9a-f]{40}|[0-9a-f]{64}", v.lower())
+        if is_hash and hashes:
+            hhit = hashes.get(v.lower())
+            if hhit is not None:
+                lines.append("IoC %s(해시) -> 구성요소 %s %s 의 체크섬과 일치한다." % (v, hhit.get("name"), hhit.get("version") or ""))
+            else:
+                lines.append("IoC %s(해시) -> 이 스캔이 기록한 %d개 체크섬과 일치하지 않는다." % (v, len(hashes)))
+        elif is_hash:
             lines.append("IoC %s(해시) -> 이 스캔은 대조 가능한 컴포넌트 체크섬을 기록하지 않았다 - 존재 여부를 지어내지 않는다." % v)
         else:
             lines.append("IoC %s -> 이 프로젝트의 구성요소에 없다." % v)
