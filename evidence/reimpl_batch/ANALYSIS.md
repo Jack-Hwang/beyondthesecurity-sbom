@@ -64,3 +64,14 @@ after-position assertion always sees the backslash it just consumed) - now unit-
 
 Batch impact: FunctionTestCase-style oracles across the dataset now grade honestly; the 31 'ok' verdicts
 were contract-only evidence and stay so until each is re-run - no verdict is retroactively upgraded here.
+
+## Metrics-envelope round (2026-11-28 night, AC-1279): plateau confirmed at 4
+
+The Understand-catalog behavioral envelope (per-function complexity/essential/statements/eLOC/Halstead
+volume from the recovered 140-metric catalog) now rides the clean-room SPEC channel next to the UML
+design view - numbers only, wall-2 honesty test-enforced. Live mimeparse with the envelope: **4 of 29
+legacy failures, best attempt 2** - identical to the pre-envelope baseline (e2e4/e2e5). Three
+configurations now converge on 4: the remaining cases (the legacy q=2 clamp, the two level-param rows,
+the wildcard best_match label) need the legacy oracle's EXAMPLES, not more shape information. Next
+levers: oracle example rows through the spec channel (measured once already - counterproductive at full
+table, untested bounded), or a different deployment model for one attempt.
