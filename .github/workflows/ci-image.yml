@@ -31,6 +31,8 @@ permissions:
 jobs:
   image:
     runs-on: ubuntu-latest
+    env:
+      ACR_REGISTRY: ${{ vars.ACR_REGISTRY }}   # job-wide: the rotation/build/push steps read it too
     steps:
       - uses: actions/checkout@v4
 
@@ -43,18 +45,20 @@ jobs:
 
       - name: ACR login
         run: az acr login --name "${ACR_REGISTRY%%.*}"
-        env:
-          ACR_REGISTRY: ${{ vars.ACR_REGISTRY }}
 
       - name: Version from the single source
         run: echo "VER=$(sed -n 's/^version = \"\([^\"]*\)\".*/\1/p' pyproject.toml | head -1)" >> "$GITHUB_ENV"
 
       - name: Rollback tag rotation (old :latest -> :previous)
         run: |
-          docker pull "$ACR_REGISTRY/bts-sbom-app:latest" \
-            && docker tag "$ACR_REGISTRY/bts-sbom-app:latest" "$ACR_REGISTRY/bts-sbom-app:previous" \
-            && docker push "$ACR_REGISTRY/bts-sbom-app:previous" \
-            || echo "no previous latest (first build) - :previous skipped honestly"
+          if docker manifest inspect "$ACR_REGISTRY/bts-sbom-app:latest" >/dev/null 2>&1; then
+            docker pull "$ACR_REGISTRY/bts-sbom-app:latest"
+            docker tag "$ACR_REGISTRY/bts-sbom-app:latest" "$ACR_REGISTRY/bts-sbom-app:previous"
+            docker push "$ACR_REGISTRY/bts-sbom-app:previous"
+            echo "rotated: old :latest is now :previous"
+          else
+            echo "no :latest yet (first build) - :previous skipped honestly"
+          fi
 
       - name: Build
         run: |
