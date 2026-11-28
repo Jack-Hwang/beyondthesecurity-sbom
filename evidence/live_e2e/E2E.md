@@ -15,3 +15,8 @@ Chain requested by the owner ("GitHub에서 받고 → 스캔 → 리포트 → 
 8. UI in a real browser on the live URL: CCD three-column layout renders (rail 264 / chat 760 / drawer 576, 30 panes), a chat turn answered with live CVEs (CVE-2020-7610 bson CRITICAL 9.8 → 1.1.4 ...).
 
 Auth state: the login wall is OFF by owner decision (commit 10f2e05) — an open demo deployment, documented in deploy/azure/README.md.
+## 311 불변 진단 (추가 조사 2026-11-28 오후)
+
+- 승인 잡(235dac4d54) 기록의 metrics 311은 **패치 적용 전 스캔값**이다 — 승인 흐름은 스캔 → 플랜 → 적용 순서이고 재스캔 수치는 별도 필드로 노출되지 않는다.
+- 패치된 워크카피(/tmp/bts_sbom_job_ygu3tvr8)는 **컨테이너 로컬 /tmp**에 있었고, 잡 완료 후 스케일 0이 되면서 소멸했다(스모크 재실행 전 리비전이 콜드 스타트한 것으로 확인). 산출물(CDX/SPDX/VEX/레코드)은 Files 볼륨(/tmp/evidence)에 영속됐다.
+- 결론: 실패가 아니라 **설계된 휘발성(R8) + 전달 단계(AC-18: 브랜치·폴더·제자리·GitHub PR) 미호출**. 배포 가능한 결과물을 남기려면 잡 창구 안에서 전달 단계(예: GitHub PR 플래그)를 함께 호출해야 한다. 이 문서를 쓰는 시점에는 컨테이너가 재기동되어 승인 잡 기록 자체가 /api/jobs에서 404(문서화된 동작: 완료 잡은 이전 서버 실행 것은 미서빙)이다.

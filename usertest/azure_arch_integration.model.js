@@ -144,7 +144,7 @@ S.push({
   id: "harness6", kind: "table", fs: 9,
   cols: [{ t: "부품", w: 1.9 }, { t: "역할 (설계 산출물)", w: 3.6 }, { t: "성격", w: 1.3 }, { t: "BTS-SBOM에서는", w: 5.2 }],
   rows: [
-    ["H1 거버넌스 파일", "CLAUDE.md · rules/ — 모델이 읽는 팀 규칙", "권유", I("CLAUDE.md 없음 — 안내는 readme.txt·RUNBOOK이 맡는다(가이드 층이 약함 → 보강 후보)")],
+    ["H1 거버넌스 파일", "CLAUDE.md · rules/ — 모델이 읽는 팀 규칙", "권유", M("CLAUDE.md 신설(2026-11-28) — 팀 규칙·게이트·협업 규칙을 모델이 읽는다(H1 채움)")],
     ["H2 트리거 · 스킬", "skills/ · /smoke · /grounded-answer — 반복 작업의 순서 고정", "절차 고정", M("슬래시 명령 /help · /ir · /report — 자주 하는 절차를 한 단어로 고정")],
     ["H3 역할 에이전트", "agents/ 11종 — 역할마다 도구 허용목록", "역할 분담", M("도구 3계층(읽기 · 승인 필요 · 쓰기) — 역할별 에이전트는 아직 없음(단일 에이전트)")],
     ["H4 경계 루프", "settings.json 권한 · 훅 — 허용 · 확인 · 금지", "결정적 강제", M("도구 호출 최대 4회 · 속도 제한 · 승인 토큰 = 계획 다이제스트(틀리면 변경 0건)")],
@@ -156,7 +156,7 @@ S.push({
     ["로컬 vs 리모트 제어면", "PC(로컬)는 즉시 · 오프라인에서도 강제하지만 바꿀 수 있고, 서버(리모트)는 바꿀 수 없지만 로그인 후에만 강제한다 — 약점이 서로 반대라 함께 쓴다. BTS-SBOM은 환경변수 한 층(운영자가 바꿈) — 계층 구조는 아님"],
   ],
   verdict: I("왼쪽(H1~H3)은 잘하게 돕는 가이드, 오른쪽(H4~H6)은 넘지 못하게 하는 강제 — BTS-SBOM은 오른쪽이 강하고 왼쪽(H1)이 비어 있다."),
-  notes: SD + "24~25장, 보안 하네스 덱 5~7·13장. BTS-SBOM 실측: 저장소 루트에 CLAUDE.md·AGENTS.md 없음(ls), server.py·access.py·net.py·Dockerfile.bts-sbom-app (2026-11-28).",
+  notes: SD + "24~25장, 보안 하네스 덱 5~7·13장. BTS-SBOM 실측: CLAUDE.md는 11-28 오후 신설(이 덱의 측정은 그 이전 아침값) 없음(ls), server.py·access.py·net.py·Dockerfile.bts-sbom-app (2026-11-28).",
 });
 S.push({
   id: "ladder", kind: "table", fs: 9,
