@@ -84,3 +84,6 @@
   .body.ccd.nodrawer #ccDrawer{display:block;position:fixed;right:0;top:56px;bottom:26px;width:min(92vw,640px);
     z-index:40;box-shadow:-8px 0 24px rgba(0,0,0,.18)}
 }
+
+/* the center header replaces the dock's own bar (two "SBOM 어시스턴트" titles stacked = one too many) */
+.body.ccd #chatDock.as-center .bts-cd-bar{display:none}

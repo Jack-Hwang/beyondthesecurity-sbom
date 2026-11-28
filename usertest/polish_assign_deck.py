@@ -170,7 +170,7 @@ for (r, c), (old, new) in CELLS.items():
 # ---- 성과와 한계: test stat ----
 if tests:
     for sh in slide("성과와 한계").shapes:
-        if sh.has_text_frame and re.match(r"^[\d,]+ / [\d,]+$", sh.text_frame.paragraphs[0].text.strip()):
+        if sh.has_text_frame and re.match(r"^[\d,]+ / [\d,]+$", sh.text_frame.paragraphs[0].text.strip())                 and "테스트" in (sh.text_frame.paragraphs[1].text if len(sh.text_frame.paragraphs) > 1 else ""):
             set_par_text(sh.text_frame.paragraphs[0], "%s / %s" % (num(tests["passed"]), num(tests["collected"])))
             set_par_text(sh.text_frame.paragraphs[1], tests.get("card", "자동 테스트(최종 점검 실측)"))
 
