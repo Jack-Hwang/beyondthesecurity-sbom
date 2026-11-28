@@ -21,6 +21,7 @@ llm_local.json
 # work copies, caches, LLM call ledger
 evidence/batch/work/
 evidence/cache/
+evidence/incidents/
 evidence/.llm_ledger.json
 evidence/runs/
 bts_sbom_work_*/
