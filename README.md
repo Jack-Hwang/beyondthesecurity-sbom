@@ -8,6 +8,12 @@ detects typosquatting / dependency-confusion / homoglyph supply-chain attacks,
 and checks your documents against the requirements of six regulatory sectors —
 in one dependency-free Python package.
 
+![BTS-SBOM workbench — project sidebar, 4-stage scan strip (Input → Configure → Analyze → Results), and the always-present assistant dock with suggestion chips](docs/assets/demo_scan.png)
+
+*The workbench (`bts-sbom-app serve`): scan a repo or folder, watch the stages stream live, then ask the
+dock assistant — 27 chat tools from vulnerability triage to Code Intel, effectful patches gated behind a
+human approval chain. Full evaluator guide: [`readme.txt`](readme.txt).*
+
 **Zero third-party runtime dependencies.** Everything runs on the Python
 standard library (Python >= 3.10). The package can prove it:
 
@@ -310,6 +316,18 @@ data when the network is unavailable, and say so in the output.
 
 The separate `bts_sbom_app` package is broader: it can call LG EXAONE (opt-in, needs a key, daily-budget ledger) and ships a
 stdlib HTTP service (`bts-sbom-app serve`) with **no authentication** that must stay on localhost.
+
+> **Security posture — why "no auth, localhost only" is deliberate.** The local server is a developer
+> workbench; the risky paths are gated separately, not by an unshipped login form:
+> - **Effectful patches** run only through the HITL approval chain — analyse → plan + 16-hex approval
+>   token → apply in an **isolated work copy** → 12-hex confirm code → recorded ledger row. The chain
+>   was measured live (stale token refused, source-boundary refusal, 80.7 s isolated apply).
+> - **Deployed instances** set `BTS_SBOM_ACCESS_TOKEN`: every request but `/healthz`·`/readyz` must then
+>   present the 256-bit token (`bts-sbom-app access-token` prints one; Basic / Bearer / X-BTS-Token).
+> - **The Azure deployment** (`deploy/azure/`) puts **Easy Auth** in front of the app and pulls images
+>   via a system-assigned **managed identity** with the ACR admin account disabled.
+> - **Planned**: OIDC authentication for the local server, so the localhost rule stays a dev default,
+>   never the production story. Details: `docs/AZURE_DEPLOYMENT.md`, `docs/AZURE_IDENTITY.md`.
 
 ## 한국어 요약 (KO)
 
