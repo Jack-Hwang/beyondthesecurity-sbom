@@ -88,3 +88,21 @@ def test_the_conversation_drives_the_app_slash_next_steps_and_memory():
     css = _read("bts_console.css")
     for cls in (".bts-cd-next", ".bts-cd-next-b", ".bts-cd-clear"):
         assert cls in css
+
+
+def test_pane_activation_survives_the_ccd_layout_transform():
+    """AC: BSA-AC-1278. Regression (live user journey, 2026-11-28): the CCD transform (bts_ccd.js) moves
+    .bts-content — the .rpane set included — into #ccDrawer, but activate() still toggled
+    '#view-scan .rpane' (0 matches after the move), so EVERY rail pane switch was a silent no-op in the
+    CCD layout. activate() must query BOTH containers."""
+    con = _read("bts_console.js")
+    m = re.search(r"function activate\(sv, exact\) \{(.*?)\n  \}", con, re.S)
+    assert m, "activate() not found"
+    body = m.group(1)
+    assert "#ccDrawer .rpane" in body and "#view-scan .rpane" in body          # both layouts served
+    assert "var panes = '#ccDrawer .rpane, #view-scan .rpane';" in body        # the toggle reaches the moved panes
+    assert "$$(panes).forEach" in body                                         # the toggle uses the combined selector
+    rtab = re.search(r"\$\((tabSel|'#ccDrawer \.rtab)", body)
+    assert rtab, "the group-tab lookup must cover the drawer too"
+    ccd = _read("bts_ccd.js")
+    assert "drawer.appendChild(content)" in ccd                                # the transform is the premise of the fix

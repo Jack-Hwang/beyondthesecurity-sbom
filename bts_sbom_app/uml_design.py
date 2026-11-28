@@ -74,13 +74,19 @@ def _arg_names(fn: ast.FunctionDef) -> List[str]:
 
 
 def _walk_calls(node: ast.AST) -> List[Tuple[str, Optional[str]]]:
-    """(callee, qualifier) for every direct call in a body - X(), m.X(), self.m() kept apart."""
+    """(callee, qualifier) for every direct call in a body - X(), m.X(), self.m() and the self-attribute chain
+    self.part.build() (qualifier "self.part") are kept apart: the qualifier is what type resolution rides on."""
     out: List[Tuple[str, Optional[str]]] = []
     for sub in ast.walk(node):
         if isinstance(sub, ast.Call) and isinstance(sub.func, (ast.Name, ast.Attribute)):
             f = sub.func
             if isinstance(f, ast.Attribute):
-                q = f.value.id if isinstance(f.value, ast.Name) else ("self" if isinstance(f.value, ast.Attribute) and f.value.attr == "self" else "")
+                if isinstance(f.value, ast.Name):
+                    q = f.value.id
+                elif isinstance(f.value, ast.Attribute) and isinstance(f.value.value, ast.Name) and f.value.value.id == "self":
+                    q = "self." + f.value.attr
+                else:
+                    q = ""
                 out.append((f.attr, q))
             else:
                 out.append((f.id, None))
@@ -89,17 +95,19 @@ def _walk_calls(node: ast.AST) -> List[Tuple[str, Optional[str]]]:
 
 def _class_infos(tree: ast.Module) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
+    class_names = {n.name for n in tree.body if isinstance(n, ast.ClassDef)}
     for node in tree.body:
         if not isinstance(node, ast.ClassDef):
             continue
         attrs: List[Dict[str, Any]] = []
         methods: List[Dict[str, Any]] = []
         comp_targets: List[str] = []
+        attr_class: Dict[str, str] = {}                        # self.part = Part() -> "part": "Part"
         uses: set = set()
         for stmt in node.body:
             if isinstance(stmt, ast.FunctionDef):
                 calls = _walk_calls(stmt)
-                methods.append({"name": stmt.name, "args": len(_arg_names(stmt))})
+                methods.append({"name": stmt.name, "args": len(_arg_names(stmt)), "calls": calls})
                 for callee, q in calls:
                     if q == "self" and callee:
                         continue
@@ -108,7 +116,7 @@ def _class_infos(tree: ast.Module) -> List[Dict[str, Any]]:
             if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) \
                     and isinstance(stmt.value, (ast.Constant, ast.List, ast.Dict, ast.Set)):
                 attrs.append({"name": stmt.targets[0].id, "kind": type(stmt.value).__name__})
-        # __init__ body: self.x = Other(...) is composition on Other; self.x = literal is a plain attribute
+        # __init__ body: self.x = Other(...) is composition on Other; self.x: T = ... is a typed attribute
         for stmt in node.body:
             if not isinstance(stmt, ast.FunctionDef) or stmt.name != "__init__":
                 continue
@@ -117,14 +125,21 @@ def _class_infos(tree: ast.Module) -> List[Dict[str, Any]]:
                         and isinstance(sub.targets[0].value, ast.Name) and sub.targets[0].value.id == "self" \
                         and isinstance(sub.value, ast.Call) and isinstance(sub.value.func, ast.Name):
                     comp_targets.append(sub.value.func.id)
+                    attr_class[sub.targets[0].attr] = sub.value.func.id
                 elif isinstance(sub, ast.AnnAssign) and isinstance(sub.target, ast.Attribute) \
                         and isinstance(sub.target.value, ast.Name) and sub.target.value.id == "self" \
                         and sub.annotation is not None:
                     t = _cname(sub.annotation)
                     if t:
                         attrs.append({"name": sub.target.attr, "kind": "ann:" + t})
+                        if t in class_names:
+                            attr_class[sub.target.attr] = t
+        # de-dup attrs by name (a class-level literal and a typed __init__ assignment are one feature)
+        seen: set = set()
+        attrs = [a for a in attrs if not (a["name"] in seen or seen.add(a["name"]))]
         out.append({"name": node.name, "bases": [_cname(b) for b in node.bases], "attrs": attrs,
-                    "methods": methods, "composes": sorted(set(comp_targets)), "uses": sorted(uses)})
+                    "methods": methods, "composes": sorted(set(comp_targets)), "uses": sorted(uses),
+                    "attr_class": attr_class})
     return out
 
 
@@ -138,7 +153,7 @@ def _module_functions(tree: ast.Module) -> List[Dict[str, Any]]:
 
 
 # ------------------------------------------------------------------ class diagram
-def _class_mmd(path: str, tree: ast.Module) -> Tuple[str, Dict[str, int]]:
+def _class_mmd(tree: ast.Module) -> Tuple[str, Dict[str, int]]:
     infos = _class_infos(tree)[:MAX_CLASSES]
     names = {c["name"] for c in infos}
     lines = ["classDiagram"]
@@ -155,7 +170,6 @@ def _class_mmd(path: str, tree: ast.Module) -> Tuple[str, Dict[str, int]]:
             body.append("%s%s(%s)" % (_vis(m["name"]), m["name"], "" if m["args"] <= 1 else "…"))
         if len(c["methods"]) > MAX_FEATURES:
             body.append("…%d more()" % (len(c["methods"]) - MAX_FEATURES))
-        label = c["name"] + ("~" if len(c["name"]) + len(max(body, key=len, default="")) > 46 else "")
         lines.append("class %s {" % c["name"])
         lines += ["  " + b for b in body]
         lines.append("}")
@@ -166,7 +180,7 @@ def _class_mmd(path: str, tree: ast.Module) -> Tuple[str, Dict[str, int]]:
         for t in c["composes"]:
             if t in names:
                 relations.append("%s *-- %s : composition" % (c["name"], t))
-            elif t not in names and len([1 for i in infos]) and t[0].isupper():
+            elif t and t[0].isupper():
                 relations.append("%s ..> %s : dependency (external)" % (c["name"], t))
         for u in c["uses"][:3]:
             if u in names and u not in {r.split()[0] for r in relations} and u not in c["composes"]:
@@ -198,35 +212,87 @@ def _entry_function(funcs: List[Dict[str, Any]], tree: ast.Module) -> Optional[D
     return max(funcs, key=lambda f: len(f["calls"]), default=None)
 
 
-def _sequence_mmd(tree: ast.Module, funcs: List[Dict[str, Any]], parsed: set) -> Tuple[str, int]:
+_BUILTIN_CALLEES = ("get", "append", "print", "str", "len", "sorted", "set", "open", "range", "dict", "list", "int", "float", "min", "max", "sum", "join")
+
+
+def _sequence_mmd(tree: ast.Module, class_infos: List[Dict[str, Any]], funcs: List[Dict[str, Any]]) -> Tuple[str, int]:
+    """One entry's measured call chain. Type resolution is MEASURED, not guessed: a local bound to a constructed
+    class (e = Engine()) types e, a self attribute bound in __init__ (self.part = Part()) types it, and
+    self.part.build() / e.start() therefore descend into the right class method. One representative call per
+    level: the shape of the flow, not a trace."""
     entry = _entry_function(funcs, tree)
     if entry is None:
         return "", 0
+    classes = {c["name"]: c for c in class_infos}
+    func_nodes = {f["name"]: f["node"] for f in funcs}
+    methods = {(c["name"], m["name"]): m["calls"] for c in class_infos for m in c["methods"]}
     msgs: List[str] = []
     seen: set = set()
 
-    def emit(caller: str, callee: str, label: str, depth: int) -> None:
-        if len(msgs) >= MAX_MESSAGES or (caller, callee) in seen:
-            return
-        seen.add((caller, callee))
-        msgs.append("%s->>%s: %s" % (caller, callee, label))
-        if depth < MAX_DEPTH:
-            f = next((x for x in funcs if x["name"] == callee), None)
-            if f is not None:
-                msgs.append("activate %s" % callee)
-                for callee2, q in f["calls"][:MAX_MESSAGES]:
-                    if callee2 in ("get", "append", "print", "str", "len", "sorted", "set", "open", "range"):
-                        continue
-                    tgt = callee2 if (callee2 in parsed or (q or "") in parsed) else None
-                    if tgt is None:
-                        continue
-                    if tgt == callee:
-                        continue
-                    emit(callee, tgt, callee2 + "()", depth + 1)
-                    break                                  # one representative call per level: the shape, not a trace
-                msgs.append("deactivate %s" % callee)
+    def varmap(node: ast.AST) -> Dict[str, str]:
+        vm: Dict[str, str] = {}
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Assign) and isinstance(sub.targets[0], ast.Name) \
+                    and isinstance(sub.value, ast.Call) and isinstance(sub.value.func, ast.Name) \
+                    and sub.value.func.id in classes:
+                vm[sub.targets[0].id] = sub.value.func.id
+        return vm
 
-    emit("caller", entry["name"], entry["name"] + "()", 0)
+    def emit(caller: str, target: str, kind: str, label: str, depth: int, vm: Dict[str, str], ctx: Optional[Dict[str, Any]]) -> None:
+        if len(msgs) >= MAX_MESSAGES or (caller, target, label) in seen or depth > MAX_DEPTH:
+            return
+        seen.add((caller, target, label))
+        msgs.append("%s->>%s: %s" % (caller, target, label))
+        calls, inner_vm, inner_ctx = [], vm, ctx
+        if kind == "func":
+            f = func_nodes.get(target)
+            if f is not None:
+                calls = _walk_calls(f)
+                inner_vm = varmap(f)
+                inner_ctx = None
+        elif kind == "method":
+            cls, meth = target.split(".", 1)
+            calls = methods.get((cls, meth), [])
+            inner_vm = {}
+            inner_ctx = classes.get(cls)
+            msgs.append("activate %s" % target)             # the qualified name is its own lifeline - the pair must match
+        elif kind == "ctor":
+            calls = methods.get((target, "__init__"), [])
+            inner_ctx = classes.get(target)
+            inner_vm = {}
+            msgs.append("activate %s" % target)
+        descended = False
+        for callee, q in calls:
+            if callee in _BUILTIN_CALLEES:
+                continue
+            if q == "self" and inner_ctx is not None and (inner_ctx["name"], callee) in methods:
+                emit(target, inner_ctx["name"] + "." + callee, "method", callee + "()", depth + 1, {}, inner_ctx)
+                descended = True                            # every resolvable call descends - the seen-dedupe and
+                continue                                    # the message cap keep the shape bounded
+            if q and q.startswith("self.") and inner_ctx is not None:
+                owner = inner_ctx.get("attr_class", {}).get(q[5:])
+                if owner and (owner, callee) in methods:
+                    emit(target, owner + "." + callee, "method", callee + "()", depth + 1, {}, classes.get(owner))
+                    descended = True
+                    continue
+            cls = vm.get(q or "") or (classes.get(q) if q else None)
+            if cls and (cls, callee) in methods:
+                emit(target, cls + "." + callee, "method", callee + "()", depth + 1, {}, classes.get(cls))
+                descended = True
+                continue
+            if callee in classes:
+                emit(target, callee, "ctor", "new " + callee, depth + 1, {}, classes.get(callee))
+                descended = True
+                continue
+            if callee in func_nodes:
+                emit(target, callee, "func", callee + "()", depth + 1, {}, None)
+                descended = True
+                continue
+        if kind in ("method", "ctor"):
+            msgs.append("deactivate %s" % target)           # always paired, even after the descends
+        _ = descended, inner_vm
+
+    emit("caller", entry["name"], "func", entry["name"] + "()", 0, varmap(entry["node"]), None)
     if not msgs:
         return "", 0
     return "\n".join(["sequenceDiagram"] + msgs), len(msgs)
@@ -350,9 +416,8 @@ def design_pack(path: str, source_root: Optional[str] = None) -> Dict[str, Any]:
         return {"module": self_module, "error": "cannot parse legacy source: %s: %s" % (type(exc).__name__, str(exc)[:120])}
     class_infos = _class_infos(tree)
     funcs = _module_functions(tree)
-    parsed = {c["name"] for c in class_infos} | {f["name"] for f in funcs}
-    class_mmd, cm = _class_mmd(path, tree)
-    seq_mmd, sm = _sequence_mmd(tree, funcs, parsed)
+    class_mmd, cm = _class_mmd(tree)
+    seq_mmd, sm = _sequence_mmd(tree, class_infos, funcs)
     pkg_mmd, pm = _package_mmd(source_root, self_module)
     state_mmd, state_note, stm = _state_mmd(tree, class_infos)
     out: Dict[str, Any] = {"module": self_module,

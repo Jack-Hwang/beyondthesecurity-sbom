@@ -121,13 +121,19 @@
      GROUP button restores the member the user visited last (sv === group). Without the exact path the first
      member chip of a group can never reopen its own pane (e.g. the Scan landing after visiting OSS 결과). */
   function activate(sv, exact) {
+    /* the CCD transform (bts_ccd.js) moves .bts-content — panes included — into #ccDrawer; the pre-CCD
+       layout keeps them under #view-scan. Both containers are queried: a selector bound to one of them
+       silently switches NOTHING (the P0 the live user journey caught — every rail click was a no-op). */
+    var panes = '#ccDrawer .rpane, #view-scan .rpane';
+    var tabs = '#ccDrawer .rtab, #view-scan .rtab';
+    var tabSel = '#ccDrawer .rtab[data-sv="' + sv + '"], #view-scan .rtab[data-sv="' + sv + '"]';
     var group = sv, member = sv;
-    if ($('#view-scan .rtab[data-sv="' + sv + '"]')) { member = (GROUPS[sv] && GROUPS[sv][0]) || sv; }
+    if ($(tabSel)) { member = (GROUPS[sv] && GROUPS[sv][0]) || sv; }
     else { group = groupOf(sv); if (!group) { return; } }
     if (!exact && sv === group && S.members[group] && GROUPS[group].indexOf(S.members[group]) >= 0) { member = S.members[group]; }
     S.members[group] = member;
-    $$('#view-scan .rtab').forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-sv') === group); });
-    $$('#view-scan .rpane').forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-sv') === member); });
+    $$(tabs).forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-sv') === group); });
+    $$(panes).forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-sv') === member); });
     subnav(group, member);
     if (member === 'report') { renderConsole(); }     // the report tab owns the only ScaApp mount: re-render on entry
   }

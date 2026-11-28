@@ -78,7 +78,11 @@ def test_the_pack_measures_the_four_diagrams_from_the_legacy_source(tmp_path):
     assert "Engine *-- Part : composition" in cls                                 # EA Composition -> *--
     seq = pack["diagrams"]["sequence"]
     assert seq.startswith("sequenceDiagram") and "caller->>main: main()" in seq    # the __main__ guard names the entry
-    assert "main->>Engine: Engine()" in seq and "activate main" in seq            # lifelines + activation
+    assert "main->>Engine: new Engine" in seq                                     # the measured constructor chain
+    assert "Engine.start->>Part.build: build()" in seq                            # the typed self-attr chain descends
+    act = [l.split()[1] for l in seq.splitlines() if l.startswith("activate ")]
+    dea = [l.split()[1] for l in seq.splitlines() if l.startswith("deactivate ")]
+    assert act and sorted(act) == sorted(dea)                                     # every activation is paired (mermaid renders)
     pkg = pack["diagrams"]["package"]
     assert "module: helpers.py" in pkg and "root[" in pkg                         # the sibling module is a node
     assert "-->" in pkg                                                           # the import edge crossed the wall
