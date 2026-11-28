@@ -228,7 +228,8 @@ class State:
         self._chat_hits_lock = threading.Lock()
         if cfg:
             os.environ["BTS_SBOM_LLM_CONFIG"] = cfg
-        self.client = ChatClient.from_env(ledger=os.path.join(root, "evidence", ".llm_ledger.json"))
+        ledger = os.environ.get("BTS_SBOM_LLM_LEDGER") or os.path.join(root, "evidence", ".llm_ledger.json")
+        self.client = ChatClient.from_env(ledger=ledger)     # on a scale-to-zero deployment point this at the evidence volume,
         self.startup_client = self.client                    # a disconnect falls back to what the process was started with
         if not self.client.available:                        # the key entered in the web console survives a restart (evidence/.llm_config.json);
             saved = self.saved_llm_config()                  # an explicit startup configuration (env / --llm-config) still wins over the saved file
@@ -236,7 +237,7 @@ class State:
             if key:                                                               # console/earlier versions wrote (user-test 2026-11-22)
                 base = str(saved.get("base_url") or saved.get("azure_base_url") or "")
                 model = str(saved.get("model") or saved.get("azure_deployment") or saved.get("azure_model") or "")
-                self.client = ChatClient.from_config(key, base, model, ledger=os.path.join(root, "evidence", ".llm_ledger.json"),
+                self.client = ChatClient.from_config(key, base, model, ledger=ledger,
                                                      api_version=str(saved.get("azure_api_version") or "") or None)
         self.triage_path = os.path.join(evidence, ".triage.json")
         self._books_cache: Optional[Tuple[Optional[Tuple[int, int]], Any]] = None   # ((mtime_ns, size) of registry.json, rag.Index)
