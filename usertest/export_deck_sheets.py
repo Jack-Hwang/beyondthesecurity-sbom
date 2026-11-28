@@ -17,7 +17,7 @@ from PIL import Image
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-DECK = os.path.join(ROOT, "docs", "BTS-SBOM_1-6주차_종합_과제.pptx")
+DECK = os.path.join(ROOT, "docs", "BTS-SBOM_1-6주차_종합_과제_황병주_20261128.pptx")
 OUT = os.path.join(ROOT, "evidence", "deck_render", "assign_v2", "full")
 os.makedirs(OUT, exist_ok=True)
 for n in os.listdir(OUT):

@@ -24,7 +24,7 @@ from pptx.oxml.ns import qn
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-DECK = os.path.join(ROOT, "docs", "BTS-SBOM_1-6주차_종합_과제.pptx")
+DECK = os.path.join(ROOT, "docs", "BTS-SBOM_1-6주차_종합_과제_황병주_20261128.pptx")
 WORK = os.path.join(ROOT, "evidence", "deck_render", "assign_v2")
 KEEP = ("Title 1", "섹션 태그", "출처")          # the course deck's chrome shapes - kept on every clone
 
