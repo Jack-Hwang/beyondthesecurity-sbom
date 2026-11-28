@@ -123,7 +123,13 @@ def transplant(dst, ssrc, next_id):
 
 
 changed = []
+import re  # noqa: E402
+AC_COUNT = len(re.findall(r"^- BSA-AC-\d+", io.open(os.path.join(ROOT, "specs", "bts_sbom_app_features.md"), encoding="utf-8").read(), re.M))
 for item in plan:
+    key = item["title"].splitlines()[0][:14]
+    if any(key in title_of(s) for s in prs.slides):
+        print("skip (already in deck):", item["id"])
+        continue
     i = find(item["target"])
     new = duplicate(i)
     template = prs.slides[i]
@@ -151,11 +157,11 @@ for sh in prs.slides[1].shapes:                       # 목차 stat cards + sour
         continue
     txt = sh.text_frame.text
     if txt.startswith("667"):
-        first_run(sh, "675")
+        first_run(sh, str(AC_COUNT))
     elif txt.startswith("93\n"):
         first_run(sh, "100")
     elif txt.startswith("수치 출처:"):
-        set_paras(sh, ["수치 출처: speclint(675, 2026-11-28 재측정) · readme.txt 0.6.0 실측 · docs/LECTURE_MAPPING.md"])
+        set_paras(sh, ["수치 출처: specs/bts_sbom_app_features.md AC %d건(2026-11-28 최종 점검) · readme.txt 0.6.0 실측 · docs/LECTURE_MAPPING.md" % AC_COUNT])
 for sh in prs.slides[5].shapes:                       # 요구사항 장: speclint 문구
     if not sh.has_text_frame:
         continue
@@ -164,6 +170,31 @@ for sh in prs.slides[5].shapes:                       # 요구사항 장: specli
             p.findall(qn("a:r"))[-1].find(qn("a:t")).text = "0 (재측정)"
 
 from pptx.opc.packuri import PackURI  # noqa: E402
+from pptx.dml.color import RGBColor  # noqa: E402
+from pptx.enum.text import PP_ALIGN  # noqa: E402
+from pptx.util import Pt  # noqa: E402
+
+GH = "https://github.com/Jack-Hwang/beyondthesecurity-sbom"
+LIVE = "https://bts-sbom.wittyforest-2c8fae00.koreacentral.azurecontainerapps.io"
+cover = prs.slides[0]
+if not any(sh.has_text_frame and "github.com/Jack-Hwang" in sh.text_frame.text for sh in cover.shapes):
+    tb = cover.shapes.add_textbox(Pt(128), Pt(378), Pt(612), Pt(54))     # inside the blue title card
+    tf = tb.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.alignment = PP_ALIGN.LEFT
+    r = p.add_run()
+    r.text = "GitHub: " + GH
+    r.hyperlink.address = GH
+    p2 = tf.add_paragraph()
+    p2.alignment = PP_ALIGN.LEFT
+    r2 = p2.add_run()
+    r2.text = "Azure 라이브: " + LIVE + "  (액세스 토큰 필요 · 없으면 401)"
+    r2.hyperlink.address = LIVE
+    for r in list(p.runs) + list(p2.runs):
+        r.font.size = Pt(10.5)
+        r.font.name = "맑은 고딕"
+        r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 # add_slide() numbers a new part from the CURRENT slide count, so a number freed by delete() gets reused and the
 # package ends up with two parts of one name (PowerPoint refuses to open it) - renumber every slide part.
 for n, s in enumerate(prs.slides, 1):
@@ -178,6 +209,7 @@ import win32com.client  # noqa: E402
 from PIL import Image  # noqa: E402
 
 app = win32com.client.Dispatch("PowerPoint.Application")
+STARTED_EMPTY = app.Presentations.Count == 0          # never quit a PowerPoint the user has open
 over, off = [], []
 pres = None
 try:
@@ -197,7 +229,8 @@ try:
 finally:
     if pres is not None:
         pres.Close()
-    app.Quit()
+    if STARTED_EMPTY:
+        app.Quit()
 names = sorted(n for n in os.listdir(WORK) if n.startswith("slide_") and n.endswith(".png"))
 sheet = Image.new("RGB", (960 * 3, 540 * 4), (20, 24, 32))
 for j, n in enumerate(names):

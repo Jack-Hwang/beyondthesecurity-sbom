@@ -68,6 +68,25 @@ S.push({ id: "fmea", ...by("장애 모드 분석 (FMEA)"), fs: 8.5 });
 S.push({ id: "sr", kind: "strideRisk", stride: { title: "stride", fs: 8.5, cols: by("위협 모델 (STRIDE)").cols, rows: by("위협 모델 (STRIDE)").rows }, risks: by("리스크 레지스터").risks,
   verdict: by("위협 모델 (STRIDE)").verdict, notes: by("위협 모델 (STRIDE)").notes + " / " + by("리스크 레지스터").notes });
 S.push({ id: "tobe", ...by("목표 아키텍처 (To-Be)"), dy: 50 });
+S.push({
+  id: "lanes", kind: "table", fs: 9,
+  cols: [{ t: "레인 (모듈)", w: 3.2 }, { t: "역할 — spec AC 문장 요약", w: 7.0 }, { t: "AC · 근거", w: 2.8 }],
+  rows: [
+    ["AI 영향성 평가 (ai_impact.py)", "지금 존재하는 산출물에서만 증거를 해석 — 행 수·구성·버전 스탬프. 유령 경로는 수집할 수 없다", "AC-1264 · docs/AI_IMPACT_ASSESSMENT.md"],
+    ["평가 코퍼스 인벤토리·데이터시트 (datasheet.py)", "전형·경계·적대를 보이는 규칙으로 집계 — 미지 태그는 그대로 보고한다", "AC-1265 · docs/DATASET_DATASHEET.md"],
+    ["LLM 호출 장부·페이싱 (llm.py)", "모든 전송 시도와 결과를 기록(429_retry_after 등) · 구조화 호출은 temperature 0.2, 추론 모델엔 미전송 · 최소 호출 간격", "AC-1266 · AC-1269"],
+    ["사용자 피드백 (feedback.py)", "dock의 위/아래 투표를 trace_id로 append-only 기록 — 같은 판정 재클릭은 1회, 뒤집힘은 별도 이벤트", "AC-1267"],
+    ["TOP-10 점수카드 엄격화", "found + 모든 참조 요소 + 금지값 없음 + 맨손 거절 아님 → correct (C61)", "AC-1268"],
+    ["카나리아 판단 (canary.py)", "promote/rollback/hold을 기록된 숫자 상한으로 — 어떤 지표가 어떤 수치로 깨졌는지 이름", "AC-1270 · docs/AZURE_CANARY_RUNBOOK.md"],
+    ["프롬프트 충돌 린트 (prompt_lint.py)", "중복 내용·혼합 출력 계약·모순 숫자 범위를 프롬프트 id로 — 이 저장소는 3/3 규칙 clean", "AC-1271 (C83)"],
+    ["벤치 게이트·성숙도·FT 결정 (bench_gate·maturity·ft_decision)", "벤치 이력 회귀 게이트 · MLOps 성숙도 자가 진단 · 파인튜닝 판정표를 이 저장소 산출물로 측정", "d6c702c (AC-1267~1271 레인)"],
+    ["GitOps 배포 레인 (scripts/gitops_deploy.py)", "상태 변화마다 대장 1행 — record·deploy_failed·auto_rolled_back·promoted·rolled_back_to·drift (Azure에서 실측)", "AC-1272 · evidence/deploy_ledger.jsonl"],
+    ["CI 이미지 레인 (.github/workflows/ci-image.yml)", "Azure 로그인 = OIDC 워크로드 아이덴티티 연합, 저장 시크릿 0 (azure/login@v2)", "AC-1273 · 5c7484b"],
+    ["조회 차단 사유·평가 후보 피드", "라이선스 조회가 막히면 그 사유를 meta에 기록 · 해소된 에스컬레이션을 평가 후보 행으로(노트 ≥10자)", "AC-1259 · AC-1260"],
+  ],
+  verdict: I("이 표는 spec AC 문장과 커밋 메시지를 옮긴 것이다 — 이번 점검에서 각 구현 코드를 열어 보지는 않았다. 테스트 연결은 speclint(테스트 없는 AC 0·미등록 참조 0)가 보증한다."),
+  notes: "출처: specs/bts_sbom_app_features.md AC-1259~1273, 커밋 d6c702c(AC-1267..1271)·69beae6(GitOps, AC-1272/1273)·5c7484b(ci-image 수정), 각 모듈 docstring(2026-11-28).",
+});
 
 const SEC5 = "5 · 아키텍처 설계", SEC6 = "6 · 적용 기술", SEC7 = "7 · MECE 종합";
 const SRC = "실측 2026-11-28 · az CLI·REST·Azure Monitor·코드 · 동적 버전: docs/AZURE_OPERATIONS_OVERVIEW.html";
@@ -82,6 +101,7 @@ const PLAN = [
   { id: "fmea", action: "insert_before", target: "성과와 한계", sec: SEC7, title: "장애 모드 분석(FMEA) 10건 — 탐지는 프로브 하나", sources: SRC },
   { id: "sr", action: "insert_before", target: "성과와 한계", sec: SEC7, title: "위협 모델(STRIDE) 6건 · 운영 리스크 레지스터 10건", sources: SRC },
   { id: "tobe", action: "insert_after", target: "성과와 한계", sec: SEC7, title: "목표 아키텍처(To-Be) — 바뀌는 것은 상태의 위치다", sources: "제안안(존재하지 않는 구성요소) · Azure 아키텍처 센터 지침 · 비용·난이도 미평가 · 공식 Azure 아이콘" },
+  { id: "lanes", action: "insert_after", target: "⑱ 콘솔 구조", sec: SEC6, title: "⑲ 병행 레인: AI 영향성 평가 · 백로그 잔여 · GitOps 배포\n(AC-1259~1273 — 이 덱의 마지막 갱신 분)", sources: "specs AC-1259~1273 · 커밋 d6c702c·69beae6·5c7484b · 역할 열은 AC 문장 요약(코드는 이번 점검에서 열지 않음) · 2026-11-28" },
 ];
 
 module.exports = { S, PLAN, LAYERS: A.LAYERS, M, I, G };

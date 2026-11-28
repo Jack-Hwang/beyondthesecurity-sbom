@@ -37,6 +37,7 @@ with open(MANIFEST, encoding="utf-8") as fh:
     manifest = {rec["slide"]: rec for rec in json.load(fh)}
 
 app = win32com.client.Dispatch("PowerPoint.Application")
+STARTED_EMPTY = app.Presentations.Count == 0          # never quit a PowerPoint the user has open
 report = {"slides": 0, "transitions": 0, "effects": 0, "overflow": [], "offslide": [], "effect_readback": {}}
 try:
     pres = app.Presentations.Open(PPTX, WithWindow=False)
@@ -89,7 +90,8 @@ try:
     total = pres.Slides.Count
 finally:
     pres.Close()
-    app.Quit()
+    if STARTED_EMPTY:
+        app.Quit()
 
 # ---- contact sheets (2x2) for visual QA ----
 from PIL import Image  # noqa: E402
