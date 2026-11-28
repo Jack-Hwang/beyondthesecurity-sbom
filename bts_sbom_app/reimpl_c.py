@@ -1188,7 +1188,11 @@ def run(source_root: str, component: str, out_dir: str, *, client: Any = None, w
                 dr = run_differential(tc, iface, orig["obj"], os.path.join(work, module + ext), hdr_path, work, header_name)
                 oracle["differential"] = dr
             else:
-                oracle["differential"] = {"ran": False, "reason": orig.get("reason", "original not built")}
+                # carry the compiler's own words into the differential record: the verdict reason
+                # interpolates dr["reason"] and the tail-join reads dr["log"] - dropping them here is
+                # how the generic "could not be compiled standalone" hid the real cause (measured on CI)
+                oracle["differential"] = {"ran": False, "reason": orig.get("reason", "original not built"),
+                                          "log": orig.get("log") or ([orig.get("err")] if orig.get("err") else [])}
         ad_ran = bool(oracle.get("adopted", {}).get("ran"))
         ad_ok = oracle.get("adopted", {}).get("ok")
         dr = oracle.get("differential") or {}
