@@ -106,7 +106,7 @@ def test_healthz_is_always_200_even_when_readiness_would_fail(probes, monkeypatc
     t0 = time.time()
     code, body, _ = _get(base + "/healthz")
     elapsed = time.time() - t0
-    assert code == 200 and body == {"ok": True}
+    assert code == 200 and body.get("ok") is True and "revision" in body                       # AC-1272: healthz names the serving revision (CONTAINER_APP_REVISION or 'local')
     assert elapsed < 1.0
 
 

@@ -331,7 +331,11 @@ def _errors(cc: str, src: str, cwd: str, includes: List[str], lang: str) -> Opti
         return None
     out: Set[Tuple[str, int, str]] = set()
     for m in _ERR.finditer(p.stderr or ""):
-        out.add((os.path.basename(m.group(1)), int(m.group(2)), re.sub(r"\s+", " ", m.group(3)).strip()[:200]))
+        msg = re.sub(r"\s+", " ", m.group(3)).strip()[:200]
+        # Linux gcc prints Unicode quotes unconditionally since gcc 8 (locale does not change it):
+        # normalize to ASCII so diagnostics match across platforms
+        msg = msg.replace(chr(0x2018), "'").replace(chr(0x2019), "'")
+        out.add((os.path.basename(m.group(1)), int(m.group(2)), msg))
     return out
 
 

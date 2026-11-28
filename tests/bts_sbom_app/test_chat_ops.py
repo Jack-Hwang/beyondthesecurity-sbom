@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
-from bts_sbom_app import escalation, server
+from bts_sbom_app import chat as chatmod, escalation, server
 from bts_sbom_app.chat_stream import format_stream_sse
 
 
@@ -92,6 +92,11 @@ def test_stream_handler_beats_heartbeats_links_trace_and_marks_jobs(tmp_path):
     base = "http://127.0.0.1:%d" % httpd.server_address[1]
     old = server.HEARTBEAT_SECONDS
     server.HEARTBEAT_SECONDS = 1.0                             # pull the interval down to keep the test fast
+    old_run = chatmod.Chatbot._run
+    def _slow_run(self, *a, **k):                              # CI is faster than one heartbeat interval:
+        time.sleep(1.25)                                       # force the turn to outlive it so the keep-alive
+        return old_run(self, *a, **k)                          # line deterministically has time to flow
+    chatmod.Chatbot._run = _slow_run
     try:
         req = urllib.request.Request(base + "/api/chat/stream", data=json.dumps({"question": "요약해줘", "use_llm": False}).encode(),
                                      headers={"Content-Type": "application/json"})
@@ -107,6 +112,7 @@ def test_stream_handler_beats_heartbeats_links_trace_and_marks_jobs(tmp_path):
         assert raw["status"] in ("complete", "partial")
     finally:
         server.HEARTBEAT_SECONDS = old
+        chatmod.Chatbot._run = old_run
         httpd.shutdown()
 
 
