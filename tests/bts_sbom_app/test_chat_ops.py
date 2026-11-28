@@ -92,6 +92,17 @@ def test_stream_handler_beats_heartbeats_links_trace_and_marks_jobs(tmp_path):
     base = "http://127.0.0.1:%d" % httpd.server_address[1]
     old = server.HEARTBEAT_SECONDS
     server.HEARTBEAT_SECONDS = 1.0                             # pull the interval down to keep the test fast
+    real_stream_bot = st.stream_bot
+
+    class _SlowTurn:                                           # a silent gap longer than the beat interval (a slow LLM call, say): on a fast runner the
+        def __init__(self, bot):                               # offline turn alone ends in well under a second and no beat is ever due
+            self.bot = bot
+
+        def ask(self, *a, **kw):
+            time.sleep(server.HEARTBEAT_SECONDS * 2.5)
+            return self.bot.ask(*a, **kw)
+
+    st.stream_bot = lambda *a, **kw: _SlowTurn(real_stream_bot(*a, **kw))
     try:
         req = urllib.request.Request(base + "/api/chat/stream", data=json.dumps({"question": "요약해줘", "use_llm": False}).encode(),
                                      headers={"Content-Type": "application/json"})
