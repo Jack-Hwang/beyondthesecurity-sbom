@@ -241,7 +241,7 @@ properties:
         value: /tmp/evidence/bts_sbom_osv_local.db
       - name: BTS_SBOM_TRUST_FORWARDED
         value: '1'
-      image: btsbomacr1126.azurecr.io/bts-sbom-app:sha-b03650a
+      image: btsbomacr1126.azurecr.io/bts-sbom-app:sha-f824a9f
       name: bts-sbom-app
       probes:
       - failureThreshold: 24
